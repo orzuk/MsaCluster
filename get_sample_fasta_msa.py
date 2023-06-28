@@ -2,7 +2,7 @@ import os
 import requests as r
 from Bio import SeqIO
 from io import StringIO
-
+from argparse import ArgumentParser
 
 def get_seq_from_uniprotId(cID):
     # cID='A0A3N5IQ47'
@@ -35,15 +35,24 @@ def get_seqId_indexes(a3m_file):
         except:
             continue
 
-if __name__ == '__main__':
 
-    # Create fasta seq
-    msa_folder = os.listdir()
+def main():
+    parser = ArgumentParser()
+    parser.add_argument("input",default="input",help="Should be a folder of msa files" )
+    parser.add_argument("results", help="Directory to write the fasta files to")
+    parser.add_argument("name", help="Fasta files prefix name")
+    args = parser.parse_args()
+    msa_folder = os.listdir(args.input)
     for msa in msa_folder:
         seq_indexes,seq_dict = get_seqId_indexes(msa)
-        fasta_file = open('fasta_file.fasta','fasta')
+        fasta_file = open(f'{str(msa)}_sample_0.fasta','fasta')
         fasta_file.write('>'+seq_dict[0]['seqId'] + '/n' + seq_dict[0]['sequence'])
 
+        fasta_file = open(f'{str(msa)}_sample_1.fasta', 'fasta')
+        fasta_file.write('>' + seq_dict[1]['seqId'] + '/n' + seq_dict[1]['sequence'])
+
+if __name__ == '__main__':
+    main()
 
 
 
