@@ -59,6 +59,25 @@ python3  ./runESM.py ./msa_file.a3m ./output
 - _msa_file_ is your msa in .a3m format
 - _output_ is your output foler that will contains all the msas (.a3m files)
 
+## Pipeline
+To run the full pipeline you need a sequence as input in .fasta format and run 
+```
+mkdir results
+python3 ./get_msa.py ./FASTA_FILE.fasta ./results -name BIG_MSA
+
+mkdir results/cluster_msa_output
+
+python3 ./ClusterMSA_moriah.py --keyword MSA -i ./results/BIG_MSA.a3m -o ./results/cluster_msa_output 
+
+mkdir results/af_cmsa_output
+python3 ./RunAF_colabfold.py ./results/cluster_msa_output  af_cmsa_output
+
+mkdir results/sample_cmsa_outputs
+python3 ./get_sample_msa_algn.py ./results/cluster_msa_output 
+
+mkdir results/esm_cmap_output
+python3 ./runESM.py ./results/cluster_msa_output -o ./results/esm_cmap_output 
+``` 
 
 ## HURCS cluster
 
