@@ -282,6 +282,7 @@ if __name__=='__main__':
     """)
 
 
+
     p.add_argument("input_msas", nargs='*', action='store',help='Path to msas to use in prediction.')
     p.add_argument("-o", action="store", help='name of output directory to write contact maps to.')
     p.add_argument("--model", action='store', default='msa_t', help="Model: `esm1b` or `msa_t` (default is 'msa_t')")
