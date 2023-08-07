@@ -2,6 +2,7 @@ from pathlib import Path
 from colabfold.batch import get_msa_and_templates
 from colabfold.batch import msa_to_str
 from colabfold.batch import get_queries
+
 from argparse import ArgumentParser
 
 

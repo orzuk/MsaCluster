@@ -44,21 +44,26 @@ def main():
             continue
         os.makedirs(f'{output_folder}/{msa[:-4]}')
         seqids = get_seqids(f'{msas_folder}/{msa}')
-        count = 2
-        for sample_cnt in range(count):
-            for id in seqids:
-                try:
-                    seq = get_seq_from_uniprotId(id[1:])
-                    if (len(seq) > 0):
-                        seq.remove(id)
-                        break
-                    else:
+        count = 0
+        for sample_cnt in range(20):
+            try:
+                for id in seqids:
+                    try:
+                        seq = get_seq_from_uniprotId(id[1:])
+                        if (len(seq) > 0):
+                            seq.remove(id)
+                            break
+                        else:
+                            continue
+                    except:
                         continue
-                except:
-                    continue
-            with open(f'{output_folder}/{msa[:-4]}/{id[1:]}.fasta', 'w') as f_out:
-                f_out.write('>' + id + '\n' + seq)
-
+                with open(f'{output_folder}/{msa[:-4]}/{id[1:]}.fasta', 'w') as f_out:
+                    f_out.write('>' + id + '\n' + seq)
+                count += 1
+                if (count > 1):
+                    break
+            except:
+                continue
             result_dir = Path(f'{output_folder}/{msa[:-4]}')
             queries, is_complex = get_queries(f'{output_folder}/{msa[:-4]}/{id[1:]}.fasta', 'random')
             sequence = queries[0][1]
@@ -84,12 +89,15 @@ def main():
             df = open(f'{output_folder}/{msa[:-4]}/{msa[:-4]}_SAMPLE_{str(sample_cnt)}.a3m', 'w')
             flag = 1
             for i in algn_msa_list:
-                if flag == 1:
-                    df.write("%s\n" % '>101')
-                    df.write("%s\n" % seq[:108])
-                    flag = 0
-                df.write("%s\n" % i)
-                df.write('\n')
+                try:
+                    if flag == 1:
+                        df.write("%s\n" % '>101')
+                        df.write("%s\n" % seq[:])
+                        flag = 0
+                    df.write("%s\n" % i)
+                    df.write('\n')
+                except:
+                    continue
 
 
 

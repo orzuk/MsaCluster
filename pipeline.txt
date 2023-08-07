@@ -14,9 +14,8 @@ Get fasta sequence
 
 
 
-
-
 3) get ClusterMSA
+
 
 
 
