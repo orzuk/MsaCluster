@@ -1,6 +1,87 @@
 # MsaCluster
 
-## Virtual environement
+
+## Get msa (alignement)
+To get the full msa run 
+
+```
+python3 ./get_msa.py ./FASTA_FILE.fasta ./OUTPUT_DIR -name BIG_MSA
+```
+where 
+
+- _FASTA_FILE_ is a fasta file in format .fasta and contain the sequence query
+- _BIG_MSA_ is the msa output name (.a3m file)
+- _OUTPUT_DIR_ is the output directory 
+
+
+## Run ClusterMSA
+
+To run ClusterMSA 
+```
+python3 ./ClusterMSA_moriah.py --keyword MSA -i ./output_dir/BIG_MSA.a3m -o ./results/cluster_msa_output 
+```
+where 
+- _MSA_  is the perfix name of each msa cluster (.a3m file)
+- _cluster_msa_output_ is your output foler that will contains all the msa cluster (.a3m file)
+
+
+## Run AlphaFold 
+
+To run AlphaFold with each msa cluster as feature run 
+```
+python3 ./RunAF_colabfold.py ./results/cluster_msa_output  af_cmsa_output
+```
+where 
+- _cluster_msa_output_  is the folder where you have all your msas (.a3m files)
+- _af_cmsa_output_ is your output foler that will contains all the alphafold predictions (.pdb files)
+
+
+## Run sample Alphafold  
+
+To get Alphafold predictions on sequences sampled from each msa cluster run
+ 
+```
+python3 ./get_sample_msa_algn.py ./results/cluster_msa_output 
+```
+where 
+
+- _./results/cluster_msa_output _ is your folder where you have all your msas clusters (.a3m files)
+- _output_ is your output foler that will contains all the msas (.a3m files)
+
+
+## Run ESM 
+
+To run ESM for contact map predition 
+```
+python3  ./runESM.py ./msa_file.a3m ./output
+``` 
+
+- _msa_file_ is your msa in .a3m format
+- _output_ is your output foler that will contains all the msas (.a3m files)
+
+## Pipeline
+To run the full pipeline you need a sequence as input in .fasta format and run 
+```
+mkdir results
+python3 ./get_msa.py ./FASTA_FILE.fasta ./results -name BIG_MSA
+
+mkdir results/cluster_msa_output
+
+python3 ./ClusterMSA_moriah.py --keyword MSA -i ./results/BIG_MSA.a3m -o ./results/cluster_msa_output 
+
+mkdir results/af_cmsa_output
+python3 ./RunAF_colabfold.py ./results/cluster_msa_output  af_cmsa_output
+
+mkdir results/sample_cmsa_outputs
+python3 ./get_sample_msa_algn.py ./results/cluster_msa_output 
+
+mkdir results/esm_cmap_output
+python3 ./runESM.py ./results/cluster_msa_output -o ./results/esm_cmap_output 
+``` 
+
+## HURCS cluster
+
+### Virtual environement
 Create a virtual environement.
 If you are running on one of the HURCS , to [create a vitual environement](https://wiki.cs.huji.ac.il/hurcs/software/python) run:
 ```
@@ -10,81 +91,6 @@ Install the requirements
 ```
 pip install -r requirements.txt
 ```
-
-## Run ClusterMSA
-To run ClusterMSA 
-1. Modify the ClusterMsa.sh file to run the ClusterMSA on your own Msa : 
-```
-#!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=2
-#SBATCH --mem=1G
-
-
-
-python3  ./ClusterMSA_moriah.py --keyword PREFIXE_MSA_NAME -i ./msa_file.a3m -o ./output 
-
-```
-where 
-
-- _PREFIXE_MSA_NAME_  is the prefix name you want before each msa cluster .a3m file
-- _msa_file_ is your msa in .a3m format
-- _output_ is your output foler that will contains all the msas (.a3m files)
-
-2. Send the job 
-```
-sbatch ClusterMsa.sh
-```
-
-## Run Alphafold
-
-To run Alphafold 
-1. Modify the Alphafold.sh file to run the ClusterMSA on your own Msa : 
-```
-##!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=4G
-
-
-python3  ./RunAF2_moriah.py --input_msa_folder ./output
-```
-where 
-
-- _input_msa_folder_  is the folder where you have all your msas .a3m files
-- _output_ is your output foler that will contains all the alphafold predictions .pdb files
-
-2. Send the job 
-```
-sbatch Alphafold.sh
-```
-
-## Run ESM 
-
-To run ESM for contact map predition 
-1. Modify the ESM.sh file to run the ClusterMSA on your own Msa : 
-```
-##!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=4G
-
-
-python3  ./ESM_moriah.py ./msa_file.a3m ./output
-```
-where 
-
-- _msa_file_ is your msa in .a3m format
-- _output_ is your output foler that will contains all the msas (.a3m files)
-
-2. Send the job 
-```
-sbatch ESM.sh
-```
-
 
 
 
