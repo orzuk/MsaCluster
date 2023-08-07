@@ -72,6 +72,8 @@ python3 ./get_sample_msa_algn.py ./output_pipeline/cluster_msa_output  ./output_
 
 ## HURCS cluster
 
+(Note: All the .sh files are in the folder _/sci/home/steveabecassis/colabfold_new_ )
+
 Activate the virtual environement :
 ```
 source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
