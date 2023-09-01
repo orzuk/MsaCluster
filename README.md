@@ -62,35 +62,140 @@ python3  ./runESM.py ./msa_file.a3m ./output
 ## Pipeline
 To run the full pipeline you need a sequence as input in .fasta format and run 
 ```
-mkdir results
-python3 ./get_msa.py ./FASTA_FILE.fasta ./results -name BIG_MSA
-
-mkdir results/cluster_msa_output
-
-python3 ./ClusterMSA_moriah.py --keyword MSA -i ./results/BIG_MSA.a3m -o ./results/cluster_msa_output 
-
-mkdir results/af_cmsa_output
-python3 ./RunAF_colabfold.py ./results/cluster_msa_output  af_cmsa_output
-
-mkdir results/sample_cmsa_outputs
-python3 ./get_sample_msa_algn.py ./results/cluster_msa_output 
-
-mkdir results/esm_cmap_output
-python3 ./runESM.py ./results/cluster_msa_output -o ./results/esm_cmap_output 
+mkdir output_pipeline/output_get_msa 
+python3 ./get_msa.py ./fasta_files/rcsb_pdb_1EBO.fasta  ./output_pipeline/output_get_msa  -name '1ebo'
+mkdir output_pipeline_1ebo/cluster_msa_output 
+python3  ./ClusterMSA_moriah.py --keyword cluster -i ./output_pipeline/output_get_msa/1ebo.a3m -o ./output_pipeline/cluster_msa_output
+mkdir output_pipeline/sample_msa 
+python3 ./get_sample_msa_algn.py ./output_pipeline/cluster_msa_output  ./output_pipeline/sample_msa
 ``` 
 
 ## HURCS cluster
 
-### Virtual environement
-Create a virtual environement.
-If you are running on one of the HURCS , to [create a vitual environement](https://wiki.cs.huji.ac.il/hurcs/software/python) run:
+(Note: All the .sh files are in the folder _/sci/home/steveabecassis/colabfold_new_ )
+
+Activate the virtual environement :
 ```
-virtualenv /sci/labs/pi-user-name/your-user-name/my-python-venv --python python3
+source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 ```
-Install the requirements
+
+### Get msa (alignement)
+
+This is the get_msa.sh file
 ```
-pip install -r requirements.txt
+#!/bin/bash
+
+#SBATCH --time=05:00:00
+#SBATCH --ntasks=8
+#SBATCH --mem=10G
+
+
+python3 /sci/home/steveabecassis/colabfold_new/get_msa.py PATH_TO_YOUR_SEQUENCE_FILE OUTPUT_PATH  -name 'PREFIX_MSA_NAME'
 ```
+
+After you replace _PATH_TO_YOUR_SEQUENCE_FILE_ by the path of your sequence file (.a3m or .fasta file),_PREFIX_MSA_NAME_ by the prefix you want for the msa and _OUTPUT_PATH_ by the path you want your msa output send the job with: 
+```
+sbatch get_msa.sh
+```
+
+### ClusterMSA
+
+This is the ClusterMsa.sh file
+```
+#!/bin/bash
+
+#SBATCH --time=05:00:00
+#SBATCH --ntasks=8
+#SBATCH --mem=10G
+
+
+source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
+python3  /sci/home/steveabecassis/colabfold_new/ClusterMSA_moriah.py --keyword PREFIX_MSAS -i BIG_MSA_INPUT -o OUTPUT_PATH
+```
+
+After you replace _PREFIX_MSAS_ ,_BIG_MSA_INPUT_ (.a3m or .fasta file),_PREFIX_MSAS_ and _OUTPUT_PATH_ send the job with: 
+```
+sbatch ClusterMsa.sh
+```
+
+### Run Alphafold
+
+This is the colabfold_dina_gpu.sh file
+```
+#!/bin/bash
+
+#SBATCH --time=05:00:00
+#SBATCH --ntasks=8
+#SBATCH --mem=10G
+#SBATCH --gres=gpu:a100-1-10
+
+module load cuda/11.1
+module load cudnn/8.0.5
+
+source /sci/labs/dina/dina/collabFold_phoenix/bin/activate.csh
+
+/sci/labs/dina/dina/localcolabfold/colabfold-conda/bin/colabfold_batch  INPUT_MSA_SEQUENCE  OUTPUT_PATH --data=/cs/labs/dina/seanco/colabfold/weights/ 
+```
+
+After you replace _INPUT_MSA_SEQUENCE_ ,_OUTPUT_PATH_ send the job with: 
+```
+sbatch colabfold_dina_gpu.sh
+```
+Note:
+You can give to alphafold as input a sequence (.fasta file) or a msa (.a3m)
+
+### Run sample MSA 
+
+This is the sample_msa.sh file
+```
+#!/bin/bash
+
+#SBATCH --time=05:00:00
+#SBATCH --ntasks=8
+#SBATCH --mem=10G
+
+
+python3 /sci/home/steveabecassis/colabfold_new/get_sample_msa_algn.py MSAS_FOLDER  OUTPUT_PATH
+```
+
+After you replace _MSAS_FOLDER_ , _OUTPUT_PATH_ send the job with: 
+```
+sbatch sample_msa.sh
+```
+Note:
+For each msa in MSAS_FOLDER:
+  1. sample sequence
+  2. get large msa for this sequence
+  3. filter the sequence of the large msa and keep only the sequence that were in the original msa
+
+The original msas are msas output of ClusterMsa.
+
+
+### PIPELINE
+
+This is the pipeline_msas.sh file:
+```
+#!/bin/bash
+
+#SBATCH --time=05:00:00
+#SBATCH --ntasks=8
+#SBATCH --mem=10G
+
+echo $(curl ifconfig.me)
+source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
+
+mkdir output_pipeline_1ebo/output_get_msa 
+python3 ./get_msa.py ./fasta_files/rcsb_pdb_1EBO.fasta  ./output_pipeline_1ebo/output_get_msa  -name '1ebo'
+mkdir output_pipeline_1ebo/cluster_msa_output 
+python3  ./ClusterMSA_moriah.py --keyword cluster -i ./output_pipeline_1ebo/output_get_msa/1ebo.a3m -o ./output_pipeline_1ebo/cluster_msa_output
+mkdir output_pipeline_1ebo/sample_msa 
+python3 ./get_sample_msa_algn.py ./output_pipeline_1ebo/cluster_msa_output  ./output_pipeline_1ebo/sample_msa
+```
+The pipeline input is a sequence.
+1. Get the msa
+2. Cluster the msa into severall msas
+3. For each msa cluster sample a sequence and get the alignement
+
 
 
 
