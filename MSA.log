@@ -1,0 +1,6 @@
+MSA
+2031 seqs removed for containing more than 25% gaps, 6204 remaining
+6204 total seqs
+45 clusters, 3508 of 6204 not clustered (0.57)
+avg identity to query of unclustered: 0.36
+avg identity to query of clustered: 0.40
