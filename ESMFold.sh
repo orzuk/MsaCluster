@@ -4,5 +4,5 @@
 #SBATCH --ntasks=8
 #SBATCH --mem=10G
 
-
-python3 ./get_sample_msa_algn.py ./output/output_get_msa  ./output/output_sample_msa/
+mkdir output/esm_fold_output
+python3 ./get_sample_msa_algn.py ./output/output_get_msa  ./output/esm_fold_output/ -name 'test'

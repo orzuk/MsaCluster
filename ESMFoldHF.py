@@ -44,6 +44,11 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    # class args:
+    #     input = './2QKEE_002.a3m'
+    #     output = './'
+    #     name = 'test'
+
     with open(args.input, 'r') as msa_fil:
         seq = msa_fil.read().splitlines()
 
@@ -55,7 +60,7 @@ if __name__ == '__main__':
     print('Finish to load model !')
 
     print('Get ESM prediction...')
-    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False)  # A tiny random peptide
+    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False,padding=True)  # A tiny random peptide
     outputs = model(**inputs)
     folded_positions = outputs.positions
     print('Finish ESM prediction !')
