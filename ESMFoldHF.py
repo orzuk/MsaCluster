@@ -62,8 +62,8 @@ if __name__ == '__main__':
     print('Finish to load model !')
 
     print('Get ESM prediction...')
-    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False,padding=True).to(device)
-    outputs = model(**inputs).to(device)
+    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False,padding=True)
+    outputs = model(**inputs)
     folded_positions = outputs.positions
     print('Finish ESM prediction !')
 
