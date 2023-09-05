@@ -2,7 +2,7 @@ from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
 from argparse import  ArgumentParser
-
+import torch
 
 
 def convert_outputs_to_pdb(outputs):
@@ -44,6 +44,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     # class args:
     #     input = './2QKEE_002.a3m'
     #     output = './'
@@ -60,8 +62,8 @@ if __name__ == '__main__':
     print('Finish to load model !')
 
     print('Get ESM prediction...')
-    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False,padding=True)  # A tiny random peptide
-    outputs = model(**inputs)
+    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False,padding=True).to(device)
+    outputs = model(**inputs).to(device)
     folded_positions = outputs.positions
     print('Finish ESM prediction !')
 
