@@ -5,4 +5,4 @@
 #SBATCH --mem=10G
 
 mkdir output/esm_fold_output
-python3 ./get_sample_msa_algn.py ./output/output_get_msa  ./output/esm_fold_output/ -name 'test'
+python3 ./ESMFoldHF.py ./2QKEE_002.a3m  ./output/esm_fold_output/ -name 'test'
