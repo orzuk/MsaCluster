@@ -322,7 +322,7 @@ if __name__=='__main__':
             pred = mdl.predict_contacts(batch_tokens)[0].cpu()
             pred = pred.detach().cpu().numpy()
             print(np.sum(pred))
-            np.savetxt("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
+            np.savetxt("%s/%s_%s_%s.npy" %  (args.o, args.model, args.keyword, name), pred)
             print("wrote %s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name))
 
     elif args.model=='msa_t':

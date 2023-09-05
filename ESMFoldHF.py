@@ -1,14 +1,9 @@
 from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
+from argparse import  ArgumentParser
 
 
-
-model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1")
-tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
-inputs = tokenizer(["MLKNVQVQLV"], return_tensors="pt", add_special_tokens=False)  # A tiny random peptide
-outputs = model(**inputs)
-folded_positions = outputs.positions
 
 def convert_outputs_to_pdb(outputs):
 
@@ -38,10 +33,36 @@ def save_string_as_pdb(pdb_string, file_path):
     with open(file_path, 'w') as pdb_file:
         pdb_file.write(pdb_string)
 
-print('Finish ESM prediction !')
 
-pdb = convert_outputs_to_pdb(outputs)
-print(pdb[0])
-save_string_as_pdb(pdb[0], './TEST_ESM.pdb')
 
-print('FINISH!!!!')
+if __name__ == '__main__':
+
+    parser = ArgumentParser()
+    parser.add_argument("-input", default="input", help="Should be a .a3m file")
+    parser.add_argument("-output", help="Directory to write the results to")
+    parser.add_argument("-name", help="msa name")
+
+    args = parser.parse_args()
+
+    with open(args.input, 'r') as msa_fil:
+        seq = msa_fil.read().splitlines()
+
+    seqs = [i.replace('-', '') for i in seq if '>' not in i][:3]
+
+    print('Load model...!')
+    model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1")
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+    print('Finish to load model !')
+
+    print('Get ESM prediction...')
+    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False)  # A tiny random peptide
+    outputs = model(**inputs)
+    folded_positions = outputs.positions
+    print('Finish ESM prediction !')
+
+    print('Write pdb output...!')
+    for i in range(len(seqs)):
+        pdb = convert_outputs_to_pdb(outputs)
+        print(pdb[i])
+        save_string_as_pdb(pdb[i], f'.{args.output}/{args.name}_esm_{i}.pdb')
+    print('Finish to write pdb outputs !')

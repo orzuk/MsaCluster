@@ -5,4 +5,4 @@
 #SBATCH --mem=10G
 
 
-python3 /sci/home/steveabecassis/colabfold_new/get_msa.py ./2QKEE_002.a3m    ./output/output_get_msa  -name 'test'
+python3 ./get_msa.py ./2QKEE_002.a3m    ./output/output_get_msa  -name 'test'

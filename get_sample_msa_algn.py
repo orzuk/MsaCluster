@@ -12,11 +12,11 @@ from argparse import ArgumentParser
 def get_seq_from_uniprotId(cID):
     # cID='A0A3N5IQ47'
     baseUrl="http://www.uniprot.org/uniprot/"
-    currentUrl=baseUrl+cID+".fasta"
+    currentUrl = baseUrl+cID+".fasta"
     response = r.post(currentUrl)
-    cData=''.join(response.text)
-    Seq=StringIO(cData)
-    pSeq=list(SeqIO.parse(Seq,'fasta'))
+    cData =''.join(response.text)
+    Seq = StringIO(cData)
+    pSeq = list(SeqIO.parse(Seq,'fasta'))
     return str(pSeq[0].seq)
 
 

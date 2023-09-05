@@ -6,4 +6,4 @@
 
 
 source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
-python3  /sci/home/steveabecassis/colabfold_new/ClusterMSA_moriah.py --keyword MSA -i ./output/output_get_msa/test.a3m  -o ./output/output_msa_cluster
+python3  ./ClusterMSA_moriah.py --keyword MSA -i ./output/output_get_msa/test.a3m  -o ./output/output_msa_cluster
