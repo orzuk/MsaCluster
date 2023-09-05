@@ -2,7 +2,7 @@
 
 #SBATCH --time=05:00:00
 #SBATCH --ntasks=8
-#SBATCH --mem=10G
+#SBATCH --mem=20G
 #SBATCH --gres=gpu:a100-1-10
 
 mkdir output/esm_fold_output
