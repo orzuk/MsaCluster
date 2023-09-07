@@ -1,5 +1,9 @@
 from pathlib import Path
 import sys
+import os
+
+print("Current dir: ", os.getcwd())
+
 sys.path.insert(0, '/sci/labs/orzuk/steveabecassis/MsaCluster')
 from colabfold.batch import get_msa_and_templates
 from colabfold.batch import msa_to_str
