@@ -2,7 +2,7 @@
 
 #SBATCH --time=05:00:00
 #SBATCH --ntasks=8
-#SBATCH --mem=20G
+#SBATCH --mem=50G
 
 
 mkdir output/esm_fold_output
