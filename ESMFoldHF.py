@@ -51,7 +51,6 @@ if __name__ == '__main__':
     #     output = './'
     #     name = 'test'
 
-    # input_path = '/Users/steveabecassis/PycharmProjects/MsaCluster/2QKEE_002.a3m'
     with open(args.input, 'r') as msa_fil:
         seq = msa_fil.read().splitlines()
 
