@@ -51,7 +51,8 @@ if __name__ == '__main__':
     #     output = './'
     #     name = 'test'
 
-    with open(args.input, 'r') as msa_fil:
+    input_path = '/Users/steveabecassis/PycharmProjects/MsaCluster/2QKEE_002.a3m'
+    with open(input_path, 'r') as msa_fil:
         seq = msa_fil.read().splitlines()
 
     seqs = [i.replace('-', '') for i in seq if '>' not in i][:3]
@@ -61,15 +62,16 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
     print('Finish to load model !')
 
-    print('Get ESM prediction...')
-    inputs = tokenizer(seqs, return_tensors="pt", add_special_tokens=False,padding=True)
-    outputs = model(**inputs)
-    folded_positions = outputs.positions
-    print('Finish ESM prediction !')
 
-    print('Write pdb output...!')
     for i in range(len(seqs)):
+        print(f'Get ESM prediction {i}...')
+        inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
+        outputs = model(**inputs)
+        folded_positions = outputs.positions
+        print('Finish ESM prediction !')
+
+        print(f'Write pdb output {i}...!')
         pdb = convert_outputs_to_pdb(outputs)
         print(pdb[i])
         save_string_as_pdb(pdb[i], f'.{args.output}/{args.name}_esm_{i}.pdb')
-    print('Finish to write pdb outputs !')
+        print(f'Finish to write pdb output {i} !')
