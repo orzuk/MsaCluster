@@ -51,8 +51,8 @@ if __name__ == '__main__':
     #     output = './'
     #     name = 'test'
 
-    input_path = '/Users/steveabecassis/PycharmProjects/MsaCluster/2QKEE_002.a3m'
-    with open(input_path, 'r') as msa_fil:
+    # input_path = '/Users/steveabecassis/PycharmProjects/MsaCluster/2QKEE_002.a3m'
+    with open(args.input, 'r') as msa_fil:
         seq = msa_fil.read().splitlines()
 
     seqs = [i.replace('-', '') for i in seq if '>' not in i][:3]
