@@ -38,6 +38,11 @@ if __name__ == '__main__':
     df.loc[df.score_pdb1 > df.score_pdb2 ,'Fold'] = pdb1_name
     df.loc[df.score_pdb1 < df.score_pdb2, 'Fold'] = pdb2_name
     df.sort_values(by='pdb_file',inplace=True)
+    df['cluster_num'] = df.pdb_file.apply(lambda x : x[8:11])
+    fold1             = df.Fold.iloc[0]
+    df['is_fold1']    = (df['Fold'] == fold1).astype(int)
+    df['unique_fold_score']       = df.groupby('cluster_num')['is_fold1'].transform('mean')
+
     print(f"High score for fold {pdb1_name} is {round(df[df['Fold'] == pdb1_name].score_pdb1.max(),2)}")
     print(f"High score for fold {pdb2_name} is {round(df[df['Fold'] == pdb2_name].score_pdb2.max(), 2)}")
     print(f"Count for fold {pdb1_name} is {len(df[df['Fold'] == pdb1_name])}")
