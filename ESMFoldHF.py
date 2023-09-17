@@ -71,6 +71,6 @@ if __name__ == '__main__':
 
         print(f'Write pdb output {i}...!')
         pdb = convert_outputs_to_pdb(outputs)
-        print(pdb[i])
-        save_string_as_pdb(pdb[i], f'{args.output}/{args.name}_esm_{i}.pdb')
+        print(pdb[0])
+        save_string_as_pdb(pdb[0], f'{args.output}/{args.name}_esm_{i}.pdb')
         print(f'Finish to write pdb output {i} !')
