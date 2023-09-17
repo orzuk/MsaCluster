@@ -54,7 +54,7 @@ if __name__ == '__main__':
     with open(args.input, 'r') as msa_fil:
         seq = msa_fil.read().splitlines()
 
-    seqs = [i.replace('-', '') for i in seq if '>' not in i][:3]
+    seqs = [i.replace('-', '') for i in seq if '>' not in i]
 
     print('Load model...!')
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1")
@@ -63,14 +63,17 @@ if __name__ == '__main__':
 
 
     for i in range(len(seqs)):
-        print(f'Get ESM prediction {i}...')
-        inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
-        outputs = model(**inputs)
-        folded_positions = outputs.positions
-        print('Finish ESM prediction !')
+        try:
+            print(f'Get ESM prediction {i}...')
+            inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
+            outputs = model(**inputs)
+            folded_positions = outputs.positions
+            print(f'Finish ESM prediction {i}!')
 
-        print(f'Write pdb output {i}...!')
-        pdb = convert_outputs_to_pdb(outputs)
-        print(pdb[0])
-        save_string_as_pdb(pdb[0], f'{args.output}/{args.name}_esm_{i}.pdb')
-        print(f'Finish to write pdb output {i} !')
+            print(f'Write pdb output {i}...!')
+            pdb = convert_outputs_to_pdb(outputs)
+            print(pdb[0])
+            save_string_as_pdb(pdb[0], f'{args.output}/{args.name}_esm_{i}.pdb')
+            print(f'Finish to write pdb output {i} !')
+        except:
+            continue
