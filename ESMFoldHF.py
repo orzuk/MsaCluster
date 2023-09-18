@@ -57,32 +57,23 @@ if __name__ == '__main__':
     seqs = [i.replace('-', '') for i in seq if '>' not in i]
 
     print('Load model...!')
-    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
-    # model = model.cuda()
-    model.esm = model.esm.half()
-    # torch.backends.cuda.matmul.allow_tf32 = True
-    model.trunk.set_chunk_size(64)
-
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1",low_cpu_mem_usage=True)
     print('Finish to load model !')
+
 
     for i in range(len(seqs)):
         try:
             print(f'Get ESM prediction {i}...')
-            tokenized_input = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
-            tokenized_input = tokenized_input.cuda()
-            # with torch.no_grad():
-            outputs = model(tokenized_input)
+            inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
+            outputs = model(**inputs)
             folded_positions = outputs.positions
             print(f'Finish ESM prediction {i}!')
 
             print(f'Write pdb output {i}...!')
-
             pdb = convert_outputs_to_pdb(outputs)
             print(pdb[0])
             save_string_as_pdb(pdb[0], f'{args.output}/{args.name}_esm_{i}.pdb')
             print(f'Finish to write pdb output {i} !')
         except:
             continue
-
-
