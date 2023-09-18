@@ -66,7 +66,6 @@ if __name__ == '__main__':
 
     print('Finish to load model !')
 
-
     for i in range(len(seqs)):
         try:
             print(f'Get ESM prediction {i}...')
