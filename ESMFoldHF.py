@@ -59,7 +59,7 @@ if __name__ == '__main__':
     print('Load model...!')
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
-    model = model.cuda()
+    # model = model.cuda()
     model.esm = model.esm.half()
     torch.backends.cuda.matmul.allow_tf32 = True
     model.trunk.set_chunk_size(64)
@@ -72,8 +72,8 @@ if __name__ == '__main__':
             print(f'Get ESM prediction {i}...')
             tokenized_input = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
             tokenized_input = tokenized_input.cuda()
-            with torch.no_grad():
-                outputs = model(tokenized_input)
+            # with torch.no_grad():
+            outputs = model(tokenized_input)
             folded_positions = outputs.positions
             print(f'Finish ESM prediction {i}!')
 
@@ -85,3 +85,5 @@ if __name__ == '__main__':
             print(f'Finish to write pdb output {i} !')
         except:
             continue
+
+
