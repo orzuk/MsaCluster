@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --time=05:00:00
-#SBATCH --ntasks=24
-#SBATCH --mem=50G
+#SBATCH --ntasks=16
+#SBATCH --mem=128G
 
 
 mkdir output/esm_fold_output
