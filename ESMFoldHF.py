@@ -61,7 +61,7 @@ if __name__ == '__main__':
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     # model = model.cuda()
     model.esm = model.esm.half()
-    torch.backends.cuda.matmul.allow_tf32 = True
+    # torch.backends.cuda.matmul.allow_tf32 = True
     model.trunk.set_chunk_size(64)
 
     print('Finish to load model !')
