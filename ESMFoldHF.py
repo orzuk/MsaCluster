@@ -62,6 +62,7 @@ if __name__ == '__main__':
 
     # model.esm = model.esm.half()
     model.trunk.set_chunk_size(64)
+    model.esm.float()
 
     print('Finish to load model !')
 
