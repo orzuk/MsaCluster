@@ -6,4 +6,4 @@
 
 
 mkdir output/esm_fold_output
-python3 ./ESMFoldHF.py -input ./msas4esm/cluster_008.a3m -output ./output/esm_fold_output -name 'Cluster008_'
+python3 ./ESMFoldHF.py -input ./msas4esm/cluster_021.a3m -output ./output/esm_fold_output -name 'Cluster021_'
