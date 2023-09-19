@@ -60,7 +60,7 @@ if __name__ == '__main__':
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1",low_cpu_mem_usage=True)
 
-    model.esm = model.esm.half()
+    # model.esm = model.esm.half()
     model.trunk.set_chunk_size(64)
 
     print('Finish to load model !')
