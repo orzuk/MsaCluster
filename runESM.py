@@ -297,7 +297,7 @@ if __name__=='__main__':
         args.i = args.i[:3]
 
     input = args.i
-    msa_files = list(os.listdir(input))
+    msa_files = list(os.listdir(input[0]))
  
     msas = {
         os.path.basename(msa_fil).replace('.a3m',''): read_msa(args.i+msa_fil)
