@@ -295,14 +295,17 @@ if __name__=='__main__':
     #os.makedirs(args.o, exist_ok=True)
     if args.test:
         args.i = args.i[:3]
+
+    msa_files = list(os.listdir(args.i))
  
     msas = {
         os.path.basename(msa_fil).replace('.a3m',''): read_msa(args.i+msa_fil)
-        for msa_fil in args.i
+        for msa_fil in msa_files
     }
     sequences = {
         name: msa[0] for name, msa in msas.items()
     }
+
 
     if args.model=='esm1b':
         mdl, mdl_alphabet = esm.pretrained.esm1b_t33_650M_UR50S()
