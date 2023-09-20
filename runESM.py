@@ -298,7 +298,7 @@ if __name__=='__main__':
  
     msas = {
         os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
-        for msa_fil in os.listdir(str(args.i))
+        for msa_fil in os.listdir(args.i[0])
     }
     sequences = {
         name: msa[0] for name, msa in msas.items()
