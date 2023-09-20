@@ -300,7 +300,7 @@ if __name__=='__main__':
     msa_files = list(os.listdir(input[0]))
  
     msas = {
-        os.path.basename(msa_fil).replace('.a3m',''): read_msa(args.i+msa_fil)
+        os.path.basename(msa_fil).replace('.a3m',''): read_msa(input+msa_fil)[0]
         for msa_fil in msa_files
     }
     sequences = {
