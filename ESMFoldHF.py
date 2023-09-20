@@ -3,8 +3,9 @@ from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
 from argparse import  ArgumentParser
 import torch
-
-
+from random import sample
+import random
+random.seed(10)
 def convert_outputs_to_pdb(outputs):
 
     final_atom_positions = atom14_to_atom37(outputs["positions"][-1], outputs)
@@ -54,7 +55,10 @@ if __name__ == '__main__':
     with open(args.input, 'r') as msa_fil:
         seq = msa_fil.read().splitlines()
 
+
     seqs = [i.replace('-', '') for i in seq if '>' not in i]
+    if len(seqs) > 30:
+        seqs = sample(seqs,30)
 
     print('Load model...!')
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
