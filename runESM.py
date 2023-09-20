@@ -298,10 +298,17 @@ if __name__=='__main__':
 
     input_msas = ['./cluster_msa_output_1jfk/' + msa for msa in os.listdir('./cluster_msa_output_1jfk') if 'a3m' in str(msa)]
 
+    #
+    # msas = {
+    #     os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
+    #     for msa_fil in input_msas
+    # }
+
     msas = {
-        os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
-        for msa_fil in input_msas
+        os.path.basename(msa_fil).replace('.a3m', ''): read_msa(msa_fil)
+        for msa_fil in args.input_msas
     }
+
     sequences = {
         name: msa[0] for name, msa in msas.items()
     }
