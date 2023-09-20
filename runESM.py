@@ -295,10 +295,12 @@ if __name__=='__main__':
     #os.makedirs(args.o, exist_ok=True)
     if args.test:
         args.input_msas = args.input_msas[:3]
- 
+
+    input_msas = [args.input_msas + '/' + msa for msa in os.listdir(args.input_msas) if 'a3m' in str(msa)]
+
     msas = {
         os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
-        for msa_fil in args.input_msas
+        for msa_fil in input_msas
     }
     sequences = {
         name: msa[0] for name, msa in msas.items()
