@@ -8,4 +8,4 @@
 source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 module load torch/1.3
 mkdir output/esm_cmap_output
-python3  ./runESM.py  -i './cluster_msa_output_1jfk' -o ./output/esm_cmap_output
+python3  ./runESM.py  ./cluster_msa_output_1jfk -o ./output/esm_cmap_output

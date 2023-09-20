@@ -283,7 +283,7 @@ if __name__=='__main__':
 
 
 
-    p.add_argument("-i", nargs='*', action='store',help='Path to msas to use in prediction.')
+    p.add_argument("input_msas", nargs='*', action='store',help='Path to msas to use in prediction.')
     p.add_argument("-o", action="store", help='name of output directory to write contact maps to.')
     p.add_argument("--model", action='store', default='msa_t', help="Model: `esm1b` or `msa_t` (default is 'msa_t')")
     p.add_argument('--keyword', action='store', default='', help="Keyword for this prediction")
@@ -294,19 +294,17 @@ if __name__=='__main__':
 
     #os.makedirs(args.o, exist_ok=True)
     if args.test:
-        args.i = args.i[:3]
+        args.input_msas = args.input_msas[:3]
 
-    input = args.i
-    msa_files = list(os.listdir(input[0]))
- 
+    input_msas = [args.input_msas + '/' + msa for msa in os.listdir(args.input_msas) if 'a3m' in str(msa)]
+
     msas = {
-        os.path.basename(msa_fil).replace('.a3m',''): read_msa(input+msa_fil)[0]
-        for msa_fil in msa_files
+        os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
+        for msa_fil in input_msas
     }
     sequences = {
         name: msa[0] for name, msa in msas.items()
     }
-
 
     if args.model=='esm1b':
         mdl, mdl_alphabet = esm.pretrained.esm1b_t33_650M_UR50S()
