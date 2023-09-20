@@ -296,7 +296,7 @@ if __name__=='__main__':
     if args.test:
         args.input_msas = args.input_msas[:3]
 
-    input_msas = [args.input_msas + '/' + msa for msa in os.listdir(args.input_msas) if 'a3m' in str(msa)]
+    input_msas = [args.input_msas + '/' + msa for msa in os.listdir('./cluster_msa_output_1jfk') if 'a3m' in str(msa)]
 
     msas = {
         os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
