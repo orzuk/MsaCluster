@@ -296,7 +296,8 @@ if __name__=='__main__':
     if args.test:
         args.input_msas = args.input_msas[:3]
 
-    input_msas = ['./cluster_msa_output_1jfk/' + msa for msa in os.listdir('./cluster_msa_output_1jfk') if 'a3m' in str(msa)]
+    msa_cluster_path = './Pipeline/output/output_msa_cluster/'
+    input_msas = [f'{msa_cluster_path}' + msa for msa in os.listdir(msa_cluster_path) if 'a3m' in str(msa)]
 
     #
     # msas = {

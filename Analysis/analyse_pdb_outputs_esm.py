@@ -10,24 +10,23 @@ import re
 
 
 if __name__ == '__main__':
-    input_path = '/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk'
+    input_path = '/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1k0n'
     # input_path = '/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1iyt'
-    pdb1 = f'{input_path}/1jfk.pdb'
+    pdb1 = f'{input_path}/1k0n.pdb'
     # pdb1 = f'{input_path}/1iyt.pdb'
     pdb1_name = pdb1[-8:-4]
-    pdb2 =f'{input_path}/2nxq.pdb'
+    pdb2 =f'{input_path}/1rk4.pdb'
     # pdb2 = f'{input_path}/2nao.pdb'
     pdb2_name = pdb2[-8:-4]
 
 
     # pdb_folder = '/Users/steveabecassis/Desktop/pdb_output/2LEP'
-    pdb_folder = '/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_output/esm_fold_output'
-    pdb_files = os.listdir(pdb_folder)
+    pdb_files = os.listdir(f'{input_path}/esm_fold_output')
     res = []
     pdb_files = [i for i in pdb_files if 'pdb' in str(i)]
     for pdb_file in tqdm(pdb_files):
         if 'pdb' in str(pdb_file):
-            pdb_file_path = f'{pdb_folder}/{pdb_file}'
+            pdb_file_path = f'{input_path}/esm_fold_output/{pdb_file}'
             score_pdb1 = tmscoring.get_tm(pdb_file_path, pdb1)
             score_pdb2 = tmscoring.get_tm(pdb_file_path, pdb2)
             temp = {'pdb_file':pdb_file,'score_pdb1':score_pdb1,'score_pdb2':score_pdb2}
@@ -48,7 +47,7 @@ if __name__ == '__main__':
     df['is_fold1']    = (df['Fold'] == fold1).astype(int)
     df['unique_fold_score']       = df.groupby('cluster_num')['is_fold1'].transform('mean')
 
-    # df.to_csv('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_output_analysis.csv',index=False)
+    df.to_csv(f'{input_path}/esm_output_analysis.csv',index=False)
 
     print(f"High score for fold {pdb1_name} is {round(df[df['Fold'] == pdb1_name].score_pdb1.max(),2)}")
     print(f"High score for fold {pdb2_name} is {round(df[df['Fold'] == pdb2_name].score_pdb2.max(), 2)}")
