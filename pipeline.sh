@@ -7,7 +7,7 @@
 mkdir Pipeline
 mkdir Pipeline/output
 mkdir Pipeline/output/output_get_msa
-python3 /sci/labs/orzuk/steveabecassis/MsaCluster/get_msa.py ./input/FASTA_FILE   /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/output/output_get_msa  -name 'DeepMsa'
+python3 /sci/labs/orzuk/steveabecassis/MsaCluster/get_msa.py ./input/2qke.fasta  /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/output/output_get_msa  -name 'DeepMsa'
 mkdir Pipeline/output/output_msa_cluster
 python3  /sci/labs/orzuk/steveabecassis/MsaCluster/ClusterMSA_moriah.py --keyword ShallowMsa -i /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/output/output_get_msa/DeepMsa.a3m  -o /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/output/output_msa_cluster
 mkdir /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/output/AF_preds
