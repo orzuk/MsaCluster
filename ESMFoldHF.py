@@ -1,3 +1,5 @@
+import os
+
 from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
@@ -51,38 +53,40 @@ if __name__ == '__main__':
     #     input = './2QKEE_002.a3m'
     #     output = './'
     #     name = 'test'
-
-    with open(args.input, 'r') as msa_fil:
-        seq = msa_fil.read().splitlines()
-
-
-    seqs = [i.replace('-', '') for i in seq if '>' not in i]
-    if len(seqs) > 30:
-        seqs = sample(seqs,30)
-
-    print('Load model...!')
-    model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
-    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1",low_cpu_mem_usage=True)
-
-    # model.esm = model.esm.half()
-    model.trunk.set_chunk_size(64)
-    model.esm.float()
-
-    print('Finish to load model !')
+    input_path = './Pipeline/output/output_msa_cluster'
+    msas_files = os.listdir(args.input)
+    for msa in msas_files:
+        with open(f'{input_path}/{msa}', 'r') as msa_fil:
+            seq = msa_fil.read().splitlines()
 
 
-    for i in range(len(seqs)):
-        try:
-            print(f'Get ESM prediction {i}...')
-            inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
-            outputs = model(**inputs)
-            folded_positions = outputs.positions
-            print(f'Finish ESM prediction {i}!')
+        seqs = [i.replace('-', '') for i in seq if '>' not in i]
+        if len(seqs) > 30:
+            seqs = sample(seqs,30)
 
-            print(f'Write pdb output {i}...!')
-            pdb = convert_outputs_to_pdb(outputs)
-            print(pdb[0])
-            save_string_as_pdb(pdb[0], f'{args.output}/{args.name}_esm_{i}.pdb')
-            print(f'Finish to write pdb output {i} !')
-        except:
-            continue
+        print('Load model...!')
+        model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+        tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1",low_cpu_mem_usage=True)
+
+        # model.esm = model.esm.half()
+        model.trunk.set_chunk_size(64)
+        model.esm.float()
+
+        print('Finish to load model !')
+
+
+        for i in range(len(seqs)):
+            try:
+                print(f'Get ESM prediction {i}...')
+                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)
+                outputs = model(**inputs)
+                folded_positions = outputs.positions
+                print(f'Finish ESM prediction {i}!')
+
+                print(f'Write pdb output {i}...!')
+                pdb = convert_outputs_to_pdb(outputs)
+                print(pdb[0])
+                save_string_as_pdb(pdb[0], f'{msa[:-4]}_{args.output}/{args.name}_esm_{i}.pdb')
+                print(f'Finish to write pdb output {i} !')
+            except:
+                continue
