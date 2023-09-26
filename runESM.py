@@ -318,9 +318,14 @@ if __name__=='__main__':
     #     for msa_fil in input_msas
     # }
 
+    # msas = {
+    #     os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas + '/'+ msa_fil)
+    #     for msa_fil in os.listdir(args.input_msas)
+    # }
+
     msas = {
-        os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas + '/'+ msa_fil)
-        for msa_fil in os.listdir(args.input_msas)
+        os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
+        for msa_fil in args.input_msas
     }
 
     sequences = {
