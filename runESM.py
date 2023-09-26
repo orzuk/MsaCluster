@@ -292,12 +292,24 @@ if __name__=='__main__':
 
     args = p.parse_args()
 
-    #os.makedirs(args.o, exist_ok=True)
+
+    # class args:
+    #     input_msas = '/Users/steveabecassis/Desktop/cluster_files/colabfold_new/output_pipeline_1ebo/cluster_msa_output'
+    #     o = '/Users/steveabecassis/Desktop/cluster_files/colabfold_new/output_pipeline_1ebo'
+    #     model = 'msa_t'
+    #     keyword = 'test'
+    #     test = False
+    #     parallel = False
+
+
+
+
+    os.makedirs(args.o, exist_ok=True)
     if args.test:
         args.input_msas = args.input_msas[:3]
 
-    msa_cluster_path = './Pipeline/output/output_msa_cluster/'
-    input_msas = [f'{msa_cluster_path}' + msa for msa in os.listdir(msa_cluster_path) if 'a3m' in str(msa)]
+    # msa_cluster_path = args.input_msas
+    # input_msas = [f'{msa_cluster_path}' + msa for msa in os.listdir(msa_cluster_path) if 'a3m' in str(msa)]
 
     #
     # msas = {
@@ -306,8 +318,8 @@ if __name__=='__main__':
     # }
 
     msas = {
-        os.path.basename(msa_fil).replace('.a3m', ''): read_msa(msa_fil)
-        for msa_fil in args.input_msas
+        os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas + '/'+ msa_fil)
+        for msa_fil in os.listdir(args.input_msas)
     }
 
     sequences = {
