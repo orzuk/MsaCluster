@@ -317,10 +317,12 @@ if __name__=='__main__':
     #     os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
     #     for msa_fil in input_msas
     # }
-
+    print('####')
+    print(args.input_msas)
+    print('####')
     msas = {
         os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas + '/'+ msa_fil)
-        for msa_fil in os.listdir(args.input_msas)
+        for msa_fil in os.listdir(args.input_msas[0])
     }
 
     # msas = {
