@@ -283,7 +283,7 @@ if __name__=='__main__':
 
 
 
-    p.add_argument("-input_msas", nargs='*', action='store',help='Path to msas to use in prediction.')
+    p.add_argument("--input_msas", nargs='*', action='store',help='Path to msas to use in prediction.')
     p.add_argument("-o", action="store", help='name of output directory to write contact maps to.')
     p.add_argument("--model", action='store', default='msa_t', help="Model: `esm1b` or `msa_t` (default is 'msa_t')")
     p.add_argument('--keyword', action='store', default='', help="Keyword for this prediction")
@@ -318,15 +318,15 @@ if __name__=='__main__':
     #     for msa_fil in input_msas
     # }
 
-    # msas = {
-    #     os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas + '/'+ msa_fil)
-    #     for msa_fil in os.listdir(args.input_msas)
-    # }
-
     msas = {
-        os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
-        for msa_fil in args.input_msas
+        os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas + '/'+ msa_fil)
+        for msa_fil in os.listdir(args.input_msas)
     }
+
+    # msas = {
+    #     os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
+    #     for msa_fil in args.input_msas
+    # }
 
     sequences = {
         name: msa[0] for name, msa in msas.items()
