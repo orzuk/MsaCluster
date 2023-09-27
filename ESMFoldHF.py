@@ -55,25 +55,22 @@ if __name__ == '__main__':
     #     name = 'test'
     input_path = './Pipeline/output/output_msa_cluster'
     msas_files = os.listdir(args.input)
+    print('Load model...!')
+    model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+    print('Finish to load model !')
+
     for msa in msas_files:
         with open(f'{input_path}/{msa}', 'r') as msa_fil:
             seq = msa_fil.read().splitlines()
-
-
+        msa_name = msa[:-4]
         seqs = [i.replace('-', '') for i in seq if '>' not in i]
         if len(seqs) > 30:
             seqs = sample(seqs,30)
 
-        print('Load model...!')
-        model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
-        tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1",low_cpu_mem_usage=True)
-
         # model.esm = model.esm.half()
         model.trunk.set_chunk_size(64)
         model.esm.float()
-
-        print('Finish to load model !')
-
 
         for i in range(len(seqs)):
             try:
@@ -86,7 +83,7 @@ if __name__ == '__main__':
                 print(f'Write pdb output {i}...!')
                 pdb = convert_outputs_to_pdb(outputs)
                 print(pdb[0])
-                save_string_as_pdb(pdb[0], f'{msa[:-4]}_{args.output}/{args.name}_esm_{i}.pdb')
+                save_string_as_pdb(pdb[0], f'./Pipeline/output/esm_fold_output/{msa_name}_{i}.pdb')
                 print(f'Finish to write pdb output {i} !')
             except:
                 continue
