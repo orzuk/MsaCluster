@@ -1,4 +1,3 @@
-
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
 import itertools
 import os
@@ -8,13 +7,14 @@ from pathlib import Path
 import numpy as np
 import torch
 from scipy.spatial.distance import squareform, pdist, cdist
-import matplotlib.pyplot as plt
+import pandas as pd
 import matplotlib as mpl
+mpl.use("agg")
+import matplotlib.pyplot as plt
 from Bio import SeqIO
 import biotite.structure as bs
 import biotite.structure.io as bsio
 from tqdm import tqdm
-import pandas as pd
 import argparse
 import esm
 
