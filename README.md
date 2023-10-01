@@ -4,6 +4,9 @@
 The file 'pipeline.sh' implements an entire pipeline of 
 **Input:** A fasta sequence representing a protein chain
 **Output:** Predicted structures and attention maps for each cluster
+**Running example:**
+sbatch -out "run_pipeline.out" ./pipeline.sh
+
 
 **Steps:**
 1. Genreate a Multiple Sequence Alignment (MSA) for the query sequence
@@ -12,6 +15,7 @@ The file 'pipeline.sh' implements an entire pipeline of
 4. Run ESMfold on sampled sequences from each cluster
 5. Compute attention maps (predicted contact map) for each cluster based on ESM's MSA-transformer model.
 
+The specific steps can be run individually, as shown in the following commands: 
 
 ## Get msa (alignement)
 To get the full msa run 
