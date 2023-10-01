@@ -7,6 +7,10 @@ The file 'pipeline.sh' implements an entire pipeline of computing cluster-specif
 **Running example:**
 sbatch -out "run_pipeline.out" ./pipeline.sh <br>
 
+The output will be in the directory (should change to contain the name of the fasta file/name): <br>
+/sci/labs/orzuk/steveabecassis/MsaCluster/output/esm_cmap_output
+
+
 
 **Steps:**
 1. Genreate a Multiple Sequence Alignment (MSA) for the query sequence
