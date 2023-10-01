@@ -1,5 +1,25 @@
 # MsaCluster
 
+## Entire Pipeline - Example: <br>
+The file 'pipeline.sh' implements an entire pipeline of computing cluster-specific contact maps and structures for a protein family <br>
+**Input:** A fasta sequence representing a protein chain <br>
+**Output:** Predicted structures and attention maps for each cluster <br>
+**Running example:**
+sbatch -out "run_pipeline.out" ./pipeline.sh <br>
+
+The output will be in the directory (should change to contain the name of the fasta file/name): <br>
+/sci/labs/orzuk/steveabecassis/MsaCluster/output/esm_cmap_output
+
+
+
+**Steps:**
+1. Genreate a Multiple Sequence Alignment (MSA) for the query sequence
+2. Cluster the MSA into different sub-MSAs
+3. Run AlphaFold and make prediction for the query sequence with each sub-MSAs
+4. Run ESMfold on sampled sequences from each cluster
+5. Compute attention maps (predicted contact map) for each cluster based on ESM's MSA-transformer model.
+
+The specific steps can be run individually, as shown in the following commands: 
 
 ## Get msa (alignement)
 To get the full msa run 
