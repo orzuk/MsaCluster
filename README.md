@@ -1,7 +1,7 @@
 # MsaCluster
 
 ## Entire Pipeline - Example: <br>
-The file 'pipeline.sh' implements an entire pipeline of computing cluster-specific contact maps and structures for a protein family
+The file 'pipeline.sh' implements an entire pipeline of computing cluster-specific contact maps and structures for a protein family <br>
 **Input:** A fasta sequence representing a protein chain <br>
 **Output:** Predicted structures and attention maps for each cluster <br>
 **Running example:**
