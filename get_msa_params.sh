@@ -9,4 +9,4 @@ arg2="$2"
 
 
 mkdir $arg1
-python3 ./get_msa.py  {$arg2}   ./{$arg1}  -name 'test'
+python3 ./get_msa.py  $arg2   ./$arg1  -name 'test'
