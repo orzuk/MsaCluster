@@ -4,6 +4,7 @@
 #SBATCH --ntasks=8
 #SBATCH --mem=10G
 
+
 mkdir Pipeline
 mkdir Pipeline/output
 mkdir Pipeline/output/output_get_msa
