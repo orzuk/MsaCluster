@@ -371,4 +371,4 @@ if __name__=='__main__':
             print("wrote %s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name))
 
 
-    print("Finished! Runtime for " + str(len(msas.items())) " alignments = " + str(time.time()-start_time) + " seconds")
+    print("Finished! Runtime for " + str(len(msas.items())) + " alignments = " + str(time.time()-start_time) + " seconds")
