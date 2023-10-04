@@ -4,7 +4,6 @@
 #SBATCH --ntasks=8
 #SBATCH --mem=10G
 
-
-
+source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 
 python3 ./get_msa.py ./2QKEE_002.a3m    ./output/output_get_msa  -name 'test'
