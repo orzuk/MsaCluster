@@ -2,13 +2,14 @@
 
 ## Entire Pipeline - Example: <br>
 The file 'pipeline.sh' implements an entire pipeline of computing cluster-specific contact maps and structures for a protein family <br>
-**Input:** A fasta sequence representing a protein chain <br>
+**Input:** A fasta sequence representing a protein chain (1st argument) <br>
+Directory name for outputs (2nd argument) <br>
 **Output:** Predicted structures and attention maps for each cluster <br>
 **Running example:**
-sbatch -out "run_pipeline.out" ./pipeline.sh <br>
+sbatch -out "run_pipeline.out" ./pipeline_with_params.sh  ./input/2qke.fasta 2qke <br>
 
-The output will be in the directory (should change to contain the name of the fasta file/name): <br>
-/sci/labs/orzuk/steveabecassis/MsaCluster/output/esm_cmap_output
+The output will be in the directory according to the second argument. In this case: <br>
+Pipeline/2qke
 
 
 
@@ -98,6 +99,12 @@ Activate the virtual environement :
 ```
 source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 ```
+
+or (depending on shell) 
+```
+. /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate
+```
+
 
 ### Get msa (alignement)
 
