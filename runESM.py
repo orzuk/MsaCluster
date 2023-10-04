@@ -18,6 +18,8 @@ from tqdm import tqdm
 import argparse
 import esm
 
+import requests
+
 torch.set_grad_enabled(False)
 
 # This is an efficient way to delete lowercase characters and insertion characters from a string
