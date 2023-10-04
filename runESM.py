@@ -320,6 +320,9 @@ if __name__=='__main__':
     print('####')
     print(args.input_msas)
     print('####')
+    print("Is running with GPU? " + str(torch.cuda.is_available()))
+
+    start_time = time.time()
     msas = {
         os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas[0] + '/'+ msa_fil)
         for msa_fil in os.listdir(args.input_msas[0])
@@ -367,3 +370,5 @@ if __name__=='__main__':
             np.savetxt("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
             print("wrote %s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name))
 
+
+    print("Finished! Runtime for " + str(len(msas.items())) " alignments = " + str(time.time()-start_time) + " seconds")
