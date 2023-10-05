@@ -30,7 +30,9 @@ def main():
     result_dir = Path(args.results)
     queries, is_complex = get_queries(args.input, 'random')
     sequence = queries[0][1]
-    (unpaired_msa, paired_msa, query_seqs_unique, query_seqs_cardinality, template_features) = get_msa_and_templates(query_sequences=sequence, jobname=args.name, result_dir= result_dir, use_templates=False, custom_template_path='',pair_mode='', msa_mode='mmseqs2_uniref_env')
+    (unpaired_msa, paired_msa, query_seqs_unique, query_seqs_cardinality, template_features) = \
+        get_msa_and_templates(query_sequences=sequence, jobname=args.name, result_dir= result_dir,
+                              use_templates=False, custom_template_path='',pair_mode='', msa_mode='mmseqs2_uniref_env')
     msa = msa_to_str(unpaired_msa, paired_msa, query_seqs_unique, query_seqs_cardinality)
     result_dir.joinpath(f"{args.name}.a3m").write_text(msa)
 

@@ -324,8 +324,12 @@ def extract_seqrecords(pdbcode, struct):
     ppb = Bio.PDB.PPBuilder()
     seqrecords = []
     for i, chain in enumerate(struct.get_chains()):
+        print(i)
+        print(chain)
         # extract and store sequences as list of SeqRecord objects
         pps = ppb.build_peptides(chain)  # polypeptides
+        if len(pps) == 0:  # empty chain !! skip
+            continue
         seq = pps[0].get_sequence()  # just take the first, hope there's no chain break
         seqid = pdbcode + chain.id
         seqrec = Bio.SeqRecord.SeqRecord(seq, id=seqid,
