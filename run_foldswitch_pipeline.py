@@ -13,8 +13,11 @@ run_pipeline = False  # run entire pipeline
 load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
 if run_mode == "load":
     load_seq_and_struct = True  # jsut get from pdb the sequence and 3D structure for each protein
+    print("Load pdb files, contact maps and fasta sequences for all families")
 if run_mode == "run_esm":
-    run_pipeline = False  # run entire pipeline
+    run_pipeline = True  # run entire pipeline
+    print("Run ESM transfoer for all families")
+
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
 fasta_dir = "Pipeline"
