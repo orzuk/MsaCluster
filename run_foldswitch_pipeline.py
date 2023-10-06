@@ -1,13 +1,20 @@
 # Rub pipeline from a list of PDBs
 # import copy
+import sys
 import os.path
 # from os import *  # import os
 import os
 from protein_utils import *
 import subprocess
 
+run_mode = sys.argv[1]
+
 run_pipeline = False  # run entire pipeline
-load_seq_and_struct = True  # jsut get from pdb the sequence and 3D structure for each protein
+load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
+if run_mode == "load":
+    load_seq_and_struct = True  # jsut get from pdb the sequence and 3D structure for each protein
+if run_mode == "run_esm":
+    run_pipeline = False  # run entire pipeline
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
 fasta_dir = "Pipeline"
@@ -52,5 +59,6 @@ for i in range(0, n_fam):  # loop on families
     if run_pipeline:
         fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
         pipeline_str = "./pipeline_get_params.sh " + fasta_file_name + " " + pdbids[i] [0]  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+        print(pipeline_str)
         subprocess.run(pipeline_str)     # run pipeline (should be a separate job1!!)
 
