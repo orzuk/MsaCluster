@@ -23,19 +23,18 @@ pdbids = [[s[0][:-1], s[1][:-1]] for s in pdbids]
 
 n_fam = len(pdbids)  # number of families
 
-for i in range(n_fam):  # loop on families
+for i in range(0, n_fam):  # loop on families
     if load_seq_and_struct:
         for fold in range(2):
             cur_family_dir = fasta_dir + "/" + foldpair_ids[i]
             if not os.path.exists(cur_family_dir):
                 print("Mkdir: " + cur_family_dir)
                 os.mkdir(cur_family_dir)
-            print("Get seq + struct for " + pdbids[i][fold])
+            print("Get seq + struct for " + pdbids[i][fold] + ", " + str(i) + " out of " + str(n_fam))
             pdb_struct = download_read_pdb(pdbids[i][fold], cur_family_dir, keepfile=True)  # extract pdb file
             pdb_seq = extract_seqrecords(pdbids[i][fold], pdb_struct)  # extract sequences
             fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + '.fasta'
-            print( pdbids[i][fold])
-            print(pdbchains[i][fold])
+#            print( pdbids[i][fold] + ":" + pdbchains[i][fold])
 
 #            print("Index: " + str([s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])))
 
@@ -44,8 +43,9 @@ for i in range(n_fam):  # loop on families
 
             # Finally, make a contact map from each pdb file:
             # Read structure in slightly different format
-#            print("Get contacts, Cbeta distance < 8Angstrom")
+#            print("Get struct for ontacts, Cbeta distance < 8Angstrom")
             pdbX_struct = get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0]
+#            print("Get contacts, Cbeta distance < 8Angstrom")
             pdb_contacts = contacts_from_pdb(pdbX_struct, chain=pdbchains[i][fold])  # =True)  # extract pdb file
             np.savetxt(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", pdb_contacts)  # save contacts
 

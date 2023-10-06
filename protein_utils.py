@@ -124,6 +124,7 @@ def extend(a, b, c, L, A, D):
     return c + sum([m * d for m, d in zip(m, d)])
 
 
+# Extract contact map
 def contacts_from_pdb(
         structure: bs.AtomArray,
         distance_threshold: float = 8.0,
@@ -132,11 +133,15 @@ def contacts_from_pdb(
     mask = ~structure.hetero
     if chain is not None:
         mask &= structure.chain_id == chain
-
+    # Problem: what if they're not compatible?
     N = structure.coord[mask & (structure.atom_name == "N")]
     CA = structure.coord[mask & (structure.atom_name == "CA")]
     C = structure.coord[mask & (structure.atom_name == "C")]
 
+    if(len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA)): # missing atoms
+        print("Missing atoms in PDB!")
+        print([len(N), len(CA), len(C)])
+        return []
     Cbeta = extend(C, N, CA, 1.522, 1.927, -2.143)
     dist = squareform(pdist(Cbeta))
 
@@ -324,8 +329,8 @@ def extract_seqrecords(pdbcode, struct):
     ppb = Bio.PDB.PPBuilder()
     seqrecords = []
     for i, chain in enumerate(struct.get_chains()):
-        print(i)
-        print(chain)
+#        print(i)
+#        print(chain)
         # extract and store sequences as list of SeqRecord objects
         pps = ppb.build_peptides(chain)  # polypeptides
         if len(pps) == 0:  # empty chain !! skip
