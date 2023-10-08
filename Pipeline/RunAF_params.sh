@@ -8,16 +8,13 @@
 OUTPUT_NAME_DIR="$1"
 
 
+module load torch/1.3
 module load cuda/11.1
 module load cudnn/8.0.5
 
 
 source /sci/labs/dina/dina/collabFold_phoenix/bin/activate.csh
-/sci/labs/dina/dina/localcolabfold/colabfold-conda/bin/colabfold_batch  /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/$OUTPUT_NAME_DIR/output_msa_cluster /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/$OUTPUT_NAME_DIR/AF_preds/  --data=/cs/labs/dina/seanco/colabfold/weights/
-
-
-
-
+/sci/labs/dina/dina/localcolabfold/colabfold-conda/bin/colabfold_batch  ./Pipeline/$OUTPUT_NAME_DIR/output_msa_cluster ./Pipeline/$OUTPUT_NAME_DIR/AF_preds/  --data=/cs/labs/dina/seanco/colabfold/weights/
 
 
 
