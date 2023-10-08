@@ -7,7 +7,7 @@ import os
 from protein_utils import *
 import subprocess
 
-run_mode = sys.argv[1]
+run_mode = "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
@@ -61,7 +61,9 @@ for i in range(0, n_fam):  # loop on families
 
     if run_pipeline:
         fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
-        pipeline_str = "./pipeline_get_params.sh " + fasta_file_name + " " + pdbids[i] [0]  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+        pipeline_str = "./pipeline_get_params.sh " + fasta_file_name + " " + pdbids[i][0]  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+        pipeline_str = "sbatch -o 'run_pipeline_for_" + foldpair_ids[i] + ".out' ./pipeline_get_params.sh " + fasta_file_name + " " + foldpair_ids[i]  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(pipeline_str)
-        subprocess.run(pipeline_str)     # run pipeline (should be a separate job1!!)
+#        subprocess.run(pipeline_str)     # run pipeline (should be a separate job1!!)
+#        os.system(pipeline_str)  # run pipeline (should be a separte job!)
 
