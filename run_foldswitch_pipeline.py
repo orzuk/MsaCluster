@@ -12,7 +12,7 @@ import platform
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
-else
+else:
     print("Run on windows")
     run_mode = "run_esm"  # sys.argv[1]
 
