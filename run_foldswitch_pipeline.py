@@ -6,8 +6,15 @@ import os.path
 import os
 from protein_utils import *
 import subprocess
+import platform
 
-run_mode = "run_esm"  # sys.argv[1]
+
+if platform.system() == "Linux":
+    print("Run on cluster command line")
+    run_mode = sys.argv[1]
+else
+    print("Run on windows")
+    run_mode = "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
