@@ -72,5 +72,5 @@ for i in range(0, n_fam):  # loop on families
         pipeline_str = "sbatch -o 'run_pipeline_for_" + foldpair_ids[i] + ".out' ./pipeline_get_params.sh " + fasta_file_name + " " + foldpair_ids[i]  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(pipeline_str)
 #        subprocess.run(pipeline_str)     # run pipeline (should be a separate job1!!)
-#        os.system(pipeline_str)  # run pipeline (should be a separte job!)
+        os.system(pipeline_str)  # run pipeline (should be a separate job!)
 
