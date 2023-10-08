@@ -11,5 +11,5 @@ OUTPUT_NAME_DIR="$1"
 . /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
 
 module load torch/1.3
-mkdir -p ./Pipeline/$OUTPUT_NAME_DIR/esm_cmap_output
+mkdir -p ./Pipeline/$OUTPUT_NAME_DIR/output_esm_cmap
 python3  ./runESM.py  --input_msas ./Pipeline/$OUTPUT_NAME_DIR/output_msa_cluster -o ./Pipeline/$OUTPUT_NAME_DIR/output_cmap_esm
