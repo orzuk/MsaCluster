@@ -15,6 +15,7 @@ else:
     print("Run on windows")
     run_mode = "run_esm"  # sys.argv[1]
 
+
 run_pipeline = False  # run entire pipeline
 load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
 if run_mode == "load":
@@ -23,6 +24,7 @@ if run_mode == "load":
 if run_mode == "run_esm":
     run_pipeline = True  # run entire pipeline
     print("Run ESM transfoer for all families")
+if run_mode == "plot": # here do analysis of the results 
 
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
@@ -72,4 +74,3 @@ for i in range(0, n_fam):  # loop on families
         print(pipeline_str)
 #        subprocess.run(pipeline_str)     # run pipeline (should be a separate job1!!)
         os.system(pipeline_str)  # run pipeline (should be a separate job!)
-
