@@ -4,6 +4,7 @@ import sys
 import os.path
 # from os import *  # import os
 import os
+import glob
 from protein_utils import *
 import subprocess
 import platform
@@ -13,19 +14,20 @@ if platform.system() == "Linux":
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
-    run_mode = "run_esm"  # sys.argv[1]
+    run_mode = "plot" # "run_esm"  # sys.argv[1]
 
 
 run_pipeline = False  # run entire pipeline
 load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
+plot_results = False
 if run_mode == "load":
     load_seq_and_struct = True  # jsut get from pdb the sequence and 3D structure for each protein
     print("Load pdb files, contact maps and fasta sequences for all families")
 if run_mode == "run_esm":
     run_pipeline = True  # run entire pipeline
     print("Run ESM transfoer for all families")
-if run_mode == "plot": # here do analysis of the results 
-
+if run_mode == "plot": # here do analysis of the results
+    plot_results = True
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
 fasta_dir = "Pipeline"
@@ -74,3 +76,18 @@ for i in range(0, n_fam):  # loop on families
         print(pipeline_str)
 #        subprocess.run(pipeline_str)     # run pipeline (should be a separate job1!!)
         os.system(pipeline_str)  # run pipeline (should be a separate job!)
+
+    if plot_results:
+        # First load files
+        fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
+        msa_pred_files = glob.glob(fasta_dir + "/" + foldpair_ids[i] + "/output_cmap_esm/*.npy")
+        n_cmaps = len(msa_pred_files)
+        msa_transformer_pred = [None]*n_cmaps
+        for file in msa_pred_files:
+            print(file)
+            msa_transformer_pred[i] = np.load(file)
+        true_cmap = [None]*2
+        for fold in range(2):
+            true_cmap[fold] = np.load(fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")
+        break
+        # next plotP
