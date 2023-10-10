@@ -53,7 +53,7 @@ aa_long_short = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
      'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N',
      'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
      'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
-aa_short_long = {1y: x for x,y in aa_long_short.items()}
+aa_short_long = {y: x for x,y in aa_long_short.items()}
 
 
 # Get all the possible amino acids that we get with a single point mutation
@@ -263,6 +263,19 @@ def evaluate_prediction(
         for key, val in rangemetrics.items():
             metrics[f"{name}_{key}"] = val.item()
     return metrics
+
+
+# Plot multiple contacts and predictions together
+def plot_array_contacts_and_predictions(predictions, contacts):
+    n_pred = len(predictions)
+    PDB_IDS = [p[name] for p in predictions]
+    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
+    for ax, name in zip(axes, PDB_IDS):
+        prediction = msa_transformer_predictions[name]
+        target = contacts[name]
+        plot_contacts_and_predictions(
+            prediction, target, ax=ax, title = lambda prec: f"{name}: Long Range P@L: {100 * prec:0.1f}")
+    plt.show()
 
 
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
