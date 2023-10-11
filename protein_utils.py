@@ -353,7 +353,9 @@ def plot_contacts_and_predictions(
     ax.axis("square")
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
-
+    save_flag = False # add as input
+    if save_flag:
+        plt.savefig('%s.pdf' % title, bbox_inches='tight')
 
 
 # Select sequences from the MSA to maximize the hamming distance
