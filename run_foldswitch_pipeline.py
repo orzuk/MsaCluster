@@ -6,6 +6,7 @@ import os.path
 import os
 import glob
 from protein_utils import *
+from MSA_Clust import *
 import subprocess
 import platform
 
@@ -43,7 +44,10 @@ pdbids = [[s[0][:-1], s[1][:-1]] for s in pdbids]
 
 n_fam = len(pdbids)  # number of families
 
-for i in range(0, n_fam):  # loop on families
+cmap_dists_vec = [None]*n_fam # Results arrays
+seqs_dists_vec = [None]*n_fam
+
+for i in range(3, n_fam):  # loop on families
     if load_seq_and_struct:
         for fold in range(2):
             cur_family_dir = fasta_dir + "/" + foldpair_ids[i]
@@ -80,14 +84,39 @@ for i in range(0, n_fam):  # loop on families
     if plot_results:
         # First load files
         fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
+        msa_file = fasta_dir + "/" + foldpair_ids[i] + "/output_get_msa/DeepMsa.a3m"
+        MSA = AlignIO.read(open(msa_file), "fasta")
         msa_pred_files = glob.glob(fasta_dir + "/" + foldpair_ids[i] + "/output_cmap_esm/*.npy")
         n_cmaps = len(msa_pred_files)
-        msa_transformer_pred = [None]*n_cmaps
-        for file in msa_pred_files:
-            print(file)
-            msa_transformer_pred[i] = np.load(file)
-        true_cmap = [None]*2
-        for fold in range(2):
-            true_cmap[fold] = np.load(fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")
+        n_cmaps = min(3, n_cmaps)  # temp for debug !!
+#        msa_transformer_pred = [None]*n_cmaps
+#        for file in msa_pred_files:
+#            print(file)
+#            msa_transformer_pred[i] = np.genfromtxt(file)
+        msa_transformer_pred = { file.split("\\")[-1][14:-4] : np.genfromtxt(file) for file in msa_pred_files  }
+        print("Predicted cmap sizes:")
+        print([c.shape[0] for c in msa_transformer_pred.values()])
+
+#        true_cmap = [None]*2
+#        for fold in range(2):
+#            true_cmap[fold] = np.genfromtxt(fasta_dir +
+#                "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")  # load for pickle, genfromtxt for tab-delimited
+
+        true_cmap = {pdbids[i][fold] :  np.genfromtxt(fasta_dir +  # problem with first !!
+                    "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(1)}
+        print("True cmap sizes:")
+        print([c.shape[0] for c in true_cmap.values()])
+        print("plot")
+        plot_array_contacts_and_predictions(msa_transformer_pred, true_cmap)
+        cmap_dists_vec[i] = compute_cmap_distances(msa_transformer_pred)
+        seqs_dists_vec[i] = np.mean(compute_seq_distances(MSA)) # can take the entire sequence !
+
+
         break
         # next plotP
+
+
+#import numpy as np
+#cmap_pred = np.genfromtxt("Pipeline/1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_000.npy")
+#cmap_true = np.genfromtxt("Pipeline/1dzlA_5keqF/1dzlA_pdb_contacts.npy")
+#plot_array_contacts_and_predictions(cmap_pred, cmap_true)

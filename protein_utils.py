@@ -7,12 +7,14 @@ from scipy.spatial.distance import squareform, pdist, cdist
 import numpy as np
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import Bio
 import Bio.PDB
 import Bio.SeqRecord
 import os
 import sys
 import urllib
+import math
 
 import biotite.structure as bs
 from biotite.structure.io.pdbx import PDBxFile, get_structure
@@ -145,7 +147,7 @@ def contacts_from_pdb(
     CA = structure.coord[mask & (structure.atom_name == "CA")]
     C = structure.coord[mask & (structure.atom_name == "C")]
 
-    if(len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA)): # missing atoms
+    if len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA): # missing atoms
         print("Missing atoms in PDB!")
         print([len(N), len(CA), len(C)])
         return []
@@ -268,13 +270,30 @@ def evaluate_prediction(
 # Plot multiple contacts and predictions together
 def plot_array_contacts_and_predictions(predictions, contacts):
     n_pred = len(predictions)
-    PDB_IDS = [p[name] for p in predictions]
-    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
-    for ax, name in zip(axes, PDB_IDS):
-        prediction = msa_transformer_predictions[name]
-        target = contacts[name]
-        plot_contacts_and_predictions(
-            prediction, target, ax=ax, title = lambda prec: f"{name}: Long Range P@L: {100 * prec:0.1f}")
+    n_row = math.ceil(math.sqrt(n_pred))  # *2
+    if n_row*(n_row-1) >= n_pred:  # *2
+        n_col = n_row-1
+    else:
+        n_col = n_row
+    PDB_IDS = predictions.keys()  # [p[name] for p in predictions]
+    contacts_ids = contacts.keys()
+    print(PDB_IDS)
+    fig, axes = plt.subplots(figsize=(18, 18), nrows = n_row, ncols=n_col, layout="compressed")
+    print("Num cmaps: " + str(n_pred))
+    print(axes.shape)
+#    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
+    ctr = 0
+#    for ax, name in zip(axes, PDB_IDS):
+    for name in PDB_IDS:
+        print([ctr // n_col, ctr % n_col])
+        ax = axes[ctr // n_col, ctr % n_col]
+        ctr = ctr + 1
+#        print(ax)
+        print(name)
+        for true_name in contacts_ids:
+            plot_contacts_and_predictions(
+                predictions[name], contacts[true_name], ax=ax, title = name)
+#            prediction, target, ax=ax, title = lambda prec: f"{name}: Long Range P@L: {100 * prec:0.1f}")
     plt.show()
 
 
