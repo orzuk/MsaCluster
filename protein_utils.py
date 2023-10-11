@@ -1,6 +1,8 @@
 # Some utilities for proteins and their mutations
 import pandas as pd
 import esm
+import string
+
 # import pcmap
 import torch
 from scipy.spatial.distance import squareform, pdist, cdist
@@ -11,6 +13,8 @@ import matplotlib.pyplot as plt
 import Bio
 import Bio.PDB
 import Bio.SeqRecord
+from Bio import SeqIO
+
 import os
 import sys
 import urllib
@@ -26,6 +30,30 @@ from Bio import Phylo  # for phylogenetic trees
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio import AlignIO
 # from TreeConstruction import DistanceTreeConstructor
+
+
+# This is an efficient way to delete lowercase characters and insertion characters from a string
+deletekeys = dict.fromkeys(string.ascii_lowercase)
+deletekeys["."] = None
+deletekeys["*"] = None
+translation = str.maketrans(deletekeys)
+
+
+def read_sequence(filename: str) -> Tuple[str, str]:
+    """ Reads the first (reference) sequences from a fasta or MSA file."""
+    record = next(SeqIO.parse(filename, "fasta"))
+    return record.description, str(record.seq)
+
+
+def remove_insertions(sequence: str) -> str:
+    """ Removes any insertions into the sequence. Needed to load aligned sequences in an MSA. """
+    return sequence.translate(translation)
+
+
+def read_msa(filename: str) -> List[Tuple[str, str]]:
+    """ Reads the sequences from an MSA file, automatically removes insertions."""
+    return [(record.description, remove_insertions(str(record.seq))) for record in SeqIO.parse(filename, "fasta")]
+
 
 
 def genetic_code():
@@ -279,17 +307,17 @@ def plot_array_contacts_and_predictions(predictions, contacts):
     contacts_ids = contacts.keys()
     print(PDB_IDS)
     fig, axes = plt.subplots(figsize=(18, 18), nrows = n_row, ncols=n_col, layout="compressed")
-    print("Num cmaps: " + str(n_pred))
-    print(axes.shape)
+#    print("Num cmaps: " + str(n_pred))
+#    print(axes.shape)
 #    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
     ctr = 0
 #    for ax, name in zip(axes, PDB_IDS):
     for name in PDB_IDS:
-        print([ctr // n_col, ctr % n_col])
+#        print([ctr // n_col, ctr % n_col])
         ax = axes[ctr // n_col, ctr % n_col]
         ctr = ctr + 1
 #        print(ax)
-        print(name)
+#        print(name)
         for true_name in contacts_ids:
             plot_contacts_and_predictions(
                 predictions[name], contacts[true_name], ax=ax, title = name)

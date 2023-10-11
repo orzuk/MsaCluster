@@ -1,7 +1,6 @@
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
 import itertools
 import os
-import string
 from pathlib import Path
 import time
 from protein_utils import *
@@ -13,7 +12,6 @@ import pandas as pd
 import matplotlib as mpl
 mpl.use("agg")
 import matplotlib.pyplot as plt
-from Bio import SeqIO
 import biotite.structure as bs
 import biotite.structure.io as bsio
 from tqdm import tqdm
@@ -24,32 +22,8 @@ import requests
 
 torch.set_grad_enabled(False)
 
-# This is an efficient way to delete lowercase characters and insertion characters from a string
-deletekeys = dict.fromkeys(string.ascii_lowercase)
-deletekeys["."] = None
-deletekeys["*"] = None
-translation = str.maketrans(deletekeys)
-
-
-def read_sequence(filename: str) -> Tuple[str, str]:
-    """ Reads the first (reference) sequences from a fasta or MSA file."""
-    record = next(SeqIO.parse(filename, "fasta"))
-    return record.description, str(record.seq)
-
-
-def remove_insertions(sequence: str) -> str:
-    """ Removes any insertions into the sequence. Needed to load aligned sequences in an MSA. """
-    return sequence.translate(translation)
-
-
-def read_msa(filename: str) -> List[Tuple[str, str]]:
-    """ Reads the sequences from an MSA file, automatically removes insertions."""
-    return [(record.description, remove_insertions(str(record.seq))) for record in SeqIO.parse(filename, "fasta")]
-
 
 # Subsampling MSA
-
-
 
 if __name__=='__main__':
 
@@ -57,8 +31,6 @@ if __name__=='__main__':
     """
     Run esm-1b and MSA transformer model.
     """)
-
-
 
     p.add_argument("--input_msas", nargs='*', action='store',help='Path to msas to use in prediction.')
     p.add_argument("-o", action="store", help='name of output directory to write contact maps to.')
@@ -69,7 +41,6 @@ if __name__=='__main__':
 
     args = p.parse_args()
 
-
     # class args:
     #     input_msas = '/Users/steveabecassis/Desktop/cluster_files/colabfold_new/output_pipeline_1ebo/cluster_msa_output'
     #     o = '/Users/steveabecassis/Desktop/cluster_files/colabfold_new/output_pipeline_1ebo'
@@ -78,9 +49,6 @@ if __name__=='__main__':
     #     test = False
     #     parallel = False
 
-
-
-
     os.makedirs(args.o, exist_ok=True)
     args.test = True
     if args.test:
@@ -88,7 +56,6 @@ if __name__=='__main__':
 
     # msa_cluster_path = args.input_msas
     # input_msas = [f'{msa_cluster_path}' + msa for msa in os.listdir(msa_cluster_path) if 'a3m' in str(msa)]
-
     #
     # msas = {
     #     os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
@@ -104,6 +71,13 @@ if __name__=='__main__':
         os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas[0] + '/'+ msa_fil)
         for msa_fil in os.listdir(args.input_msas[0])
     }
+
+    # New! insert to MSA also the full alignment (calculating cmap can take long for this one)
+    print("Add deep!")
+    print(args.input_msas[0] + '../output_get_msa/DeepMsa.a3m')
+    msas["MSA_deep"] = read_msa(args.input_msas[0].replace(
+        "output_msa_cluster", "output_get_msa/DeepMsa.a3m"))
+    print("Added deep!")
 
     # msas = {
     #     os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)
@@ -124,11 +98,11 @@ if __name__=='__main__':
     mdl = mdl.eval()
     batch_converter = mdl_alphabet.get_batch_converter()
 
-    if args.model=='esm1b':
+    if args.model == 'esm1b':
         for name, inputs in sequences.items():
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
             batch_tokens = batch_tokens.to(next(mdl.parameters()).device)
-            print('predicting...')
+            print('ESM1b predicting...')
             pred = mdl.predict_contacts(batch_tokens)[0].cpu()
             pred = pred.detach().cpu().numpy()
             print(np.sum(pred))
@@ -140,7 +114,7 @@ if __name__=='__main__':
             inputs = greedy_select(inputs, num_seqs=128) # can change this to pass more/fewer sequences
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
             batch_tokens = batch_tokens.to(next(mdl.parameters()).device)
-            print('predicting...')
+            print('MSA-Transformer predicting...')
             pred = mdl.predict_contacts(batch_tokens)[0].cpu()
             pred = pred.detach().cpu().numpy()
             print(np.sum(pred))
