@@ -10,13 +10,14 @@ from MSA_Clust import *
 import subprocess
 import platform
 
+from Bio import pairwise2
+
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
     run_mode = "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-
 
 run_pipeline = False  # run entire pipeline
 run_esm = False # run just esm contacts
@@ -91,6 +92,20 @@ for i in range(1, n_fam):  # loop on families
     if plot_results:
         # First load files
         fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
+        fasta_file_name1 = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][1] + '.fasta'  # Second file  !!!
+
+        with open(fasta_file_name, "r") as text_file:
+            seq = text_file.read()
+        with open(fasta_file_name1, "r") as text_file:
+            seq1 = text_file.read()
+
+        print("Aligning:")
+        print(seq)
+        print(seq1)
+        pairwise_alignment = pairwise2.align.globalxx(seq, seq1)
+        print("Alignment:")
+        print(pairwise_alignment)
+
         msa_file = fasta_dir + "/" + foldpair_ids[i] + "/output_get_msa/DeepMsa.a3m"
         MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
         msa_pred_files = glob(fasta_dir + "/" + foldpair_ids[i] + "/output_cmap_esm/*.npy")
