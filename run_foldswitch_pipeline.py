@@ -2,7 +2,6 @@
 # import copy
 import sys
 import os.path
-# from os import *  # import os
 import os
 import glob
 from protein_utils import *
@@ -17,7 +16,7 @@ if platform.system() == "Linux":
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
-    run_mode = "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 run_esm = False # run just esm contacts
@@ -52,7 +51,7 @@ n_fam = len(pdbids)  # number of families
 cmap_dists_vec = [None]*n_fam # Results arrays
 seqs_dists_vec = [None]*n_fam
 
-for i in range(1, n_fam):  # loop on families
+for i in range(0, n_fam):  # loop on families
     if load_seq_and_struct:
         for fold in range(2):
             cur_family_dir = fasta_dir + "/" + foldpair_ids[i]
@@ -94,17 +93,20 @@ for i in range(1, n_fam):  # loop on families
         fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
         fasta_file_name1 = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][1] + '.fasta'  # Second file  !!!
 
+        print(fasta_file_name)
+        print(fasta_file_name1)
         with open(fasta_file_name, "r") as text_file:
-            seq = text_file.read()
+            seq = text_file.read().split("\n")[1]
         with open(fasta_file_name1, "r") as text_file:
-            seq1 = text_file.read()
+            seq1 = text_file.read().split("\n")[1]
 
         print("Aligning:")
         print(seq)
         print(seq1)
         pairwise_alignment = pairwise2.align.globalxx(seq, seq1)
         print("Alignment:")
-        print(pairwise_alignment)
+        print(pairwise_alignment[0].seqA)
+        print(pairwise_alignment[1].seqB)
 
         msa_file = fasta_dir + "/" + foldpair_ids[i] + "/output_get_msa/DeepMsa.a3m"
         MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")

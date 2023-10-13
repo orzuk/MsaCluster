@@ -55,7 +55,6 @@ def read_msa(filename: str) -> List[Tuple[str, str]]:
     return [(record.description, remove_insertions(str(record.seq))) for record in SeqIO.parse(filename, "fasta")]
 
 
-
 def genetic_code():
     """Return the standard genetic code as a dictionary."""
     code = {
@@ -486,6 +485,8 @@ def extract_seqrecords(pdbcode, struct):
         if len(pps) == 0:  # empty chain !! skip
             continue
         seq = pps[0].get_sequence()  # just take the first, hope there's no chain break
+        for i in range(1, len(pps)):  # New: add all parts !!!
+            seq += pps[i].get_sequence()
         seqid = pdbcode + chain.id
         seqrec = Bio.SeqRecord.SeqRecord(seq, id=seqid,
                                          description="Sequence #{}, {}".format(i + 1, seqid))
