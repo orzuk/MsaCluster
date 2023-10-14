@@ -34,6 +34,7 @@ if __name__=='__main__':
 
     p.add_argument("--input_msas", nargs='*', action='store',help='Path to msas to use in prediction.')
     p.add_argument("-o", action="store", help='name of output directory to write contact maps to.')
+    p.add_argument("-saveformat", action="store", help='output file format (text or pickle).')
     p.add_argument("--model", action='store', default='msa_t', help="Model: `esm1b` or `msa_t` (default is 'msa_t')")
     p.add_argument('--keyword', action='store', default='', help="Keyword for this prediction")
     p.add_argument("--test", action='store_true', help='Tests first 3 constructs.')
@@ -88,9 +89,9 @@ if __name__=='__main__':
         name: msa[0] for name, msa in msas.items()
     }
 
-    if args.model=='esm1b':
+    if args.model == 'esm1b':
         mdl, mdl_alphabet = esm.pretrained.esm1b_t33_650M_UR50S()
-    elif args.model=='msa_t':
+    elif args.model == 'msa_t':
         mdl, mdl_alphabet = esm.pretrained.esm_msa1b_t12_100M_UR50S()
     else:
         print('model not understood.')
@@ -106,7 +107,10 @@ if __name__=='__main__':
             pred = mdl.predict_contacts(batch_tokens)[0].cpu()
             pred = pred.detach().cpu().numpy()
             print(np.sum(pred))
-            np.savetxt("%s/%s_%s_%s.npy" %  (args.o, args.model, args.keyword, name), pred)
+            if args.saveformat == "text":
+                np.savetxt("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
+            else:  # Save compact form
+                np.save("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
             print("wrote %s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name))
 
     elif args.model=='msa_t':
@@ -118,7 +122,10 @@ if __name__=='__main__':
             pred = mdl.predict_contacts(batch_tokens)[0].cpu()
             pred = pred.detach().cpu().numpy()
             print(np.sum(pred))
-            np.savetxt("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
+            if args.saveformat == "text":
+                np.savetxt("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
+            else:
+                np.save("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
             print("wrote %s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name))
 
     print("Finished! Runtime for " + str(len(msas.items())) + " alignments = " + str(time.time()-start_time) + " seconds")

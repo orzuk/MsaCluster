@@ -9,30 +9,32 @@ from MSA_Clust import *
 import subprocess
 import platform
 
-from Bio import pairwise2
+from Bio import pairwise2, Align
 
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
-    run_mode = "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "run_esm"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 run_esm = False # run just esm contacts
 load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
 plot_results = False
-if run_mode == "load":
-    load_seq_and_struct = True  # jsut get from pdb the sequence and 3D structure for each protein
-    print("Load pdb files, contact maps and fasta sequences for all families")
-if run_mode == "run_esm":
-    run_esm = True  # run entire pipeline
-    print("Run ESM transformer for all families")
-if run_mode == "run_pipeline":
-    run_pipeline = True  # run entire pipeline
-    print("Run Entire pipeline for all families")
-if run_mode == "plot": # here do analysis of the results
-    plot_results = True
+
+match run_mode:
+    case "load":
+        load_seq_and_struct = True  # just get from pdb the sequence and 3D structure for each protein
+        print("Load pdb files, contact maps and fasta sequences for all families")
+    case "run_esm":
+        run_esm = True  # run entire pipeline
+        print("Run ESM transformer for all families")
+    case "run_pipeline":
+        run_pipeline = True  # run entire pipeline
+        print("Run Entire pipeline for all families")
+    case "plot": # here do analysis of the results
+        plot_results = True
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
 fasta_dir = "Pipeline"
@@ -51,7 +53,7 @@ n_fam = len(pdbids)  # number of families
 cmap_dists_vec = [None]*n_fam # Results arrays
 seqs_dists_vec = [None]*n_fam
 
-for i in range(0, n_fam):  # loop on families
+for i in range(2, n_fam):  # loop on families
     if load_seq_and_struct:
         for fold in range(2):
             cur_family_dir = fasta_dir + "/" + foldpair_ids[i]
@@ -107,6 +109,9 @@ for i in range(0, n_fam):  # loop on families
         print("Alignment:")
         print(pairwise_alignment[0].seqA)
         print(pairwise_alignment[1].seqB)
+        # Alternative alg for alignment
+        aligner = Align.PairwiseAligner()
+        pa = aligner.align(seq, seq1)
 
         msa_file = fasta_dir + "/" + foldpair_ids[i] + "/output_get_msa/DeepMsa.a3m"
         MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
@@ -126,7 +131,7 @@ for i in range(0, n_fam):  # loop on families
 #            true_cmap[fold] = np.genfromtxt(fasta_dir +
 #                "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")  # load for pickle, genfromtxt for tab-delimited
 
-        true_cmap = {pdbids[i][fold] :  np.genfromtxt(fasta_dir +  # problem with first !!
+        true_cmap = {pdbids[i][fold] : np.genfromtxt(fasta_dir +  # problem with first !!
                     "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(1)}
         print("True cmap sizes:")
         print([c.shape[0] for c in true_cmap.values()])
