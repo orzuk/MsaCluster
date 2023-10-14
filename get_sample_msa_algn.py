@@ -9,6 +9,7 @@ from colabfold.batch import get_queries
 from tqdm import tqdm
 from argparse import ArgumentParser
 
+
 def get_seq_from_uniprotId(cID):
     # cID='A0A3N5IQ47'
     baseUrl="http://www.uniprot.org/uniprot/"
@@ -31,6 +32,7 @@ def get_seqids(msa_file_path):
         ids = ids[1:]
         return ids
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("input", default="input", help="Should be a folder of a3m files")
@@ -40,7 +42,7 @@ def main():
     msas_folder   = args.input
     output_folder = args.output
     for msa in tqdm(os.listdir(msas_folder)):
-        if ('a3m' not in msa):
+        if 'a3m' not in msa:
             continue
         os.makedirs(f'{output_folder}/{msa[:-4]}')
         seqids = get_seqids(f'{msas_folder}/{msa}')
@@ -50,7 +52,7 @@ def main():
                 for id in seqids:
                     try:
                         seq = get_seq_from_uniprotId(id[1:])
-                        if (len(seq) > 0):
+                        if len(seq) > 0:
                             seq.remove(id)
                             break
                         else:
@@ -80,7 +82,7 @@ def main():
                         if i in msa_split[idx]:
                             algn_msa_list.append(msa_split[idx])
                             algn_msa_list.append(msa_split[idx + 1])
-            if (len(algn_msa_list) == 0):
+            if len(algn_msa_list) == 0:
                 count = count - 1
                 continue
             df = open(f'{output_folder}/{msa[:-4]}/{msa[:-4]}_SAMPLE_{str(sample_cnt)}.a3m', 'w')
@@ -95,9 +97,6 @@ def main():
                     df.write('\n')
                 except:
                     continue
-
-
-
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ if platform.system() == "Linux":
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
-    run_mode = "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "run_pipeline"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 run_esm = False # run just esm contacts
@@ -88,7 +88,7 @@ for i in range(2, n_fam):  # loop on families
         fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
         pipeline_str = "sbatch -o './Pipeline/" + foldpair_ids[i] + "/run_pipeline_for_" + foldpair_ids[i] + ".out' ./pipeline_get_params.sh " + fasta_file_name + " " + foldpair_ids[i]  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(pipeline_str)
-        os.system(pipeline_str)  # run pipeline (should be a separate job!)
+#        os.system(pipeline_str)  # run pipeline (should be a separate job!)
 
     if plot_results:
         # First load files
@@ -137,7 +137,9 @@ for i in range(2, n_fam):  # loop on families
         try:
             true_cmap = {pdbids[i][fold] : np.genfromtxt(fasta_dir +  # problem with first !!
                         "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(1)}
+            print("Loaded text true!")
         except:
+            print("load binary true!")
             true_cmap = {pdbids[i][fold] : np.load(fasta_dir +  # problem with first !!
                         "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(1)}
 
