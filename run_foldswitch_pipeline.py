@@ -16,7 +16,7 @@ if platform.system() == "Linux":
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
-    run_mode = "run_esm"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 run_esm = False # run just esm contacts
@@ -122,7 +122,11 @@ for i in range(2, n_fam):  # loop on families
 #        for file in msa_pred_files:
 #            print(file)
 #            msa_transformer_pred[i] = np.genfromtxt(file)
-        msa_transformer_pred = { file.split("\\")[-1][14:-4] : np.genfromtxt(file) for file in msa_pred_files  }
+        try:  # read in text format or python format
+            msa_transformer_pred = {file.split("\\")[-1][14:-4] : np.genfromtxt(file) for file in msa_pred_files}
+        except:
+            msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.load(file) for file in msa_pred_files}
+
         print("Predicted cmap sizes for:" + foldpair_ids[i])
         print([c.shape[0] for c in msa_transformer_pred.values()])
 
@@ -130,9 +134,13 @@ for i in range(2, n_fam):  # loop on families
 #        for fold in range(2):
 #            true_cmap[fold] = np.genfromtxt(fasta_dir +
 #                "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")  # load for pickle, genfromtxt for tab-delimited
+        try:
+            true_cmap = {pdbids[i][fold] : np.genfromtxt(fasta_dir +  # problem with first !!
+                        "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(1)}
+        except:
+            true_cmap = {pdbids[i][fold] : np.load(fasta_dir +  # problem with first !!
+                        "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(1)}
 
-        true_cmap = {pdbids[i][fold] : np.genfromtxt(fasta_dir +  # problem with first !!
-                    "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(1)}
         print("True cmap sizes:")
         print([c.shape[0] for c in true_cmap.values()])
         print("plot")
