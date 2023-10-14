@@ -72,7 +72,7 @@ if __name__=='__main__':
     print(os.listdir("./Pipeline"))
     print(os.listdir(args.input_msas[0]))
     print("List files:")
-    print([msa_fil for msa_fil in os.listdir(args.input_msas[0]])
+    print([msa_fil for msa_fil in os.listdir(args.input_msas[0])])
     msas = {
         os.path.basename(msa_fil).replace('.a3m', ''): read_msa(args.input_msas[0] + '/'+ msa_fil)
         for msa_fil in os.listdir(args.input_msas[0])
