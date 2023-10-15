@@ -16,7 +16,7 @@ if platform.system() == "Linux":
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
-    run_mode = "run_pipeline"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 run_esm = False # run just esm contacts
@@ -91,27 +91,30 @@ for i in range(2, n_fam):  # loop on families
 #        os.system(pipeline_str)  # run pipeline (should be a separate job!)
 
     if plot_results:
+        fasta_file_names = {pdbids[i][fold] : fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][fold] + '.fasta' for fold in range(2)}
         # First load files
-        fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
-        fasta_file_name1 = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][1] + '.fasta'  # Second file  !!!
+#        fasta_file_name = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][0] + '.fasta'
+#        fasta_file_name1 = fasta_dir + "/" + foldpair_ids[i] + "/" + pdbids[i][1] + '.fasta'  # Second file  !!!
 
-        print(fasta_file_name)
-        print(fasta_file_name1)
-        with open(fasta_file_name, "r") as text_file:
-            seq = text_file.read().split("\n")[1]
-        with open(fasta_file_name1, "r") as text_file:
-            seq1 = text_file.read().split("\n")[1]
+#        print(fasta_file_name)
+#        print(fasta_file_name1)
+        seq = {}
+        for fold in range(2):
+            with open(fasta_file_names[pdbids[i][fold]], "r") as text_file:
+                seq[pdbids[i][fold]]  = text_file.read().split("\n")[1]
+#        with open(fasta_file_name1, "r") as text_file:
+#            seq1 = text_file.read().split("\n")[1]
 
         print("Aligning:")
-        print(seq)
-        print(seq1)
-        pairwise_alignment = pairwise2.align.globalxx(seq, seq1)
-        print("Alignment:")
-        print(pairwise_alignment[0].seqA)
-        print(pairwise_alignment[1].seqB)
+        print(seq[pdbids[i][0]])
+        print(seq[pdbids[i][1]])
+#        pairwise_alignment = pairwise2.align.globalxx(seq[pdbids[i][0]], seq[pdbids[i][1]])
+#        print("Alignment:")
+#        print(pairwise_alignment[0].seqA)
+#        print(pairwise_alignment[0].seqB)
         # Alternative alg for alignment
         aligner = Align.PairwiseAligner()
-        pa = aligner.align(seq, seq1)
+        pairwise_alignment = aligner.align(seq[pdbids[i][0]], seq[pdbids[i][1]])
 
         msa_file = fasta_dir + "/" + foldpair_ids[i] + "/output_get_msa/DeepMsa.a3m"
         MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
@@ -146,7 +149,12 @@ for i in range(2, n_fam):  # loop on families
         print("True cmap sizes:")
         print([c.shape[0] for c in true_cmap.values()])
         print("plot")
-        plot_array_contacts_and_predictions(msa_transformer_pred, true_cmap)
+
+        # Match indices of the two folds:
+        match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap, msa_transformer_pred)
+
+#        plot_array_contacts_and_predictions(msa_transformer_pred, true_cmap)
+        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap)
         cmap_dists_vec[i] = compute_cmap_distances(msa_transformer_pred)
         seqs_dists_vec[i] = np.mean(compute_seq_distances(MSA)) # can take the entire sequence !
 

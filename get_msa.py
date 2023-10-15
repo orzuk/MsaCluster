@@ -45,11 +45,14 @@ def main():
     with open('seq_obj.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
         pickle.dump([queries, is_complex, sequence, result_dir, args.name, args], f)
 
-#    with open('seq_obj.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-#        queries, is_complex, sequence, result_dir, args.name, args = pickle.load(f)
+    with open('seq_obj.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+        queries, is_complex, sequence, result_dir, args.name, args = pickle.load(f)
     (unpaired_msa, paired_msa, query_seqs_unique, query_seqs_cardinality, template_features) = \
         get_msa_and_templates(query_sequences=sequence, jobname=args.name, result_dir= result_dir,
                               use_templates=False, custom_template_path='',pair_mode='', msa_mode='mmseqs2_uniref_env')
+    (unpaired_msa, paired_msa, query_seqs_unique, query_seqs_cardinality, template_features) = \
+        get_msa_and_templates(query_sequences=sequence, jobname=args_name, result_dir=result_dir,
+                              use_templates=False, custom_template_path='', pair_mode='', msa_mode='mmseqs2_uniref_env')
     print("unpaired msa:")
     print(unpaired_msa)
     print("paired msa:")

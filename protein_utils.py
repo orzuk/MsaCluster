@@ -504,6 +504,25 @@ def get_calphas(struct):
     return calphas
 
 
+# Match between cmaps, get only aligned indices
+def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
+    n_true = len(true_cmap)  # always 2 !!
+    n_pred = len(pred_cmap)  # variable number !!
+
+    match_true_cmap = [None]*2
+    match_pred_cmap = [None]*n_pred
+
+    for i in range(2): # get true
+        cur_ind = pairwise_alignment[0].indices[i][pairwise_alignment[0].indices[i] >= 0]
+        match_true_cmap[i] = true_cmap[i][cur_ind, cur_ind]
+
+    for i in range(n_pred): # get predicted
+        cur_ind = pairwise_alignment[0].indices[0][pa[0].indices[i] >= 0]  # predictions biased to first !!!
+        match_pred_cmap[i] = pred_cmap[i][cur_ind, cur_ind]
+
+    return match_true_cmap, match_pred_cmap
+
+
 run_example = False
 if run_example:
     # Example usage:

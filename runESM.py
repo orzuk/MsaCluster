@@ -113,7 +113,7 @@ if __name__=='__main__':
                 np.save("%s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name), pred)
             print("wrote %s/%s_%s_%s.npy" % (args.o, args.model, args.keyword, name))
 
-    elif args.model=='msa_t':
+    elif args.model == 'msa_t':
         for name, inputs in msas.items():
             inputs = greedy_select(inputs, num_seqs=128) # can change this to pass more/fewer sequences
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
