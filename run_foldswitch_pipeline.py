@@ -9,7 +9,7 @@ from MSA_Clust import *
 import subprocess
 import platform
 
-from Bio import pairwise2, Align
+from Bio import Align
 
 if platform.system() == "Linux":
     print("Run on cluster command line")
