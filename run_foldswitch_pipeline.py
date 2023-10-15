@@ -23,18 +23,19 @@ run_esm = False # run just esm contacts
 load_seq_and_struct = False  # jsut get from pdb the sequence and 3D structure for each protein
 plot_results = False
 
-match run_mode:
-    case "load":
-        load_seq_and_struct = True  # just get from pdb the sequence and 3D structure for each protein
-        print("Load pdb files, contact maps and fasta sequences for all families")
-    case "run_esm":
-        run_esm = True  # run entire pipeline
-        print("Run ESM transformer for all families")
-    case "run_pipeline":
-        run_pipeline = True  # run entire pipeline
-        print("Run Entire pipeline for all families")
-    case "plot": # here do analysis of the results
-        plot_results = True
+# can't use match (only from python 3.10)
+# match run_mode:
+if run_mode == "load":
+    load_seq_and_struct = True  # just get from pdb the sequence and 3D structure for each protein
+    print("Load pdb files, contact maps and fasta sequences for all families")
+if run_mode == "run_esm":
+    run_esm = True  # run entire pipeline
+    print("Run ESM transformer for all families")
+if run_mode == "run_pipeline":
+    run_pipeline = True  # run entire pipeline
+    print("Run Entire pipeline for all families")
+if run_mode == "plot": # here do analysis of the results
+    plot_results = True
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
 fasta_dir = "Pipeline"
