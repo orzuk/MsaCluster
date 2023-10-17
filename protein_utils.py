@@ -175,9 +175,15 @@ def contacts_from_pdb(
     C = structure.coord[mask & (structure.atom_name == "C")]
 
     if len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA): # missing atoms
-        print("Missing atoms in PDB!")
+        print("Missing atoms in PDB! remove residues!")
         print([len(N), len(CA), len(C)])
-        return []
+        good_res_ids = np.intersect1d(np.intersect1d(structure.res_id[mask & (structure.atom_name == "N")],
+                                                     structure.res_id[mask & (structure.atom_name == "CA")]),
+                                      structure.res_id[mask & (structure.atom_name == "C")])
+        N = structure.coord[mask & (structure.atom_name == "N") & np.in1d(structure.res_id, good_res_ids)]
+        CA = structure.coord[mask & (structure.atom_name == "CA") & np.in1d(structure.res_id, good_res_ids)]
+        C = structure.coord[mask & (structure.atom_name == "C") & np.in1d(structure.res_id, good_res_ids)]
+        # return []
     Cbeta = extend(C, N, CA, 1.522, 1.927, -2.143)
     dist = squareform(pdist(Cbeta))
 

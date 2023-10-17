@@ -16,7 +16,7 @@ if platform.system() == "Linux":
     run_mode = sys.argv[1]
 else:
     print("Run on windows")
-    run_mode = "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
 
 run_pipeline = False  # run entire pipeline
 run_esm = False  # run just esm contacts
@@ -54,7 +54,7 @@ n_fam = len(pdbids)  # number of families
 cmap_dists_vec = [None]*n_fam # Results arrays
 seqs_dists_vec = [None]*n_fam
 
-for i in range(14, n_fam):  # loop on families
+for i in range(42, n_fam):  # loop on families
     cur_family_dir = fasta_dir + "/" + foldpair_ids[i]
     print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_ids[i])
     if load_seq_and_struct:
@@ -70,7 +70,8 @@ for i in range(14, n_fam):  # loop on families
 
 #            print("Index: " + str([s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])))
             with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
-                text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n', str(pdb_seq[[s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])].seq) ])
+                text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
+                                       str(pdb_seq[[s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])].seq) ])
 
             # Finally, make a contact map from each pdb file:
             # Read structure in slightly different format
@@ -78,9 +79,11 @@ for i in range(14, n_fam):  # loop on families
             pdbX_struct = get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0]
 #            print("Get contacts, Cbeta distance < 8Angstrom")
             pdb_contacts = contacts_from_pdb(pdbX_struct, chain=pdbchains[i][fold])  # =True)  # extract pdb file
+            print("Save contacts!!! ")
+            print(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")
             np.savetxt(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", pdb_contacts)  # save contacts
 
-    if run_esm: # Just compute conctacts !!
+    if run_esm:  # Just compute contacts !!
         esm_str = "sbatch -o './Pipeline/" + foldpair_ids[i] + "/run_esm_for_" + foldpair_ids[i] + ".out' ./Pipeline/CmapESM_params.sh  " + foldpair_ids[i]  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(esm_str)
 #        os.system(esm_str)  # run pipeline (should be a separate job!)
