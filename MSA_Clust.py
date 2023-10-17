@@ -74,14 +74,15 @@ def compute_cmap_distances(cmaps, cmap_main = []):
     D = 0
     n_maps = len(cmaps)  # number of clusters/contact maps
 
+    keys_list = list(cmaps.keys())
     if len(cmap_main) == 0:  # no centroid, calculate it
-        cmap_main = cmaps[1]
+        cmap_main = cmaps[keys_list[0]]
         for i in range(1, n_maps):
-            cmap_main += cmaps[i]
+            cmap_main += cmaps[keys_list[i]]
         cmap_main = cmap_main / n_maps
 
-    for i in range(n_maps): # Code here
-        D += sum(cmaps[i] - cmap_main)**2
+    for cur_cmap in cmaps.keys():  # Compute distance to centroid
+        D += sum(cmaps[cur_cmap] - cmap_main)**2
     return D/n_maps  # normalize
 
 
@@ -97,20 +98,20 @@ def compute_seq_distances(MSA_clust):
 #    avg_dist_to_query = np.mean([1-levenshtein(x, query_['sequence'].iloc[0])/L for x in df.loc[df.dbscan_label==-1]['sequence'].tolist()])
 #    lprint('avg identity to query of unclustered: %.2f' % avg_dist_to_query,f)
 
-
+    keys_list = list(MSA_clust.keys())
     max_seq_per_cluster = 10  # maximum number of sequences per cluster
     for i in range(n_clusters):  # loop on pairs of clusters
         for j in range(i, n_clusters):
-            n_i = len(MSA_clust[i])
-            n_j = len(MSA_clust[j])
+            n_i = len(MSA_clust[keys_list[i]])
+            n_j = len(MSA_clust[keys_list[j]])
             II = random.sample(range(n_i), min(n_i, max_seq_per_cluster))
             JJ = random.sample(range(n_j), min(n_j, max_seq_per_cluster))
 
             for seq_i in II:
                 for seq_j in JJ:
-                    D[i,j] += levenshtein(str(MSA_clust[i][seq_i].seq), str(MSA_clust[j][seq_j].seq))
-            D[i,j] = D[i,j] / (len(II)*len(JJ))  # normalize
-            D[j,i] = D[i,j]  # make symmetric
+                    D[i, j] += levenshtein(str(MSA_clust[keys_list[i]][seq_i][1]), str(MSA_clust[keys_list[j]][seq_j][1]))  # compare sequences
+            D[i, j] = D[i, j] / (len(II)*len(JJ))  # normalize
+            D[j, i] = D[i, j]  # make symmetric
 
     return D  # average sequence distance between
 

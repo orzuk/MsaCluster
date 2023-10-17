@@ -295,7 +295,7 @@ def evaluate_prediction(
 
 
 # Plot multiple contacts and predictions together
-def plot_array_contacts_and_predictions(predictions, contacts):
+def plot_array_contacts_and_predictions(predictions, contacts, save_file = []):
     n_pred = len(predictions)
     n_row = math.ceil(math.sqrt(n_pred))  # *2
     if n_row*(n_row-1) >= n_pred:  # *2
@@ -304,24 +304,24 @@ def plot_array_contacts_and_predictions(predictions, contacts):
         n_col = n_row
     PDB_IDS = predictions.keys()  # [p[name] for p in predictions]
     contacts_ids = contacts.keys()
-    print(PDB_IDS)
-    fig, axes = plt.subplots(figsize=(18, 18), nrows = n_row, ncols=n_col, layout="compressed")
+    fig, axes = plt.subplots(figsize=(18, 18), nrows=n_row, ncols=n_col, layout="compressed")
 #    print("Num cmaps: " + str(n_pred))
 #    print(axes.shape)
 #    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
     ctr = 0
 #    for ax, name in zip(axes, PDB_IDS):
     for name in PDB_IDS:
-#        print([ctr // n_col, ctr % n_col])
         ax = axes[ctr // n_col, ctr % n_col]
         ctr = ctr + 1
-#        print(ax)
-#        print(name)
         for true_name in contacts_ids:
             plot_contacts_and_predictions(
                 predictions[name], contacts[true_name], ax=ax, title = name)
 #            prediction, target, ax=ax, title = lambda prec: f"{name}: Long Range P@L: {100 * prec:0.1f}")
-    plt.show()
+    if len(save_file) > 0:  # save and close plot (enable automatic saving of multiple plots)
+        plt.savefig(save_file + '.png')
+        print("Save cmap fig: " + save_file + '.png')
+    else:
+        plt.show()
 
 
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
@@ -370,7 +370,7 @@ def plot_contacts_and_predictions(
     else:
         title_text = None
 
-    img = ax.imshow(masked_image, cmap=cmap, animated=animated)
+    img = ax.imshow(masked_image, cmap=cmap, animated=animated)  # Show main image
     oc = ax.plot(*np.where(other_contacts), "o", c="grey", ms=ms)[0]
     fn = ax.plot(*np.where(false_positives), "o", c="r", ms=ms)[0]
     tp = ax.plot(*np.where(true_positives), "o", c="b", ms=ms)[0]
@@ -506,19 +506,29 @@ def get_calphas(struct):
 
 # Match between cmaps, get only aligned indices
 def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
-    n_true = len(true_cmap)  # always 2 !!
-    n_pred = len(pred_cmap)  # variable number !!
+#    n_true = len(true_cmap)  # always 2 !!
+#    n_pred = len(pred_cmap)  # variable number !!
 
-    match_true_cmap = [None]*2
-    match_pred_cmap = [None]*n_pred
+    match_true_cmap = {}  # [None]*2
+    match_pred_cmap = {}  # [None]*n_pred
 
-    for i in range(2): # get true
-        cur_ind = pairwise_alignment[0].indices[i][pairwise_alignment[0].indices[i] >= 0]
-        match_true_cmap[i] = true_cmap[i][cur_ind, cur_ind]
+    # good_inds = np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1])
+    good_inds = np.where(np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1]) >= 0)[0]
 
-    for i in range(n_pred): # get predicted
-        cur_ind = pairwise_alignment[0].indices[0][pa[0].indices[i] >= 0]  # predictions biased to first !!!
-        match_pred_cmap[i] = pred_cmap[i][cur_ind, cur_ind]
+    ctr = 0
+    for fold in true_cmap.keys():   # get true (these are dictionaries !!)
+        match_true_cmap[fold] = true_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
+                                                pairwise_alignment[0].indices[ctr][good_inds])]
+        ctr = ctr + 1
+#        cur_ind = pairwise_alignment[0].indices[i][pairwise_alignment[0].indices[i] >= 0]
+#        print(true_cmap[i])
+#        print(true_cmap[i].shape)
+#        print(true_cmap[i][cur_ind,cur_ind])
+
+    ctr = 0
+    for fold in pred_cmap.keys():  # range(n_pred):  # get predicted
+        match_pred_cmap[fold] = pred_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
+                                                pairwise_alignment[0].indices[ctr][good_inds])]
 
     return match_true_cmap, match_pred_cmap
 
