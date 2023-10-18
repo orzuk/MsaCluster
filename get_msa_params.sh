@@ -4,9 +4,12 @@
 #SBATCH --ntasks=8
 #SBATCH --mem=10G
 
-arg1="$1"
-arg2="$2"
 
+FASTA_FILE_INPUT="$1"
+OUTPUT_NAME_DIR="$2"
 
-mkdir $arg1
-python3 ./get_msa.py  $arg2   ./$arg1  -name 'test'
+. /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
+
+mkdir -p Pipeline/$OUTPUT_NAME_DIR/output_get_msa
+python3 ./get_msa.py $FASTA_FILE_INPUT ./Pipeline/$OUTPUT_NAME_DIR/output_get_msa  -name 'DeepMsa'
+

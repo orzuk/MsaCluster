@@ -157,12 +157,12 @@ def MSA_to_str_format(MSAs, MSAs_names):
     return MSAs_str
 
 
-PDB_IDS = ["1a3a", "5ahw", "1xcr"]
-
-structures = {
-    name.lower(): get_structure(PDBxFile.read(rcsb.fetch(name, "cif")))[0]
-    for name in PDB_IDS
-}
+# PDB_IDS = ["1a3a", "5ahw", "1xcr"]
+#
+# structures = {
+#    name.lower(): get_structure(PDBxFile.read(rcsb.fetch(name, "cif")))[0]
+#    for name in PDB_IDS
+# }
 
 #contacts = {
 #    name: contacts_from_pdb(structure, chain="A")
