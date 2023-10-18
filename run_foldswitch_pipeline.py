@@ -15,7 +15,8 @@ foldpair_ids_to_run = "ALL"
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
-    foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
+    if len(sys.argv) > 2:
+        foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
     run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
@@ -60,6 +61,8 @@ seqs_dists_vec = [None]*n_fam
 
 if foldpair_ids_to_run == "ALL":
     foldpair_ids_to_run = foldpair_ids
+else: # make a list 
+    foldpair_ids_to_run = [foldpair_ids_to_run]
 i = -1
 for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop on families
     i += 1
