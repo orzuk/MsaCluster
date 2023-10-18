@@ -48,7 +48,6 @@ fasta_dir = "Pipeline"
 pdbids_file = "data/foldswitch_PDB_IDs_full.txt"   # file with all pdb ids
 
 with open(pdbids_file, "r") as file:  # read all pdb ids
-with open(pdbids_file, "r") as file:  # read all pdb ids
     pdbids = [line.rstrip() for line in file]  # two per row
 foldpair_ids = [s.replace("\t", "_") for s in pdbids]
 
@@ -64,9 +63,8 @@ if foldpair_ids_to_run == "ALL":
     foldpair_ids_to_run = foldpair_ids
 else: # make a list
     foldpair_ids_to_run = [foldpair_ids_to_run]
-# i = -1
 for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop on families
-    i = foldpair_ids.index(foldpair_id)
+    i += foldpair_ids.index(foldpair_id)
     cur_family_dir = fasta_dir + "/" + foldpair_id
     print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_id)
     if load_seq_and_struct:
