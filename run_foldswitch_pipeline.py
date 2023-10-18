@@ -58,13 +58,13 @@ pdbids = [[s[0][:-1], s[1][:-1]] for s in pdbids]
 n_fam = len(pdbids)  # number of families
 cmap_dists_vec = [None]*n_fam  # Results arrays
 seqs_dists_vec = [None]*n_fam
-
 if foldpair_ids_to_run == "ALL":
     foldpair_ids_to_run = foldpair_ids
 else: # make a list
     foldpair_ids_to_run = [foldpair_ids_to_run]
+
 for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop on families
-    i += foldpair_ids.index(foldpair_id)
+    i = foldpair_ids.index(foldpair_id)
     cur_family_dir = fasta_dir + "/" + foldpair_id
     print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_id)
     if load_seq_and_struct:
