@@ -9,7 +9,7 @@ from hdbscan import HDBSCAN
 import numpy as np
 from Bio import SeqIO
 import pickle
-
+from glob import glob
 
 def lprint(string, f):
     print(string)
@@ -124,10 +124,7 @@ if __name__ == '__main__':
     os.makedirs(args.o, exist_ok=True)
     f = open("%s.log" % args.keyword, 'w')
     IDs, seqs = load_fasta(args.i)
-
-    print("Get seqs:")
     seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
-    print(seqs)
 
     df = pd.DataFrame({'SequenceName': IDs, 'sequence': seqs})
 
@@ -139,6 +136,7 @@ if __name__ == '__main__':
 
     L = len(df.sequence.iloc[0])
     N = len(df)
+    print("Seqs len: " + str(L))
 
     df['frac_gaps'] = [x.count('-') / L for x in df['sequence']]
 
@@ -158,7 +156,6 @@ if __name__ == '__main__':
     with open('hdbscan_input.pkl', 'wb') as f_pickle:  # Python 3: open(..., 'wb')
         pickle.dump([ohe_seqs, df, IDs, seqs, args], f_pickle)
 
-    print("Now run HDBSCAN!!")
     clustering = HDBSCAN(min_cluster_size=10, min_samples=args.min_samples, cluster_selection_method='leaf')
     clustering.fit_predict(ohe_seqs)
     clusters = np.unique(clustering.labels_)
@@ -169,7 +166,6 @@ if __name__ == '__main__':
 
     # _ = clustering.condensed_tree_.plot(select_clusters=True,selection_palette=sns.color_palette("deep", np.unique(clusters).shape[0]),label_clusters=True)
     lprint("%d total seqs" % len(df), f)
-
     df['dbscan_label'] = clustering.labels_
 
     clusters = [x for x in df.dbscan_label.unique() if x >= 0]
@@ -184,6 +180,9 @@ if __name__ == '__main__':
     avg_dist_to_query = np.mean([1 - levenshtein(x, query_['sequence'].iloc[0]) / L for x in df.loc[df.dbscan_label != -1]['sequence'].tolist()])
     lprint('avg identity to query of clustered: %.2f' % avg_dist_to_query, f)
 
+    print("Delete old MSA files: " + args.o + '/' + args.keyword + '*.a3m')
+    for f_old in glob(args.o + '/*.a3m'):
+        os.remove(f_old)
     cluster_metadata = []
     for clust in clusters:
         tmp = df.loc[df.dbscan_label == clust]

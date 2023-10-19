@@ -11,7 +11,7 @@ import platform
 
 from Bio import Align
 
-foldpair_ids_to_run = '1xjuB_1xjtA'  # "ALL"
+foldpair_ids_to_run = '3t5oA_4a5wB' # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
@@ -151,7 +151,7 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         try:  # read in text format or python format
             msa_transformer_pred = {file.split("\\")[-1][14:-4] : np.genfromtxt(file) for file in msa_pred_files}
         except:
-            msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.load(file) for file in msa_pred_files}
+            msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.load(file, allow_pickle=True) for file in msa_pred_files}
 
 #        print("Predicted cmap sizes for:" + foldpair_id)
 #        print([c.shape[0] for c in msa_transformer_pred.values()])
@@ -167,7 +167,7 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         except:
 #            print("load binary true!")
             true_cmap = {pdbids[i][fold] : np.load(fasta_dir +  # problem with first !!
-                        "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(2)}
+                        "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", allow_pickle=True).astype(int) for fold in range(2)}
 
 #        print("True cmap sizes:")
 #        print([c.shape[0] for c in true_cmap.values()])

@@ -14,6 +14,8 @@ import Bio
 import Bio.PDB
 import Bio.SeqRecord
 from Bio import SeqIO
+from glob import glob
+
 
 import os
 import sys

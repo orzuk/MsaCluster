@@ -99,6 +99,12 @@ if __name__=='__main__':
     mdl = mdl.eval()
     batch_converter = mdl_alphabet.get_batch_converter()
 
+    # Remove old cmaps in the same directory!
+    print("Removing old files: " + args.o + '/*.npy')
+    print(glob(args.o + '/*.npy'))
+    for f_old in glob(args.o + '/*.npy'):
+        os.remove(f_old)
+
     if args.model == 'esm1b':
         for name, inputs in sequences.items():
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
