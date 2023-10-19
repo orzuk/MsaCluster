@@ -11,7 +11,7 @@ import platform
 
 from Bio import Align
 
-foldpair_ids_to_run = '3t5oA_4a5wB' # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
+foldpair_ids_to_run = 'ALL' # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
