@@ -8,6 +8,7 @@ from sklearn.cluster import DBSCAN
 from hdbscan import HDBSCAN
 import numpy as np
 from Bio import SeqIO
+import pickle
 
 
 def lprint(string, f):
@@ -124,7 +125,9 @@ if __name__ == '__main__':
     f = open("%s.log" % args.keyword, 'w')
     IDs, seqs = load_fasta(args.i)
 
+    print("Get seqs:")
     seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
+    print(seqs)
 
     df = pd.DataFrame({'SequenceName': IDs, 'sequence': seqs})
 
@@ -151,18 +154,18 @@ if __name__ == '__main__':
     n_clusters = []
     eps_test_vals = np.arange(args.min_eps, args.max_eps + args.eps_step, args.eps_step)
 
+    # Save inputs:
+    with open('hdbscan_input.pkl', 'wb') as f_pickle:  # Python 3: open(..., 'wb')
+        pickle.dump([ohe_seqs, df, IDs, seqs, args], f_pickle)
 
-
-    clustering = HDBSCAN(min_cluster_size=10, min_samples=args.min_samples,cluster_selection_method='leaf')
+    print("Now run HDBSCAN!!")
+    clustering = HDBSCAN(min_cluster_size=10, min_samples=args.min_samples, cluster_selection_method='leaf')
     clustering.fit_predict(ohe_seqs)
     clusters = np.unique(clustering.labels_)
     if len(clusters) > 35:
-            clustering = HDBSCAN(min_cluster_size=15, min_samples=args.min_samples,cluster_selection_method='eom')
+            clustering = HDBSCAN(min_cluster_size=15, min_samples=args.min_samples, cluster_selection_method='eom')
             clustering.fit_predict(ohe_seqs)
             clusters = np.unique(clustering.labels_)
-
-
-
 
     # _ = clustering.condensed_tree_.plot(select_clusters=True,selection_palette=sns.color_palette("deep", np.unique(clusters).shape[0]),label_clusters=True)
     lprint("%d total seqs" % len(df), f)
@@ -203,7 +206,7 @@ if __name__ == '__main__':
         cluster_metadata.append({'cluster_ind': clust, 'consensusSeq': cs, 'avg_lev_dist': '%.3f' % avg_dist_to_cs,
                                  'avg_dist_to_query': '%.3f' % avg_dist_to_query, 'size': len(tmp)})
 
-        write_fasta(tmp.SequenceName.tolist(), tmp.sequence.tolist(),outfile=args.o + '/' + args.keyword + '_' + "%03d" % clust + '.a3m')
+        write_fasta(tmp.SequenceName.tolist(), tmp.sequence.tolist(), outfile=args.o + '/' + args.keyword + '_' + "%03d" % clust + '.a3m')
 
     print('Saved this output to %s.log' % args.keyword)
     f.close()

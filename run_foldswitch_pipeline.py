@@ -11,7 +11,7 @@ import platform
 
 from Bio import Align
 
-foldpair_ids_to_run = "ALL"
+foldpair_ids_to_run = '1xjuB_1xjtA'  # "ALL"
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
@@ -20,6 +20,8 @@ if platform.system() == "Linux":
 else:
     print("Run on windows")
     run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+
+
 
 print("Running on: " + foldpair_ids_to_run)
 
@@ -115,7 +117,20 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         os.system(pipeline_str)  # run pipeline (should be a separate job!)
 
     if plot_results:
-        fasta_file_names = {pdbids[i][fold] : fasta_dir + "/" + foldpair_id + "/" + pdbids[i][fold] + '.fasta' for fold in range(2)}
+        fasta_file_names = {pdbids[i][fold]: fasta_dir + "/" + foldpair_id + "/" + pdbids[i][fold] + '.fasta' for fold in range(2)}
+        msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
+        MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
+        msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
+        n_cmaps = len(msa_pred_files)
+        n_cmaps = min(3, n_cmaps)  # temp for debug !!
+        msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
+        msa_clusters = {file.split("\\")[-1][:-4]: read_msa(file) for file in msa_files}
+
+        # Filter 'bad' families: too shallow alignments (no clusters), other reasons??
+        if len(msa_files) == 0:
+            print("Shallow alignment! No MSA Clusters! Skipping family")
+            continue
+
         # First load files
 #        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + '.fasta'
 #        fasta_file_name1 = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][1] + '.fasta'  # Second file  !!!
@@ -126,25 +141,9 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         for fold in range(2):
             with open(fasta_file_names[pdbids[i][fold]], "r") as text_file:
                 seq[pdbids[i][fold]] = text_file.read().split("\n")[1]
-
-#        print("Aligning:")
-#        print(seq[pdbids[i][0]])
-#        print(seq[pdbids[i][1]])
-#        pairwise_alignment = pairwise33.align.globalxx(seq[pdbids[i][0]], seq[pdbids[i][1]])
-#        print("Alignment:")
-#        print(pairwise_alignment[0].seqA)
-#        print(pairwise_alignment[0].seqB)
-        # Alternative alg for alignment
-#        aligner = Align.PairwiseAligner()
         pairwise_alignment = Align.PairwiseAligner().align(seq[pdbids[i][0]], seq[pdbids[i][1]])
 
-        msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
-        MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
-        msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
-        n_cmaps = len(msa_pred_files)
-        n_cmaps = min(3, n_cmaps)  # temp for debug !!
-        msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
-        msa_clusters = {file.split("\\")[-1][:-4] : read_msa(file) for file in msa_files}
+
 #        msa_transformer_pred = [None]*n_cmaps
 #        for file in msa_pred_files:
 #            print(file)
