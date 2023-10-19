@@ -3,7 +3,9 @@
 #SBATCH --time=05:00:00
 #SBATCH --ntasks=8
 #SBATCH --mem=10G
-#SBATCH --gres=gpu:a100-3-40
+
+#SBATCH --partition=puffin
+#SBATCH --gres=gpu:a30
 
 
 OUTPUT_NAME_DIR="$1"
