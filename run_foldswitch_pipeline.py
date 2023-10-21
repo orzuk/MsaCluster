@@ -20,8 +20,7 @@ if platform.system() == "Linux":
 else:
     print("Run on windows")
     run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-
-
+    foldpair_ids_to_run = '1eboE_5fhcJ'
 
 print("Running on: " + foldpair_ids_to_run)
 

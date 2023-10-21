@@ -379,16 +379,17 @@ def plot_contacts_and_predictions(
         title_text = None
 
     img = ax.imshow(masked_image, cmap=cmap, animated=animated)  # Show main image
-    oc = ax.plot(*np.where(other_contacts), "o", c="grey", ms=ms)[0]
-    fn = ax.plot(*np.where(false_positives), "o", c="r", ms=ms)[0]
-    tp = ax.plot(*np.where(true_positives), "o", c="b", ms=ms)[0]
+    oc = ax.plot(*np.where(other_contacts), "o", c="grey", ms=ms, label="other")[0]
+    fn = ax.plot(*np.where(false_positives), "o", c="r", ms=ms, label="FN")[0]
+    tp = ax.plot(*np.where(true_positives), "o", c="b", ms=ms, label="TP")[0]
     ti = ax.set_title(title_text) if title_text is not None else None
     # artists = ContactAndPredictionArtists(img, oc, fn, tp, ti)
 
+    ax.legend(loc="lower left")
     ax.axis("square")
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
-    save_flag = False # add as input
+    save_flag = False  # add as input
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
 
