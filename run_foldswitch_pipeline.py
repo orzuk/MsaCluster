@@ -11,7 +11,7 @@ import platform
 
 from Bio import Align
 
-foldpair_ids_to_run = 'ALL' # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
+foldpair_ids_to_run = 'ALL'  # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
 if platform.system() == "Linux":
     print("Run on cluster command line")
     run_mode = sys.argv[1]
@@ -20,7 +20,7 @@ if platform.system() == "Linux":
 else:
     print("Run on windows")
     run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-    foldpair_ids_to_run = '1eboE_5fhcJ'
+    foldpair_ids_to_run = '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 print("Running on: " + foldpair_ids_to_run)
 

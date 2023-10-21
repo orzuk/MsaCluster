@@ -16,7 +16,6 @@ import Bio.SeqRecord
 from Bio import SeqIO
 from glob import glob
 
-
 import os
 import sys
 import urllib
@@ -27,10 +26,11 @@ from biotite.structure.io.pdbx import PDBxFile, get_structure
 from biotite.database import rcsb
 
 import iminuit
-import tmscoring   # for comparing structures
+import tmscoring  # for comparing structures
 from Bio import Phylo  # for phylogenetic trees
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio import AlignIO
+
 # from TreeConstruction import DistanceTreeConstructor
 
 
@@ -81,19 +81,19 @@ def genetic_code():
 
 
 aa_long_short = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
-     'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N',
-     'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
-     'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
-aa_short_long = {y: x for x,y in aa_long_short.items()}
+                 'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N',
+                 'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
+                 'ALA': 'A', 'VAL': 'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
+aa_short_long = {y: x for x, y in aa_long_short.items()}
 
 
 # Get all the possible amino acids that we get with a single point mutation
 # for a specific codon
 def point_mutation_to_aa(codon, genetic_code_dict):
-    aa_mut_list = [genetic_code_dict.get(codon)] # this is the current aa
+    aa_mut_list = [genetic_code_dict.get(codon)]  # this is the current aa
     for pos in range(3):
         for s in ["A", "C", "G", "T"]:
-            aa_mut_list.append(genetic_code_dict.get(codon[:pos] + s + codon[pos+1:]))
+            aa_mut_list.append(genetic_code_dict.get(codon[:pos] + s + codon[pos + 1:]))
     return list(set(aa_mut_list))
 
 
@@ -105,17 +105,19 @@ def aa_to_codon(aa, genetic_code_dict):
 # Get all aa that can be obtained by a single point mutation from a given aa,
 # where we don't know the codon
 def aa_point_mutation_to_aa(aa, genetic_code_dict):
-    return list(set([j for l in [point_mutation_to_aa(c, genetic_code_dict) for c in aa_to_codon(aa, genetic_code_dict)] for j in l]))
+    return list(
+        set([j for l in [point_mutation_to_aa(c, genetic_code_dict) for c in aa_to_codon(aa, genetic_code_dict)] for j
+             in l]))
 
 
 # Run design on every position, collect
 def design_every_position(S, pdbID):
-    n = len(S) # get number of amino-acids
-    S_des = ['']*n # The output designed sequence
+    n = len(S)  # get number of amino-acids
+    S_des = [''] * n  # The output designed sequence
     for i in range(n):  # loop on positions
         cur_S = run_design(S, pdbID, i)  # run design function using ProteinMPNN, keeping all positions fixed except i
         S_des[i] = cur_S[i]  # change the i-th letter of the i-th protein
-    S_des = "".join(S_des) # convert to string
+    S_des = "".join(S_des)  # convert to string
     return S_des
 
 
@@ -136,10 +138,11 @@ def compare_designs(S, pdbID1, pdbID2):
     df_tm = pd.DataFrame(columns=TM, index=SEQ)
     S_true_list = [pdbID1, pdbID2]
     S_pred_list = [AF, AF1, AF2]
-    for i_true in range(2):   # loop on the two true structures
+    for i_true in range(2):  # loop on the two true structures
         for j_pred in range(3):  # S_predicted in [AF, AF1, AF2]:  # loop on the three predicted structures
-#            df_tm[TM[i_true]][SEQ[j_pred]] = TMScore(S_true_list[i_true], S_pred_list[j_pred])  # Compute TMScore similarity
-            alignment = tmscoring.TMscoring(S_true_list[i_true], S_pred_list[j_pred]) #  'structure1.pdb', 'structure2.pdb')  # from installed tmscoring
+            #            df_tm[TM[i_true]][SEQ[j_pred]] = TMScore(S_true_list[i_true], S_pred_list[j_pred])  # Compute TMScore similarity
+            alignment = tmscoring.TMscoring(S_true_list[i_true], S_pred_list[
+                j_pred])  # 'structure1.pdb', 'structure2.pdb')  # from installed tmscoring
             df_tm[TM[i_true]][SEQ[j_pred]] = alignment.tmscore(**alignment.get_current_values())
 
     print(df_tm)
@@ -152,6 +155,7 @@ def extend(a, b, c, L, A, D):
     input:  3 coords (a,b,c), (L)ength, (A)ngle, and (D)ihedral
     output: 4th coord
     """
+
     def normalize(x):
         return x / np.linalg.norm(x, ord=2, axis=-1, keepdims=True)
 
@@ -176,7 +180,7 @@ def contacts_from_pdb(
     CA = structure.coord[mask & (structure.atom_name == "CA")]
     C = structure.coord[mask & (structure.atom_name == "C")]
 
-    if len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA): # missing atoms
+    if len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA):  # missing atoms
         print("Missing atoms in PDB! remove residues!")
         print([len(N), len(CA), len(C)])
         good_res_ids = np.intersect1d(np.intersect1d(structure.res_id[mask & (structure.atom_name == "N")],
@@ -196,12 +200,12 @@ def contacts_from_pdb(
 
 
 def compute_precisions(
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
-    src_lengths: Optional[torch.Tensor] = None,
-    minsep: int = 6,
-    maxsep: Optional[int] = None,
-    override_length: Optional[int] = None,  # for casp
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+        src_lengths: Optional[torch.Tensor] = None,
+        minsep: int = 6,
+        maxsep: Optional[int] = None,
+        override_length: Optional[int] = None,  # for casp
 ):
     if isinstance(predictions, np.ndarray):
         predictions = torch.from_numpy(predictions)
@@ -259,8 +263,8 @@ def compute_precisions(
         )
 
     gather_indices = (
-        torch.arange(0.1, 1.1, 0.1, device=device).unsqueeze(0) * gather_lengths
-    ).type(torch.long) - 1
+                             torch.arange(0.1, 1.1, 0.1, device=device).unsqueeze(0) * gather_lengths
+                     ).type(torch.long) - 1
 
     binned_cumulative_dist = cumulative_dist.gather(1, gather_indices)
     binned_precisions = binned_cumulative_dist / (gather_indices + 1).type_as(
@@ -277,8 +281,8 @@ def compute_precisions(
 
 # Score the predictions
 def evaluate_prediction(
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
 ) -> Dict[str, float]:
     if isinstance(targets, np.ndarray):
         targets = torch.from_numpy(targets)
@@ -303,28 +307,33 @@ def evaluate_prediction(
 
 
 # Plot multiple contacts and predictions together
-def plot_array_contacts_and_predictions(predictions, contacts, save_file = []):
+def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
     n_pred = len(predictions)
     n_row = math.ceil(math.sqrt(n_pred))  # *2
-    if n_row*(n_row-1) >= n_pred:  # *2
-        n_col = n_row-1
+    if n_row * (n_row - 1) >= n_pred:  # *2
+        n_col = n_row - 1
     else:
         n_col = n_row
     PDB_IDS = predictions.keys()  # [p[name] for p in predictions]
     contacts_ids = contacts.keys()
     fig, axes = plt.subplots(figsize=(18, 18), nrows=n_row, ncols=n_col, layout="compressed")
-#    print("Num cmaps: " + str(n_pred))
-#    print(axes.shape)
-#    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
+    #    print("Num cmaps: " + str(n_pred))
+    #    print(axes.shape)
+    #    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
     ctr = 0
-#    for ax, name in zip(axes, PDB_IDS):
-    for name in PDB_IDS:
+    #    for ax, name in zip(axes, PDB_IDS):
+    for name in PDB_IDS:  # loop over predictions
         ax = axes[ctr // n_col, ctr % n_col]
         ctr = ctr + 1
-        for true_name in contacts_ids:
-            plot_contacts_and_predictions(
-                predictions[name], contacts[true_name], ax=ax, title = name)
-#            prediction, target, ax=ax, title = lambda prec: f"{name}: Long Range P@L: {100 * prec:0.1f}")
+        print("Plotting prediction: " + name)  # + " -> true: " + true_name)
+        plot_foldswitch_contacts_and_predictions(
+            predictions[name], contacts, ax=ax, title=name, show_legend = ctr == 1)
+
+    ##        for true_name in contacts_ids: # loop over two folds
+    ##            print("Plotting prediction: " + name + " -> true: " + true_name)
+    ##           plot_contacts_and_predictions(
+    ##                predictions[name], contacts[true_name], ax=ax, title = name)
+    #            prediction, target, ax=ax, title = lambda prec: f"{name}: Long Range P@L: {100 * prec:0.1f}")
     if len(save_file) > 0:  # save and close plot (enable automatic saving of multiple plots)
         plt.savefig(save_file + '.png')
         print("Save cmap fig: " + save_file + '.png')
@@ -333,17 +342,18 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file = []):
 
 
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
-def plot_contacts_and_predictions(
-    predictions: Union[torch.Tensor, np.ndarray],
-    contacts: Union[torch.Tensor, np.ndarray],
-    ax: Optional[mpl.axes.Axes] = None,
-    # artists: Optional[ContactAndPredictionArtists] = None,
-    cmap: str = "Blues",
-    ms: float = 1,
-    title: Union[bool, str, Callable[[float], str]] = True,
-    animated: bool = False,
-) -> None:
 
+
+def plot_contacts_and_predictions(
+        predictions: Union[torch.Tensor, np.ndarray],
+        contacts: Union[torch.Tensor, np.ndarray],
+        ax: Optional[mpl.axes.Axes] = None,
+        # artists: Optional[ContactAndPredictionArtists] = None,
+        cmap: str = "Blues",
+        ms: float = 1,
+        title: Union[bool, str, Callable[[float], str]] = True,
+        animated: bool = False,
+) -> None:
     if isinstance(predictions, torch.Tensor):
         predictions = predictions.detach().cpu().numpy()
     if isinstance(contacts, torch.Tensor):
@@ -380,13 +390,108 @@ def plot_contacts_and_predictions(
 
     img = ax.imshow(masked_image, cmap=cmap, animated=animated)  # Show main image
     oc = ax.plot(*np.where(other_contacts), "o", c="grey", ms=ms, label="other")[0]
-    fn = ax.plot(*np.where(false_positives), "o", c="r", ms=ms, label="FN")[0]
+    fp = ax.plot(*np.where(false_positives), "o", c="r", ms=ms, label="FP")[0]
     tp = ax.plot(*np.where(true_positives), "o", c="b", ms=ms, label="TP")[0]
     ti = ax.set_title(title_text) if title_text is not None else None
-    # artists = ContactAndPredictionArtists(img, oc, fn, tp, ti)
+    # artists = ContactAndPredictionArtists(img, oc, fp, tp, ti)
 
-    ax.legend(loc="lower left")
+    # Show second structure here!
+
+    ax.legend(loc="upper left")
     ax.axis("square")
+    ax.set_xlim([0, seqlen])
+    ax.set_ylim([0, seqlen])
+    save_flag = False  # add as input
+    if save_flag:
+        plt.savefig('%s.pdf' % title, bbox_inches='tight')
+
+
+# Plot contacts and predictions for TWO folds !!!
+def plot_foldswitch_contacts_and_predictions(
+        predictions: Union[torch.Tensor, np.ndarray],
+        contacts: Union[torch.Tensor, np.ndarray],
+        ax: Optional[mpl.axes.Axes] = None,
+        # artists: Optional[ContactAndPredictionArtists] = None,
+        cmap: str = "gray_r",  # "Blues",
+        ms: float = 5,
+        title: Union[bool, str, Callable[[float], str]] = True,
+        animated: bool = False,
+        show_legend: bool = False,
+) -> None:
+    fold_ids = list(contacts.keys())
+    if isinstance(predictions, torch.Tensor):
+        predictions = predictions.detach().cpu().numpy()
+    for fold in fold_ids:
+        if isinstance(contacts[fold], torch.Tensor):
+            contacts[fold] = contacts[fold].detach().cpu().numpy()
+    if ax is None:
+        ax = plt.gca()
+
+    seqlen = contacts[fold].shape[0]
+#    print(seqlen)
+#    for fold in fold_ids:
+#        print(contacts[fold].shape)
+#    print(fold_ids)
+    relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
+    top_bottom_mask = {list(fold_ids)[0]: relative_distance < 0, list(fold_ids)[1]: relative_distance > 0}
+    #    masked_image = np.ma.masked_where(bottom_mask, predictions)
+    masked_image = np.ma.masked_where(top_bottom_mask[list(fold_ids)[0]], predictions)
+    invalid_mask = np.abs(np.add.outer(np.arange(seqlen), -np.arange(seqlen))) < 6
+    predictions = predictions.copy()
+    predictions[invalid_mask] = float("-inf")
+
+#    contacts_united = (contacts[fold_ids[0]] & top_bottom_mask[fold_ids[0]]) + \
+#                       (contacts[fold_ids[1]] & top_bottom_mask[fold_ids[1]])
+    contacts_united = (contacts[fold_ids[0]] + contacts[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
+    for fold in fold_ids:
+        contacts_united[np.where(contacts[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
+
+    topl_val = np.sort(predictions.reshape(-1))[-seqlen]
+    pred_contacts = predictions >= topl_val
+    true_positives, false_positives, other_contacts = {}, {}, {}  # [None]*2, [None]*2, [None]*2
+
+    for fold in fold_ids:
+        print(fold)
+        #        print(true_positives[fold])
+        #        print(contacts[fold])
+        #        print("Top-Bottom")
+        #       print(top_bottom_mask[fold])
+        true_positives[fold] = contacts[fold] & pred_contacts & top_bottom_mask[fold]
+        false_positives[fold] = ~contacts[fold] & pred_contacts & top_bottom_mask[fold]
+        other_contacts[fold] = contacts[fold] & ~pred_contacts & top_bottom_mask[fold]
+
+    if isinstance(title, str):
+        title_text: Optional[str] = title
+    elif title:
+        long_range_pl = compute_precisions(predictions, contacts, minsep=24)[
+            "P@L"
+        ].item()
+        if callable(title):
+            title_text = title(long_range_pl)
+        else:
+            title_text = f"Long Range P@L: {100 * long_range_pl:0.1f}"
+    else:
+        title_text = None
+
+    #    img = ax.imshow(masked_image, cmap=cmap, animated=animated)  # Show main image
+    img = ax.imshow(contacts_united, cmap=cmap, animated=animated)  # Show main image
+#    for fold in fold_ids:
+#        oc = ax.plot(*np.where(other_contacts[fold]), "o", c="grey", ms=ms, label="other")[0]
+    ms = ms * 50 / seqlen
+    print("ms: " + str(ms))
+    fp = ax.plot(*np.where(false_positives[fold_ids[0]]), "o", c="r", ms=ms, label="FP")[0]
+    tp = ax.plot(*np.where(true_positives[fold_ids[0]]), "o", c="b", ms=ms, label="TP")[0]
+    fp = ax.plot(*np.where(false_positives[fold_ids[1]]), "o", c="r", ms=ms)[0]
+    tp = ax.plot(*np.where(true_positives[fold_ids[1]]), "o", c="b", ms=ms)[0]
+    ti = ax.set_title(title_text) if title_text is not None else None
+    # artists = ContactAndPredictionArtists(img, oc, fp, tp, ti)
+
+    # Show second structure here!
+    if show_legend:
+        ax.legend(loc="upper left")
+    ax.axis("square")
+    ax.set_xlabel(fold_ids[0], fontsize=14)
+    ax.set_ylabel(fold_ids[1], fontsize=14)
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
     save_flag = False  # add as input
@@ -487,8 +592,8 @@ def extract_seqrecords(pdbcode, struct):
     ppb = Bio.PDB.PPBuilder()
     seqrecords = []
     for i, chain in enumerate(struct.get_chains()):
-#        print(i)
-#        print(chain)
+        #        print(i)
+        #        print(chain)
         # extract and store sequences as list of SeqRecord objects
         pps = ppb.build_peptides(chain)  # polypeptides
         if len(pps) == 0:  # empty chain !! skip
@@ -515,8 +620,8 @@ def get_calphas(struct):
 
 # Match between cmaps, get only aligned indices
 def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
-#    n_true = len(true_cmap)  # always 2 !!
-#    n_pred = len(pred_cmap)  # variable number !!
+    #    n_true = len(true_cmap)  # always 2 !!
+    #    n_pred = len(pred_cmap)  # variable number !!
 
     match_true_cmap = {}  # [None]*2
     match_pred_cmap = {}  # [None]*n_pred
@@ -525,19 +630,19 @@ def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
     good_inds = np.where(np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1]) >= 0)[0]
 
     ctr = 0
-    for fold in true_cmap.keys():   # get true (these are dictionaries !!)
+    for fold in true_cmap.keys():  # get true (these are dictionaries !!)
         match_true_cmap[fold] = true_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
-                                                pairwise_alignment[0].indices[ctr][good_inds])]
+                                                       pairwise_alignment[0].indices[ctr][good_inds])]
         ctr = ctr + 1
-#        cur_ind = pairwise_alignment[0].indices[i][pairwise_alignment[0].indices[i] >= 0]
-#        print(true_cmap[i])
-#        print(true_cmap[i].shape)
-#        print(true_cmap[i][cur_ind,cur_ind])
+    #        cur_ind = pairwise_alignment[0].indices[i][pairwise_alignment[0].indices[i] >= 0]
+    #        print(true_cmap[i])
+    #        print(true_cmap[i].shape)
+    #        print(true_cmap[i][cur_ind,cur_ind])
 
     ctr = 0
     for fold in pred_cmap.keys():  # range(n_pred):  # get predicted
         match_pred_cmap[fold] = pred_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
-                                                pairwise_alignment[0].indices[ctr][good_inds])]
+                                                       pairwise_alignment[0].indices[ctr][good_inds])]
 
     return match_true_cmap, match_pred_cmap
 
@@ -547,7 +652,7 @@ if run_example:
     # Example usage:
     print("Hello")
     genetic_code_dict = genetic_code()
-    aa_list = list(set(genetic_code_dict.values())) # all possible amino-acids
+    aa_list = list(set(genetic_code_dict.values()))  # all possible amino-acids
     aa_list.remove("*")
     codon_list = list(genetic_code_dict)
     codon = 'GGA'
@@ -558,8 +663,7 @@ if run_example:
         print(c, genetic_code_dict.get(c), point_mutation_to_aa(c, genetic_code_dict))
 
     for aa in aa_list:
-        print(aa,  aa_point_mutation_to_aa(aa, genetic_code_dict))
-
+        print(aa, aa_point_mutation_to_aa(aa, genetic_code_dict))
 
     # Methods for phylogentic reconstruction
     # constructor = DistanceTreeConstructor()
