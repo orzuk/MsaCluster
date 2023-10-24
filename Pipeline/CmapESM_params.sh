@@ -2,7 +2,7 @@
 
 #SBATCH --time=05:00:00
 #SBATCH --ntasks=8
-#SBATCH --mem=10G
+#SBATCH --mem=32G
 
 #SBATCH --partition=puffin
 #SBATCH --gres=gpu:a30
