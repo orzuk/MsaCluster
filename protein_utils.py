@@ -327,8 +327,15 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
     #    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
     ctr = 0
     #    for ax, name in zip(axes, PDB_IDS):
+    print("n_col=" + str(n_col))
+    print("n_row=" + str(n_row))
+    print(PDB_IDS)
+    print("Contact lens:" + str(len(contacts)))
     for name in PDB_IDS:  # loop over predictions
-        ax = axes[ctr // n_col, ctr % n_col]
+        if n_col == 1:
+            ax = axes[ctr]
+        else:
+            ax = axes[ctr // n_col, ctr % n_col]
         ctr = ctr + 1
 #        print("Plotting prediction: " + name)  # + " -> true: " + true_name)
         plot_foldswitch_contacts_and_predictions(
@@ -432,13 +439,15 @@ def plot_foldswitch_contacts_and_predictions(
     if ax is None:
         ax = plt.gca()
 
+    if len(fold_ids) == 1: # same PDB ID, duplicate
+        fold_ids[1] = fold_ids[0]
     seqlen = contacts[fold].shape[0]
 #    print(seqlen)
 #    for fold in fold_ids:
 #        print(contacts[fold].shape)
 #    print(fold_ids)
     relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
-    top_bottom_mask = {list(fold_ids)[0]: relative_distance < 0, list(fold_ids)[1]: relative_distance > 0}
+    top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}
     #    masked_image = np.ma.masked_where(bottom_mask, predictions)
     masked_image = np.ma.masked_where(top_bottom_mask[list(fold_ids)[0]], predictions)
     invalid_mask = np.abs(np.add.outer(np.arange(seqlen), -np.arange(seqlen))) < 6

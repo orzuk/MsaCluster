@@ -11,6 +11,8 @@ import platform
 
 from Bio import Align
 
+problematic_families = ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # second, third is large, no/one cmaps were generated !
+problematic_families = ["2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # 2bzyB_2lqwA bad (missing ) true cmap!!
 foldpair_ids_to_run = 'ALL'  # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
 if platform.system() == "Linux":
     print("Run on cluster command line")
@@ -20,9 +22,9 @@ if platform.system() == "Linux":
 else:
     print("Run on windows")
     run_mode = "load"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-    foldpair_ids_to_run = '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+#    foldpair_ids_to_run = "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
-print("Running on: " + foldpair_ids_to_run)
+# print("Running on: " + foldpair_ids_to_run)
 
 run_pipeline, get_msa, cluster_msa, run_esm, load_seq_and_struct, plot_results = [False]*6  # run entire pipeline or parts of it/plot ...
 
@@ -62,13 +64,14 @@ seqs_dists_vec = [None]*n_fam
 if foldpair_ids_to_run == "ALL":
     foldpair_ids_to_run = foldpair_ids
 else:  # make a list
-    foldpair_ids_to_run = [foldpair_ids_to_run]
+    if type(foldpair_ids_to_run) == str:
+        foldpair_ids_to_run = [foldpair_ids_to_run]
 
 for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop on families
     i = foldpair_ids.index(foldpair_id)
     cur_family_dir = fasta_dir + "/" + foldpair_id
     print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_id)
-    if load_seq_and_struct:
+    if load_seq_and_struct or run_pipeline:  # also for entire pipeline
         for fold in range(2):
             if not os.path.exists(cur_family_dir):
                 print("Mkdir: " + cur_family_dir)
@@ -81,7 +84,7 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #                text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
 #                                       str(pdb_seq[[s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])].seq) ])
 
-            fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][fold] + '.fasta'
+            fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + '.fasta'  # added chain to file ID
 #            print( pdbids[i][fold] + ":" + pdbchains[i][fold])
 
 #            print("Index: " + str([s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])))
@@ -120,13 +123,15 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         os.system(esm_str)  # run pipeline (should be a separate job!)
 
     if run_pipeline:  # entire pipeline: get alignments, contacts, predicted structure
-        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + '.fasta'
-        pipeline_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_pipeline_for_" + foldpair_id + ".out' ./pipeline_get_params.sh " + fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + pdbchains[i][0] + '.fasta'
+        pipeline_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_pipeline_for_" + foldpair_id + ".out' ./pipeline_get_params.sh " + \
+                       fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(pipeline_str)
         os.system(pipeline_str)  # run pipeline (should be a separate job!)
 
     if plot_results:
-        fasta_file_names = {pdbids[i][fold]: fasta_dir + "/" + foldpair_id + "/" + pdbids[i][fold] + '.fasta' for fold in range(2)}
+        fasta_file_names = {pdbids[i][fold] + pdbchains[i][fold]: fasta_dir + "/" + foldpair_id + "/" + \
+                                             pdbids[i][fold] + pdbchains[i][fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
         msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
         MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
         msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
@@ -141,27 +146,26 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
             continue
         if pdbids[i][0] == pdbids[i][1]:
             print("Same PDB-ID for both folds! Not supported yet!  Skipping family")
-            continue
+#            continue
         if foldpair_id in ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]:
             print("Special problematic family! " + foldpair_id)
 #            continue
-#        if i < 88:
+#        if i < 60:
 #            print("Ignore first!")
 #            continue
 
 
         # First load files
-#        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + '.fasta'
-#        fasta_file_name1 = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][1] + '.fasta'  # Second file  !!!
-
-#        print(fasta_file_name)
-#        print(fasta_file_name1)
         seqs = {}
         for fold in range(2):
-            with open(fasta_file_names[pdbids[i][fold]], "r") as text_file:
-                seqs[pdbids[i][fold]] = text_file.read().split("\n")[1]
-        pairwise_alignment = Align.PairwiseAligner().align(seqs[pdbids[i][0]], seqs[pdbids[i][1]])
+            with open(fasta_file_names[pdbids[i][fold] + pdbchains[i][fold]], "r") as text_file:
+                seqs[pdbids[i][fold] + pdbchains[i][fold]] = text_file.read().split("\n")[1]
+        pairwise_alignment = Align.PairwiseAligner().align(seqs[pdbids[i][0] + pdbchains[i][0]],
+                                                           seqs[pdbids[i][1] + pdbchains[i][1]])
 
+        if max([len(seqs[fold]) for fold in seqs]) > 1024:
+            print("Long sequence! Length = " + " > maximum supported length of 1024")
+            continue
 
 #        msa_transformer_pred = [None]*n_cmaps
 #        for file in msa_pred_files:
@@ -180,17 +184,16 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #            true_cmap[fold] = np.genfromtxt(fasta_dir +
 #                "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")  # load for pickle, genfromtxt for tab-delimited
         try:
-            true_cmap = {pdbids[i][fold] : np.genfromtxt(fasta_dir +  # problem with first !!
+            true_cmap = {pdbids[i][fold] + pdbchains[i][fold] : np.genfromtxt(fasta_dir +  # problem with first !!
                         "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(2)}
 #            print("Loaded text true!")
         except:
 #            print("load binary true!")
-            true_cmap = {pdbids[i][fold] : np.load(fasta_dir +  # problem with first !!
+            true_cmap = {pdbids[i][fold] + pdbchains[i][fold] : np.load(fasta_dir +  # problem with first !!
                         "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", allow_pickle=True).astype(int) for fold in range(2)}
 
         print("seq lens:")
-        print()
-        print( [ len(seqs[fold]) for fold in seqs ])
+        print( [len(seqs[fold]) for fold in seqs])
         print("aligned lens:")
         print(len((pairwise_alignment[0])))
 
@@ -204,13 +207,13 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         # Match indices of the two folds:
 #        print("Matching: ")
 #        print(len(msa_transformer_pred))
-        print(true_cmap)
+#        print(true_cmap)
         print(len(true_cmap))
         match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap, msa_transformer_pred)
 
-#        for fold in match_true_cmap.keys():
-#            print(fold)
-#            print(true_cmap[fold].shape)
+        for fold in match_true_cmap.keys():
+            print(fold)
+            print(true_cmap[fold].shape)
 #            print(match_true_cmap[fold].shape)
 #        for fold in match_predicted_cmaps.keys():
 #            print(fold)
