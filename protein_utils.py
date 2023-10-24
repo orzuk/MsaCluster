@@ -179,7 +179,9 @@ def contacts_from_pdb(
     N = structure.coord[mask & (structure.atom_name == "N")]
     CA = structure.coord[mask & (structure.atom_name == "CA")]
     C = structure.coord[mask & (structure.atom_name == "C")]
+    pdb_seq = "".join([aa_long_short[a] for a in structure.res_name[np.where(mask & (structure.atom_name == "N"))[0]]])
 
+    good_res_ids = structure.res_id[mask & (structure.atom_name == "N")]  # all residues indices
     if len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA):  # missing atoms
         print("Missing atoms in PDB! remove residues!")
         print([len(N), len(CA), len(C)])
@@ -189,6 +191,9 @@ def contacts_from_pdb(
         N = structure.coord[mask & (structure.atom_name == "N") & np.in1d(structure.res_id, good_res_ids)]
         CA = structure.coord[mask & (structure.atom_name == "CA") & np.in1d(structure.res_id, good_res_ids)]
         C = structure.coord[mask & (structure.atom_name == "C") & np.in1d(structure.res_id, good_res_ids)]
+        pdb_seq = "".join([aa_long_short[a] for a in structure.res_name[
+            np.where(mask & (structure.atom_name == "N") & np.in1d(structure.res_id, good_res_ids))[0]]])
+
         # return []
     Cbeta = extend(C, N, CA, 1.522, 1.927, -2.143)
     dist = squareform(pdist(Cbeta))
@@ -196,7 +201,7 @@ def contacts_from_pdb(
     contacts = dist < distance_threshold
     contacts = contacts.astype(np.int64)
     contacts[np.isnan(dist)] = -1
-    return contacts
+    return contacts, good_res_ids, pdb_seq # [aa_long_short[aa] for aa in structure.res_name[good_res_ids]]
 
 
 def compute_precisions(
@@ -325,7 +330,7 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
     for name in PDB_IDS:  # loop over predictions
         ax = axes[ctr // n_col, ctr % n_col]
         ctr = ctr + 1
-        print("Plotting prediction: " + name)  # + " -> true: " + true_name)
+#        print("Plotting prediction: " + name)  # + " -> true: " + true_name)
         plot_foldswitch_contacts_and_predictions(
             predictions[name], contacts, ax=ax, title=name, show_legend = ctr == 1)
 
@@ -451,7 +456,7 @@ def plot_foldswitch_contacts_and_predictions(
     true_positives, false_positives, other_contacts = {}, {}, {}  # [None]*2, [None]*2, [None]*2
 
     for fold in fold_ids:
-        print(fold)
+#        print(fold)
         #        print(true_positives[fold])
         #        print(contacts[fold])
         #        print("Top-Bottom")
@@ -478,7 +483,7 @@ def plot_foldswitch_contacts_and_predictions(
 #    for fold in fold_ids:
 #        oc = ax.plot(*np.where(other_contacts[fold]), "o", c="grey", ms=ms, label="other")[0]
     ms = ms * 50 / seqlen
-    print("ms: " + str(ms))
+#    print("ms: " + str(ms))
     fp = ax.plot(*np.where(false_positives[fold_ids[0]]), "o", c="r", ms=ms, label="FP")[0]
     tp = ax.plot(*np.where(true_positives[fold_ids[0]]), "o", c="b", ms=ms, label="TP")[0]
     fp = ax.plot(*np.where(false_positives[fold_ids[1]]), "o", c="r", ms=ms)[0]

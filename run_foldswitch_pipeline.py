@@ -19,8 +19,8 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-    foldpair_ids_to_run = '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+    run_mode = "load"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    foldpair_ids_to_run = '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 print("Running on: " + foldpair_ids_to_run)
 
@@ -61,7 +61,7 @@ cmap_dists_vec = [None]*n_fam  # Results arrays
 seqs_dists_vec = [None]*n_fam
 if foldpair_ids_to_run == "ALL":
     foldpair_ids_to_run = foldpair_ids
-else: # make a list
+else:  # make a list
     foldpair_ids_to_run = [foldpair_ids_to_run]
 
 for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop on families
@@ -74,22 +74,32 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
                 print("Mkdir: " + cur_family_dir)
                 os.mkdir(cur_family_dir)
             print("Get seq + struct for " + pdbids[i][fold] + ", " + str(i) + " out of " + str(n_fam))
-            pdb_struct = download_read_pdb(pdbids[i][fold], cur_family_dir, keepfile=True)  # extract pdb file
-            pdb_seq = extract_seqrecords(pdbids[i][fold], pdb_struct)  # extract sequences
+            # Old option for extracting sequence
+#            pdb_struct = download_read_pdb(pdbids[i][fold], cur_family_dir, keepfile=True)  # extract pdb file
+#            pdb_seq = extract_seqrecords(pdbids[i][fold], pdb_struct)  # extract sequences
+#            with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
+#                text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
+#                                       str(pdb_seq[[s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])].seq) ])
+
             fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][fold] + '.fasta'
 #            print( pdbids[i][fold] + ":" + pdbchains[i][fold])
 
 #            print("Index: " + str([s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])))
-            with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
-                text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
-                                       str(pdb_seq[[s.id[-1] for s in pdb_seq].index(pdbchains[i][fold])].seq) ])
 
             # Finally, make a contact map from each pdb file:
             # Read structure in slightly different format
 #            print("Get struct for ontacts, Cbeta distance < 8Angstrom")
             pdbX_struct = get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0]
 #            print("Get contacts, Cbeta distance < 8Angstrom")
-            pdb_contacts = contacts_from_pdb(pdbX_struct, chain=pdbchains[i][fold])  # =True)  # extract pdb file
+#            pdb_contacts = contacts_from_pdb(pdbX_struct, chain=pdbchains[i][fold])  # =True)  # extract pdb file
+            # New option: extract sequence and structure togehter. Remove from sequence the residues without contacts
+            pdb_contacts, pdb_good_res_inds, pdb_seq = contacts_from_pdb(get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0], chain=pdbchains[i][fold])  # =True)  # extract pdb file
+
+            print("Save sequence!!!")
+            with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
+                text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
+                                       pdb_seq ])
+
             print("Save contacts!!! ")
             print(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")
             np.savetxt(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", pdb_contacts)  # save contacts
@@ -125,10 +135,20 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
         msa_clusters = {file.split("\\")[-1][:-4]: read_msa(file) for file in msa_files}
 
-        # Filter 'bad' families: too shallow alignments (no clusters), other reasons??
+        # Filter 'bad' families: too shallow alignments (no clusters), same PDB ID, other reasons??
         if len(msa_files) == 0:
             print("Shallow alignment! No MSA Clusters! Skipping family")
             continue
+        if pdbids[i][0] == pdbids[i][1]:
+            print("Same PDB-ID for both folds! Not supported yet!  Skipping family")
+            continue
+        if foldpair_id in ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]:
+            print("Special problematic family! " + foldpair_id)
+#            continue
+#        if i < 88:
+#            print("Ignore first!")
+#            continue
+
 
         # First load files
 #        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + '.fasta'
@@ -136,11 +156,11 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 
 #        print(fasta_file_name)
 #        print(fasta_file_name1)
-        seq = {}
+        seqs = {}
         for fold in range(2):
             with open(fasta_file_names[pdbids[i][fold]], "r") as text_file:
-                seq[pdbids[i][fold]] = text_file.read().split("\n")[1]
-        pairwise_alignment = Align.PairwiseAligner().align(seq[pdbids[i][0]], seq[pdbids[i][1]])
+                seqs[pdbids[i][fold]] = text_file.read().split("\n")[1]
+        pairwise_alignment = Align.PairwiseAligner().align(seqs[pdbids[i][0]], seqs[pdbids[i][1]])
 
 
 #        msa_transformer_pred = [None]*n_cmaps
@@ -168,16 +188,24 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
             true_cmap = {pdbids[i][fold] : np.load(fasta_dir +  # problem with first !!
                         "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", allow_pickle=True).astype(int) for fold in range(2)}
 
-#        print("True cmap sizes:")
-#        print([c.shape[0] for c in true_cmap.values()])
-#        print("plot")
+        print("seq lens:")
+        print()
+        print( [ len(seqs[fold]) for fold in seqs ])
+        print("aligned lens:")
+        print(len((pairwise_alignment[0])))
+
+        print("True cmap sizes:")
+        print([c.shape[0] for c in true_cmap.values()])
+        print("plot")
+        print("Predicted cmap sizes:")
+        print([c.shape[0] for c in msa_transformer_pred.values()])
 
 
         # Match indices of the two folds:
 #        print("Matching: ")
 #        print(len(msa_transformer_pred))
-#        print(true_cmap)
-#        print(len(true_cmap))
+        print(true_cmap)
+        print(len(true_cmap))
         match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap, msa_transformer_pred)
 
 #        for fold in match_true_cmap.keys():
