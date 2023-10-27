@@ -23,8 +23,8 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "run_pipeline"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-#    foldpair_ids_to_run = "4rmbB_4rmbA"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+    run_mode = "get_msa"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    foldpair_ids_to_run = "4rmbB_4rmbA"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
 
@@ -129,7 +129,7 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         pipeline_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_pipeline_for_" + foldpair_id + ".out' ./pipeline_get_params.sh " + \
                        fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(pipeline_str)
-#        os.system(pipeline_str)  # run pipeline (should be a separate job!)
+        os.system(pipeline_str)  # run pipeline (should be a separate job!)
 
     if plot_results:
         fasta_file_names = {pdbids[i][fold] + pdbchains[i][fold]: fasta_dir + "/" + foldpair_id + "/" + \
