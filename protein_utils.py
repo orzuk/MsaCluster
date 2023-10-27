@@ -1,4 +1,6 @@
 # Some utilities for proteins and their mutations
+import copy
+
 import pandas as pd
 import esm
 import string
@@ -459,6 +461,10 @@ def plot_foldswitch_contacts_and_predictions(
     contacts_united = (contacts[fold_ids[0]] + contacts[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
     for fold in fold_ids:
         contacts_united[np.where(contacts[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
+    # Flip contact in one and both:
+    cc = copy.deepcopy(contacts_united)
+    contacts_united[cc == 1] = 2
+    contacts_united[cc == 2] = 1
 
     topl_val = np.sort(predictions.reshape(-1))[-seqlen]
     pred_contacts = predictions >= topl_val
@@ -633,6 +639,7 @@ def get_calphas(struct):
 
 
 # Match between cmaps, get only aligned indices
+# Match between cmaps, get only aligned indices
 def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
     #    n_true = len(true_cmap)  # always 2 !!
     #    n_pred = len(pred_cmap)  # variable number !!
@@ -652,6 +659,7 @@ def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
     #        print(true_cmap[i])
     #        print(true_cmap[i].shape)
     #        print(true_cmap[i][cur_ind,cur_ind])
+
 
     ctr = 0
     for fold in pred_cmap.keys():  # range(n_pred):  # get predicted
