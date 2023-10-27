@@ -1,7 +1,7 @@
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
-import itertools
-import os
-from pathlib import Path
+# import itertools
+# import os
+# from pathlib import Path
 import time
 from protein_utils import *
 
@@ -10,15 +10,9 @@ import torch
 from scipy.spatial.distance import squareform, pdist, cdist
 import pandas as pd
 import matplotlib as mpl
-mpl.use("agg")
-import matplotlib.pyplot as plt
-import biotite.structure as bs
-import biotite.structure.io as bsio
-from tqdm import tqdm
 import argparse
 import esm
-
-import requests
+mpl.use("agg")
 
 torch.set_grad_enabled(False)
 
@@ -74,11 +68,8 @@ if __name__=='__main__':
     }
 
     # New! insert to MSA also the full alignment (calculating cmap can take long for this one)
-    print("Add deep!")
-    print(args.input_msas[0] + '../output_get_msa/DeepMsa.a3m')
     msas["MSA_deep"] = read_msa(args.input_msas[0].replace(
         "output_msa_cluster", "output_get_msa/DeepMsa.a3m"))
-    print("Added deep!")
 
     # msas = {
     #     os.path.basename(msa_fil).replace('.a3m',''): read_msa(msa_fil)

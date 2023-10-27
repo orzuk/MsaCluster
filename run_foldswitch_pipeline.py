@@ -23,8 +23,8 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "get_msa"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-    foldpair_ids_to_run = "4rmbB_4rmbA"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+#    foldpair_ids_to_run = "4rmbB_4rmbA"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
 
@@ -73,6 +73,8 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
     i = foldpair_ids.index(foldpair_id)
     cur_family_dir = fasta_dir + "/" + foldpair_id
     print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_id)
+
+    fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + pdbchains[i][0] + '.fasta'
     if load_seq_and_struct or run_pipeline:  # also for entire pipeline
         for fold in range(2):
             if not os.path.exists(cur_family_dir):
@@ -99,23 +101,20 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #            pdb_contacts = contacts_from_pdb(pdbX_struct, chain=pdbchains[i][fold])  # =True)  # extract pdb file
             # New option: extract sequence and structure togehter. Remove from sequence the residues without contacts
             pdb_contacts, pdb_good_res_inds, pdb_seq = contacts_from_pdb(get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0], chain=pdbchains[i][fold])  # =True)  # extract pdb file
-
-#            print("Save sequence!!!")
             with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
                 text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
                                        pdb_seq ])
-
- #           print("Save contacts!!! ")
             print(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")
             np.save(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", pdb_contacts)  # save contacts (binary format)
 
     if get_msa:  # Cluster the Multiple Sequence Alignment for the family
-        get_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+        get_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + \
+                      fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(get_msa_str)
         os.system(get_msa_str)
 
     if cluster_msa:  # Cluster the Multiple Sequence Alignment for the family
-        cluster_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/cluster_msa_for_" + foldpair_id + ".out' ./Pipeline/ClusterMSA_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+        cluster_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/cluster_msa_for_" + foldpair_id + ".out' ./Pipeline/ClusterMSA_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(cluster_msa_str)
         os.system(cluster_msa_str)
 
@@ -125,7 +124,6 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         os.system(esm_str)  # run pipeline (should be a separate job!)
 
     if run_pipeline:  # entire pipeline: get alignments, contacts, predicted structure
-        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + pdbchains[i][0] + '.fasta'  # NON-SYMMETRIC CHOICE!! TAKE FIRST PROTEIN OF THE TWO FOR THE MSA!!!!
         pipeline_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_pipeline_for_" + foldpair_id + ".out' ./pipeline_get_params.sh " + \
                        fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(pipeline_str)
@@ -147,7 +145,7 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
             print("Shallow alignment! No MSA Clusters! Skipping family")
             continue
         if pdbids[i][0] == pdbids[i][1]:
-            print("Same PDB-ID for both folds! Not supported yet!  Skipping family")
+            print("Same PDB-ID for both folds! Might be buggy!" ) # Not supported yet!  Skipping family")
 #            continue
         if foldpair_id in ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]:
             print("Special problematic family! " + foldpair_id)

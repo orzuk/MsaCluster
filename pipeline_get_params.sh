@@ -8,6 +8,7 @@ FASTA_FILE_INPUT="$1"
 OUTPUT_NAME_DIR="$2"
 
 mkdir -p Pipeline/$OUTPUT_NAME_DIR/output_get_msa
+rm -r Pipeline/$OUTPUT_NAME_DIR/output_get_msa/DeepMsa_env
 python3 ./get_msa.py $FASTA_FILE_INPUT ./Pipeline/$OUTPUT_NAME_DIR/output_get_msa  -name 'DeepMsa'
 mkdir -p Pipeline/$OUTPUT_NAME_DIR/output_msa_cluster
 python3  ./ClusterMSA_moriah.py --keyword ShallowMsa -i ./Pipeline/$OUTPUT_NAME_DIR/output_get_msa/DeepMsa.a3m  -o ./Pipeline/$OUTPUT_NAME_DIR/output_msa_cluster
