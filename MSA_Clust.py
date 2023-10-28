@@ -1,41 +1,12 @@
 # Pipeline for clustering alignemnts, predicting contacts for each cluster and comparing them
 # Goal is to identify evidence for difference in co-evolution in the different clusters,
 # possible indicative of differences in the structure
-import esm
-import torch
-
-import itertools
-import os
-import string
-from pathlib import Path
-
-from Bio import SeqIO
-from tqdm import tqdm
-
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import sys
-import os
-import argparse
-import hashlib
-import jax
-import jax.numpy as jnp
-import re
 from polyleven import levenshtein
-import time
 import random
 
 import Levenshtein as pylev
 
 import subprocess
-from glob import glob
-from Bio import SeqIO
-from Bio.Align import AlignInfo
-from Bio import AlignIO
-
-import itertools as itl
 
 import seaborn as sns
 from protein_utils import *

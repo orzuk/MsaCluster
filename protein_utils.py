@@ -168,7 +168,13 @@ def extend(a, b, c, L, A, D):
     return c + sum([m * d for m, d in zip(m, d)])
 
 
-# Extract contact map
+# Extract contact map from a pdb-file
+# Also extract the distances themselves (more informative than the thresholded contacts)
+# Output:
+# dist - pairwise distance matrix between cBeta atoms
+# contacts - pairwise binary contacts matrix for distances < threshold
+# pdb_seq - sequence extracted from pdb file, after removing residues with missing atoms
+# good_res_ids - indices of full good residues
 def contacts_from_pdb(
         structure: bs.AtomArray,
         distance_threshold: float = 8.0,
@@ -203,7 +209,7 @@ def contacts_from_pdb(
     contacts = dist < distance_threshold
     contacts = contacts.astype(np.int64)
     contacts[np.isnan(dist)] = -1
-    return contacts, good_res_ids, pdb_seq # [aa_long_short[aa] for aa in structure.res_name[good_res_ids]]
+    return dist, contacts, pdb_seq, good_res_ids   # [aa_long_short[aa] for aa in structure.res_name[good_res_ids]]
 
 
 def compute_precisions(
@@ -329,10 +335,10 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
     #    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
     ctr = 0
     #    for ax, name in zip(axes, PDB_IDS):
-    print("n_col=" + str(n_col))
-    print("n_row=" + str(n_row))
-    print(PDB_IDS)
-    print("Contact lens:" + str(len(contacts)))
+#    print("n_col=" + str(n_col))
+#    print("n_row=" + str(n_row))
+#    print(PDB_IDS)
+#    print("Contact lens:" + str(len(contacts)))
     for name in PDB_IDS:  # loop over predictions
         if n_col == 1:
             ax = axes[ctr]

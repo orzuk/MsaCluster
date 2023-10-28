@@ -23,8 +23,8 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-#    foldpair_ids_to_run = "4rmbB_4rmbA"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+    run_mode = "load"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    foldpair_ids_to_run = "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
 
@@ -100,7 +100,8 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #            print("Get contacts, Cbeta distance < 8Angstrom")
 #            pdb_contacts = contacts_from_pdb(pdbX_struct, chain=pdbchains[i][fold])  # =True)  # extract pdb file
             # New option: extract sequence and structure togehter. Remove from sequence the residues without contacts
-            pdb_contacts, pdb_good_res_inds, pdb_seq = contacts_from_pdb(get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0], chain=pdbchains[i][fold])  # =True)  # extract pdb file
+            pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds = contacts_from_pdb(   # extract distances from pdb file
+                get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0], chain=pdbchains[i][fold])
             with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
                 text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
                                        pdb_seq ])
@@ -150,7 +151,7 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         if foldpair_id in ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]:
             print("Special problematic family! " + foldpair_id)
 #            continue
-        if i < 60:
+        if i < 15:
             print("Ignore first!")
             continue
 
@@ -192,16 +193,16 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
             true_cmap = {pdbids[i][fold] + pdbchains[i][fold] : np.load(fasta_dir +  # problem with first !!
                         "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", allow_pickle=True).astype(int) for fold in range(2)}
 
-        print("seq lens:")
-        print( [len(seqs[fold]) for fold in seqs])
-        print("aligned lens:")
-        print(len((pairwise_alignment[0])))
+#        print("seq lens:")
+#        print( [len(seqs[fold]) for fold in seqs])
+#        print("aligned lens:")
+#        print(len((pairwise_alignment[0])))
 
-        print("True cmap sizes:")
-        print([c.shape[0] for c in true_cmap.values()])
-        print("plot")
-        print("Predicted cmap sizes:")
-        print([c.shape[0] for c in msa_transformer_pred.values()])
+#        print("True cmap sizes:")
+#        print([c.shape[0] for c in true_cmap.values()])
+#        print("plot")
+#        print("Predicted cmap sizes:")
+#        print([c.shape[0] for c in msa_transformer_pred.values()])
 
 
 #        ttt = copy.deepcopy(true_cmap)
@@ -216,9 +217,9 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #        match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, ttt, msa_transformer_pred)
         match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap, msa_transformer_pred)
 
-        for fold in match_true_cmap.keys():
-            print(fold)
-            print(true_cmap[fold].shape)
+#        for fold in match_true_cmap.keys():
+#            print(fold)
+#            print(true_cmap[fold].shape)
 #            print(match_true_cmap[fold].shape)
 #        for fold in match_predicted_cmaps.keys():
 #            print(fold)
