@@ -1,9 +1,7 @@
 from pathlib import Path
-import sys
+# import sys
 import os
-import pickle
-
-print("Current dir: ", os.getcwd())
+# import pickle
 
 # sys.path.insert(0, '/sci/labs/orzuk/steveabecassis/MsaCluster')  # why?
 from colabfold.batch import get_msa_and_templates
@@ -12,6 +10,7 @@ from colabfold.batch import get_queries
 
 from argparse import ArgumentParser
 
+print("Current dir: ", os.getcwd())
 
 # sequence = "DAEFRHDSGYEVHHQKLVFFAEDVGSNKGAIIGLMVGGVVIA"
 # result_dir = Path('./')
@@ -30,8 +29,8 @@ def main():
     args = parser.parse_args()
     result_dir = Path(args.results)
     queries, is_complex = get_queries(args.input, 'random')
-#    print("queries:")
-#    print(queries)
+    print("queries:")
+    print(queries)
     sequence = queries[0][1]
     print("sequence:")
     print(sequence)

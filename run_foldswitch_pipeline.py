@@ -28,7 +28,7 @@ else:
 
 # print("Running on: " + foldpair_ids_to_run)
 
-run_pipeline, get_msa, cluster_msa, run_esm, load_seq_and_struct, plot_results = [False]*6  # run entire pipeline or parts of it/plot ...
+run_pipeline, get_msa, cluster_msa, tree_reconstruct, run_esm, load_seq_and_struct, plot_results = [False]*7  # run entire pipeline or parts of it/plot ...
 
 # can't use match (only from python 3.10)
 # match run_mode:
@@ -47,6 +47,8 @@ if run_mode == "run_pipeline":
     print("Run Entire pipeline for all families")
 if run_mode == "plot":  # here do analysis of the results
     plot_results = True
+if run_mode == "tree":  # here do analysis of the results
+    tree_reconstruct = True
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
 fasta_dir = "Pipeline"
@@ -118,6 +120,12 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         cluster_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/cluster_msa_for_" + foldpair_id + ".out' ./Pipeline/ClusterMSA_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(cluster_msa_str)
         os.system(cluster_msa_str)
+
+    if tree_reconstruct:  # New: Add phylogenetic tree reconstruction of MSA sequences
+        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+        print(phytree_msa_str)
+        os.system(phytree_msa_str)
+
 
     if run_esm:  # Just compute contacts !!
         esm_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_esm_for_" + foldpair_id + ".out' ./Pipeline/CmapESM_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke

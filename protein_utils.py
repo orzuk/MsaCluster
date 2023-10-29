@@ -29,8 +29,8 @@ from biotite.database import rcsb
 
 import iminuit
 import tmscoring  # for comparing structures
-from Bio import Phylo  # for phylogenetic trees
-from Bio.Phylo.TreeConstruction import DistanceCalculator
+
+
 from Bio import AlignIO
 
 # from TreeConstruction import DistanceTreeConstructor
@@ -166,6 +166,7 @@ def extend(a, b, c, L, A, D):
     m = [bc, np.cross(n, bc), n]
     d = [L * np.cos(A), L * np.sin(A) * np.cos(D), -L * np.sin(A) * np.sin(D)]
     return c + sum([m * d for m, d in zip(m, d)])
+
 
 
 # Extract contact map from a pdb-file
