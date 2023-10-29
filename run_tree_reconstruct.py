@@ -56,6 +56,7 @@ if __name__=='__main__':
 #        os.remove(f_old)
 
     if args.method == 'distance':
-        phytree = phytree_from_msa(msa_file, output_tree_file=[])
+        phytree = phytree_from_msa(msa_file, output_tree_file=args.o + "/" + os.path.basename(msa_file).replace(".a3m", "_tree.nwk"))
 
-    print("Finished! Runtime for " + str(len(phytree.items())) + " tree reconstruction = " + str(time.time()-start_time) + " seconds")
+    print(phytree.total_branch_length())
+    print("Finished! Runtime for " + str(phytree.name) + " tree reconstruction = " + str(time.time()-start_time) + " seconds")
