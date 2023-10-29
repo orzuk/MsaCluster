@@ -3,12 +3,16 @@ from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio import AlignIO
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
+from msa_utils import *
 
 
 # Reconstruct a phylogenetic tree
 def phytree_from_msa(msa_file, output_tree_file=[]):
     # Load the multiple sequence alignment from a file
-    alignment = AlignIO.read(msa_file, "fasta")
+
+    IDs, seqs = load_fasta(msa_file)
+    alignment = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
+#    alignment = AlignIO.read(msa_file, "fasta")
 
     # Calculate a distance matrix from the alignment
     calculator = DistanceCalculator('identity')

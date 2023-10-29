@@ -55,7 +55,7 @@ if __name__=='__main__':
 #    for f_old in glob(args.o + '/*.nwk'):
 #        os.remove(f_old)
 
-    if args.model == 'distance':
+    if args.method == 'distance':
         phytree = phytree_from_msa(msa_file, output_tree_file=[])
 
     print("Finished! Runtime for " + str(len(phytree.items())) + " tree reconstruction = " + str(time.time()-start_time) + " seconds")
