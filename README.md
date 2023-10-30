@@ -19,6 +19,7 @@ Pipeline/2qke
 3. Run AlphaFold and make prediction for the query sequence with each sub-MSAs
 4. Run ESMfold on sampled sequences from each cluster
 5. Compute attention maps (predicted contact map) for each cluster based on ESM's MSA-transformer model.
+6. Plot predictedattention maps va. true ones
 
 The specific steps can be run individually, as shown in the following commands: 
 
