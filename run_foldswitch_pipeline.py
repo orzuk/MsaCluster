@@ -8,13 +8,16 @@
 # import subprocess
 import copy
 
+import pandas as pd
+from phytree_utils import *
+
 from MSA_Clust import *
 import platform
 
 from Bio import Align
 
-problematic_families = ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # second, third is large, no/one cmaps were generated !
-problematic_families = ["2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # 2bzyB_2lqwA bad (missing ) true cmap!!
+# problematic_families = ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # second, third is large, no/one cmaps were generated !
+# problematic_families = ["2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # 2bzyB_2lqwA bad (missing ) true cmap!!
 foldpair_ids_to_run = 'ALL'  # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
 if platform.system() == "Linux":
     print("Run on cluster command line")
@@ -65,6 +68,7 @@ pdbids = [[s[0][:-1], s[1][:-1]] for s in pdbids]
 n_fam = len(pdbids)  # number of families
 cmap_dists_vec = [None]*n_fam  # Results arrays
 seqs_dists_vec = [None]*n_fam
+num_seqs_msa_vec = [None]*n_fam
 if foldpair_ids_to_run == "ALL":
     foldpair_ids_to_run = foldpair_ids
 else:  # make a list
@@ -126,7 +130,6 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         print(phytree_msa_str)
         os.system(phytree_msa_str)
 
-
     if run_esm:  # Just compute contacts !!
         esm_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_esm_for_" + foldpair_id + ".out' ./Pipeline/CmapESM_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
         print(esm_str)
@@ -156,12 +159,12 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         if pdbids[i][0] == pdbids[i][1]:
             print("Same PDB-ID for both folds! Might be buggy!" ) # Not supported yet!  Skipping family")
 #            continue
-        if foldpair_id in ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]:
-            print("Special problematic family! " + foldpair_id)
+#        if foldpair_id in ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]:
+#            print("Special problematic family! " + foldpair_id)
 #            continue
-        if i < 15:
-            print("Ignore first!")
-            continue
+#       if i < 15:
+#            print("Ignore first!")
+#            continue
 
 
         # First load files
@@ -234,12 +237,26 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #            print(match_predicted_cmaps[fold].shape)
 #        plot_array_contacts_and_predictions(msa_transformer_pred, true_cmap)
         plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
+
+        # load tree
+        draw_tree_with_values(phytree, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id)
+
+        # Collect :
         cmap_dists_vec[i] = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)
         seqs_dists_vec[i] = np.mean(compute_seq_distances(msa_clusters))  # can take the entire sequence !
-
+        num_seqs_msa_vec[i] = len(seqs)
 #        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
 #        break
         # next plotP
+
+if plot_results:  # save results at the end:
+    res_DF = pd.DataFrame(
+        {'cmap_dists': cmap_dists_vec,
+         'seq_dists': seqs_dists_vec,
+         'n_msa': num_seqs_msa_vec
+         })
+
+    res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
 
 #import numpy as np
 #cmap_pred = np.genfromtxt("Pipeline/1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_000.npy")

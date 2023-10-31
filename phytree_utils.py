@@ -23,8 +23,8 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
         seqs = random.sample(seqs, max_seqs) # [1:max_seqs]  # sample randomly
 
 #    alignment = AlignIO.read(msa_file, "fasta")
-    print(seqs)
-    print([len(s) for s in seqs])
+#    print(seqs)
+#    print([len(s) for s in seqs])
 
     seq_records = [SeqRecord(Seq(s), id=f"Sequence_{i}") for i, s in enumerate(seqs)]
 
@@ -49,7 +49,35 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
     return tree
 
 
-# Draw phylogenetic tree, with values assigned to each leaf
-def draw_tree_with_values():
 
+# Define a dictionary to map numerical values to colors
+value_to_color = {
+    "Leaf_1": (0.2, 0.4, 0.6),  # Replace "Leaf_1" with the actual leaf name
+    "Leaf_2": (0.8, 0.1, 0.3),  # Replace "Leaf_2" with the actual leaf name
+    # Add more entries for other leaf nodes as needed
+}
+
+
+# Function to assign colors to tree nodes (should be depending on values!)
+def set_node_color(node):
+    if node.is_terminal():
+        color = value_to_color.get(node.name, (0.5, 0.5, 0.5))  # Default to gray
+    else:
+        # You can set a color for internal nodes here if needed
+        color = (0.5, 0.5, 0.5)  # Default to gray
+    node.color = color
+
+
+# Draw phylogenetic tree, with values assigned to each leaf
+def draw_tree_with_values(tree, output_file = ''):
+#    tree = Phylo.read("apaf.xml", "phyloxml")
+    tree.ladderize()  # Flip branches so deeper clades are displayed at top
+
+    # Apply color mapping to all nodes in the tree
+    tree.clade.traverse(set_node_color)
+
+    # Plot the tree with colors
+    Phylo.draw(tree, branch_labels=lambda c: c.branch_length)
+
+#    Phylo.draw(tree)
     return 0

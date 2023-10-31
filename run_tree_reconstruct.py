@@ -51,9 +51,9 @@ if __name__=='__main__':
 
     # Remove old cmaps in the same directory!
     print("Removing old files: " + args.o + '/*.nwk')
-#    print(glob(args.o + '/*.nwk'))
-#    for f_old in glob(args.o + '/*.nwk'):
-#        os.remove(f_old)
+    print(glob(args.o + '/*.nwk'))
+    for f_old in glob(args.o + '/*.nwk'):
+        os.remove(f_old)
 
     if args.method == 'distance':
         phytree = phytree_from_msa(msa_file, output_tree_file=args.o + "/" + os.path.basename(msa_file).replace(".a3m", "_tree.nwk"))
