@@ -8,6 +8,9 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 import random
 
+# Use ete3 package for visualization
+from ete3 import Tree
+
 from msa_utils import *
 
 
@@ -71,13 +74,20 @@ def set_node_color(node):
 # Draw phylogenetic tree, with values assigned to each leaf
 def draw_tree_with_values(tree, output_file = ''):
 #    tree = Phylo.read("apaf.xml", "phyloxml")
+
+    if type(tree) == str:
+        tree = Phylo.read(tree, "newick")
     tree.ladderize()  # Flip branches so deeper clades are displayed at top
 
     # Apply color mapping to all nodes in the tree
-    tree.clade.traverse(set_node_color)
+#    tree.clade.traverse(set_node_color)
 
     # Plot the tree with colors
     Phylo.draw(tree, branch_labels=lambda c: c.branch_length)
+
+    if len(output_file) > 0:  # save and close plot (enable automatic saving of multiple plots)
+        print("Save tree fig: " + output_file + '.png')
+        plt.savefig(output_file + '.png')
 
 #    Phylo.draw(tree)
     return 0

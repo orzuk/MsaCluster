@@ -26,8 +26,8 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "load"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-    foldpair_ids_to_run = "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    foldpair_ids_to_run = "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
 
@@ -239,7 +239,10 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
 
         # load tree
-        draw_tree_with_values(phytree, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id)
+#        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+#        print(phytree_msa_str)
+        phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
+        draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
 
         # Collect :
         cmap_dists_vec[i] = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)
