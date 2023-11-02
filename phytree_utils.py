@@ -7,9 +7,12 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 import random
+import matplotlib.pyplot as plt
+
+from pylab import *
 
 # Use ete3 package for visualization
-from ete3 import Tree
+from ete3 import *
 
 from msa_utils import *
 
@@ -72,22 +75,50 @@ def set_node_color(node):
 
 
 # Draw phylogenetic tree, with values assigned to each leaf
-def draw_tree_with_values(tree, output_file = ''):
+def draw_tree_with_values(tree, output_file = '', node_values = []):
 #    tree = Phylo.read("apaf.xml", "phyloxml")
+    # Try the epe package :
+    ete_tree = Tree(tree, format=1)
 
-    if type(tree) == str:
-        tree = Phylo.read(tree, "newick")
-    tree.ladderize()  # Flip branches so deeper clades are displayed at top
+    # Basic tree style
+    ts = TreeStyle()
+    ts.show_leaf_name = True
 
-    # Apply color mapping to all nodes in the tree
-#    tree.clade.traverse(set_node_color)
+    if len(node_values) == 0:
+        node_values = {n.name: 1 for n in ete_tree}
 
-    # Plot the tree with colors
-    Phylo.draw(tree, branch_labels=lambda c: c.branch_length)
+    for n in ete_tree.traverse():
+        if n.is_leaf():
+            nstyle = NodeStyle()
+            nstyle["fgcolor"] = "red"  # color based on scale
+            nstyle["size"] = 15
+            n.set_style(nstyle)
+
+
+
+    # Let's now modify the aspect of the root node
+    ete_tree.img_style["size"] = 30
+    ete_tree.img_style["fgcolor"] = "blue"
+
+    # Draws nodes as small red spheres of diameter equal to 10 pixels
+
+#    if type(tree) == str:
+#        tree = Phylo.read(tree, "newick")
+#    tree.ladderize()  # Flip branches so deeper clades are displayed at top
+
+    # Plot the tree without colors
+#    Phylo.draw(tree, branch_labels=lambda c: c.branch_length, do_show=False)
 
     if len(output_file) > 0:  # save and close plot (enable automatic saving of multiple plots)
-        print("Save tree fig: " + output_file + '.png')
-        plt.savefig(output_file + '.png')
+        if '.' not in output_file:
+            output_file = output_file + ".png"
+        print("Save tree fig: " + output_file)
+        ete_tree.render(output_file)
+#        plt.savefig(output_file + '.png')
+    else:
+        ete_tree.show()
+
+
 
 #    Phylo.draw(tree)
     return 0

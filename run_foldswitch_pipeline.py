@@ -242,7 +242,9 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
 #        print(phytree_msa_str)
         phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
-        draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
+        ete_tree = Tree(phytree_file, format=1)
+        node_values = {n.name:1 for n in ete_tree}  # update to incldue matching to two folds !!
+        draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", node_values)
 
         # Collect :
         cmap_dists_vec[i] = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)
