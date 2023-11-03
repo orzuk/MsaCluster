@@ -10,6 +10,7 @@ import copy
 
 import pandas as pd
 from phytree_utils import *
+from protein_plot_utils import *
 
 from MSA_Clust import *
 import platform
@@ -243,7 +244,8 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #        print(phytree_msa_str)
         phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
         ete_tree = Tree(phytree_file, format=1)
-        node_values = {n.name:1 for n in ete_tree}  # update to incldue matching to two folds !!
+#        nv = list(range(len(ete_tree)))
+        node_values = {n.name:double(n.name[9:]) for n in ete_tree}  # update these values to include matching to two folds !!
         draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", node_values)
 
         # Collect :

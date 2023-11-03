@@ -76,6 +76,7 @@ def set_node_color(node):
 
 # Draw phylogenetic tree, with values assigned to each leaf
 def draw_tree_with_values(tree, output_file = '', node_values = []):
+
 #    tree = Phylo.read("apaf.xml", "phyloxml")
     # Try the epe package :
     ete_tree = Tree(tree, format=1)
@@ -87,10 +88,29 @@ def draw_tree_with_values(tree, output_file = '', node_values = []):
     if len(node_values) == 0:
         node_values = {n.name: 1 for n in ete_tree}
 
+#    cmap = cm.get_cmap('seismic', 5)    # PiYG
+    cmap = plt.colormaps['seismic']
+
+#    cmap = plt.get_cmap('viridis')
+    epsilon = 0.00000001
+    norm_cmap = plt.Normalize(min(node_values.values())-epsilon, max(node_values.values())+epsilon)
+
+#    color = cmap(norm(200.))
+
+#    for i in range(cmap.N):
+#        rgba = cmap(i)
+#        print(matplotlib.colors.rgb2hex(rgba))
+    # rgb2hex accepts rgb or rgba
+#    print(matplotlib.colors.rgb2hex(rgba))
+
     for n in ete_tree.traverse():
         if n.is_leaf():
             nstyle = NodeStyle()
-            nstyle["fgcolor"] = "red"  # color based on scale
+            print(n.name)
+            print(node_values[n.name])
+            print(norm_cmap(node_values[n.name]))
+            print(cmap(norm_cmap(node_values[n.name])))
+            nstyle["fgcolor"] = matplotlib.colors.rgb2hex(cmap(norm_cmap(node_values[n.name])))  # "red"  # color based on scale
             nstyle["size"] = 15
             n.set_style(nstyle)
 
