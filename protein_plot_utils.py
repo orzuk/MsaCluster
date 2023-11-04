@@ -6,6 +6,7 @@ from IPython.display import display, Image
 import requests
 from PIL import Image
 from io import BytesIO
+from MSA_Clust import match_predicted_and_true_contact_maps
 
 
 # Plot structure using nglview
@@ -198,15 +199,15 @@ def plot_foldswitch_contacts_and_predictions(
     predictions = predictions.copy()
     predictions[invalid_mask] = float("-inf")
 
-#    contacts_united = (contacts[fold_ids[0]] & top_bottom_mask[fold_ids[0]]) + \
-#                       (contacts[fold_ids[1]] & top_bottom_mask[fold_ids[1]])
-    contacts_united = (contacts[fold_ids[0]] + contacts[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
-    for fold in fold_ids:
-        contacts_united[np.where(contacts[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
+##    contacts_united = (contacts[fold_ids[0]] + contacts[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
+##    for fold in fold_ids:
+##        contacts_united[np.where(contacts[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
     # Flip contact in one and both:
-    cc = copy.deepcopy(contacts_united)
-    contacts_united[cc == 1] = 2
-    contacts_united[cc == 2] = 1
+ ##   cc = copy.deepcopy(contacts_united)
+##    contacts_united[cc == 1] = 2
+##    contacts_united[cc == 2] = 1
+
+    contacts_united = match_predicted_and_true_contact_maps(predictions, contacts)
 
     topl_val = np.sort(predictions.reshape(-1))[-seqlen]
     pred_contacts = predictions >= topl_val

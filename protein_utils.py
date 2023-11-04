@@ -213,6 +213,13 @@ def contacts_from_pdb(
     return dist, contacts, pdb_seq, good_res_ids   # [aa_long_short[aa] for aa in structure.res_name[good_res_ids]]
 
 
+# Evaluate precision of predicted contacts with respect to true contacts
+# Input:
+# predictions - matrix of predicted residue affinities
+# targets - matrix of binary contacts
+# Output :
+# AUC -
+# P@L - percent of top L contacts recovered among
 def compute_precisions(
         predictions: torch.Tensor,
         targets: torch.Tensor,
@@ -298,6 +305,8 @@ def evaluate_prediction(
         predictions: torch.Tensor,
         targets: torch.Tensor,
 ) -> Dict[str, float]:
+    if isinstance(predictions, np.ndarray):
+        predictions = torch.from_numpy(predictions)
     if isinstance(targets, np.ndarray):
         targets = torch.from_numpy(targets)
     contact_ranges = [

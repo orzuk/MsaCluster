@@ -197,14 +197,53 @@ def MSA_transformer(MSAs, MSAs_names, true_contacts = {}):
 # np.loadtxt('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_cmap_output/msa_t__cluster_000.npy')
 
 
-
 # Plot the true vs. predicted contact map, predict for each contact if it is:
 # 1. Present in both
 # 2. Present in first
 # 3. Present in second
 # 4. Absent
 def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
-    return []
+    # First divide the contacts into both, one and two
+    fold_ids = list(cmap_true.keys())
+
+    print(fold_ids[0])
+    print(cmap_true[fold_ids[0]])
+    seqlen = cmap_true[fold_ids[0]].shape[0]
+
+    relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
+    top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}
+
+    contacts_united = (
+                cmap_true[fold_ids[0]] + cmap_true[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
+    for fold in fold_ids:
+        contacts_united[np.where(cmap_true[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
+    # Flip contact in one and both:
+    cc = copy.deepcopy(contacts_united)
+    contacts_united[cc == 1] = 2
+    contacts_united[cc == 2] = 1
+
+    # Next, evaluate shared and unique contacts separately.
+
+    shared_unique_contacts = {"shared": (contacts_united == 1).astype(int), fold_ids[0]: None, fold_ids[1]: None}
+    for fold in fold_ids:
+        shared_unique_contacts[fold] = ((contacts_united == 2) & top_bottom_mask[fold]).astype(int)
+        shared_unique_contacts[fold] = shared_unique_contacts[fold] + shared_unique_contacts[fold].transpose() # make symmetric
+
+    shared_unique_contacts_metrics = {"shared":None, fold_ids[0]:None, fold_ids[1]:None}
+    for ctype in shared_unique_contacts_metrics:
+        shared_unique_contacts_metrics[ctype] = {}
+        for clust in cmap_clusters:
+            print(shared_unique_contacts_metrics["shared"])
+            print(shared_unique_contacts[ctype])
+            print(clust)
+            print(type(cmap_clusters))
+            print(cmap_clusters[clust])
+            xxx = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
+            print(xxx)
+            shared_unique_contacts_metrics["shared"][clust] = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
+
+    return shared_unique_contacts, shared_unique_contacts_metrics, contacts_united
+
 
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
