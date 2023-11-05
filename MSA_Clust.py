@@ -10,6 +10,7 @@ import subprocess
 
 import seaborn as sns
 from protein_utils import *
+from msa_utils import *
 
 sys.path.append('alphafold')
 
@@ -21,7 +22,7 @@ def cluster_MSAs(MSA, clust_params):
     # Run ClusterMSA script (??)
 
     # USe AF-cluster script
-    if clust_params == True:  # Run clustering
+    if clust_params:  # Run clustering
         AF_cluster_str = 'python ../AF_cluster/scripts/ClusterMSA.py EX -i ' + \
         '../AF_cluster/data_sep2022/00_KaiB/2QKEE_colabfold.a3m -o subsampled_MSAs'  # change later to input MSA
         subprocess.call(AF_cluster_str)
@@ -34,9 +35,6 @@ def cluster_MSAs(MSA, clust_params):
     for i in range(n_clusters):
         MSA_clusters[i] = AlignIO.read(open(clusters_file_names[i]), "fasta")
 
-
-
-#    subprocess.call('python hello.py') # small check
     return MSA_clusters, clusters_file_names  # an object containing the partition of the MSA into multiple clusters
 
 
@@ -229,18 +227,18 @@ def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
         shared_unique_contacts[fold] = ((contacts_united == 2) & top_bottom_mask[fold]).astype(int)
         shared_unique_contacts[fold] = shared_unique_contacts[fold] + shared_unique_contacts[fold].transpose() # make symmetric
 
-    shared_unique_contacts_metrics = {"shared":None, fold_ids[0]:None, fold_ids[1]:None}
+    shared_unique_contacts_metrics = {"shared": None, fold_ids[0]: None, fold_ids[1]: None}
     for ctype in shared_unique_contacts_metrics:
         shared_unique_contacts_metrics[ctype] = {}
         for clust in cmap_clusters:
-            print(shared_unique_contacts_metrics["shared"])
-            print(shared_unique_contacts[ctype])
-            print(clust)
-            print(type(cmap_clusters))
-            print(cmap_clusters[clust])
-            xxx = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
-            print(xxx)
-            shared_unique_contacts_metrics["shared"][clust] = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
+            shared_unique_contacts_metrics[ctype][clust] = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
+#            print(shared_unique_contacts_metrics["shared"])
+#            print(shared_unique_contacts[ctype])
+#            print(clust)
+#            print(type(cmap_clusters))
+#            print(cmap_clusters[clust])
+#            xxx = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
+#            print(xxx)
 
     return shared_unique_contacts, shared_unique_contacts_metrics, contacts_united
 
@@ -276,6 +274,21 @@ def lev_distance_matrix(seqs):
             }
         }
     }
+
+
+# Get the cluster ids of individual sequences
+def seqs_ids_to_cluster_ids(seqs_ids=[], msa_cluster_dir):
+    msa_files = os.listdir(msa_cluster_dir)
+    seqs_IDs = { msa_file_name.replace('.a3m', '') : load_fasta(msa_cluster_dir + "/" + msa_file_name)[0] for msa_file_name in msa_files }
+
+    cluster_ids = {}
+    for cluster in seqs_IDs:
+        cluster_ids.update({s:cluster for s in seqs_IDs[cluster]})  #  for cluster in seqs_IDs  }
+    if len(seqs_ids) == 0: # return all ids
+        return cluster_ids
+    else:
+        return {s: cluster_ids[s] for s in seqs_ids} #   cluster_ids
+
 
 
 # Main: test

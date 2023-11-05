@@ -477,8 +477,9 @@ def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
     for fold in pred_cmap.keys():  # range(n_pred):  # get predicted
         match_pred_cmap[fold] = pred_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
                                                        pairwise_alignment[0].indices[ctr][good_inds])]
-
     return match_true_cmap, match_pred_cmap
+
+
 
 
 run_example = False

@@ -84,7 +84,7 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
         ctr = ctr + 1
 #        print("Plotting prediction: " + name)  # + " -> true: " + true_name)
         plot_foldswitch_contacts_and_predictions(
-            predictions[name], contacts, ax=ax, title=name, show_legend = ctr == 1)
+            predictions[name], contacts, ax=ax, title=name, show_legend= ctr == 1)
 
     ##        for true_name in contacts_ids: # loop over two folds
     ##            print("Plotting prediction: " + name + " -> true: " + true_name)
@@ -207,7 +207,7 @@ def plot_foldswitch_contacts_and_predictions(
 ##    contacts_united[cc == 1] = 2
 ##    contacts_united[cc == 2] = 1
 
-    contacts_united = match_predicted_and_true_contact_maps(predictions, contacts)
+    _, _, contacts_united = match_predicted_and_true_contact_maps({title:predictions}, contacts)
 
     topl_val = np.sort(predictions.reshape(-1))[-seqlen]
     pred_contacts = predictions >= topl_val

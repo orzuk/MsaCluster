@@ -8,12 +8,10 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 import random
 import matplotlib.pyplot as plt
-
 from pylab import *
 
 # Use ete3 package for visualization
 from ete3 import *
-
 from msa_utils import *
 
 
@@ -21,12 +19,12 @@ from msa_utils import *
 def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
     # Load the multiple sequence alignment from a file
 
-    IDs, seqs = load_fasta(msa_file)
+    seqs_IDs, seqs = load_fasta(msa_file)
     seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
 
     num_seqs = len(seqs)
     if num_seqs > max_seqs: # too many sequences! sample!!!
-        seqs = random.sample(seqs, max_seqs) # [1:max_seqs]  # sample randomly
+        seqs = random.sample(seqs, max_seqs)  # [1:max_seqs]  # sample randomly
 
 #    alignment = AlignIO.read(msa_file, "fasta")
 #    print(seqs)
@@ -37,14 +35,13 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
     # Create a MultipleSeqAlignment object from the SeqRecord objects
     alignment = MultipleSeqAlignment(seq_records)
 
-
     # Calculate a distance matrix from the alignment
     calculator = DistanceCalculator('identity')
     distance_matrix = calculator.get_distance(alignment)
 
     # Build a phylogenetic tree using the UPGMA (Unweighted Pair Group Method with Arithmetic Mean) method
     constructor = DistanceTreeConstructor()
-    tree = constructor.upgma(distance_matrix)
+    tree = constructor.upgma(distance_matrix, names = seqs_IDs)  # New: Add leave names !!!
 
     # Print or save the resulting tree
     if len(output_tree_file) == 0:
@@ -106,10 +103,10 @@ def draw_tree_with_values(tree, output_file = '', node_values = []):
     for n in ete_tree.traverse():
         if n.is_leaf():
             nstyle = NodeStyle()
-            print(n.name)
-            print(node_values[n.name])
-            print(norm_cmap(node_values[n.name]))
-            print(cmap(norm_cmap(node_values[n.name])))
+#            print(n.name)
+#            print(node_values[n.name])
+#            print(norm_cmap(node_values[n.name]))
+#            print(cmap(norm_cmap(node_values[n.name])))
             nstyle["fgcolor"] = matplotlib.colors.rgb2hex(cmap(norm_cmap(node_values[n.name])))  # "red"  # color based on scale
             nstyle["size"] = 15
             n.set_style(nstyle)

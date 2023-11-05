@@ -237,9 +237,18 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
 #            print(fold)
 #            print(match_predicted_cmaps[fold].shape)
 #        plot_array_contacts_and_predictions(msa_transformer_pred, true_cmap)
-        cmap_metrics = match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
 
         plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
+
+
+        shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
+        print("Cmap metrics shared:")
+        print(shared_unique_contacts_metrics["shared"])
+        for fold in range(2):
+            print("Cmap metrics for " + pdbids[i][fold] + pdbchains[i][fold] + ":")
+            print(shared_unique_contacts_metrics[pdbids[i][fold] + pdbchains[i][fold]])
+        cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'] for ctype in match_predicted_cmaps}
+
 
 
         # load tree

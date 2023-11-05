@@ -32,7 +32,6 @@ def dihedral_wrapper(traj):
         to the `i`th snapshot of the input trajectory.
 
     """
-
     ca = [a.index for a in traj.top.atoms if a.name == 'CA']
     if len(ca) < 4:
         return np.zeros((len(traj), 0), dtype=np.float32)
@@ -54,7 +53,6 @@ def consensusVoting(seqs):
         baseCount = np.array([baseArray.count(a) for a in list(residues)])
         vote = np.argmax(baseCount)
         consensus += residues[vote]
-
     return consensus
 
 
@@ -69,8 +67,9 @@ def encode_seqs(seqs, max_len=108, alphabet=None):
                 if char == res:
                     arr[j, i, k] += 1
     return arr.reshape([len(seqs), max_len * len(alphabet)])
-if __name__ == '__main__':
 
+
+if __name__ == '__main__':
     p = argparse.ArgumentParser(description=
                                 """
                                 Cluster sequences in a MSA using DBSCAN algorithm and write .a3m file for each cluster.
