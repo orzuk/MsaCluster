@@ -27,7 +27,7 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "tree"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
     foldpair_ids_to_run = "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
@@ -143,130 +143,7 @@ for foldpair_id in foldpair_ids_to_run:   # for i in range(17, n_fam):  # loop o
         os.system(pipeline_str)  # run pipeline (should be a separate job!)
 
     if plot_results:
-        fasta_file_names = {pdbids[i][fold] + pdbchains[i][fold]: fasta_dir + "/" + foldpair_id + "/" + \
-                                             pdbids[i][fold] + pdbchains[i][fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
-        msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
-        MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
-        msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
-        n_cmaps = len(msa_pred_files)
-        n_cmaps = min(3, n_cmaps)  # temp for debug !!
-        msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
-        msa_clusters = {file.split("\\")[-1][:-4]: read_msa(file) for file in msa_files}
-
-        # Filter 'bad' families: too shallow alignments (no clusters), same PDB ID, other reasons??
-        if len(msa_files) == 0:
-            print("Shallow alignment! No MSA Clusters! Skipping family")
-            continue
-        if pdbids[i][0] == pdbids[i][1]:
-            print("Same PDB-ID for both folds! Might be buggy!" ) # Not supported yet!  Skipping family")
-#            continue
-#        if foldpair_id in ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]:
-#            print("Special problematic family! " + foldpair_id)
-#            continue
-#       if i < 15:
-#            print("Ignore first!")
-#            continue
-
-
-        # First load files
-        seqs = {}
-        for fold in range(2):
-            with open(fasta_file_names[pdbids[i][fold] + pdbchains[i][fold]], "r") as text_file:
-                seqs[pdbids[i][fold] + pdbchains[i][fold]] = text_file.read().split("\n")[1]
-        pairwise_alignment = Align.PairwiseAligner().align(seqs[pdbids[i][0] + pdbchains[i][0]],
-                                                           seqs[pdbids[i][1] + pdbchains[i][1]])
-
-        if max([len(seqs[fold]) for fold in seqs]) > 1024:
-            print("Long sequence! Length = " + " > maximum supported length of 1024")
-            continue
-
-#        msa_transformer_pred = [None]*n_cmaps
-#        for file in msa_pred_files:
-#            print(file)
-#            msa_transformer_pred[i] = np.genfromtxt(file)
-        try:  # read in text format or python format
-            msa_transformer_pred = {file.split("\\")[-1][14:-4] : np.genfromtxt(file) for file in msa_pred_files}
-        except:
-            msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.load(file, allow_pickle=True) for file in msa_pred_files}
-
-#        print("Predicted cmap sizes for:" + foldpair_id)
-#        print([c.shape[0] for c in msa_transformer_pred.values()])
-
-#        true_cmap = [None]*2
-#        for fold in range(2):
-#            true_cmap[fold] = np.genfromtxt(fasta_dir +
-#                "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")  # load for pickle, genfromtxt for tab-delimited
-        try:
-            true_cmap = {pdbids[i][fold] + pdbchains[i][fold] : np.genfromtxt(fasta_dir +  # problem with first !!
-                        "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy").astype(int) for fold in range(2)}
-#            print("Loaded text true!")
-        except:
-#            print("load binary true!")
-            true_cmap = {pdbids[i][fold] + pdbchains[i][fold] : np.load(fasta_dir +  # problem with first !!
-                        "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", allow_pickle=True).astype(int) for fold in range(2)}
-
-#        print("seq lens:")
-#        print( [len(seqs[fold]) for fold in seqs])
-#        print("aligned lens:")
-#        print(len((pairwise_alignment[0])))
-
-#        print("True cmap sizes:")
-#        print([c.shape[0] for c in true_cmap.values()])
-#        print("plot")
-#        print("Predicted cmap sizes:")
-#        print([c.shape[0] for c in msa_transformer_pred.values()])
-
-
-#        ttt = copy.deepcopy(true_cmap)
-#        ttt['4rmbB'] = true_cmap['4rmbA']
-#        ttt['4rmbA'] = true_cmap['4rmbB']
-
-        # Match indices of the two folds:
-#        print("Matching: ")
-#        print(len(msa_transformer_pred))
-#        print(true_cmap)
-#        print(len(true_cmap))
-#        match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, ttt, msa_transformer_pred)
-        match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap, msa_transformer_pred)
-
-#        for fold in match_true_cmap.keys():
-#            print(fold)
-#            print(true_cmap[fold].shape)
-#            print(match_true_cmap[fold].shape)
-#        for fold in match_predicted_cmaps.keys():
-#            print(fold)
-#            print(match_predicted_cmaps[fold].shape)
-#        plot_array_contacts_and_predictions(msa_transformer_pred, true_cmap)
-
-        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
-
-
-        shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
-        print("Cmap metrics shared:")
-        print(shared_unique_contacts_metrics["shared"])
-        for fold in range(2):
-            print("Cmap metrics for " + pdbids[i][fold] + pdbchains[i][fold] + ":")
-            print(shared_unique_contacts_metrics[pdbids[i][fold] + pdbchains[i][fold]])
-        cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'] for ctype in match_predicted_cmaps}
-
-
-
-        # load tree
-#        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-#        print(phytree_msa_str)
-        phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
-        ete_tree = Tree(phytree_file, format=1)
-#        nv = list(range(len(ete_tree)))
-        node_values = {n.name:double(n.name[9:]) for n in ete_tree}  # update these values to include matching to two folds !!
-        draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", node_values)
-
-        # Collect :
-        cmap_dists_vec[i] = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)
-        seqs_dists_vec[i] = np.mean(compute_seq_distances(msa_clusters))  # can take the entire sequence !
-        num_seqs_msa_vec[i] = len(seqs)
-#        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
-#        break
-        # next plotP
+        make_foldswitch_all_plots()
 
 if plot_results:  # save results at the end:
     res_DF = pd.DataFrame(

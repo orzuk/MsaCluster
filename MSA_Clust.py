@@ -246,16 +246,75 @@ def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
 # MSAs can be represented as a3m format
-def predict_fold_switch_pipeline(MSAs_dir, clust_params):
-    # loop on MSAs
-    n_fam = len(MSA)
+def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
+                                        fasta_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
 
-    pred_vec = [0] * n_fam
-    for i in range(n_fam):
-        cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
-        pred_vec[i] = predict_fold_switch_from_MSA_cluster(cur_MSA, clust_params)
+    if type(pdbids_file) == str: # input as file
+        with open(pdbids_file, "r") as file:  # read all pdb ids
+            pdbids = [line.rstrip() for line in file]  # two per row
+        foldpair_ids = [s.replace("\t", "_") for s in pdbids]
+
+        pdbids = [s.split("\t") for s in pdbids]
+        pdbchains = [[s[0][-1], s[1][-1]] for s in pdbids]
+        pdbids = [[s[0][:-1], s[1][:-1]] for s in pdbids]
+
+    n_fam = len(pdbids)  # number of families
+    if foldpair_ids_to_run == "ALL":
+        foldpair_ids_to_run = foldpair_ids
+    else:  # make a list
+        if type(foldpair_ids_to_run) == str:
+            foldpair_ids_to_run = [foldpair_ids_to_run]
+
+    pred_vec = [0] * n_fam     # loop on MSAs
+    for foldpair_id in foldpair_ids_to_run:
+        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + pdbchains[i][0] + '.fasta'  # First file of two folds
+        i = foldpair_ids.index(foldpair_id)
+        cur_family_dir = fasta_dir + "/" + foldpair_id
+        print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_id)
+
+        if run_job_mode == "inline":
+            run_fold_switch_pipeline_one_family(run_mode, foldpair_id)
+
+        else:  # run job
+            if run_mode == "get_msa":
+                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + \
+                          fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+
+            if run_mode == "cluster_msa":  # here do analysis of the results
+                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/cluster_msa_for_" + foldpair_id + ".out' ./Pipeline/ClusterMSA_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+            if run_mode == "run_esm":
+                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_esm_for_" + foldpair_id + ".out' ./Pipeline/CmapESM_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+            if run_mode == "run_pipeline":
+            if run_mode == "plot":  # here do analysis of the results
+                make_foldswitch_all_plots()
+            if run_mode == "tree":  # here do analysis of the results
+                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+
+            print("Send job for " + run_mode + ":\n" + run_str)
+            os.system(run_str)
+    # for i in range(n_fam):
+    #    cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
+    #    pred_vec[i] = predict_fold_switch_from_MSA_cluster(cur_MSA, clust_params)
 
 
+# Run inline one family
+def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, fasta_file_name):
+    if run_mode == "get_msa":
+        run_str = "python3. / get_msa.py " + fasta_file_name "./Pipeline/" + foldpair_id + "/output_get_msa - name 'DeepMsa'"
+    if run_mode == "cluster_msa":
+        run_str = "python3  ./ClusterMSA_moriah.py --keyword ShallowMsa -i ./Pipeline/" + foldpair_id + \
+                  "/output_get_msa/DeepMsa.a3m  -o ./Pipeline/" + foldpair_id + "/output_msa_cluster"
+    if run_mode == "run_esm":
+        run_str = ''
+    if run_mode == "tree":
+        run_str = ''
+    if run_mode == "plot":
+        run_str = ''
+    if run_mode == "run_pipeline":
+        run_str = ''
+
+    print("Run command line for " + run_mode + ":\n" + run_str)
+    os.system(run_str)
 
 
 # Taken from here:
@@ -277,13 +336,24 @@ def lev_distance_matrix(seqs):
 
 
 # Get the cluster ids of individual sequences
-def seqs_ids_to_cluster_ids(seqs_ids=[], msa_cluster_dir):
-    msa_files = os.listdir(msa_cluster_dir)
-    seqs_IDs = { msa_file_name.replace('.a3m', '') : load_fasta(msa_cluster_dir + "/" + msa_file_name)[0] for msa_file_name in msa_files }
+def seqs_ids_to_cluster_ids(msa_cluster_dir, seqs_ids=[]):
+    if msa_cluster_dir[-1] == "/":
+        msa_files = os.listdir(msa_cluster_dir)
+    else:  # allow patterns. Here glob gives full path names
+        msa_files = [os.path.basename(f) for f in glob(msa_cluster_dir)]
+    print("msa files:")
+    print(msa_files)
 
+    seqs_IDs = { msa_file_name.replace('.a3m', '') : load_fasta(os.path.dirname(msa_cluster_dir) + "/" + msa_file_name)[0] for msa_file_name in msa_files }
+    print("seqs_IDS:")
+    print(seqs_IDs)
+    print("loop on clusters:")
     cluster_ids = {}
+    print("Set cluster IDS")
     for cluster in seqs_IDs:
         cluster_ids.update({s:cluster for s in seqs_IDs[cluster]})  #  for cluster in seqs_IDs  }
+    print("Cluster IDS:")
+    print(cluster_ids)
     if len(seqs_ids) == 0: # return all ids
         return cluster_ids
     else:

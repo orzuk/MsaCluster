@@ -20,6 +20,7 @@ print("Current dir: ", os.getcwd())
 # result_dir.joinpath(f"{jobname}.a3m").write_text(msa)
 #
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("input", default="input",help="Should be a .fasta file")
