@@ -6,13 +6,10 @@ import time
 from protein_utils import *
 from phytree_utils import *
 
-import numpy as np
 import torch
 from scipy.spatial.distance import squareform, pdist, cdist
-import pandas as pd
 import matplotlib as mpl
 import argparse
-import esm
 mpl.use("agg")
 
 torch.set_grad_enabled(False)

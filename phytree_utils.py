@@ -6,13 +6,13 @@ from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstruct
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-import random
 import matplotlib.pyplot as plt
 from pylab import *
 
 # Use ete3 package for visualization
 from ete3 import *
 from msa_utils import *
+import random
 
 
 # Reconstruct a phylogenetic tree
@@ -23,14 +23,21 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
     seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
 
     num_seqs = len(seqs)
+#    print(seqs)
+#    print(num_seqs)
+#    print(max_seqs)
     if num_seqs > max_seqs: # too many sequences! sample!!!
-        seqs = random.sample(seqs, max_seqs)  # [1:max_seqs]  # sample randomly
+        rand_inds = random.sample(range(num_seqs), max_seqs)
+        seqs = [seqs[i] for i in rand_inds]  # random.sample(seqs, max_seqs)  # [1:max_seqs]  # sample randomly
+        seqs_IDs = [seqs_IDs[i] for i in rand_inds]
+        # Need to match also seq IDs!!!
 
 #    alignment = AlignIO.read(msa_file, "fasta")
 #    print(seqs)
 #    print([len(s) for s in seqs])
 
-    seq_records = [SeqRecord(Seq(s), id=f"Sequence_{i}") for i, s in enumerate(seqs)]
+#    seq_records = [SeqRecord(Seq(s), id=f"Sequence_{i}") for i, s in enumerate(seqs)]  # Here must give correct names to sequences!
+    seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]  # Here must give correct names to sequences!
 
     # Create a MultipleSeqAlignment object from the SeqRecord objects
     alignment = MultipleSeqAlignment(seq_records)
@@ -41,12 +48,13 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 
     # Build a phylogenetic tree using the UPGMA (Unweighted Pair Group Method with Arithmetic Mean) method
     constructor = DistanceTreeConstructor()
-    tree = constructor.upgma(distance_matrix, names = seqs_IDs)  # New: Add leave names !!!
+    tree = constructor.upgma(distance_matrix) # , names = seqs_IDs)  # New: Add leave names !!!
 
     # Print or save the resulting tree
     if len(output_tree_file) == 0:
         output_tree_file = msa_file.replace(".a3m", "_tree.nwk")
 #    tree_file = "phylogenetic_tree.nwk"  # Replace with your desired output file
+#    print("Output tree file: " + output_tree_file)
     Phylo.write(tree, output_tree_file, "newick")
 
     return tree
