@@ -2,7 +2,6 @@
 # Goal is to identify evidence for difference in co-evolution in the different clusters,
 # possible indicative of differences in the structure
 from polyleven import levenshtein
-# import random
 
 # import Levenshtein as pylev
 
@@ -14,8 +13,9 @@ import subprocess
 
 # import seaborn as sns
 from protein_utils import *
-# from msa_utils import *
+from msa_utils import *
 # from protein_plot_utils import make_foldswitch_all_plots
+import random
 
 sys.path.append('alphafold')
 
@@ -210,7 +210,7 @@ def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
     fold_ids = list(cmap_true.keys())
 
     print(fold_ids[0])
-    print(cmap_true[fold_ids[0]])
+#    print(cmap_true[fold_ids[0]])
     seqlen = cmap_true[fold_ids[0]].shape[0]
 
     relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
@@ -273,23 +273,23 @@ def seqs_ids_to_cluster_ids(msa_cluster_dir, seqs_ids=[]):
         msa_files = os.listdir(msa_cluster_dir)
     else:  # allow patterns. Here glob gives full path names
         msa_files = [os.path.basename(f) for f in glob(msa_cluster_dir)]
-    print("msa files:")
-    print(msa_files)
+#    print("msa files:")
+#    print(msa_files)
 
-    seqs_IDs = { msa_file_name.replace('.a3m', '') : load_fasta(os.path.dirname(msa_cluster_dir) + "/" + msa_file_name)[0] for msa_file_name in msa_files }
-    print("seqs_IDS:")
-    print(seqs_IDs)
-    print("loop on clusters:")
+    seqs_IDs = { msa_file_name.replace('.a3m', '')[7:] : load_fasta(os.path.dirname(msa_cluster_dir) + "/" + msa_file_name)[0] for msa_file_name in msa_files }
+#    print("seqs_IDS:")
+#    print(seqs_IDs)
+#    print("loop on clusters:")
     cluster_ids = {}
-    print("Set cluster IDS")
+#    print("Set cluster IDS")
     for cluster in seqs_IDs:
         cluster_ids.update({s:cluster for s in seqs_IDs[cluster]})  #  for cluster in seqs_IDs  }
-    print("Cluster IDS:")
-    print(cluster_ids)
+#    print("Cluster IDS:")
+#    print(cluster_ids)
     if len(seqs_ids) == 0: # return all ids
         return cluster_ids
     else:
-        return {s: cluster_ids[s] for s in seqs_ids} #   cluster_ids
+        return {s: cluster_ids[s] if s in cluster_ids else 'p' for s in seqs_ids} #   cluster_ids. p means no cluster !
 
 
 

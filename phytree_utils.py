@@ -111,10 +111,8 @@ def draw_tree_with_values(tree, output_file = '', node_values = []):
     for n in ete_tree.traverse():
         if n.is_leaf():
             nstyle = NodeStyle()
-#            print(n.name)
-#            print(node_values[n.name])
-#            print(norm_cmap(node_values[n.name]))
-#            print(cmap(norm_cmap(node_values[n.name])))
+            print(n.name + " " + str(node_values[n.name]) + " " + str(norm_cmap(node_values[n.name])))
+            print(cmap(norm_cmap(node_values[n.name])))
             nstyle["fgcolor"] = matplotlib.colors.rgb2hex(cmap(norm_cmap(node_values[n.name])))  # "red"  # color based on scale
             nstyle["size"] = 15
             n.set_style(nstyle)

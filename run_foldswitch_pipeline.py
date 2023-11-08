@@ -47,7 +47,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
         print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_id)
 
         if run_job_mode == "inline":
-            run_fold_switch_pipeline_one_family(run_mode, foldpair_id, fasta_file_name)
+            run_fold_switch_pipeline_one_family(run_mode, foldpair_id,  pdbids[i], pdbchains[i], fasta_file_name)
 
         else:  # run job
             if run_mode == "get_msa":
@@ -81,7 +81,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
 
 
 # Run inline one family. Shouldn't get command line arguments but use function input!!!
-def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, fasta_file_name):
+def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains, fasta_file_name):
+    cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = [None]*3
     if run_mode == "get_msa":
         run_str = "python3. / get_msa.py " + fasta_file_name + " ./Pipeline/" + foldpair_id + "/output_get_msa - name 'DeepMsa'"
     if run_mode == "cluster_msa":
@@ -98,11 +99,15 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, fasta_file_name):
 #        run_str = 'python  ./run_tree_reconstruct.py  --method distance  --input_msas ./Pipeline/' + foldpair_id + \
 #                  '/output_get_msa/DeepMsa.a3m -o ./Pipeline/' + foldpair_id + '/output_phytree'
     if run_mode == "plot":
+        cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = \
+            make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains)
         run_str = ''  # no plotting in this mode !!!!
+
     if run_mode == "run_pipeline":
         run_str = ''  # no pipeline in this mode !!!!
 
     print("Run command line for " + run_mode + ":\n" + run_str)
+    return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec
 #    os.system(run_str)
 
 
@@ -119,7 +124,7 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "tree"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
     foldpair_ids_to_run = "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
@@ -168,6 +173,7 @@ else:  # make a list
     if type(foldpair_ids_to_run) == str:
         foldpair_ids_to_run = [foldpair_ids_to_run]
 
+print("Run: " + run_mode)
 res_DF = run_fold_switch_pipeline(run_mode, foldpair_ids_to_run,
                          fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",
                          run_job_mode="inline")

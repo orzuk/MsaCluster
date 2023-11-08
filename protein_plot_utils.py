@@ -9,18 +9,21 @@ from io import BytesIO
 from Bio import Align
 from MSA_Clust import match_predicted_and_true_contact_maps
 from phytree_utils import *
-# from MSA_Clust import *
+from MSA_Clust import *
 
 
 def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
-#    i = foldpair_ids.index(foldpair_id)
-    cur_family_dir = fasta_dir + "/" + foldpair_id
-
+    #    i = foldpair_ids.index(foldpair_id)
+    #    cur_family_dir = fasta_dir + "/" + foldpair_id
+    print("foldpair_id: " + foldpair_id)
+    print("pdbids: ")
+    print(pdbids)
+    print("pdbchains: ")
+    print(pdbchains)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
-                                                              pdbids[fold] + pdbchains[fold] + '.fasta' for fold
-                        in range(2)}  # Added chain to file ID
-    msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
-    MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
+                        pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
+    #    msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
+    #    MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
     msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
     n_cmaps = len(msa_pred_files)
     n_cmaps = min(3, n_cmaps)  # temp for debug !!
@@ -50,7 +53,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
         msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.genfromtxt(file) for file in msa_pred_files}
     except:
         msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.load(file, allow_pickle=True) for file in
-                                msa_pred_files}
+                                msa_pred_files}  # remove 'shallow' string
 
     try:
         true_cmap = {pdbids[fold] + pdbchains[fold]: np.genfromtxt(fasta_dir +  # problem with first !!
@@ -74,8 +77,13 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     for fold in range(2):
         print("Cmap metrics for " + pdbids[fold] + pdbchains[fold] + ":")
         print(shared_unique_contacts_metrics[pdbids[fold] + pdbchains[fold]])
-    cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'] for ctype in
-                           match_predicted_cmaps}
+        # important: choose which metric to use!!
+    cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_AUC'] for ctype in
+                           match_predicted_cmaps}  # Why only shared?
+#    cluster_node_values = {ctype: (shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
+#                                   shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
+#                                   shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5']) for ctype in
+#                           match_predicted_cmaps}  # Why only shared?
 
     # load tree
     #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
@@ -87,12 +95,22 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     ete_leaves_cluster_ids = seqs_ids_to_cluster_ids(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m",
                                                      [n.name for n in ete_tree])
 
-    print("Set node values and draw:")
-    #        nv = list(range(len(ete_tree)))
-    ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in
-                              ete_tree}  # update these values to include matching to two folds !!
-    draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree",
-                          ete_leaves_node_values)
+#    print(len(cluster_node_values))
+#    print("Set node values and draw:")
+#    #        nv = list(range(len(ete_tree)))
+#    print("Unique cluster IDs:")
+#    print(set(cluster_node_values.keys()))
+#    print("Unique leaves cluster IDS:")
+#    print(set(ete_leaves_cluster_ids.values()))
+#    print("Now create leaves dictionary:")
+    ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree}  # update to include matching two folds !!
+#    print("Node Values: ")
+#    print(ete_leaves_node_values)
+    print("Unique Node Values: ")
+    print(set(ete_leaves_node_values.values()))
+    print("Cluster node values:")
+    print(cluster_node_values)
+    draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values)
 
     # Collect :
     cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)
@@ -194,8 +212,6 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
         print("Save cmap fig: " + save_file + '.png')
     else:
         plt.show()
-
-
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
 
 
