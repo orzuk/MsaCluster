@@ -1,6 +1,7 @@
 from protein_utils import *
 import nglview as nv
 import py3Dmol
+import pickle
 from pyvirtualdisplay import Display
 from IPython.display import display, Image
 import requests
@@ -78,12 +79,12 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
         print("Cmap metrics for " + pdbids[fold] + pdbchains[fold] + ":")
         print(shared_unique_contacts_metrics[pdbids[fold] + pdbchains[fold]])
         # important: choose which metric to use!!
-    cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_AUC'] for ctype in
-                           match_predicted_cmaps}  # Why only shared?
-#    cluster_node_values = {ctype: (shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
-#                                   shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
-#                                   shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5']) for ctype in
+#    cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_AUC'] for ctype in
 #                           match_predicted_cmaps}  # Why only shared?
+    cluster_node_values = {ctype: (shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
+                                   shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
+                                   shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5']) for ctype in
+                           match_predicted_cmaps}  # Why only shared?
 
     # load tree
     #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
@@ -110,6 +111,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     print(set(ete_leaves_node_values.values()))
     print("Cluster node values:")
     print(cluster_node_values)
+    ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
+    ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
+    with open('tree_draw.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
+        pickle.dump([phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values], f)
     draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values)
 
     # Collect :

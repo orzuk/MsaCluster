@@ -80,7 +80,11 @@ def set_node_color(node):
 
 
 # Draw phylogenetic tree, with values assigned to each leaf
-def draw_tree_with_values(tree, output_file = '', node_values = []):
+# Input:
+# tree - a phylogenetic tree object
+# output_file - where to save image
+# node_values - vector/matrix of values representing each node
+def draw_tree_with_values(tree, output_file= '', node_values= []):
 
 #    tree = Phylo.read("apaf.xml", "phyloxml")
     # Try the epe package :
@@ -98,7 +102,10 @@ def draw_tree_with_values(tree, output_file = '', node_values = []):
 
 #    cmap = plt.get_cmap('viridis')
     epsilon = 0.00000001
-    norm_cmap = plt.Normalize(min(node_values.values())-epsilon, max(node_values.values())+epsilon)
+
+#    normalize_column = lambda col: (col - col.min()) / (col.max() - col.min())
+
+    norm_cmap = plt.Normalize(min(node_values.shared)-epsilon, max(node_values.shared)+epsilon)
 
 #    color = cmap(norm(200.))
 
@@ -111,12 +118,11 @@ def draw_tree_with_values(tree, output_file = '', node_values = []):
     for n in ete_tree.traverse():
         if n.is_leaf():
             nstyle = NodeStyle()
-            print(n.name + " " + str(node_values[n.name]) + " " + str(norm_cmap(node_values[n.name])))
-            print(cmap(norm_cmap(node_values[n.name])))
-            nstyle["fgcolor"] = matplotlib.colors.rgb2hex(cmap(norm_cmap(node_values[n.name])))  # "red"  # color based on scale
+            print(n.name + " " + str(node_values.at[n.name, 'shared']) + " " + str(norm_cmap(node_values.at[n.name, 'shared'])))
+            print(cmap(norm_cmap(node_values.at[n.name, 'shared'])))
+            nstyle["fgcolor"] = matplotlib.colors.rgb2hex(cmap(norm_cmap(node_values.at[n.name, 'shared'])))  # "red"  # color based on scale
             nstyle["size"] = 15
             n.set_style(nstyle)
-
 
 
     # Let's now modify the aspect of the root node
