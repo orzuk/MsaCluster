@@ -125,7 +125,7 @@ if platform.system() == "Linux":
 else:
     print("Run on windows")
     run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-    foldpair_ids_to_run = "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+#    foldpair_ids_to_run = "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
 
@@ -173,7 +173,6 @@ else:  # make a list
     if type(foldpair_ids_to_run) == str:
         foldpair_ids_to_run = [foldpair_ids_to_run]
 
-print("Run: " + run_mode)
 res_DF = run_fold_switch_pipeline(run_mode, foldpair_ids_to_run,
                          fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",
                          run_job_mode="inline")
@@ -181,9 +180,9 @@ res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
 
 
 ### TEMP CODE FOR TRYING STUFF
-with open('tree_draw.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-    phytree_file, tree_outfile, node_values = pickle.load(f)
-draw_tree_with_values(phytree_file, tree_outfile, node_values)
+#with open('tree_draw.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+#    phytree_file, tree_outfile, node_values = pickle.load(f)
+#visualize_tree_with_heatmap(phytree_file, node_values, tree_outfile)
 
 
 ### From ChatGPT:

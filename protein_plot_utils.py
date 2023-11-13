@@ -1,6 +1,9 @@
 from protein_utils import *
 import nglview as nv
 import py3Dmol
+import pymol
+from pymol import cmd # , stored
+
 import pickle
 from pyvirtualdisplay import Display
 from IPython.display import display, Image
@@ -17,10 +20,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     #    i = foldpair_ids.index(foldpair_id)
     #    cur_family_dir = fasta_dir + "/" + foldpair_id
     print("foldpair_id: " + foldpair_id)
-    print("pdbids: ")
-    print(pdbids)
-    print("pdbchains: ")
-    print(pdbchains)
+#    print("pdbids: ")
+#    print(pdbids)
+#    print("pdbchains: ")
+#    print(pdbchains)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
     #    msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
@@ -73,11 +76,11 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
 
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(
         match_predicted_cmaps, match_true_cmap)
-    print("Cmap metrics shared:")
-    print(shared_unique_contacts_metrics["shared"])
-    for fold in range(2):
-        print("Cmap metrics for " + pdbids[fold] + pdbchains[fold] + ":")
-        print(shared_unique_contacts_metrics[pdbids[fold] + pdbchains[fold]])
+#    print("Cmap metrics shared:")
+#    print(shared_unique_contacts_metrics["shared"])
+#    for fold in range(2):
+#        print("Cmap metrics for " + pdbids[fold] + pdbchains[fold] + ":")
+#        print(shared_unique_contacts_metrics[pdbids[fold] + pdbchains[fold]])
         # important: choose which metric to use!!
 #    cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_AUC'] for ctype in
 #                           match_predicted_cmaps}  # Why only shared?
@@ -91,8 +94,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     #        print(phytree_msa_str)
     phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
     ete_tree = Tree(phytree_file, format=1)
-    print("Set node cluster ids values and draw:")
-    print(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
+#    print("Set node cluster ids values and draw:")
+#    print(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
     ete_leaves_cluster_ids = seqs_ids_to_cluster_ids(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m",
                                                      [n.name for n in ete_tree])
 
@@ -105,22 +108,28 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
 #    print(set(ete_leaves_cluster_ids.values()))
 #    print("Now create leaves dictionary:")
     ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree}  # update to include matching two folds !!
-#    print("Node Values: ")
-#    print(ete_leaves_node_values)
-    print("Unique Node Values: ")
-    print(set(ete_leaves_node_values.values()))
+#    print("Unique Node Values: ")
+#    print(set(ete_leaves_node_values.values()))
     print("Cluster node values:")
     print(cluster_node_values)
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
     ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
     with open('tree_draw.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
         pickle.dump([phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values], f)
-    draw_tree_with_values(phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values)
+    print("Node Values: ")
+    print(ete_leaves_node_values)
+    visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
 
     # Collect :
     cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)
     seqs_dists_vec = np.mean(compute_seq_distances(msa_clusters))  # can take the entire sequence !
     num_seqs_msa_vec = len(seqs)
+
+
+    # Plot two structures
+    align_and_visualize_proteins('Pipeline/' + foldpair_id + "/" + pdbids[0] + '.pdb',
+                                 'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
+                                 fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png")
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec
 
@@ -128,6 +137,45 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
 #        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
 #        break
 # next plotP
+
+
+
+def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file):
+    """
+    Align two protein structures and save the visualization as an image.
+
+    Args:
+    pdb_file1 (str): Path to the first PDB file.
+    pdb_file2 (str): Path to the second PDB file.
+    output_file (str): Path to save the output image.
+    """
+
+    # Initialize PyMOL
+    pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
+
+    # Load the PDB files
+    cmd.load(pdb_file1, 'protein1')
+    cmd.load(pdb_file2, 'protein2')
+
+    # Align the structures
+    cmd.align('protein2', 'protein1')
+
+    # Set different colors for visualization
+    cmd.color('red', 'protein1')
+    cmd.color('blue', 'protein2')
+
+    # Set the view (optional, you can customize this)
+    cmd.zoom('all', buffer=10)
+
+    # Save the image
+    cmd.png(output_file)
+
+    # Quit PyMOL
+    cmd.quit()
+
+# Example usage
+# align_and_visualize_proteins('path/to/pdb1.pdb', 'path/to/pdb2.pdb', 'output.png')
+
 
 
 # Plot structure using nglview
