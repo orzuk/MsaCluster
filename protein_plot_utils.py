@@ -93,6 +93,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
     #        print(phytree_msa_str)
     phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
+    print("Load treefile: " + phytree_file)
     ete_tree = Tree(phytree_file, format=1)
 #    print("Set node cluster ids values and draw:")
 #    print(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")

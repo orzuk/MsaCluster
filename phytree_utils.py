@@ -9,6 +9,8 @@ from Bio.Align import MultipleSeqAlignment
 import matplotlib.pyplot as plt
 from pylab import *
 
+from matplotlib.colors import Normalize, to_hex
+
 # Use ete3 package for visualization
 from ete3 import *
 from msa_utils import *
@@ -53,7 +55,9 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
     # Print or save the resulting tree
     if len(output_tree_file) == 0:
         output_tree_file = msa_file.replace(".a3m", "_tree.nwk")
-#    tree_file = "phylogenetic_tree.nwk"  # Replace with your desired output file
+    if not os.path.exists(os.path.dirname(output_tree_file)):
+        os.makedirs(os.path.dirname(output_tree_file))
+    #    tree_file = "phylogenetic_tree.nwk"  # Replace with your desired output file
 #    print("Output tree file: " + output_tree_file)
     Phylo.write(tree, output_tree_file, "newick")
 
@@ -77,6 +81,62 @@ def set_node_color(node):
         # You can set a color for internal nodes here if needed
         color = (0.5, 0.5, 0.5)  # Default to gray
     node.color = color
+
+
+
+
+# Draw phylogenetic tree, with values assigned to each leaf
+# Input:
+# tree - a phylogenetic tree object
+# output_file - where to save image
+# node_values - vector/matrix of values representing each node
+def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None):
+    # Ensure the data matrix is a numpy array
+    node_values_matrix = np.array(node_values_matrix)
+
+    # Load the phylogenetic tree
+    tree = Tree(phylo_tree, format=1)
+
+    # Create a Normalize object to scale values between 0 and 1
+    flat_data = node_values_matrix.flatten()
+    epsilon = 0.00000001
+    norm = Normalize(vmin=flat_data.min()-epsilon, vmax=flat_data.max()+epsilon)
+
+    # Create a colormap for continuous data
+    cmap = plt.cm.viridis
+
+    # Create a TreeStyle for the phylogenetic tree
+    ts = TreeStyle()
+    ts.show_leaf_name = True
+    ts.show_branch_length = True
+    ts.show_scale = False
+
+    def layout(node):
+        if node.is_leaf():
+            # Access the corresponding rows in the data_matrix using leaf names
+            leaf_name = node.name
+            index = tree.get_leaf_names().index(leaf_name)
+            values = node_values_matrix[index]
+
+            # Define NodeStyle for the node
+            node_style = NodeStyle()
+            node_style["size"] = 0  # Set the size to 0 to hide the default node circle
+            node.set_style(node_style)
+
+            # Create RectFace instances with dynamically assigned colors
+            for i, value in enumerate(values):
+                hex_color = to_hex(cmap(norm(value)))
+                rect_face = RectFace(width=20, height=20, fgcolor='black', bgcolor=hex_color)
+                faces.add_face_to_node(rect_face, node, column=i, position="aligned")
+
+    # Render the tree
+    print("Saving tree image to : " + output_file)
+    if output_file:
+        if '.' not in output_file:
+            output_file = output_file + ".png"
+        tree.render(output_file, w=800, units="px", tree_style=ts, layout=layout)
+    else:
+        tree.show(tree_style=ts, layout=layout)
 
 
 # Draw phylogenetic tree, with values assigned to each leaf
@@ -104,7 +164,6 @@ def draw_tree_with_values(tree, output_file= '', node_values= []):
     epsilon = 0.00000001
 
 #    normalize_column = lambda col: (col - col.min()) / (col.max() - col.min())
-
     norm_cmap = plt.Normalize(min(node_values.shared)-epsilon, max(node_values.shared)+epsilon)
 
 #    color = cmap(norm(200.))
@@ -115,6 +174,8 @@ def draw_tree_with_values(tree, output_file= '', node_values= []):
     # rgb2hex accepts rgb or rgba
 #    print(matplotlib.colors.rgb2hex(rgba))
 
+    ete_tree.add_face(CircleFace(), column=0, position = "branch-right")
+
     for n in ete_tree.traverse():
         if n.is_leaf():
             nstyle = NodeStyle()
@@ -123,7 +184,7 @@ def draw_tree_with_values(tree, output_file= '', node_values= []):
             nstyle["fgcolor"] = matplotlib.colors.rgb2hex(cmap(norm_cmap(node_values.at[n.name, 'shared'])))  # "red"  # color based on scale
             nstyle["size"] = 15
             n.set_style(nstyle)
-
+            # nface = NodeFace()
 
     # Let's now modify the aspect of the root node
     ete_tree.img_style["size"] = 30
