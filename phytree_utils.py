@@ -7,6 +7,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 import matplotlib.pyplot as plt
+import pickle
 from pylab import *
 
 from matplotlib.colors import Normalize, to_hex
@@ -15,6 +16,32 @@ from matplotlib.colors import Normalize, to_hex
 from ete3 import *
 from msa_utils import *
 import random
+
+
+def resolve_duplicated_ids(ids_list):
+        """
+        Takes a list of strings and adds a counter to duplicates to make each string unique.
+        Unique strings remain unchanged.
+
+        Args:
+        strings (list): A list of strings, potentially with duplicates.
+
+        Returns:
+        list: A list of strings where duplicates are made unique with a counter.
+        """
+        count = {}
+        result = []
+
+        for s in ids_list:
+            if s in count:
+                count[s] += 1
+                result.append(f"{s}_{count[s]}")
+            else:
+                count[s] = 0
+                result.append(s)
+
+        return result
+
 
 
 # Reconstruct a phylogenetic tree
@@ -34,6 +61,9 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
         seqs_IDs = [seqs_IDs[i] for i in rand_inds]
         # Need to match also seq IDs!!!
 
+    seqs_IDs = resolve_duplicated_ids(seqs_IDs)  # resolve duplicate ids:
+
+
 #    alignment = AlignIO.read(msa_file, "fasta")
 #    print(seqs)
 #    print([len(s) for s in seqs])
@@ -46,6 +76,17 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 
     # Calculate a distance matrix from the alignment
     calculator = DistanceCalculator('identity')
+    print("Alignment: ")
+    print(alignment)
+    print([type(s) for s in alignment])
+    print(type(alignment))
+    with open('bad_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
+        pickle.dump([alignment, calculator], f)
+    with open('bad_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+        alignment, calculator = pickle.load(f)
+    all_ids = [s.id for s in alignment]
+
+
     distance_matrix = calculator.get_distance(alignment)
 
     # Build a phylogenetic tree using the UPGMA (Unweighted Pair Group Method with Arithmetic Mean) method
