@@ -180,6 +180,30 @@ def set_node_color(node):
     node.color = color
 
 
+# Induced subtree for an ete3 tree
+def extract_induced_subtree(tree, leaf_names):
+    """
+    Extracts the induced subtree that includes only the specified leaves and their ancestral nodes.
+
+    Args:
+    tree (ete3.Tree): The original tree from which to extract the subtree.
+    leaf_names (list): A list of leaf names to include in the subtree.
+
+    Returns:
+    ete3.Tree: The induced subtree containing only the specified leaves and their ancestors.
+    """
+    # Copy the tree to avoid modifying the original
+    subtree = tree.copy(method='deepcopy')
+
+    # Prune the subtree to keep only the leaves specified
+    leaves_to_keep = set(leaf_names)
+    for leaf in subtree.iter_leaves():
+        if leaf.name not in leaves_to_keep:
+            leaf.delete()
+
+    return subtree
+
+
 # Draw phylogenetic tree, with values assigned to each leaf
 # Input:
 # tree - a phylogenetic tree object
@@ -187,6 +211,7 @@ def set_node_color(node):
 # node_values - vector/matrix of values representing each node
 def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None):
     # Ensure the data matrix is a numpy array
+    node_names = node_values_matrix.index.tolist()
     node_values_matrix = np.array(node_values_matrix)
 
     # Load the phylogenetic tree
@@ -194,7 +219,7 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
     print("Convert to ete3 tree:")
     tree = convert_biopython_to_ete3(bio_tree)
 
-    tree = tree.get_common_ancestor(node_values_matrix.index.tolist())
+    tree = extract_induced_subtree(tree, node_names)
 
     # get only subtree based on node_values_matrix
 
