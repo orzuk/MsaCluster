@@ -1,11 +1,12 @@
 from Bio import Phylo  # for phylogenetic trees
-from Bio.Phylo.TreeConstruction import DistanceCalculator
-from Bio import AlignIO
-from Bio import Phylo
+from Bio import Phylo, AlignIO
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
+from Bio.Phylo.TreeConstruction import ParsimonyScorer, NNITreeSearcher, ParsimonyTreeConstructor
+
+
 import matplotlib.pyplot as plt
 import pickle
 from pylab import *
@@ -43,8 +44,11 @@ def resolve_duplicated_ids(ids_list):
         return result
 
 
-
 # Reconstruct a phylogenetic tree
+# Input:
+# msa_file - file with MSA in a3m format
+# output_tree_file - where to save
+# max_seqs - sample sequences if too many
 def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
     # Load the multiple sequence alignment from a file
 
@@ -55,7 +59,7 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 #    print(seqs)
 #    print(num_seqs)
 #    print(max_seqs)
-    if num_seqs > max_seqs: # too many sequences! sample!!!
+    if num_seqs > max_seqs:  # too many sequences! sample!!!
         rand_inds = random.sample(range(num_seqs), max_seqs)
         seqs = [seqs[i] for i in rand_inds]  # random.sample(seqs, max_seqs)  # [1:max_seqs]  # sample randomly
         seqs_IDs = [seqs_IDs[i] for i in rand_inds]
@@ -76,16 +80,15 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 
     # Calculate a distance matrix from the alignment
     calculator = DistanceCalculator('identity')
-    print("Alignment: ")
-    print(alignment)
-    print([type(s) for s in alignment])
-    print(type(alignment))
-    with open('bad_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
-        pickle.dump([alignment, calculator], f)
-    with open('bad_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-        alignment, calculator = pickle.load(f)
-    all_ids = [s.id for s in alignment]
-
+#    print("Alignment: ")
+#    print(alignment)
+#    print([type(s) for s in alignment])
+#    print(type(alignment))
+#    with open('bad_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
+#        pickle.dump([alignment, calculator], f)
+#    with open('bad_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+#        alignment, calculator = pickle.load(f)
+#    all_ids = [s.id for s in alignment]
 
     distance_matrix = calculator.get_distance(alignment)
 
@@ -100,10 +103,50 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
         os.makedirs(os.path.dirname(output_tree_file))
     #    tree_file = "phylogenetic_tree.nwk"  # Replace with your desired output file
 #    print("Output tree file: " + output_tree_file)
-    Phylo.write(tree, output_tree_file, "newick")
+
+    # Add quotes to node names (needed?):
+##    for clade in tree.find_clades():
+#        clade.name = "'" + clade.name + "'"
+##        clade.name = "\"" + clade.name + "\""
+
+#    ctr = 0
+#    for node in tree.find_clades():
+#        print(node.name)
+#        node.name = "leaf" + str(ctr)
+#        ctr += 1
+    # write_newick_with_quotes(tree, output_tree_file)
+    Phylo.write(tree, output_tree_file, "newick")  # This is different from write_newick_with_quotes !!!!
 
     return tree
 
+
+def convert_biopython_to_ete3(biopy_tree, parent_ete_node=None):
+    # TRY using files: need a dictionary for the leaf names
+    node_dict = {}
+    ctr = 0
+    for node in biopy_tree.find_clades():
+        #        clade.name = "'" + clade.name + "'"
+        node_dict["node" + str(ctr)] = node.name
+        node.name = "node" + str(ctr)
+        ctr += 1
+
+    Phylo.write(biopy_tree, "temp_tree.nwk", "newick")  # write to file
+
+    ete_tree = Tree("temp_tree.nwk", 1) # read
+    for node in ete_tree.traverse():  # modify name
+        node.name = node_dict[node.name]
+
+    return ete_tree
+
+
+
+# Read tree and strip quotes from node names
+def read_tree_ete(phytree_file):
+    ete_tree = Tree(phytree_file, format=1)
+    for node in ete_tree.traverse():
+        node.name = node.name.strip("'")
+        node.name = node.name.strip("\"")
+    return ete_tree
 
 
 # Define a dictionary to map numerical values to colors
@@ -112,6 +155,19 @@ value_to_color = {
     "Leaf_2": (0.8, 0.1, 0.3),  # Replace "Leaf_2" with the actual leaf name
     # Add more entries for other leaf nodes as needed
 }
+
+
+def write_newick_with_quotes(tree, file_path):
+    def format_clade(clade):
+        if clade.is_terminal():
+            return f"'{clade.name}':{clade.branch_length}" if clade.name else ''
+        else:
+            subtrees = ','.join(format_clade(sub_clade) for sub_clade in clade)
+            return f"({subtrees}){'' if clade.name is None else f'{clade.name}'}:{clade.branch_length}"
+
+    newick_str = format_clade(tree.root) + ';'
+    with open(file_path, 'w') as f:
+        f.write(newick_str)
 
 
 # Function to assign colors to tree nodes (should be depending on values!)
@@ -124,8 +180,6 @@ def set_node_color(node):
     node.color = color
 
 
-
-
 # Draw phylogenetic tree, with values assigned to each leaf
 # Input:
 # tree - a phylogenetic tree object
@@ -136,7 +190,15 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
     node_values_matrix = np.array(node_values_matrix)
 
     # Load the phylogenetic tree
-    tree = Tree(phylo_tree, format=1)
+    bio_tree = Phylo.read(phylo_tree, "newick")  # This is different from write_newick_with_quotes !!!!
+    print("Convert to ete3 tree:")
+    tree = convert_biopython_to_ete3(bio_tree)
+
+    tree = tree.get_common_ancestor(node_values_matrix.index.tolist())
+
+    # get only subtree based on node_values_matrix
+
+#    tree = read_tree_ete(phylo_tree)
 
     # Create a Normalize object to scale values between 0 and 1
     flat_data = node_values_matrix.flatten()
@@ -189,7 +251,7 @@ def draw_tree_with_values(tree, output_file= '', node_values= []):
 
 #    tree = Phylo.read("apaf.xml", "phyloxml")
     # Try the epe package :
-    ete_tree = Tree(tree, format=1)
+    ete_tree = read_tree_ete(tree)
 
     # Basic tree style
     ts = TreeStyle()
@@ -249,7 +311,33 @@ def draw_tree_with_values(tree, output_file= '', node_values= []):
     else:
         ete_tree.show()
 
-
-
 #    Phylo.draw(tree)
     return 0
+
+
+# Perform ancestral reconstruction of sequences in the phylogenetic tree
+# Input:
+# tree_file - file with the phylogenetic tree
+# alignment_file - file with the multiple sequence alignment
+# output_file - where to save the ancestral sequences
+def reconstruct_ancestral_sequences(tree_file, alignment_file, output_file):
+    # Read the tree
+    tree = Phylo.read(tree_file, 'newick')
+
+    # Read the multiple sequence alignment
+    alignment = AlignIO.read(alignment_file, 'fasta')
+
+    # Perform the parsimony reconstruction
+    scorer = ParsimonyScorer()
+    searcher = NNITreeSearcher(scorer)
+    constructor = ParsimonyTreeConstructor(searcher, alignment)
+    parsimony_tree = constructor.build_tree(tree)
+
+    # Print to file the reconstructed sequences for the internal nodes
+    with open(output_file, 'w') as f:
+        for clade in parsimony_tree.get_nonterminals():
+            f.write(f"{clade.name}: {clade.confidences[0]}\n")
+
+# Example usage
+# reconstruct_ancestral_sequences('path/to/tree_file.newick', 'path/to/alignment_file.fasta', 'output.txt')
+

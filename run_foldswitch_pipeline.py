@@ -39,12 +39,15 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
         if type(foldpair_ids_to_run) == str:
             foldpair_ids_to_run = [foldpair_ids_to_run]
 
-    pred_vec = [0] * n_fam     # loop on MSAs
+    if run_mode == "plot":
+        pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
+
+    # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
         i = foldpair_ids.index(foldpair_id)
         fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + pdbchains[i][0] + '.fasta'  # First file of two folds
 #        cur_family_dir = fasta_dir + "/" + foldpair_id
-        print("Run: " + run_mode + " : " + str(i) + " : " + foldpair_id)
+        print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
 
         if run_job_mode == "inline":
             run_fold_switch_pipeline_one_family(run_mode, foldpair_id,  pdbids[i], pdbchains[i], fasta_file_name)
@@ -72,6 +75,9 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
     #    cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
     #    pred_vec[i] = predict_fold_switch_from_MSA_cluster(cur_MSA, clust_params)
 
+    if run_mode == "plot":
+        cmd.quit()
+
     res_DF = pd.DataFrame(
         {'cmap_dists': cmap_dists_vec,
          'seq_dists': seqs_dists_vec,
@@ -98,6 +104,13 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
         run_str = ''
 #        run_str = 'python  ./run_tree_reconstruct.py  --method distance  --input_msas ./Pipeline/' + foldpair_id + \
 #                  '/output_get_msa/DeepMsa.a3m -o ./Pipeline/' + foldpair_id + '/output_phytree'
+    if run_mode == "ancestral": # perform ancestral reconstuction
+        msa_file = 'Pipeline/' + foldpair_id + '/output_get_msa/DeepMsa.a3m'
+        anc_output_file = 'Pipeline/' + foldpair_id + '/output_phytree/' + \
+                          os.path.basename(msa_file).replace(".a3m", "_anc_seq.a3m")
+        output_tree_file = 'Pipeline/' + foldpair_id + \
+                    '/output_phytree/' + os.path.basename(msa_file).replace(".a3m", "_tree.nwk")
+        reconstruct_ancestral_sequences(output_tree_file, msa_file, anc_output_file)
     if run_mode == "plot":
         cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = \
             make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains)
@@ -124,8 +137,9 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "tree"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
-#    foldpair_ids_to_run = "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
+    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    foldpair_ids_to_run = "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !
+#    NOT PROBLEMATIC "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  #  "1fzpD_2frhA"  #  "1eboE_5fhcJ"  #   "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
 

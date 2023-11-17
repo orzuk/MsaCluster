@@ -2,7 +2,7 @@ from protein_utils import *
 import nglview as nv
 import py3Dmol
 import pymol
-from pymol import cmd # , stored
+from pymol import cmd  # , stored
 
 import pickle
 from pyvirtualdisplay import Display
@@ -37,7 +37,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     # Filter 'bad' families: too shallow alignments (no clusters), same PDB ID, other reasons??
     if len(msa_files) == 0:
         print("Shallow alignment! No MSA Clusters! Skipping family")
-        return None
+        return [None]*3
     if pdbids[0] == pdbids[1]:
         print("Same PDB-ID for both folds! Might be buggy!")  # Not supported yet!  Skipping family")
 
@@ -93,8 +93,15 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
     #        print(phytree_msa_str)
     phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
-    print("Load treefile: " + phytree_file)
-    ete_tree = Tree(phytree_file, format=1)
+    print("Load Biopython treefile: " + phytree_file)
+    bio_tree = Phylo.read(phytree_file, "newick")  # This is different from write_newick_with_quotes !!!!
+    print("Convert to ete3 tree:")
+    ete_tree = convert_biopython_to_ete3(bio_tree)
+#    print("Load treefile: " + phytree_file)
+#    ete_tree = read_tree_ete(phytree_file)
+#    for node in ete_tree.traverse():
+#        print(node.name)
+#        node.name = node.name.strip("'")
 #    print("Set node cluster ids values and draw:")
 #    print(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
     ete_leaves_cluster_ids = seqs_ids_to_cluster_ids(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m",
@@ -108,9 +115,18 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
 #    print("Unique leaves cluster IDS:")
 #    print(set(ete_leaves_cluster_ids.values()))
 #    print("Now create leaves dictionary:")
-    ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree}  # update to include matching two folds !!
-#    print("Unique Node Values: ")
-#    print(set(ete_leaves_node_values.values()))
+    print("Keys:")
+    print([n.name for n in ete_tree])
+    print("ete keys:")
+    print([ete_leaves_cluster_ids[n.name] for n in ete_tree])
+    print("cluster:")
+    print(cluster_node_values)
+#    print("cluster keys:")
+#    print([cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree])
+
+    ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
+    print("Unique Node Values: ")
+    print(set(ete_leaves_node_values.values()))
     print("Cluster node values:")
     print(cluster_node_values)
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
@@ -127,10 +143,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     num_seqs_msa_vec = len(seqs)
 
 
-    # Plot two structures
+    # Plot two structures aligned
     align_and_visualize_proteins('Pipeline/' + foldpair_id + "/" + pdbids[0] + '.pdb',
                                  'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
-                                 fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png")
+                                 fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec
 
@@ -141,7 +157,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
 
 
 
-def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file):
+
+def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environment=True):
     """
     Align two protein structures and save the visualization as an image.
 
@@ -151,8 +168,11 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file):
     output_file (str): Path to save the output image.
     """
 
-    # Initialize PyMOL
-    pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
+    if open_environment: # Initialize PyMOL
+        pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
+
+    # Delete existing objects
+    cmd.delete('all')
 
     # Load the PDB files
     cmd.load(pdb_file1, 'protein1')
@@ -172,7 +192,8 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file):
     cmd.png(output_file)
 
     # Quit PyMOL
-    cmd.quit()
+    if open_environment:  # Initialize PyMOL
+        cmd.quit()
 
 # Example usage
 # align_and_visualize_proteins('path/to/pdb1.pdb', 'path/to/pdb2.pdb', 'output.png')
