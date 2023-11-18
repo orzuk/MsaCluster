@@ -97,6 +97,9 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
     if run_mode == "run_esm":
         run_str = 'python3  ./runESM.py  --input_msas ./Pipeline/' + foldpair_id + \
                   '/output_msa_cluster -o ./Pipeline/' + foldpair_id + '/output_cmap_esm'
+        print(run_str)
+        os.system(run_str) # Run the runESM function
+
     if run_mode == "tree":
         msa_file = 'Pipeline/' + foldpair_id + '/output_get_msa/DeepMsa.a3m'
         phytree_from_msa(msa_file, output_tree_file= 'Pipeline/' + foldpair_id + \
@@ -137,8 +140,8 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
- #   foldpair_ids_to_run = "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !
+    run_mode = "run_esm"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    foldpair_ids_to_run = "3t5oA_4a5wB" # "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !
 #    NOT PROBLEMATIC "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  #  "1fzpD_2frhA"  #  "1eboE_5fhcJ"  #   "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
