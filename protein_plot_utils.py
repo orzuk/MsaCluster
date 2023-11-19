@@ -121,8 +121,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     print([ete_leaves_cluster_ids[n.name] for n in ete_tree])
     print("cluster:")
     print(cluster_node_values)
-#    print("cluster keys:")
-#    print([cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree])
+    print("cluster keys:")
+    print([cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree])
 
     ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
     print("Unique Node Values: ")
@@ -135,7 +135,12 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
         pickle.dump([phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values], f)
     print("Node Values: ")
     print(ete_leaves_node_values)
+    print(type(ete_leaves_node_values))
+    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
+        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
     visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
+    with open('bad_tree_and_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+        phytree_file, ete_leaves_node_values, outfile = pickle.load(f)
 
     # Collect :
     cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)

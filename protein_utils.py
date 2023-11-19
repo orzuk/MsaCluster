@@ -7,6 +7,8 @@ import string
 
 # import pcmap
 import torch
+import torch.nn.functional as F  # for padding
+
 from scipy.spatial.distance import squareform, pdist, cdist
 import numpy as np
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
@@ -218,7 +220,7 @@ def contacts_from_pdb(
 # predictions - matrix of predicted residue affinities
 # targets - matrix of binary contacts
 # Output :
-# AUC -
+# AUC - Area under the ROC curve for preditcing contacts
 # P@L - percent of top L contacts recovered among
 def compute_precisions(
         predictions: torch.Tensor,
@@ -272,7 +274,14 @@ def compute_precisions(
     topk = seqlen if override_length is None else max(seqlen, override_length)
     indices = predictions_upper.argsort(dim=-1, descending=True)[:, :topk]
     topk_targets = targets_upper[torch.arange(batch_size).unsqueeze(1), indices]
-    if topk_targets.size(1) < topk:
+
+#    print("TOPK:")
+#    print(topk_targets)
+#    print(type(topk_targets))
+
+#    print(topk_targets.size(1))
+#    print(topk)
+    if topk_targets.size(1) < topk:  # what is F???
         topk_targets = F.pad(topk_targets, [0, topk - topk_targets.size(1)])
 
     cumulative_dist = topk_targets.type_as(predictions).cumsum(-1)
