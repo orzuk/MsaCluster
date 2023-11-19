@@ -16,14 +16,23 @@ from phytree_utils import *
 from MSA_Clust import *
 
 
-def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
+# Make all plots
+# Input:
+# pdbids - IDs of pdb proteins
+# fasta_dir - directory of fasta file
+# foldpair_id - ID of protein pair
+# pdbchains - IDs of pdb proteins chains
+# plot_tree_clusters
+#
+# Output:
+# Three figures for each fold-switch pair:
+# 1. Phylogenetic tree with matching scores to each of the fold switches
+# 2. Cmap of each cluster and its match to the two folds
+# 3. Two folds aligned
+def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters= True):
     #    i = foldpair_ids.index(foldpair_id)
     #    cur_family_dir = fasta_dir + "/" + foldpair_id
     print("foldpair_id: " + foldpair_id)
-#    print("pdbids: ")
-#    print(pdbids)
-#    print("pdbchains: ")
-#    print(pdbchains)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
     #    msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
@@ -136,11 +145,21 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains):
     print("Node Values: ")
     print(ete_leaves_node_values)
     print(type(ete_leaves_node_values))
-    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
-        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
-    visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
-    with open('bad_tree_and_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-        phytree_file, ete_leaves_node_values, outfile = pickle.load(f)
+#    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
+#        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
+
+    if plot_tree_clusters:  # plot only clusters
+        cluster_node_values.pop('p')  # remove nodes without cluster
+        cluster_node_values = pd.DataFrame(cluster_node_values)  # convert to 3*[#clusters] pandas data-frame
+        representative_cluster_leaves = unique_values_dict({n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'} )
+        # Get induced subtree
+        clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
+        visualize_tree_with_heatmap(clusters_subtree, cluster_node_values, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
+    else:  # plot entire tree
+        visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
+
+#    with open('bad_tree_and_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+#        phytree_file, ete_leaves_node_values, outfile = pickle.load(f)
 
     # Collect :
     cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)

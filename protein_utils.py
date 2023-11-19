@@ -309,6 +309,16 @@ def compute_precisions(
     return {"AUC": auc, "P@L": pl, "P@L2": pl2, "P@L5": pl5}
 
 
+# General utilitiy for dictionary of unique values
+def unique_values_dict(original_dict):
+    # Invert the dictionary. This will discard duplicate values.
+    inverted_dict = {v: k for k, v in original_dict.items()}
+
+    # Invert the dictionary again to get unique values.
+    unique_dict = {v: k for k, v in inverted_dict.items()}
+
+    return unique_dict
+
 # Score the predictions
 def evaluate_prediction(
         predictions: torch.Tensor,

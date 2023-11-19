@@ -1,3 +1,5 @@
+import copy
+
 from Bio import Phylo  # for phylogenetic trees
 from Bio import Phylo, AlignIO
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
@@ -139,7 +141,6 @@ def convert_biopython_to_ete3(biopy_tree, parent_ete_node=None):
     return ete_tree
 
 
-
 # Read tree and strip quotes from node names
 def read_tree_ete(phytree_file):
     ete_tree = Tree(phytree_file, format=1)
@@ -181,6 +182,7 @@ def set_node_color(node):
 
 
 # Induced subtree for an ete3 tree
+# keep only the input leaves appearing in 'leaf_names'
 def extract_induced_subtree(tree, leaf_names):
     """
     Extracts the induced subtree that includes only the specified leaves and their ancestral nodes.
@@ -192,6 +194,11 @@ def extract_induced_subtree(tree, leaf_names):
     Returns:
     ete3.Tree: The induced subtree containing only the specified leaves and their ancestors.
     """
+    if type(tree) == str: # extract tree from file
+        print("Read tree from file: " + tree)
+        bio_tree = Phylo.read(tree, "newick")  # This is different from write_newick_with_quotes !!!!
+        tree = convert_biopython_to_ete3(bio_tree)
+
     # Copy the tree to avoid modifying the original
     subtree = tree.copy(method='deepcopy')
 
@@ -206,7 +213,7 @@ def extract_induced_subtree(tree, leaf_names):
 
 # Draw phylogenetic tree, with values assigned to each leaf
 # Input:
-# tree - a phylogenetic tree object
+# phylo_tree - a phylogenetic tree object
 # output_file - where to save image
 # node_values - vector/matrix of values representing each node
 def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None):
@@ -214,18 +221,19 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
     node_names = node_values_matrix.index.tolist()
     node_values_matrix = np.array(node_values_matrix)
 
-    # Load the phylogenetic tree
-    bio_tree = Phylo.read(phylo_tree, "newick")  # This is different from write_newick_with_quotes !!!!
-    print("Convert to ete3 tree:")
-    tree = convert_biopython_to_ete3(bio_tree)
-
+    if type(phylo_tree) == str: # Load the phylogenetic tree
+        bio_tree = Phylo.read(phylo_tree, "newick")  # This is different from write_newick_with_quotes !!!!
+        print("Read from file and convert to ete3 tree:")
+        tree = convert_biopython_to_ete3(bio_tree)
+    else:
+        print("input phylotree: ")
+        print(phylo_tree)
+        tree = copy.deepcopy(phylo_tree)
     tree = extract_induced_subtree(tree, node_names)
 
     # get only subtree based on node_values_matrix
 
-#    tree = read_tree_ete(phylo_tree)
-
-    # Create a Normalize object to scale values between 0 and 1
+    # Create a Normalized object to scale values between 0 and 1
     flat_data = node_values_matrix.flatten()
     epsilon = 0.00000001
     norm = Normalize(vmin=flat_data.min()-epsilon, vmax=flat_data.max()+epsilon)

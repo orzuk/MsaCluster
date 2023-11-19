@@ -1,11 +1,4 @@
 # Rub pipeline from a list of PDBs
-# import copy
-# import sys
-# import os.path
-# import os
-# import glob
-# from protein_utils import *
-# import subprocess
 import copy
 
 import pandas as pd
@@ -45,7 +38,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
         i = foldpair_ids.index(foldpair_id)
-#        if i < 92:  # already done
+#        if i < 76:  # already done
 #            print("Already plotted")
 #            continue
         fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + pdbchains[i][0] + '.fasta'  # First file of two folds
@@ -119,7 +112,7 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
         reconstruct_ancestral_sequences(output_tree_file, msa_file, anc_output_file)
     if run_mode == "plot":
         cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = \
-            make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains)
+            make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains) #  False)
         run_str = ''  # no plotting in this mode !!!!
 
     if run_mode == "run_pipeline":
@@ -143,7 +136,7 @@ if platform.system() == "Linux":
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
 else:
     print("Run on windows")
-    run_mode = "run_esm"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "plot"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
     foldpair_ids_to_run =  "4ydqB_4twaA"  #  "3t5oA_4a5wB" # "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !
 #    NOT PROBLEMATIC "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  #  "1fzpD_2frhA"  #  "1eboE_5fhcJ"  #   "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
@@ -205,7 +198,6 @@ res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
 #visualize_tree_with_heatmap(phytree_file, node_values, tree_outfile)
 
 
-### From ChatGPT:
 
 
 # # loop away not needed !!!
