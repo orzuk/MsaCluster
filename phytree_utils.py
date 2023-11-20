@@ -217,6 +217,8 @@ def extract_induced_subtree(tree, leaf_names):
 # output_file - where to save image
 # node_values - vector/matrix of values representing each node
 def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None):
+    from copy import deepcopy
+
     # Ensure the data matrix is a numpy array
     node_names = node_values_matrix.index.tolist()
     node_values_matrix = np.array(node_values_matrix)
@@ -228,7 +230,11 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
     else:
         print("input phylotree: ")
         print(phylo_tree)
-        tree = copy.deepcopy(phylo_tree)
+        lll = [1,2,3]
+        ccc = deepcopy(lll)
+        print("copy tree:")
+        tree = deepcopy(phylo_tree)
+
     tree = extract_induced_subtree(tree, node_names)
 
     # get only subtree based on node_values_matrix

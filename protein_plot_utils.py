@@ -1,8 +1,11 @@
 from protein_utils import *
 import nglview as nv
 import py3Dmol
-import pymol
-from pymol import cmd  # , stored
+import platform
+
+if not platform.system() == "Linux":  # doesn't work on unix
+    import pymol
+    from pymol import cmd  # , stored
 
 import pickle
 from pyvirtualdisplay import Display
@@ -154,6 +157,11 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         representative_cluster_leaves = unique_values_dict({n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'} )
         # Get induced subtree
         clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
+        print("New cluster_node_values:")
+        print(cluster_node_values)
+        print("cluster_subtree:")
+        print(clusters_subtree)
+
         visualize_tree_with_heatmap(clusters_subtree, cluster_node_values, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
@@ -167,10 +175,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     num_seqs_msa_vec = len(seqs)
 
 
-    # Plot two structures aligned
-    align_and_visualize_proteins('Pipeline/' + foldpair_id + "/" + pdbids[0] + '.pdb',
-                                 'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
-                                 fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
+    if not platform.system() == "Linux":  # Plot two structures aligned (doesn't work in unix)
+        align_and_visualize_proteins('Pipeline/' + foldpair_id + "/" + pdbids[0] + '.pdb',
+                                     'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
+                                     fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec
 
@@ -178,8 +186,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
 #        break
 # next plotP
-
-
 
 
 def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environment=True):
@@ -192,7 +198,7 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
     output_file (str): Path to save the output image.
     """
 
-    if open_environment: # Initialize PyMOL
+    if open_environment:  # Initialize PyMOL
         pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
 
     # Delete existing objects
