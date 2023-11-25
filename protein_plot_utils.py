@@ -127,20 +127,20 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #    print("Unique leaves cluster IDS:")
 #    print(set(ete_leaves_cluster_ids.values()))
 #    print("Now create leaves dictionary:")
-    print("Keys:")
-    print([n.name for n in ete_tree])
-    print("ete keys:")
-    print([ete_leaves_cluster_ids[n.name] for n in ete_tree])
-    print("cluster:")
-    print(cluster_node_values)
-    print("cluster keys:")
-    print([cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree])
+#    print("Keys:")
+#    print([n.name for n in ete_tree])
+#    print("ete keys:")
+#    print([ete_leaves_cluster_ids[n.name] for n in ete_tree])
+#    print("cluster:")
+#    print(cluster_node_values)
+#    print("cluster keys:")
+#    print([cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree])
 
     ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
-    print("Unique Node Values: ")
-    print(set(ete_leaves_node_values.values()))
-    print("Cluster node values:")
-    print(cluster_node_values)
+#    print("Unique Node Values: ")
+#    print(set(ete_leaves_node_values.values()))
+#    print("Cluster node values:")
+#    print(cluster_node_values)
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
     ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
     with open('tree_draw.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
@@ -153,13 +153,17 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
     if plot_tree_clusters:  # plot only clusters
         cluster_node_values.pop('p')  # remove nodes without cluster
-        cluster_node_values = pd.DataFrame(cluster_node_values)  # convert to 3*[#clusters] pandas data-frame
+        cluster_node_values = pd.DataFrame(cluster_node_values).T  # convert to 3*[#clusters] pandas data-frame
         representative_cluster_leaves = unique_values_dict({n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'} )
         # Get induced subtree
         clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
         print("New cluster_node_values:")
-        print(cluster_node_values)
+        print(cluster_node_values)  # this is transposed !!!
         print("cluster_subtree:")
+        print(clusters_subtree)
+        for n in clusters_subtree.iter_leaves(): # change name
+            n.name = ete_leaves_cluster_ids[n.name]
+        print("Now renamed cluster_subtree:")
         print(clusters_subtree)
 
         visualize_tree_with_heatmap(clusters_subtree, cluster_node_values, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
@@ -174,13 +178,19 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     seqs_dists_vec = np.mean(compute_seq_distances(msa_clusters))  # can take the entire sequence !
     num_seqs_msa_vec = len(seqs)
 
-
     if not platform.system() == "Linux":  # Plot two structures aligned (doesn't work in unix)
         align_and_visualize_proteins('Pipeline/' + foldpair_id + "/" + pdbids[0] + '.pdb',
                                      'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
                                      fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
 
-    return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec
+    # Compute tm scores of the predicted models of AF, ESM fold and the two structures
+    tmscores_mat = np.zeros([2, n_cmaps])
+    for i in range(2):
+        for c in cluster_node_values:
+            print(c)  # tm score here
+            tmscores_mat[i,c] = tmscoring.tmscore()
+
+    return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, tmscores_mat
 
 
 #        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
@@ -227,7 +237,6 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
 
 # Example usage
 # align_and_visualize_proteins('path/to/pdb1.pdb', 'path/to/pdb2.pdb', 'output.png')
-
 
 
 # Plot structure using nglview

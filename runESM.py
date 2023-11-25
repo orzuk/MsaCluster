@@ -7,8 +7,8 @@ from protein_utils import *
 
 import numpy as np
 import torch
-from scipy.spatial.distance import squareform, pdist, cdist
-import pandas as pd
+# from scipy.spatial.distance import squareform, pdist, cdist
+# import pandas as pd
 import matplotlib as mpl
 import argparse
 import esm

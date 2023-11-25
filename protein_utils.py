@@ -29,6 +29,9 @@ import biotite.structure as bs
 from biotite.structure.io.pdbx import PDBxFile, get_structure
 from biotite.database import rcsb
 
+from tmtools import tm_align
+from tmtools.io import get_structure, get_residue_data
+
 import iminuit
 import tmscoring  # for comparing structures
 
@@ -145,12 +148,35 @@ def compare_designs(S, pdbID1, pdbID2):
     for i_true in range(2):  # loop on the two true structures
         for j_pred in range(3):  # S_predicted in [AF, AF1, AF2]:  # loop on the three predicted structures
             #            df_tm[TM[i_true]][SEQ[j_pred]] = TMScore(S_true_list[i_true], S_pred_list[j_pred])  # Compute TMScore similarity
-            alignment = tmscoring.TMscoring(S_true_list[i_true], S_pred_list[
-                j_pred])  # 'structure1.pdb', 'structure2.pdb')  # from installed tmscoring
+            alignment = tmscoring.TMscoring(S_true_list[i_true], S_pred_list[j_pred])  # 'structure1.pdb', 'structure2.pdb')  # from installed tmscoring
             df_tm[TM[i_true]][SEQ[j_pred]] = alignment.tmscore(**alignment.get_current_values())
 
     print(df_tm)
     return df_tm, S, S1, S2, AF, AF1, AF2  # Return all sequences, structures and their similarity
+
+
+
+# Compute tmscores of two structures, interface to tmscore module
+def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
+    s1 = get_structure(pdb_file1)
+    s2 = get_structure(pdb_file2)
+    chain1 = next(s1.get_chains())
+    coords1, seq1 = get_residue_data(chain1)
+    chain2 = next(s2.get_chains())
+    coords2, seq2 = get_residue_data(chain2)
+
+    chain1 = []
+    seq1 = ''
+    for c in s1.get_chains():
+        chain1.append(c)
+        coords1, cur_seq1 = get_residue_data(c)
+        seq1 += cur_seq1
+
+    # Alternative reading:
+
+    res = tm_align(coords1, coords2, seq1, seq2)
+
+    return res  # return results (both scores, and matrices)
 
 
 # Taken from esm:
@@ -319,6 +345,7 @@ def unique_values_dict(original_dict):
 
     return unique_dict
 
+
 # Score the predictions
 def evaluate_prediction(
         predictions: torch.Tensor,
@@ -346,8 +373,6 @@ def evaluate_prediction(
         for key, val in rangemetrics.items():
             metrics[f"{name}_{key}"] = val.item()
     return metrics
-
-
 
 
 # Select sequences from the MSA to maximize the hamming distance

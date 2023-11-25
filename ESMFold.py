@@ -9,8 +9,8 @@ from Bio import SeqIO
 #tmscoring
 
 
+# Specific conversion for atoms
 def convert_outputs_to_pdb(outputs):
-
     final_atom_positions = atom14_to_atom37(outputs["positions"][-1], outputs)
     outputs = {k: v.detach().to("cpu").numpy() for k, v in outputs.items()}
     final_atom_positions = final_atom_positions.detach().cpu().numpy()
@@ -32,11 +32,14 @@ def convert_outputs_to_pdb(outputs):
         pdbs.append(to_pdb(pred))
     return pdbs
 
+
+# Save string to pdb
 def save_string_as_pdb(pdb_string, file_path):
     with open(file_path, 'w') as pdb_file:
         pdb_file.write(pdb_string)
 
 
+# Read fasta file
 def get_sequence_from_fasta(fasta_file_path):
     sequence = None
     for record in SeqIO.parse(fasta_file_path, "fasta"):
@@ -48,7 +51,6 @@ def get_sequence_from_fasta(fasta_file_path):
 if __name__ == '__main__':
 
     p = argparse.ArgumentParser(description= '')
-
     p.add_argument("-i", nargs='*', action='store',help='Path to msas to use in prediction.')
     p.add_argument("-o", action="store", help='name of output directory to write contact maps to.')
     # p.add_argument("--model", action='store', default='msa_t', help="Model: `esm1b` or `msa_t` (default is 'msa_t')")
@@ -63,8 +65,8 @@ if __name__ == '__main__':
 
     # fasta_file_path = '/Users/steveabecassis/Desktop/FS_fasta_files/rcsb_pdb_1EBO.fasta'
     fasta_file_path = args.i
-   # sequence = get_sequence_from_fasta(fasta_file_path)
-    sequence = "MKTVRQERLKSIVRILERSKEPVSGAQLAEELSVSRQVIVQDIAYLRSLGYNIVATPRGYVLAGG"
+    sequence = get_sequence_from_fasta(fasta_file_path)   # read sequence
+#    sequence = "MKTVRQERLKSIVRILERSKEPVSGAQLAEELSVSRQVIVQDIAYLRSLGYNIVATPRGYVLAGG"
 
     inputs = tokenizer([sequence], return_tensors="pt", add_special_tokens=False)  # A tiny random peptide
     outputs = model(**inputs)

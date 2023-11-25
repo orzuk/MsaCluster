@@ -12,7 +12,6 @@ random.seed(10)
 
 
 if __name__ == '__main__':
-
     parser = ArgumentParser()
     parser.add_argument("-input", default="input", help="Should be a .a3m file")
     parser.add_argument("-output", help="Directory to write the results to")
@@ -21,6 +20,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Running ESM-Fold on device: " + device)
 
     # class args:
     #     input = './2QKEE_002.a3m'
