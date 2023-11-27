@@ -1,5 +1,19 @@
 # MsaCluster
 
+## Running from python: 
+The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
+
+python3 run_foldswitch_pipeline [operation] [foldpair_id]
+
+For example: 
+
+python3 run_foldswitch_pipeline cluster_msa 1jfkA_2nxqB
+
+will cluster the MSAs of the family that have sequences folding according to pdbids 1fjk (chain A) and 2nxq (chain B). 
+
+The second argument (foldpair_id) is optional. If not given, the program will loop over all pairs of ids
+
+
 ## Entire Pipeline - Example: <br>
 The file 'pipeline.sh' implements an entire pipeline of computing cluster-specific contact maps and structures for a protein family <br>
 **Input:** A fasta sequence representing a protein chain (1st argument) <br>
