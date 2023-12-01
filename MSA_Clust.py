@@ -4,18 +4,14 @@
 from polyleven import levenshtein
 
 # import Levenshtein as pylev
-
-#import sys
 import subprocess
-#from Bio import Align
-#from Bio import AlignIO
-#from glob import glob
 
 # import seaborn as sns
 from protein_utils import *
 from msa_utils import *
 # from protein_plot_utils import make_foldswitch_all_plots
 import random
+from glob import glob
 
 sys.path.append('alphafold')
 
@@ -209,7 +205,7 @@ def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
     # First divide the contacts into both, one and two
     fold_ids = list(cmap_true.keys())
 
-    print(fold_ids[0])
+#    print(fold_ids[0])
 #    print(cmap_true[fold_ids[0]])
     seqlen = cmap_true[fold_ids[0]].shape[0]
 

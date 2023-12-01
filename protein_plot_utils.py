@@ -1,5 +1,5 @@
-from protein_utils import *
-import nglview as nv
+# from protein_utils import *
+# import nglview as nv
 import py3Dmol
 import platform
 
@@ -7,14 +7,15 @@ if not platform.system() == "Linux":  # doesn't work on unix
     import pymol
     from pymol import cmd  # , stored
 
-import pickle
-from pyvirtualdisplay import Display
-from IPython.display import display, Image
-import requests
-from PIL import Image
-from io import BytesIO
+from glob import glob
+# import pickle
+# from pyvirtualdisplay import Display
+# from IPython.display import display, Image
+# import requests
+# from PIL import Image
+# from io import BytesIO
 from Bio import Align
-from MSA_Clust import match_predicted_and_true_contact_maps
+# from MSA_Clust import match_predicted_and_true_contact_maps
 from phytree_utils import *
 from MSA_Clust import *
 
@@ -151,6 +152,25 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
 #        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
 
+
+
+    # Compute tm scores of the predicted models of AF, ESM fold and the two structures
+    tmscores_mat = np.zeros([2, n_cmaps])
+    AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/ShallowMsa*model_1_*pdb")
+    for fold in range(2):
+        ctr = 0
+        for c in cluster_node_values.index:  # loop over cluster names
+            print(c)  # tm score here
+            cur_AF_file = AF_model_files[AF_model_files == c]
+            print("Cur AF file: " + cur_AF_file)
+            print("Cur TrueFold File: " + 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb')
+            print("Cur pdbchains: ")
+            print(pdbchains[fold])
+            print("Run compute tmscore:")
+            tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb', cur_AF_file,
+                                                pdbchains[fold])  # what chain to give the prediction? of first or second??
+            ctr += 1
+
     if plot_tree_clusters:  # plot only clusters
         cluster_node_values.pop('p')  # remove nodes without cluster
         cluster_node_values = pd.DataFrame(cluster_node_values).T  # convert to 3*[#clusters] pandas data-frame
@@ -165,6 +185,13 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
             n.name = ete_leaves_cluster_ids[n.name]
         print("Now renamed cluster_subtree:")
         print(clusters_subtree)
+
+        print("Cluster node values:")
+        print(cluster_node_values)
+        print("TMScores mat: ")
+        print(tmscores_mat)
+        print("Now concatenate:")
+        concat_scores = tmscores_mat + C:\Code\Github\MsaCluster\protein_plot_utils.py
 
         visualize_tree_with_heatmap(clusters_subtree, cluster_node_values, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
@@ -183,12 +210,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                      'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
                                      fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
 
-    # Compute tm scores of the predicted models of AF, ESM fold and the two structures
-    tmscores_mat = np.zeros([2, n_cmaps])
-    for i in range(2):
-        for c in cluster_node_values:
-            print(c)  # tm score here
-            tmscores_mat[i,c] = tmscoring.tmscore()
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, tmscores_mat
 
@@ -198,6 +219,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 # next plotP
 
 
+# Align two pdb structures from two pdb files
 def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environment=True):
     """
     Align two protein structures and save the visualization as an image.

@@ -1,7 +1,6 @@
 from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
-import tmscoring
 import argparse
 from Bio import SeqIO
 

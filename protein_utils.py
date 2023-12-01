@@ -2,7 +2,7 @@
 import copy
 
 import pandas as pd
-import esm
+# import esm
 import string
 
 # import pcmap
@@ -18,7 +18,8 @@ import Bio
 import Bio.PDB
 import Bio.SeqRecord
 from Bio import SeqIO
-from glob import glob
+from Bio.PDB import PDBParser
+
 
 import os
 import sys
@@ -155,9 +156,25 @@ def compare_designs(S, pdbID1, pdbID2):
     return df_tm, S, S1, S2, AF, AF1, AF2  # Return all sequences, structures and their similarity
 
 
+def extract_protein_sequence(pdb_file):
+    parser = PDBParser()
+    structure = parser.get_structure("protein", pdb_file)
+
+    sequences = []
+    for model in structure:
+        for chain in model:
+            seq = []
+            for residue in chain:
+                if residue.get_id()[0] == ' ':
+                    seq.append(residue.get_resname())
+            sequences.append(''.join(seq))
+
+    return sequences
+
 
 # Compute tmscores of two structures, interface to tmscore module
 def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
+    print("Start compute tmscore")
     s1 = get_structure(pdb_file1)
     s2 = get_structure(pdb_file2)
     chain1 = next(s1.get_chains())
@@ -165,6 +182,7 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     chain2 = next(s2.get_chains())
     coords2, seq2 = get_residue_data(chain2)
 
+    print("read sequences:")
     chain1 = []
     seq1 = ''
     for c in s1.get_chains():
@@ -172,11 +190,17 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
         coords1, cur_seq1 = get_residue_data(c)
         seq1 += cur_seq1
 
-    # Alternative reading:
+    seq1_alt = extract_protein_sequence(pdb_file1)  # Alternative reading:
+    print(seq1)
+    print(seq1_alt)
 
+    print("Now align")
     res = tm_align(coords1, coords2, seq1, seq2)
 
-    return res  # return results (both scores, and matrices)
+    print("TM RES: ")
+    print(res)
+    print(res.tm_norm_chain1)
+    return res.tm_norm_chain1  # return results (both scores, and matrices)
 
 
 # Taken from esm:

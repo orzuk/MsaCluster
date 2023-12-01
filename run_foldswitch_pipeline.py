@@ -47,7 +47,6 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
 
         if run_job_mode == "inline":
             run_fold_switch_pipeline_one_family(run_mode, foldpair_id,  pdbids[i], pdbchains[i], fasta_file_name)
-
         else:  # run job
             if run_mode == "get_msa":
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + \
@@ -171,9 +170,9 @@ if platform.system() == "Linux":
     run_job_mode = "job"
 else:
     print("Run on windows")
-    run_mode = "run_esmfold"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "plot" # "run_esmfold"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
     run_job_mode = "inline"
-#    foldpair_ids_to_run =  "1dzlA_5keqF"  #   "4ydqB_4twaA"  #  "3t5oA_4a5wB" # "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !
+    foldpair_ids_to_run =  "1dzlA_5keqF"  #   "4ydqB_4twaA"  #  "3t5oA_4a5wB" # "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !
     plot_tree_clusters = True
 #    NOT PROBLEMATIC "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  #  "1fzpD_2frhA"  #  "1eboE_5fhcJ"  #   "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
