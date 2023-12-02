@@ -154,27 +154,30 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
 
 
-    # Compute tm scores of the predicted models of AF, ESM fold and the two structures
-    tmscores_mat = np.zeros([2, n_cmaps])
-    AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/ShallowMsa*model_1_*pdb")
-    for fold in range(2):
-        ctr = 0
-        for c in cluster_node_values.index:  # loop over cluster names
-            print(c)  # tm score here
-            cur_AF_file = AF_model_files[AF_model_files == c]
-            print("Cur AF file: " + cur_AF_file)
-            print("Cur TrueFold File: " + 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb')
-            print("Cur pdbchains: ")
-            print(pdbchains[fold])
-            print("Run compute tmscore:")
-            tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb', cur_AF_file,
-                                                pdbchains[fold])  # what chain to give the prediction? of first or second??
-            ctr += 1
 
     if plot_tree_clusters:  # plot only clusters
         cluster_node_values.pop('p')  # remove nodes without cluster
         cluster_node_values = pd.DataFrame(cluster_node_values).T  # convert to 3*[#clusters] pandas data-frame
         representative_cluster_leaves = unique_values_dict({n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'} )
+
+        # Compute tm scores of the predicted models of AF, ESM fold and the two structures
+        tmscores_mat = np.zeros([2, n_cmaps])
+        AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/ShallowMsa*model_1_*pdb")
+        for fold in range(2):
+            ctr = 0
+            for c in cluster_node_values.index:  # loop over cluster names
+                print(c)  # tm score here
+                cur_AF_file = AF_model_files[AF_model_files == c]
+                print("Cur AF file: " + cur_AF_file)
+                print("Cur TrueFold File: " + 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb')
+                print("Cur pdbchains: ")
+                print(pdbchains[fold])
+                print("Run compute tmscore:")
+                tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
+                                                          cur_AF_file,
+                                                          pdbchains[fold])  # what chain to give the prediction? of first or second??
+                ctr += 1
+
         # Get induced subtree
         clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
         print("New cluster_node_values:")
@@ -191,9 +194,11 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         print("TMScores mat: ")
         print(tmscores_mat)
         print("Now concatenate:")
-        concat_scores = tmscores_mat + C:\Code\Github\MsaCluster\protein_plot_utils.py
+        print(cluster_node_values.shape)
+        print(tmscores_mat.shape)
+        concat_scores = pd.concat([tmscores_mat, cluster_node_values], ignore_index= True)
 
-        visualize_tree_with_heatmap(clusters_subtree, cluster_node_values, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
+        visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
 
