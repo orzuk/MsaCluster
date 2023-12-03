@@ -21,10 +21,11 @@ from Bio import SeqIO
 from Bio.PDB import PDBParser
 
 
+import pickle
 import os
 import sys
 import urllib
-import math
+# import math
 
 import biotite.structure as bs
 from biotite.structure.io.pdbx import PDBxFile, get_structure
@@ -174,7 +175,11 @@ def extract_protein_sequence(pdb_file):
 
 # Compute tmscores of two structures, interface to tmscore module
 def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
-    print("Start compute tmscore")
+    print("Start compute tmscore:")
+    print(pdb_file1)
+    print(pdb_file2)
+    print(chain1)
+
     s1 = get_structure(pdb_file1)
     s2 = get_structure(pdb_file2)
     chain1 = next(s1.get_chains())
@@ -191,10 +196,19 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
         seq1 += cur_seq1
 
     seq1_alt = extract_protein_sequence(pdb_file1)  # Alternative reading:
-    print(seq1)
-    print(seq1_alt)
 
     print("Now align")
+    print(coords1.shape)
+    print(coords2.shape)
+    print(seq1)
+    print(seq1_alt)
+    print(seq2)
+    print(len(seq1))
+    print(len(seq2))
+
+    with open("temp_tm_align.pkl", "wb") as f:
+        pickle.dump([coords1, coords2, seq1, seq2], f)
+
     res = tm_align(coords1, coords2, seq1, seq2)
 
     print("TM RES: ")

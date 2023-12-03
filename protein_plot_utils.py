@@ -43,7 +43,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     #    MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
     msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
     n_cmaps = len(msa_pred_files)
-    n_cmaps = min(3, n_cmaps)  # temp for debug !!
+#    n_cmaps = min(3, n_cmaps)  # temp for debug !!
     msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
     msa_clusters = {file.split("\\")[-1][:-4]: read_msa(file) for file in msa_files}
 
@@ -162,6 +162,9 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
         # Compute tm scores of the predicted models of AF, ESM fold and the two structures
         tmscores_mat = np.zeros([2, n_cmaps])
+        print("total cmaps: " + str(n_cmaps))
+        print("total node values: " )
+        print(cluster_node_values.shape)
         AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/ShallowMsa*model_1_*pdb")
         for fold in range(2):
             ctr = 0
@@ -173,9 +176,18 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                 print("Cur pdbchains: ")
                 print(pdbchains[fold])
                 print("Run compute tmscore:")
+                print("total cmaps: " + str(n_cmaps))
+                print("total node values: ")
+                print(cluster_node_values.shape)
+                print("fold, ctr:")
+                print(fold)
+                print(ctr)
+                print(tmscores_mat[fold, ctr] )
                 tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
                                                           cur_AF_file,
                                                           pdbchains[fold])  # what chain to give the prediction? of first or second??
+#                print(xx)
+#                tmscores_mat[fold, ctr] = xx
                 ctr += 1
 
         # Get induced subtree
