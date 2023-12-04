@@ -99,7 +99,7 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
     #             # Finally, make a contact map from each pdb file:
     #             # Read structure in slightly different format
                  # New option: extract sequence and structure togehter. Remove from sequence the residues without contacts
-            pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds = contacts_from_pdb(   # extract distances from pdb file
+            pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = read_seq_coord_contacts_from_pdb(   # extract distances from pdb file
                 get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0], chain=pdbchains[i][fold])
             with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
                 text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',

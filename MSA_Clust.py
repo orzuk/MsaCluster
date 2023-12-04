@@ -135,7 +135,7 @@ def MSA_to_str_format(MSAs, MSAs_names):
 # }
 
 #contacts = {
-#    name: contacts_from_pdb(structure, chain="A")
+#    name: read_seq_coord_contacts_from_pdb(structure, chain="A")
 #    for name, structure in structures.items()
 #}
 

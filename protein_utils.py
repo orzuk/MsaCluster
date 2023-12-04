@@ -25,7 +25,6 @@ import pickle
 import os
 import sys
 import urllib
-# import math
 
 import biotite.structure as bs
 from biotite.structure.io.pdbx import PDBxFile, get_structure
@@ -157,6 +156,9 @@ def compare_designs(S, pdbID1, pdbID2):
     return df_tm, S, S1, S2, AF, AF1, AF2  # Return all sequences, structures and their similarity
 
 
+
+# Extract a sequence from a protein pdb file.
+# Next do it by chain (?)
 def extract_protein_sequence(pdb_file):
     parser = PDBParser()
     structure = parser.get_structure("protein", pdb_file)
@@ -179,6 +181,12 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     print(pdb_file1)
     print(pdb_file2)
     print(chain1)
+
+    # New: read sequence and coordinates
+    pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = \
+        read_seq_coord_contacts_from_pdb(pdb_file1, chain1)
+
+ #   pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = read_seq_coord_contacts_from_pdb(structure, "F")
 
     s1 = get_structure(pdb_file1)
     s2 = get_structure(pdb_file2)
@@ -209,6 +217,9 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     with open("temp_tm_align.pkl", "wb") as f:
         pickle.dump([coords1, coords2, seq1, seq2], f)
 
+    with open('temp_tm_align.pkl', 'rb') as f:
+        coords1, coords2, seq1, seq2 = pickle.load(f)
+
     res = tm_align(coords1, coords2, seq1, seq2)
 
     print("TM RES: ")
@@ -234,15 +245,22 @@ def extend(a, b, c, L, A, D):
     return c + sum([m * d for m, d in zip(m, d)])
 
 
-
 # Extract contact map from a pdb-file
 # Also extract the distances themselves (more informative than the thresholded contacts)
+# And the sequences
+#
+# Input:
+# structure -
+# distance_threshold -
+# chain - optional
+#
 # Output:
 # dist - pairwise distance matrix between cBeta atoms
 # contacts - pairwise binary contacts matrix for distances < threshold
 # pdb_seq - sequence extracted from pdb file, after removing residues with missing atoms
 # good_res_ids - indices of full good residues
-def contacts_from_pdb(
+# Cbeta - coordinates of Cbeta atoms (N*#chains numpy array)
+def read_seq_coord_contacts_from_pdb(
         structure: bs.AtomArray,
         distance_threshold: float = 8.0,
         chain: Optional[str] = None,
@@ -276,7 +294,7 @@ def contacts_from_pdb(
     contacts = dist < distance_threshold
     contacts = contacts.astype(np.int64)
     contacts[np.isnan(dist)] = -1
-    return dist, contacts, pdb_seq, good_res_ids   # [aa_long_short[aa] for aa in structure.res_name[good_res_ids]]
+    return dist, contacts, pdb_seq, good_res_ids, Cbeta   # [aa_long_short[aa] for aa in structure.res_name[good_res_ids]]
 
 
 # Evaluate precision of predicted contacts with respect to true contacts
@@ -496,30 +514,31 @@ def read_pdb(pdbcode, pdbfilenm):
         return None
 
 
-def extract_seqrecords(pdbcode, struct):
-    """
-    Extracts the sequence records from a Bio.PDB structure.
-    :param pdbcode: the PDB ID of the structure, needed to add a sequence ID to the result
-    :param struct: a Bio.PDB.Structure object
-    :return: a list of Bio.SeqRecord objects
-    """
-    ppb = Bio.PDB.PPBuilder()
-    seqrecords = []
-    for i, chain in enumerate(struct.get_chains()):
-        #        print(i)
-        #        print(chain)
-        # extract and store sequences as list of SeqRecord objects
-        pps = ppb.build_peptides(chain)  # polypeptides
-        if len(pps) == 0:  # empty chain !! skip
-            continue
-        seq = pps[0].get_sequence()  # just take the first, hope there's no chain break
-        for i in range(1, len(pps)):  # New: add all parts !!!
-            seq += pps[i].get_sequence()
-        seqid = pdbcode + chain.id
-        seqrec = Bio.SeqRecord.SeqRecord(seq, id=seqid,
-                                         description="Sequence #{}, {}".format(i + 1, seqid))
-        seqrecords.append(seqrec)
-    return seqrecords
+# THIS FUNCTION ISN'T USED !!!
+#def extract_seqrecords(pdbcode, struct):
+#    """
+#    Extracts the sequence records from a Bio.PDB structure.
+#    :param pdbcode: the PDB ID of the structure, needed to add a sequence ID to the result
+#    :param struct: a Bio.PDB.Structure object
+#    :return: a list of Bio.SeqRecord objects
+#    """
+#    ppb = Bio.PDB.PPBuilder()
+#    seqrecords = []
+#    for i, chain in enumerate(struct.get_chains()):
+#        #        print(i)
+#        #        print(chain)
+#        # extract and store sequences as list of SeqRecord objects
+#        pps = ppb.build_peptides(chain)  # polypeptides
+#        if len(pps) == 0:  # empty chain !! skip
+#            continue
+#        seq = pps[0].get_sequence()  # just take the first, hope there's no chain break
+#        for i in range(1, len(pps)):  # New: add all parts !!!
+#            seq += pps[i].get_sequence()
+#        seqid = pdbcode + chain.id
+#        seqrec = Bio.SeqRecord.SeqRecord(seq, id=seqid,
+#                                         description="Sequence #{}, {}".format(i + 1, seqid))
+#        seqrecords.append(seqrec)
+#    return seqrecords
 
 
 def get_calphas(struct):
