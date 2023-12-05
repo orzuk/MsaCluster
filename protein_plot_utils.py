@@ -19,6 +19,7 @@ from Bio import Align
 from phytree_utils import *
 from MSA_Clust import *
 
+import math
 
 # Make all plots
 # Input:

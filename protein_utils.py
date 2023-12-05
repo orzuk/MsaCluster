@@ -31,7 +31,7 @@ from biotite.structure.io.pdbx import PDBxFile, get_structure
 from biotite.database import rcsb
 
 from tmtools import tm_align
-from tmtools.io import get_structure, get_residue_data
+from tmtools.io import get_residue_data  # can't have get_structure here too !!!
 
 import iminuit
 import tmscoring  # for comparing structures
@@ -183,17 +183,19 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     print(chain1)
 
     # New: read sequence and coordinates
-    pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = \
-        read_seq_coord_contacts_from_pdb(pdb_file1, chain1)
 
  #   pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = read_seq_coord_contacts_from_pdb(structure, "F")
 
-    s1 = get_structure(pdb_file1)
+    s1 = get_structure(pdb_file1)  # This is similar to biotite?
     s2 = get_structure(pdb_file2)
-    chain1 = next(s1.get_chains())
-    coords1, seq1 = get_residue_data(chain1)
-    chain2 = next(s2.get_chains())
-    coords2, seq2 = get_residue_data(chain2)
+    pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
+        read_seq_coord_contacts_from_pdb(s1, chain1)
+    pdb_dists2, pdb_contacts2, pdb_seq2, pdb_good_res_inds2, coords2 = \
+        read_seq_coord_contacts_from_pdb(s2, chain2)
+#    chain1 = next(s1.get_chains())
+#    coords1, seq1 = get_residue_data(chain1)
+#    chain2 = next(s2.get_chains())
+#    coords2, seq2 = get_residue_data(chain2)
 
     print("read sequences:")
     chain1 = []
@@ -250,8 +252,8 @@ def extend(a, b, c, L, A, D):
 # And the sequences
 #
 # Input:
-# structure -
-# distance_threshold -
+# structure - atom array of biotite
+# distance_threshold - threshold on distance for being considered as a contact
 # chain - optional
 #
 # Output:
