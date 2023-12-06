@@ -176,6 +176,11 @@ def extract_protein_sequence(pdb_file):
 
 
 # Compute tmscores of two structures, interface to tmscore module
+# Input:
+# pdb_file1, pdb_file2 - names of two input pdb files
+# chain1, chain2 - names of two chains
+# Output:
+#
 def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     print("Start compute tmscore:")
     print(pdb_file1)
@@ -183,7 +188,6 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     print(chain1)
 
     # New: read sequence and coordinates
-
  #   pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = read_seq_coord_contacts_from_pdb(structure, "F")
 
     s1 = get_structure(pdb_file1)  # This is similar to biotite?
