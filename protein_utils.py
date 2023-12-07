@@ -32,6 +32,7 @@ from biotite.database import rcsb
 
 from tmtools import tm_align
 from tmtools.io import get_residue_data  # can't have get_structure here too !!!
+from tmtools.io import get_structure as tmtool_get_structure  # can't have get_structure here too !!!
 
 import iminuit
 import tmscoring  # for comparing structures
@@ -190,7 +191,7 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     # New: read sequence and coordinates
  #   pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = read_seq_coord_contacts_from_pdb(structure, "F")
 
-    s1 = get_structure(pdb_file1)  # This is similar to biotite?
+    s1 = tmtool_get_structure(pdb_file1)  # This is similar to biotite?
     s2 = get_structure(pdb_file2)
     pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
         read_seq_coord_contacts_from_pdb(s1, chain1)
