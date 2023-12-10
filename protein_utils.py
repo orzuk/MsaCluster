@@ -28,6 +28,8 @@ import urllib
 
 import biotite.structure as bs
 from biotite.structure.io.pdbx import PDBxFile, get_structure
+from biotite.structure.io.pdb import PDBFile
+
 from biotite.database import rcsb
 
 from tmtools import tm_align
@@ -191,8 +193,17 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     # New: read sequence and coordinates
  #   pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = read_seq_coord_contacts_from_pdb(structure, "F")
 #    s1 = tmtool_get_structure(pdb_file1)  # This is similar to biotite?
-    s1 = get_structure(pdb_file1)
-    s2 = tmtool_get_structure(pdb_file2)
+
+    if len(pdb_file1) == 4:  # pdb id
+        s1 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))
+    else:  # file
+        s1 = PDBFile.read(pdb_file1).get_structure()
+    if len(pdb_file2) == 4:  # pdb id
+        s2 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))
+    else:  # file
+        s2 = PDBFile.read(pdb_file2).get_structure()
+
+#    s2 = tmtool_get_structure(pdb_file2)
     pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
         read_seq_coord_contacts_from_pdb(s1, chain1)
     pdb_dists2, pdb_contacts2, pdb_seq2, pdb_good_res_inds2, coords2 = \
