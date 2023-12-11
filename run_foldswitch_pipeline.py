@@ -102,11 +102,11 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
             pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = read_seq_coord_contacts_from_pdb(   # extract distances from pdb file
                 get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0], chain=pdbchains[i][fold])
             with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
-                text_file.writelines([ "> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
+                text_file.writelines(["> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
                                             pdb_seq ])
             print(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")
             np.save(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", pdb_contacts)  # save true contacts (binary format)
-
+            print("FINISHED read_seq_coord_contacts_from_pdb ALL IS GOOD!")
     if run_mode == "get_msa":
         run_str = "python3. / get_msa.py " + fasta_file_name + " ./Pipeline/" + foldpair_id + "/output_get_msa - name 'DeepMsa'"
     if run_mode == "cluster_msa":

@@ -203,6 +203,12 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     else:  # file
         s2 = PDBFile.read(pdb_file2).get_structure()
 
+    with open("temp_tm_align_structs.pkl", "wb") as f:
+        pickle.dump([s1, s2, chain1, chain2], f)
+    with open('temp_tm_align_structs.pkl', 'rb') as f:
+        s1, s2, chain1, chain2 = pickle.load(f)
+
+
 #    s2 = tmtool_get_structure(pdb_file2)
     pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
         read_seq_coord_contacts_from_pdb(s1, chain1)
@@ -304,6 +310,8 @@ def read_seq_coord_contacts_from_pdb(
         C = structure.coord[mask & (structure.atom_name == "C") & np.in1d(structure.res_id, good_res_ids)]
         pdb_seq = "".join([aa_long_short[a] for a in structure.res_name[
             np.where(mask & (structure.atom_name == "N") & np.in1d(structure.res_id, good_res_ids))[0]]])
+
+        # Change in structure coordinates?
 
         # return []
     Cbeta = extend(C, N, CA, 1.522, 1.927, -2.143)
