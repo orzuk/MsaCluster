@@ -185,8 +185,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                 print(ctr)
                 print(tmscores_mat[fold, ctr] )
                 tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-                                                          cur_AF_file,
-                                                          pdbchains[fold])  # what chain to give the prediction? of first or second??
+                                                          cur_AF_file,  # NEED A CHAIN!!!!!
+                                                          pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
 #                print(xx)
 #                tmscores_mat[fold, ctr] = xx
                 ctr += 1
