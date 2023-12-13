@@ -184,6 +184,14 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                 print(fold)
                 print(ctr)
                 print(tmscores_mat[fold, ctr] )
+
+                # Save to debug just the function "compute_tmscore"
+                true_pdb_file = 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb'
+                with open('compute_tmscore.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
+                    pickle.dump([fold, true_pdb_file, cur_AF_file, pdbchains], f)
+                with open('compute_tmscore.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+                    fold, true_pdb_file, cur_AF_file, pdbchains = pickle.load(f)
+                tmscores_mat[fold, ctr] = compute_tmscore(true_pdb_file, cur_AF_file, pdbchains[fold], pdbchains[0])
                 tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
                                                           cur_AF_file,  # NEED A CHAIN!!!!!
                                                           pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??

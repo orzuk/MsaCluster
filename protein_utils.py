@@ -195,13 +195,13 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
 #    s1 = tmtool_get_structure(pdb_file1)  # This is similar to biotite?
 
     if len(pdb_file1) == 4:  # pdb id
-        s1 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))
+        s1 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))[0]
     else:  # file
-        s1 = PDBFile.read(pdb_file1).get_structure()
+        s1 = PDBFile.read(pdb_file1).get_structure()[0]
     if len(pdb_file2) == 4:  # pdb id
-        s2 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))
+        s2 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))[0]
     else:  # file
-        s2 = PDBFile.read(pdb_file2).get_structure()
+        s2 = PDBFile.read(pdb_file2).get_structure()[0]
 
     with open("temp_tm_align_structs.pkl", "wb") as f:
         pickle.dump([s1, s2, chain1, chain2], f)
@@ -211,40 +211,40 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
 
 #    s2 = tmtool_get_structure(pdb_file2)
     pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
-        read_seq_coord_contacts_from_pdb(s1, chain1)
+        read_seq_coord_contacts_from_pdb(s1, chain=chain1)
     pdb_dists2, pdb_contacts2, pdb_seq2, pdb_good_res_inds2, coords2 = \
-        read_seq_coord_contacts_from_pdb(s2, chain2)
+        read_seq_coord_contacts_from_pdb(s2, chain=chain2)
 #    chain1 = next(s1.get_chains())
 #    coords1, seq1 = get_residue_data(chain1)
 #    chain2 = next(s2.get_chains())
 #    coords2, seq2 = get_residue_data(chain2)
 
-    print("read sequences:")
-    chain1 = []
-    seq1 = ''
-    for c in s1.get_chains():
-        chain1.append(c)
-        coords1, cur_seq1 = get_residue_data(c)
-        seq1 += cur_seq1
+#    print("read sequences:")
+#    chain1 = []
+#    seq1 = ''
+#    for c in s1.get_chains():
+#        chain1.append(c)
+#        coords1, cur_seq1 = get_residue_data(c)
+#        seq1 += cur_seq1
 
     seq1_alt = extract_protein_sequence(pdb_file1)  # Alternative reading:
 
     print("Now align")
     print(coords1.shape)
     print(coords2.shape)
-    print(seq1)
+#    print(seq1)
     print(seq1_alt)
-    print(seq2)
-    print(len(seq1))
-    print(len(seq2))
+#    print(seq2)
+#    print(len(seq1))
+#    print(len(seq2))
 
     with open("temp_tm_align.pkl", "wb") as f:
-        pickle.dump([coords1, coords2, seq1, seq2], f)
+        pickle.dump([coords1, coords2, pdb_seq1, pdb_seq2], f)
 
     with open('temp_tm_align.pkl', 'rb') as f:
-        coords1, coords2, seq1, seq2 = pickle.load(f)
+        coords1, coords2, pdb_seq1, pdb_seq2 = pickle.load(f)
 
-    res = tm_align(coords1, coords2, seq1, seq2)
+    res = tm_align(coords1, coords2, pdb_seq1, pdb_seq2)
 
     print("TM RES: ")
     print(res)
@@ -312,10 +312,18 @@ def read_seq_coord_contacts_from_pdb(
             np.where(mask & (structure.atom_name == "N") & np.in1d(structure.res_id, good_res_ids))[0]]])
 
         # Change in structure coordinates?
-
         # return []
     Cbeta = extend(C, N, CA, 1.522, 1.927, -2.143)
     dist = squareform(pdist(Cbeta))
+
+    with open("bad_dists.pkl", "wb") as f:
+        pickle.dump([dist, distance_threshold], f)
+    with open('bad_dists.pkl', 'rb') as f:
+        dist, distance_threshold = pickle.load(f)
+
+    print("DIST SHAPE: ")
+    print(type(dist))
+    print(dist.shape)
 
     contacts = dist < distance_threshold
     contacts = contacts.astype(np.int64)
