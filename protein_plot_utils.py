@@ -207,8 +207,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         print(clusters_subtree)
         for n in clusters_subtree.iter_leaves(): # change name
             n.name = ete_leaves_cluster_ids[n.name]
-        print("Now renamed cluster_subtree:")
-        print(clusters_subtree)
+#        print("Now renamed cluster_subtree:")
+#        print(clusters_subtree)
 
         print("Cluster node values:")
         print(cluster_node_values)
