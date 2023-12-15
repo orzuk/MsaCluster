@@ -102,6 +102,11 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                    shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
                                    shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5']) for ctype in
                            match_predicted_cmaps}  # Why only shared?
+    print("FIRST CLUSTER NODE VALUES:")
+    print(cluster_node_values)
+    # ADDD A VALUE FOR THE TOTAL TM SCORE !!!
+
+
 
     # load tree
     #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
@@ -180,10 +185,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                 print("total cmaps: " + str(n_cmaps))
                 print("total node values: ")
                 print(cluster_node_values.shape)
-                print("fold, ctr:")
-                print(fold)
-                print(ctr)
-                print(tmscores_mat[fold, ctr] )
+                print("fold, ctr:" + str(fold) + ", " + str(ctr))
+                print(tmscores_mat[fold, ctr])
 
                 # Save to debug just the function "compute_tmscore"
                 true_pdb_file = 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb'
@@ -214,10 +217,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         print(cluster_node_values)
         print("TMScores mat: ")
         print(tmscores_mat)
-        print("Now concatenate:")
-        print(cluster_node_values.shape)
-        print(tmscores_mat.shape)
-        concat_scores = pd.concat([tmscores_mat, cluster_node_values], ignore_index= True)
+        print("Now concatenate shapes: cluster_node, tmscores: " + str(cluster_node_values.shape) + ", " + str(tmscores_mat.shape))
+        concat_scores = pd.concat([tmscores_mat.T, cluster_node_values], ignore_index= True)
 
         visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
