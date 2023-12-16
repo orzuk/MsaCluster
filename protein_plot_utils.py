@@ -104,6 +104,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                            match_predicted_cmaps}  # Why only shared?
     print("FIRST CLUSTER NODE VALUES:")
     print(cluster_node_values)
+    print("Shape:")
+    print(len(cluster_node_values))
     # ADDD A VALUE FOR THE TOTAL TM SCORE !!!
 
 
@@ -217,7 +219,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         print(cluster_node_values)
         print("TMScores mat: ")
         print(tmscores_mat)
-        print("Now concatenate shapes: cluster_node, tmscores: " + str(cluster_node_values.shape) + ", " + str(tmscores_mat.shape))
+        print("Types node_values, tmscores_mat:")
+        print(type(cluster_node_values))
+        print(type(tmscores_mat))
+        print("Now concatenate shapes: cluster_node, tmscores: " + str(cluster_node_values.shape) + ", " + str(tmscores_mat.T.shape))
         concat_scores = pd.concat([tmscores_mat.T, cluster_node_values], ignore_index= True)
 
         visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
