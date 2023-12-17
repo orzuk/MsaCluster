@@ -196,11 +196,18 @@ def MSA_transformer(MSAs, MSAs_names, true_contacts = {}):
 # np.loadtxt('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_cmap_output/msa_t__cluster_000.npy')
 
 
-# Plot the true vs. predicted contact map, predict for each contact if it is:
+# Compute the true vs. predicted contact map, predict for each contact if it is:
 # 1. Present in both
 # 2. Present in first
 # 3. Present in second
 # 4. Absent
+# Input:
+# cmap_clusters: dictionary of contact maps, one for each cluster
+# cmap_true: dictionary of contact maps, one for each fold
+# Output:
+# shared_unique_contacts: dictionary of contact maps, one for each type of contact (shared, unique in fold 1, unique in fold 2)
+# shared_unique_contacts_metrics: dictionary of metrics, one for each type of contact (shared, unique in fold 1, unique in fold 2)
+# contacts_united: contact map of the union of the two folds
 def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
     # First divide the contacts into both, one and two
     fold_ids = list(cmap_true.keys())

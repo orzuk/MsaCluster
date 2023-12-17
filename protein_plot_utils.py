@@ -82,6 +82,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                     "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy",
                         allow_pickle=True).astype(int) for fold in range(2)}
 
+    print("All predicted MSA transformer files:")
+    print(msa_transformer_pred.keys())
+    return 9999999999
+
     match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap,
                                                                            msa_transformer_pred)
 
@@ -89,7 +93,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                         fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
 
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(
-        match_predicted_cmaps, match_true_cmap)
+        match_predicted_cmaps, match_true_cmap)  # here number of cmaps is #clusters + 1
 #    print("Cmap metrics shared:")
 #    print(shared_unique_contacts_metrics["shared"])
 #    for fold in range(2):
