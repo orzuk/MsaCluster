@@ -21,6 +21,7 @@ from MSA_Clust import *
 
 import math
 
+
 # Make all plots
 # Input:
 # pdbids - IDs of pdb proteins
@@ -84,6 +85,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
     print("All predicted MSA transformer files:")
     print(msa_transformer_pred.keys())
+    print(msa_transformer_pred.values())
+    print("Exit function!")
     return 9999999999
 
     match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap,
@@ -111,8 +114,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     print("Shape:")
     print(len(cluster_node_values))
     # ADDD A VALUE FOR THE TOTAL TM SCORE !!!
-
-
 
     # load tree
     #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
@@ -163,9 +164,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     print(type(ete_leaves_node_values))
 #    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
 #        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
-
-
-
 
     if plot_tree_clusters:  # plot only clusters
         cluster_node_values.pop('p')  # remove nodes without cluster

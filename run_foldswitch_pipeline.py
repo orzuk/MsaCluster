@@ -90,22 +90,36 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
     cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = [None]*3
     cur_family_dir = fasta_dir + "/" + foldpair_id
     if run_mode == "load_seq_and_struct":  #      if load_seq_and_struct or run_pipeline:  # also for entire pipeline
+        run_str = ''  # no pipeline in this mode !!!!
         for fold in range(2):
             if not os.path.exists(cur_family_dir):
                 print("Mkdir: " + cur_family_dir)
                 os.mkdir(cur_family_dir)
-            print("Get seq + struct for " + pdbids[i][fold] + ", " + str(i) + " out of " + str(n_fam-1) )
-            fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][fold] + pdbchains[i][fold] + '.fasta'  # added chain to file ID
+            print("Get seq + struct for " + pdbids[fold] + ", " + " out of " + str(n_fam-1) )
+            fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + '.fasta'  # added chain to file ID
     #             # Finally, make a contact map from each pdb file:
     #             # Read structure in slightly different format
                  # New option: extract sequence and structure togehter. Remove from sequence the residues without contacts
+
+            print("STRUCTURE TYPE: ")
+            print(type(PDBxFile.read(rcsb.fetch(pdbids[fold], "cif"))))
+            print(type(get_structure(PDBxFile.read(rcsb.fetch(pdbids[fold], "cif")))[0]))
+
+            with open("good_temp_tm_align_structs.pkl", "wb") as f:
+                pickle.dump([get_structure(PDBxFile.read(rcsb.fetch(pdbids[fold], "cif")))[0], pdbchains[fold]], f)
+            with open('good_temp_tm_align_structs.pkl', 'rb') as f:
+                s_good, c_good = pickle.load(f)
+
             pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = read_seq_coord_contacts_from_pdb(   # extract distances from pdb file
-                get_structure(PDBxFile.read(rcsb.fetch(pdbids[i][fold], "cif")))[0], chain=pdbchains[i][fold])
+                s_good, chain=c_good)
+
+#            pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = read_seq_coord_contacts_from_pdb(   # extract distances from pdb file
+#                get_structure(PDBxFile.read(rcsb.fetch(pdbids[fold], "cif")))[0], chain=pdbchains[fold])
             with open(fasta_file_name, "w") as text_file:  # save to fasta file. Take the correct chain
-                text_file.writelines(["> " + pdbids[i][fold].upper() + ":" + pdbchains[i][fold].upper() + '\n',
+                text_file.writelines(["> " + pdbids[fold].upper() + ":" + pdbchains[fold].upper() + '\n',
                                             pdb_seq ])
-            print(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy")
-            np.save(cur_family_dir + "/" + pdbids[i][fold] + pdbchains[i][fold] + "_pdb_contacts.npy", pdb_contacts)  # save true contacts (binary format)
+            print(cur_family_dir + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy")
+            np.save(cur_family_dir + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy", pdb_contacts)  # save true contacts (binary format)
             print("FINISHED read_seq_coord_contacts_from_pdb ALL IS GOOD!")
     if run_mode == "get_msa":
         run_str = "python3. / get_msa.py " + fasta_file_name + " ./Pipeline/" + foldpair_id + "/output_get_msa - name 'DeepMsa'"
@@ -170,7 +184,7 @@ if platform.system() == "Linux":
     run_job_mode = "job"
 else:
     print("Run on windows")
-    run_mode = "plot" # "run_esmfold"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
+    run_mode = "plot"  # "load_seq_and_struct" #    "plot" # "run_esmfold"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
     run_job_mode = "inline"
     foldpair_ids_to_run =  "1dzlA_5keqF"  #   "4ydqB_4twaA"  #  "3t5oA_4a5wB" # "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !
     plot_tree_clusters = True
