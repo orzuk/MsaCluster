@@ -88,7 +88,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     print(msa_transformer_pred.values())
     print("Exit function! shapes:")
     print(msa_transformer_pred['p'].shape)
-    print(msa_transformer_pred['Msa_000'].shape)
+    print(msa_transformer_pred['Msa_000'].shape)  # Show shape. Should be square form: n*n residues 
     return 9999999999
 
     match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap,
