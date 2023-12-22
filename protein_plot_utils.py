@@ -93,7 +93,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
     match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap,
                                                                            msa_transformer_pred)
-
     plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap,
                                         fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
 
@@ -166,7 +165,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     print(type(ete_leaves_node_values))
 #    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
 #        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
-
     if plot_tree_clusters:  # plot only clusters
         cluster_node_values.pop('p')  # remove nodes without cluster
         cluster_node_values = pd.DataFrame(cluster_node_values).T  # convert to 3*[#clusters] pandas data-frame
