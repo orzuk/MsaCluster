@@ -226,7 +226,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         print(type(tmscores_mat))
         print("Now concatenate shapes: cluster_node, tmscores: " + str(cluster_node_values.shape) + ", " + str(tmscores_mat.T.shape))
         concat_scores = pd.concat([tmscores_mat.T, cluster_node_values], ignore_index= True)
-
         visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
