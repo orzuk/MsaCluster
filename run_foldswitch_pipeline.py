@@ -59,7 +59,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
             if run_mode == "run_esmfold":
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_esmfold_for_" + foldpair_id + ".out' ./Pipeline/RunEsmFold_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == "run_AF":  # run alpha-fold to predict structures
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/AF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == "run_pipeline":
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_pipeline_for_" + foldpair_id + ".out' ./pipeline_get_params.sh " + \
                        fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
