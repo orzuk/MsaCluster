@@ -73,7 +73,6 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
     # for i in range(n_fam):
     #    cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
     #    pred_vec[i] = predict_fold_switch_from_MSA_cluster(cur_MSA, clust_params)
-
     if run_mode == "plot":
         cmd.quit()
 

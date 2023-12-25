@@ -243,9 +243,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                      'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
                                      fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
 
-
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, tmscores_mat
-
 
 #        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
 #        break
