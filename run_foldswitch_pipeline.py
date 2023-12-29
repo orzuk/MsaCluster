@@ -246,5 +246,3 @@ res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
 #    phytree_file, tree_outfile, node_values = pickle.load(f)
 #visualize_tree_with_heatmap(phytree_file, node_values, tree_outfile)
 
-
-
