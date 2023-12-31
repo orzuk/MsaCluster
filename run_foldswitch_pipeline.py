@@ -240,7 +240,6 @@ res_DF = run_fold_switch_pipeline(run_mode, foldpair_ids_to_run,
                          fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",
                          run_job_mode=run_job_mode)
 res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
-
 ### TEMP CODE FOR TRYING STUFF
 #with open('tree_draw.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
 #    phytree_file, tree_outfile, node_values = pickle.load(f)
