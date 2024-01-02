@@ -157,7 +157,7 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
                     '/output_phytree/' + os.path.basename(msa_file).replace(".a3m", "_tree.nwk")
         reconstruct_ancestral_sequences(output_tree_file, msa_file, anc_output_file)
     if run_mode == "plot":
-        cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = \
+        cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores = \
             make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters)
         run_str = ''  # no plotting in this mode !!!!
 

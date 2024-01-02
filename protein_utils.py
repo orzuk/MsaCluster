@@ -229,11 +229,11 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
 
     seq1_alt = extract_protein_sequence(pdb_file1)  # Alternative reading:
 
-    print("Now align")
-    print(coords1.shape)
-    print(coords2.shape)
+#    print("Now align")
+#    print(coords1.shape)
+#    print(coords2.shape)
 #    print(seq1)
-    print(seq1_alt)
+#    print(seq1_alt)
 #    print(seq2)
 #    print(len(seq1))
 #    print(len(seq2))
@@ -321,9 +321,9 @@ def read_seq_coord_contacts_from_pdb(
     with open('bad_dists.pkl', 'rb') as f:
         dist, distance_threshold = pickle.load(f)
 
-    print("DIST SHAPE: ")
-    print(type(dist))
-    print(dist.shape)
+#    print("DIST SHAPE: ")
+#    print(type(dist))
+#    print(dist.shape)
 
     contacts = dist < distance_threshold
     contacts = contacts.astype(np.int64)
