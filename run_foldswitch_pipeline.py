@@ -160,7 +160,6 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
         cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores = \
             make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters)
         run_str = ''  # no plotting in this mode !!!!
-
     if run_mode == "run_pipeline":
         run_str = ''  # no pipeline in this mode !!!!
 
@@ -244,5 +243,3 @@ res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
 #with open('tree_draw.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
 #    phytree_file, tree_outfile, node_values = pickle.load(f)
 #visualize_tree_with_heatmap(phytree_file, node_values, tree_outfile)
-
-# Try
