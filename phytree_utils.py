@@ -74,7 +74,6 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 #    print(seqs)
 #    print([len(s) for s in seqs])
 
-#    seq_records = [SeqRecord(Seq(s), id=f"Sequence_{i}") for i, s in enumerate(seqs)]  # Here must give correct names to sequences!
     seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]  # Here must give correct names to sequences!
 
     # Create a MultipleSeqAlignment object from the SeqRecord objects
@@ -96,7 +95,7 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 
     # Build a phylogenetic tree using the UPGMA (Unweighted Pair Group Method with Arithmetic Mean) method
     constructor = DistanceTreeConstructor()
-    tree = constructor.upgma(distance_matrix) # , names = seqs_IDs)  # New: Add leave names !!!
+    tree = constructor.upgma(distance_matrix)  # , names = seqs_IDs)  # New: Add leave names !!!
 
     # Print or save the resulting tree
     if len(output_tree_file) == 0:
@@ -223,15 +222,13 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
     node_names = node_values_matrix.index.tolist()
     node_values_matrix = np.array(node_values_matrix)
 
-    if type(phylo_tree) == str: # Load the phylogenetic tree
+    if type(phylo_tree) == str:  # Load the phylogenetic tree
         bio_tree = Phylo.read(phylo_tree, "newick")  # This is different from write_newick_with_quotes !!!!
         print("Read from file and convert to ete3 tree:")
         tree = convert_biopython_to_ete3(bio_tree)
     else:
         print("input phylotree: ")
         print(phylo_tree)
-        lll = [1,2,3]
-        ccc = deepcopy(lll)
         print("copy tree:")
         tree = deepcopy(phylo_tree)
 
@@ -281,79 +278,6 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
         tree.show(tree_style=ts, layout=layout)
 
 
-# Draw phylogenetic tree, with values assigned to each leaf
-# Input:
-# tree - a phylogenetic tree object
-# output_file - where to save image
-# node_values - vector/matrix of values representing each node
-def draw_tree_with_values(tree, output_file= '', node_values= []):
-
-#    tree = Phylo.read("apaf.xml", "phyloxml")
-    # Try the epe package :
-    ete_tree = read_tree_ete(tree)
-
-    # Basic tree style
-    ts = TreeStyle()
-    ts.show_leaf_name = True
-
-    if len(node_values) == 0:
-        node_values = {n.name: 1 for n in ete_tree}
-
-#    cmap = cm.get_cmap('seismic', 5)    # PiYG
-    cmap = plt.colormaps['seismic']
-
-#    cmap = plt.get_cmap('viridis')
-    epsilon = 0.00000001
-
-#    normalize_column = lambda col: (col - col.min()) / (col.max() - col.min())
-    norm_cmap = plt.Normalize(min(node_values.shared)-epsilon, max(node_values.shared)+epsilon)
-
-#    color = cmap(norm(200.))
-
-#    for i in range(cmap.N):
-#        rgba = cmap(i)
-#        print(matplotlib.colors.rgb2hex(rgba))
-    # rgb2hex accepts rgb or rgba
-#    print(matplotlib.colors.rgb2hex(rgba))
-
-    ete_tree.add_face(CircleFace(), column=0, position = "branch-right")
-
-    for n in ete_tree.traverse():
-        if n.is_leaf():
-            nstyle = NodeStyle()
-            print(n.name + " " + str(node_values.at[n.name, 'shared']) + " " + str(norm_cmap(node_values.at[n.name, 'shared'])))
-            print(cmap(norm_cmap(node_values.at[n.name, 'shared'])))
-            nstyle["fgcolor"] = matplotlib.colors.rgb2hex(cmap(norm_cmap(node_values.at[n.name, 'shared'])))  # "red"  # color based on scale
-            nstyle["size"] = 15
-            n.set_style(nstyle)
-            # nface = NodeFace()
-
-    # Let's now modify the aspect of the root node
-    ete_tree.img_style["size"] = 30
-    ete_tree.img_style["fgcolor"] = "blue"
-
-    # Draws nodes as small red spheres of diameter equal to 10 pixels
-
-#    if type(tree) == str:
-#        tree = Phylo.read(tree, "newick")
-#    tree.ladderize()  # Flip branches so deeper clades are displayed at top
-
-    # Plot the tree without colors
-#    Phylo.draw(tree, branch_labels=lambda c: c.branch_length, do_show=False)
-
-    if len(output_file) > 0:  # save and close plot (enable automatic saving of multiple plots)
-        if '.' not in output_file:
-            output_file = output_file + ".png"
-        print("Save tree fig: " + output_file)
-        ete_tree.render(output_file)
-#        plt.savefig(output_file + '.png')
-    else:
-        ete_tree.show()
-
-#    Phylo.draw(tree)
-    return 0
-
-
 # Perform ancestral reconstruction of sequences in the phylogenetic tree
 # Input:
 # tree_file - file with the phylogenetic tree
@@ -364,12 +288,24 @@ def reconstruct_ancestral_sequences(tree_file, alignment_file, output_file):
     tree = Phylo.read(tree_file, 'newick')
 
     # Read the multiple sequence alignment
-    alignment = AlignIO.read(alignment_file, 'fasta')
+    seqs_IDs, seqs = load_fasta(alignment_file)
+    seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
+
+    seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]  # Here must give correct names to sequences!
+
+    # Create a MultipleSeqAlignment object from the SeqRecord objects
+    alignment = MultipleSeqAlignment(seq_records)
+#    alignment = AlignIO.read(alignment_file, 'fasta') # a3m file not all are of the same length !!
+
 
     # Perform the parsimony reconstruction
     scorer = ParsimonyScorer()
     searcher = NNITreeSearcher(scorer)
     constructor = ParsimonyTreeConstructor(searcher, alignment)
+    print("Alignment:")
+    print(alignment)
+    print("Tree:")
+    print(tree)
     parsimony_tree = constructor.build_tree(tree)
 
     # Print to file the reconstructed sequences for the internal nodes

@@ -43,7 +43,6 @@ if __name__=='__main__':
     start_time = time.time()
 
     # New! insert to MSA also the full alignment (calculating cmap can take long for this one)
-
     msa_file = args.input_msas[0]
 
     # Remove old cmaps in the same directory!
