@@ -187,7 +187,6 @@ else:
 #    NOT PROBLEMATIC "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  # "2kb8A_6vw2A"  #  "1jfkA_2nxqB"  #  "1fzpD_2frhA"  #  "1eboE_5fhcJ"  #   "1x0gD_1x0gA" #  "1eboE_5fhcJ"  #  "4gqcB_4gqcC"  # problematic_families  # '1nqjB_1nqdA'  # Problem with pdb to contact  '2n54B_2hdmA'  #  '4yhdG_7ahlE' #  '5l35G_5l35D' # '1eboE_5fhcJ'
 
 # print("Running on: " + foldpair_ids_to_run)
-
 run_pipeline, get_msa, cluster_msa, tree_reconstruct, run_esm, load_seq_and_struct, plot_results = [False]*7  # run entire pipeline or parts of it/plot ...
 
 # can't use match (only from python 3.10)
