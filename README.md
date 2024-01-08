@@ -26,7 +26,6 @@ The output will be in the directory according to the second argument. In this ca
 Pipeline/2qke
 
 
-
 **Steps:**
 1. Genreate a Multiple Sequence Alignment (MSA) for the query sequence
 2. Cluster the MSA into different sub-MSAs
