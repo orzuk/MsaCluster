@@ -7,7 +7,7 @@ if not platform.system() == "Linux":  # doesn't work on unix
     import pymol
     from pymol import cmd  # , stored
 
-from glob import glob
+
 # import pickle
 # from pyvirtualdisplay import Display
 # from IPython.display import display, Image
