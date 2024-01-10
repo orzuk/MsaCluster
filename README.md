@@ -1,14 +1,29 @@
 # MsaCluster
 
+## Running from python: 
+The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
+
+python3 run_foldswitch_pipeline [operation] [foldpair_id]
+
+For example: 
+
+python3 run_foldswitch_pipeline cluster_msa 1jfkA_2nxqB
+
+will cluster the MSAs of the family that have sequences folding according to pdbids 1fjk (chain A) and 2nxq (chain B). 
+
+The second argument (foldpair_id) is optional. If not given, the program will loop over all pairs of ids
+
+
 ## Entire Pipeline - Example: <br>
 The file 'pipeline.sh' implements an entire pipeline of computing cluster-specific contact maps and structures for a protein family <br>
-**Input:** A fasta sequence representing a protein chain <br>
+**Input:** A fasta sequence representing a protein chain (1st argument) <br>
+Directory name for outputs (2nd argument) <br>
 **Output:** Predicted structures and attention maps for each cluster <br>
 **Running example:**
-sbatch -out "run_pipeline.out" ./pipeline.sh <br>
+sbatch -out "run_pipeline.out" ./pipeline_with_params.sh  ./input/2qke.fasta 2qke <br>
 
-The output will be in the directory (should change to contain the name of the fasta file/name): <br>
-/sci/labs/orzuk/steveabecassis/MsaCluster/output/esm_cmap_output
+The output will be in the directory according to the second argument. In this case: <br>
+Pipeline/2qke
 
 
 
@@ -18,6 +33,7 @@ The output will be in the directory (should change to contain the name of the fa
 3. Run AlphaFold and make prediction for the query sequence with each sub-MSAs
 4. Run ESMfold on sampled sequences from each cluster
 5. Compute attention maps (predicted contact map) for each cluster based on ESM's MSA-transformer model.
+6. Plot predictedattention maps va. true ones
 
 The specific steps can be run individually, as shown in the following commands: 
 
@@ -98,6 +114,12 @@ Activate the virtual environement :
 ```
 source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 ```
+
+or (depending on shell) 
+```
+. /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate
+```
+
 
 ### Get msa (alignement)
 

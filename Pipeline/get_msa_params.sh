@@ -11,5 +11,5 @@ OUTPUT_NAME_DIR="$2"
 . /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
 
 mkdir -p Pipeline/$OUTPUT_NAME_DIR/output_get_msa
+rm -r Pipeline/$OUTPUT_NAME_DIR/output_get_msa/DeepMsa_env
 python3 ./get_msa.py $FASTA_FILE_INPUT ./Pipeline/$OUTPUT_NAME_DIR/output_get_msa  -name 'DeepMsa'
-

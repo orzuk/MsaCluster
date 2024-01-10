@@ -7,28 +7,9 @@ from polyleven import levenshtein
 from sklearn.cluster import DBSCAN
 from hdbscan import HDBSCAN
 import numpy as np
-from Bio import SeqIO
-
-
-def lprint(string, f):
-    print(string)
-    f.write(string + '\n')
-
-
-def load_fasta(fil):
-    seqs, IDs = [], []
-    with open(fil) as handle:
-        for record in SeqIO.parse(handle, "fasta"):
-            seq = ''.join([x for x in record.seq])
-            IDs.append(record.id)
-            seqs.append(seq)
-    return IDs, seqs
-
-
-def write_fasta(names, seqs, outfile='tmp.fasta'):
-    with open(outfile, 'w') as f:
-        for nm, seq in list(zip(names, seqs)):
-            f.write(">%s\n%s\n" % (nm, seq))
+import pickle
+from glob import glob
+from msa_utils import *
 
 
 def dihedral_wrapper(traj):
@@ -51,7 +32,6 @@ def dihedral_wrapper(traj):
         to the `i`th snapshot of the input trajectory.
 
     """
-
     ca = [a.index for a in traj.top.atoms if a.name == 'CA']
     if len(ca) < 4:
         return np.zeros((len(traj), 0), dtype=np.float32)
@@ -73,7 +53,6 @@ def consensusVoting(seqs):
         baseCount = np.array([baseArray.count(a) for a in list(residues)])
         vote = np.argmax(baseCount)
         consensus += residues[vote]
-
     return consensus
 
 
@@ -88,8 +67,9 @@ def encode_seqs(seqs, max_len=108, alphabet=None):
                 if char == res:
                     arr[j, i, k] += 1
     return arr.reshape([len(seqs), max_len * len(alphabet)])
-if __name__ == '__main__':
 
+
+if __name__ == '__main__':
     p = argparse.ArgumentParser(description=
                                 """
                                 Cluster sequences in a MSA using DBSCAN algorithm and write .a3m file for each cluster.
@@ -123,7 +103,6 @@ if __name__ == '__main__':
     os.makedirs(args.o, exist_ok=True)
     f = open("%s.log" % args.keyword, 'w')
     IDs, seqs = load_fasta(args.i)
-
     seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
 
     df = pd.DataFrame({'SequenceName': IDs, 'sequence': seqs})
@@ -136,6 +115,7 @@ if __name__ == '__main__':
 
     L = len(df.sequence.iloc[0])
     N = len(df)
+    print("Seqs len: " + str(L))
 
     df['frac_gaps'] = [x.count('-') / L for x in df['sequence']]
 
@@ -151,22 +131,20 @@ if __name__ == '__main__':
     n_clusters = []
     eps_test_vals = np.arange(args.min_eps, args.max_eps + args.eps_step, args.eps_step)
 
+    # Save inputs:
+    with open('hdbscan_input.pkl', 'wb') as f_pickle:  # Python 3: open(..., 'wb')
+        pickle.dump([ohe_seqs, df, IDs, seqs, args], f_pickle)
 
-
-    clustering = HDBSCAN(min_cluster_size=10, min_samples=args.min_samples,cluster_selection_method='leaf')
+    clustering = HDBSCAN(min_cluster_size=10, min_samples=args.min_samples, cluster_selection_method='leaf')
     clustering.fit_predict(ohe_seqs)
     clusters = np.unique(clustering.labels_)
     if len(clusters) > 35:
-            clustering = HDBSCAN(min_cluster_size=15, min_samples=args.min_samples,cluster_selection_method='eom')
+            clustering = HDBSCAN(min_cluster_size=15, min_samples=args.min_samples, cluster_selection_method='eom')
             clustering.fit_predict(ohe_seqs)
             clusters = np.unique(clustering.labels_)
 
-
-
-
     # _ = clustering.condensed_tree_.plot(select_clusters=True,selection_palette=sns.color_palette("deep", np.unique(clusters).shape[0]),label_clusters=True)
     lprint("%d total seqs" % len(df), f)
-
     df['dbscan_label'] = clustering.labels_
 
     clusters = [x for x in df.dbscan_label.unique() if x >= 0]
@@ -181,6 +159,9 @@ if __name__ == '__main__':
     avg_dist_to_query = np.mean([1 - levenshtein(x, query_['sequence'].iloc[0]) / L for x in df.loc[df.dbscan_label != -1]['sequence'].tolist()])
     lprint('avg identity to query of clustered: %.2f' % avg_dist_to_query, f)
 
+    print("Delete old MSA files: " + args.o + '/' + args.keyword + '*.a3m')
+    for f_old in glob(args.o + '/*.a3m'):
+        os.remove(f_old)
     cluster_metadata = []
     for clust in clusters:
         tmp = df.loc[df.dbscan_label == clust]
@@ -203,7 +184,7 @@ if __name__ == '__main__':
         cluster_metadata.append({'cluster_ind': clust, 'consensusSeq': cs, 'avg_lev_dist': '%.3f' % avg_dist_to_cs,
                                  'avg_dist_to_query': '%.3f' % avg_dist_to_query, 'size': len(tmp)})
 
-        write_fasta(tmp.SequenceName.tolist(), tmp.sequence.tolist(),outfile=args.o + '/' + args.keyword + '_' + "%03d" % clust + '.a3m')
+        write_fasta(tmp.SequenceName.tolist(), tmp.sequence.tolist(), outfile=args.o + '/' + args.keyword + '_' + "%03d" % clust + '.a3m')
 
     print('Saved this output to %s.log' % args.keyword)
     f.close()

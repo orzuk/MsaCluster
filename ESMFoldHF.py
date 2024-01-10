@@ -1,5 +1,6 @@
 import os
 
+from ESMFold import convert_outputs_to_pdb, save_string_as_pdb
 from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
@@ -8,38 +9,9 @@ import torch
 from random import sample
 import random
 random.seed(10)
-def convert_outputs_to_pdb(outputs):
-
-    final_atom_positions = atom14_to_atom37(outputs["positions"][-1], outputs)
-    outputs = {k: v.detach().to("cpu").numpy() for k, v in outputs.items()}
-    final_atom_positions = final_atom_positions.detach().cpu().numpy()
-    final_atom_mask = outputs["atom37_atom_exists"]
-    pdbs = []
-    for i in range(outputs["aatype"].shape[0]):
-        aa = outputs["aatype"][i]
-        pred_pos = final_atom_positions[i]
-        mask = final_atom_mask[i]
-        resid = outputs["residue_index"][i] + 1
-        pred = OFProtein(
-            aatype=aa,
-            atom_positions=pred_pos,
-            atom_mask=mask,
-            residue_index=resid,
-            b_factors=outputs["plddt"][i],
-            chain_index=outputs["chain_index"][i] if "chain_index" in outputs else None,
-        )
-        pdbs.append(to_pdb(pred))
-    return pdbs
-
-
-def save_string_as_pdb(pdb_string, file_path):
-    with open(file_path, 'w') as pdb_file:
-        pdb_file.write(pdb_string)
-
 
 
 if __name__ == '__main__':
-
     parser = ArgumentParser()
     parser.add_argument("-input", default="input", help="Should be a .a3m file")
     parser.add_argument("-output", help="Directory to write the results to")
@@ -48,6 +20,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Running ESM-Fold on device: " + device)
 
     # class args:
     #     input = './2QKEE_002.a3m'
