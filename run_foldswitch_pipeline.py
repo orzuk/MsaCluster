@@ -12,8 +12,7 @@ import platform
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
 # MSAs can be represented as a3m format
-def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
-                                        fasta_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
+def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',fasta_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
 
     if type(pdbids_file) == str: # input as file
         with open(pdbids_file, "r") as file:  # read all pdb ids
@@ -49,8 +48,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',
             run_fold_switch_pipeline_one_family(run_mode, foldpair_id,  pdbids[i], pdbchains[i], fasta_file_name)
         else:  # run job
             if run_mode == "get_msa":
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + \
-                          fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
 
             if run_mode == "cluster_msa":  # here do analysis of the results
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/cluster_msa_for_" + foldpair_id + ".out' ./Pipeline/ClusterMSA_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
@@ -224,8 +222,8 @@ pdbchains = [[s[0][-1], s[1][-1]] for s in pdbids]
 pdbids = [[s[0][:-1], s[1][:-1]] for s in pdbids]
 
 n_fam = len(pdbids)  # number of families
-cmap_dists_vec = [None]*n_fam  # Results arrays
-seqs_dists_vec = [None]*n_fam
+cmap_dists_vec   = [None]*n_fam  # Results arrays
+seqs_dists_vec   = [None]*n_fam
 num_seqs_msa_vec = [None]*n_fam
 if foldpair_ids_to_run == "ALL":
     foldpair_ids_to_run = foldpair_ids
@@ -233,10 +231,10 @@ else:  # make a list
     if type(foldpair_ids_to_run) == str:
         foldpair_ids_to_run = [foldpair_ids_to_run]
 
-res_DF = run_fold_switch_pipeline(run_mode, foldpair_ids_to_run,
-                         fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",
-                         run_job_mode=run_job_mode)
+res_DF = run_fold_switch_pipeline(run_mode, foldpair_ids_to_run,fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
 res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
+
+
 ### TEMP CODE FOR TRYING STUFF
 #with open('tree_draw.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
 #    phytree_file, tree_outfile, node_values = pickle.load(f)
