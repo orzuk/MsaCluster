@@ -1,0 +1,8 @@
+mkdir: cannot create directory 'output/esm_fold_output': File exists
+Load model...!
+Traceback (most recent call last):
+  File "./ESMFoldHF.py", line 60, in <module>
+    model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/transformers/modeling_utils.py", line 1974, in from_pretrained
+    "Using `low_cpu_mem_usage=True` or a `device_map` requires Accelerate: `pip install accelerate`"
+ImportError: Using `low_cpu_mem_usage=True` or a `device_map` requires Accelerate: `pip install accelerate`

@@ -1,0 +1,28 @@
+mkdir: cannot create directory 'output/esm_fold_output': File exists
+Load model...!
+Finish to load model !
+Get ESM prediction...
+Traceback (most recent call last):
+  File "./ESMFoldHF.py", line 66, in <module>
+    outputs = model(**inputs).to(device)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/transformers/models/esm/modeling_esmfold.py", line 2134, in forward
+    esm_s = self.compute_language_model_representations(esmaa)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/transformers/models/esm/modeling_esmfold.py", line 2234, in compute_language_model_representations
+    esm_hidden_states = self.esm(esmaa, attention_mask=esmaa != 1, output_hidden_states=True)["hidden_states"]
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/transformers/models/esm/modeling_esm.py", line 868, in forward
+    past_key_values_length=past_key_values_length,
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/transformers/models/esm/modeling_esm.py", line 150, in forward
+    inputs_embeds = self.word_embeddings(input_ids)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/torch/nn/modules/sparse.py", line 162, in forward
+    self.norm_type, self.scale_grad_by_freq, self.sparse)
+  File "/sci/labs/orzuk/steveabecassis/colabfold_new/lib/python3.7/site-packages/torch/nn/functional.py", line 2210, in embedding
+    return torch.embedding(weight, input, padding_idx, scale_grad_by_freq, sparse)
+RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cpu and cuda:0! (when checking argument for argument index in method wrapper__index_select)
