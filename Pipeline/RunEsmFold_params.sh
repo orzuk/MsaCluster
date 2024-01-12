@@ -21,3 +21,4 @@ mkdir -p ./Pipeline/$OUTPUT_NAME_DIR/output_cmap_esm
 
 python3  ./ESMFoldHF.py  -input ./Pipeline/$OUTPUT_NAME_DIR/output_msa_cluster -o ./Pipeline/$OUTPUT_NAME_DIR/output_esm_fold
 
+
