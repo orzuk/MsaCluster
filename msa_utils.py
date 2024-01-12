@@ -5,6 +5,7 @@ def lprint(string, f):
     print(string)
     f.write(string + '\n')
 
+
 def load_fasta(fil):
     seqs, IDs = [], []
     with open(fil) as handle:
