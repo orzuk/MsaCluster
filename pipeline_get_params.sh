@@ -4,6 +4,7 @@
 #SBATCH --ntasks=8
 #SBATCH --mem=10G
 
+
 FASTA_FILE_INPUT="$1"
 OUTPUT_NAME_DIR="$2"
 
