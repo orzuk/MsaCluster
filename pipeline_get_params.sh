@@ -19,7 +19,7 @@ sbatch ./Pipeline/RunAF_params.sh $OUTPUT_NAME_DIR
 #mkdir /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/output/esm_fold_output
 #sbatch /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/RunEsmFold.sh
 mkdir  ./Pipeline/$OUTPUT_NAME_DIR/output_cmap_esm
-sbatch ./CmapESM_params.sh.sh $OUTPUT_NAME_DIR
+sbatch ./CmapESM_params.sh $OUTPUT_NAME_DIR
 
 
 
