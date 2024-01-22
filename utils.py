@@ -36,7 +36,7 @@ def create_chain_pdb_files(fold_1,fold_2,pdb_file_path,chain_pdb_file_path):
     io.save(f'./{chain_pdb_file_path}/{fold_2}.pdb', ChainSelect(chain_fold_2))
 
 
-def get_fasta_chain_seq(pdb_file,fold_name):
+def get_fasta_chain_seq(pdb_file,fold_name,output_dir):
     # Create a PDB parser
     parser = PDBParser()
     # Parse the structure
@@ -49,7 +49,7 @@ def get_fasta_chain_seq(pdb_file,fold_name):
                     if residue.id[0] == ' ':
                         sequence += seq1(residue.resname)
 
-    with open(f"./fasta_chain_files/{fold_name}.fasta", "w") as output_handle:
+    with open(f".{output_dir}/fasta_chain_files/{fold_name}.fasta", "w") as output_handle:
         SeqIO.write(sequence, output_handle, "fasta")
 
 

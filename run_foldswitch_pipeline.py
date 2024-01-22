@@ -48,13 +48,16 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             if not os.path.exists(f'./{output_pair_dir}/chain_pdb_files'):
                 print("Mkdir: " + f'./{output_pair_dir}/chain_pdb_files')
                 os.mkdir(f'./{output_pair_dir}/chain_pdb_files')
+            if not os.path.exists(f'./{output_pair_dir}/fasta_chain_files'):
+                print("Mkdir: " + f'./{output_pair_dir}/fasta_chain_files')
+                os.mkdir(f'./{output_pair_dir}/fasta_chain_files')
 
 
         i = foldpair_ids.index(foldpair_id)
         create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
 
 
-        get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0])
+        get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0],output_pair_dir)
 
 #        if i < 76:  # already done
 #            print("Already plotted")
