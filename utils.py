@@ -26,8 +26,8 @@ def create_chain_pdb_files(fold_1,fold_2,pdb_file_path,chain_pdb_file_path):
     chain_fold_2 = fold_2[-1]
     # Load the original PDB file
     parser = PDBParser()
-    structure_fold1 = parser.get_structure('PDB_structure' , f'{pdb_file_path}/{fold_1}.pdb')
-    structure_fold2 = parser.get_structure('PDB_structure' , f'{pdb_file_path}/{fold_2}.pdb')
+    structure_fold1 = parser.get_structure('PDB_structure' , f'{pdb_file_path}/{fold_1[:-1]}.pdb')
+    structure_fold2 = parser.get_structure('PDB_structure' , f'{pdb_file_path}/{fold_2[:-1]}.pdb')
     io = PDBIO()
     # Set the structure for saving and use ChainSelect to filter the chain
     io.set_structure(structure_fold1)
