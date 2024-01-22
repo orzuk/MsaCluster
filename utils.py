@@ -50,9 +50,11 @@ def get_fasta_chain_seq(pdb_file,fold_name,output_dir):
                         sequence += seq1(residue.resname)
 
     with open(f"./{output_dir}/fasta_chain_files/{fold_name}.fasta", "w") as output_handle:
-        SeqIO.write(sequence, output_handle, "fasta")
+        output_handle.write('>'+'\n>'+sequence)
 
-
+# pdb_file = '/Users/steveabecassis/Desktop/1eboE.pdb'
+# with open(f"/Users/steveabecassis/Desktop/test.fasta", "w") as output_handle:
+#     output_handle.write('>'+'\n>'+sequence)
 
 def save_org_cmaps(chain_pdb_file_path,fold):
     traj = md.load(filename_or_filenames=f'{chain_pdb_file_path}/{fold}.pdb')
