@@ -249,7 +249,7 @@ else:  # make a list
     if type(foldpair_ids_to_run) == str:
         foldpair_ids_to_run = [foldpair_ids_to_run]
 
-res_DF = run_fold_switch_pipeline(run_mode,foldpair_ids_to_run,fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
+res_DF = run_fold_switch_pipeline(run_mode,foldpair_ids_to_run,output_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
 res_DF.to_csv(output_dir + "/Results/foldswitch_res.csv")
 
 
