@@ -61,7 +61,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
 #        if i < 76:  # already done
 #            print("Already plotted")
 #            continue
-        fasta_file_name = output_dir + "/" + foldpair_id + "/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
+        fasta_file_name = output_dir + "/" + foldpair_id + "/fasta_chain_files/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
 #        cur_family_dir = output_dir + "/" + foldpair_id
         print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
 
