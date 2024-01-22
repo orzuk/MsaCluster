@@ -45,12 +45,12 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
         if not os.path.exists(output_pair_dir):
             print("Mkdir: " + output_pair_dir)
             os.mkdir(output_pair_dir)
-            if not os.path.exists(f'./{output_pair_dir}/chain_pdb_files'):
-                print("Mkdir: " + f'./{output_pair_dir}/chain_pdb_files')
-                os.mkdir(f'./{output_pair_dir}/chain_pdb_files')
-            if not os.path.exists(f'./{output_pair_dir}/fasta_chain_files'):
-                print("Mkdir: " + f'./{output_pair_dir}/fasta_chain_files')
-                os.mkdir(f'./{output_pair_dir}/fasta_chain_files')
+        if not os.path.exists(f'./{output_pair_dir}/chain_pdb_files'):
+            print("Mkdir: " + f'./{output_pair_dir}/chain_pdb_files')
+            os.mkdir(f'./{output_pair_dir}/chain_pdb_files')
+        if not os.path.exists(f'./{output_pair_dir}/fasta_chain_files'):
+            print("Mkdir: " + f'./{output_pair_dir}/fasta_chain_files')
+            os.mkdir(f'./{output_pair_dir}/fasta_chain_files')
 
 
         i = foldpair_ids.index(foldpair_id)

@@ -49,7 +49,7 @@ def get_fasta_chain_seq(pdb_file,fold_name,output_dir):
                     if residue.id[0] == ' ':
                         sequence += seq1(residue.resname)
 
-    with open(f".{output_dir}/fasta_chain_files/{fold_name}.fasta", "w") as output_handle:
+    with open(f"./{output_dir}/fasta_chain_files/{fold_name}.fasta", "w") as output_handle:
         SeqIO.write(sequence, output_handle, "fasta")
 
 
