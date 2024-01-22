@@ -253,7 +253,7 @@ else:  # make a list
         foldpair_ids_to_run = [foldpair_ids_to_run]
 
 res_DF = run_fold_switch_pipeline(run_mode,foldpair_ids_to_run,output_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
-res_DF.to_csv(output_dir + "/Results/foldswitch_res.csv")
+# res_DF.to_csv(output_dir + "/Results/foldswitch_res.csv")
 
 
 ### TEMP CODE FOR TRYING STUFF
