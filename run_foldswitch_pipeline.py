@@ -4,24 +4,29 @@ import copy
 import pandas as pd
 from phytree_utils import *
 from protein_plot_utils import *
-
+from utils import *
 from MSA_Clust import *
 import platform
+
+
 
 
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
 # MSAs can be represented as a3m format
-def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',fasta_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
+def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
 
-    if type(pdbids_file) == str: # input as file
-        with open(pdbids_file, "r") as file:  # read all pdb ids
+    if type(pdbids_file) == str:                       # input as file
+        with open(pdbids_file, "r") as file:           # read all pdb ids
             pdbids = [line.rstrip() for line in file]  # two per row
         foldpair_ids = [s.replace("\t", "_") for s in pdbids]
 
-        pdbids = [s.split("\t") for s in pdbids]
+        pdbids    = [s.split("\t") for s in pdbids]
         pdbchains = [[s[0][-1], s[1][-1]] for s in pdbids]
-        pdbids = [[s[0][:-1], s[1][:-1]] for s in pdbids]
+        pdbids    = [[s[0][:-1], s[1][:-1]] for s in pdbids]
+
+
+
 
     n_fam = len(pdbids)  # number of families
     cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = [None] * n_fam, [None] * n_fam, [None] * n_fam  # Results arrays
@@ -36,12 +41,25 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',fasta_dir ="Pip
 
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
+        output_pair_dir = f'{output_dir}/{foldpair_id}'
+        if not os.path.exists(output_pair_dir):
+            print("Mkdir: " + output_pair_dir)
+            os.mkdir(output_pair_dir)
+            if not os.path.exists(f'./{output_pair_dir}/chain_pdb_files'):
+                print("Mkdir: " + f'./{output_pair_dir}/chain_pdb_files')
+                os.mkdir(f'./{output_pair_dir}/chain_pdb_files')
+
+
+        create_chain_pdb_files(pdbids[0], pdbids[1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
         i = foldpair_ids.index(foldpair_id)
+
+        get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0])
+
 #        if i < 76:  # already done
 #            print("Already plotted")
 #            continue
-        fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[i][0] + pdbchains[i][0] + '.fasta'  # First file of two folds
-#        cur_family_dir = fasta_dir + "/" + foldpair_id
+        fasta_file_name = output_dir + "/" + foldpair_id + "/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
+#        cur_family_dir = output_dir + "/" + foldpair_id
         print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
 
         if run_job_mode == "inline":
@@ -62,7 +80,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',fasta_dir ="Pip
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_pipeline_for_" + foldpair_id + ".out' ./pipeline_get_params.sh " + \
                        fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == "plot":  # here do analysis of the results
-                cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], fasta_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
+                cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
             if run_mode == "tree":  # here do analysis of the results
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
 
@@ -85,7 +103,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',fasta_dir ="Pip
 # Run inline one family. Shouldn't get command line arguments but use function input!!!
 def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains, fasta_file_name):
     cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = [None]*3
-    cur_family_dir = fasta_dir + "/" + foldpair_id
+    cur_family_dir = output_dir + "/" + foldpair_id
     if run_mode == "load_seq_and_struct":  #      if load_seq_and_struct or run_pipeline:  # also for entire pipeline
         run_str = ''  # no pipeline in this mode !!!!
         for fold in range(2):
@@ -93,7 +111,7 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
                 print("Mkdir: " + cur_family_dir)
                 os.mkdir(cur_family_dir)
             print("Get seq + struct for " + pdbids[fold] + ", " + " out of " + str(n_fam-1) )
-            fasta_file_name = fasta_dir + "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + '.fasta'  # added chain to file ID
+            fasta_file_name = output_dir + "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + '.fasta'  # added chain to file ID
     #             # Finally, make a contact map from each pdb file:
     #             # Read structure in slightly different format
                  # New option: extract sequence and structure togehter. Remove from sequence the residues without contacts
@@ -156,7 +174,7 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
         reconstruct_ancestral_sequences(output_tree_file, msa_file, anc_output_file)
     if run_mode == "plot":
         cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores = \
-            make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters)
+            make_foldswitch_all_plots(pdbids, output_dir, foldpair_id, pdbchains, plot_tree_clusters)
         run_str = ''  # no plotting in this mode !!!!
     if run_mode == "run_pipeline":
         run_str = ''  # no pipeline in this mode !!!!
@@ -210,7 +228,7 @@ if run_mode == "tree":  # here do analysis of the results
     tree_reconstruct = True
 
 # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
-fasta_dir = "Pipeline"
+output_dir = "Pipeline"
 pdbids_file = "data/foldswitch_PDB_IDs_full.txt"   # file with all pdb ids
 
 with open(pdbids_file, "r") as file:  # read all pdb ids
@@ -231,8 +249,8 @@ else:  # make a list
     if type(foldpair_ids_to_run) == str:
         foldpair_ids_to_run = [foldpair_ids_to_run]
 
-res_DF = run_fold_switch_pipeline(run_mode, foldpair_ids_to_run,fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
-res_DF.to_csv(fasta_dir + "/Results/foldswitch_res.csv")
+res_DF = run_fold_switch_pipeline(run_mode,foldpair_ids_to_run,fasta_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
+res_DF.to_csv(output_dir + "/Results/foldswitch_res.csv")
 
 
 ### TEMP CODE FOR TRYING STUFF

@@ -7,6 +7,7 @@
 FASTA_FILE_INPUT="$1"
 OUTPUT_NAME_DIR="$2"
 
+
 mkdir Pipeline
 mkdir Pipeline/$OUTPUT_NAME_DIR
 mkdir Pipeline/$OUTPUT_NAME_DIR/output_get_msa

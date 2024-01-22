@@ -1,15 +1,62 @@
 import os
 
-from ESMFold import convert_outputs_to_pdb, save_string_as_pdb
-from transformers import AutoTokenizer, EsmForProteinFolding
-from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
-from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
+# from ESMFold import convert_outputs_to_pdb, save_string_as_pdb
+# from transformers import AutoTokenizer, EsmForProteinFolding
+# from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
+# from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
 from argparse import  ArgumentParser
 import torch
 from random import sample
 import random
 random.seed(10)
 
+from transformers import AutoTokenizer, EsmForProteinFolding
+from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
+from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
+import argparse
+from Bio import SeqIO
+
+#iminuit==1.5.4
+#tmscoring
+
+
+# Specific conversion for atoms
+def convert_outputs_to_pdb(outputs):
+    final_atom_positions = atom14_to_atom37(outputs["positions"][-1], outputs)
+    outputs = {k: v.detach().to("cpu").numpy() for k, v in outputs.items()}
+    final_atom_positions = final_atom_positions.detach().cpu().numpy()
+    final_atom_mask = outputs["atom37_atom_exists"]
+    pdbs = []
+    for i in range(outputs["aatype"].shape[0]):
+        aa = outputs["aatype"][i]
+        pred_pos = final_atom_positions[i]
+        mask = final_atom_mask[i]
+        resid = outputs["residue_index"][i] + 1
+        pred = OFProtein(
+            aatype=aa,
+            atom_positions=pred_pos,
+            atom_mask=mask,
+            residue_index=resid,
+            b_factors=outputs["plddt"][i],
+            chain_index=outputs["chain_index"][i] if "chain_index" in outputs else None,
+        )
+        pdbs.append(to_pdb(pred))
+    return pdbs
+
+
+# Save string to pdb
+def save_string_as_pdb(pdb_string, file_path):
+    with open(file_path, 'w') as pdb_file:
+        pdb_file.write(pdb_string)
+
+
+# Read fasta file
+def get_sequence_from_fasta(fasta_file_path):
+    sequence = None
+    for record in SeqIO.parse(fasta_file_path, "fasta"):
+        sequence = str(record.seq)
+        break
+    return sequence
 
 if __name__ == '__main__':
     parser = ArgumentParser()

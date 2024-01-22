@@ -60,3 +60,6 @@ a = frame_contacts.residue_contacts
 
 z = pd.DataFrame(a.df.values)
 
+
+
+
