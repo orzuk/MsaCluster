@@ -80,8 +80,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             if run_mode == "run_AF":  # run alpha-fold to predict structures
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == "run_pipeline":
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_pipeline_for_" + foldpair_id + ".out' ./pipeline_get_params.sh " + \
-                       fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                run_str = "sbatch   ./pipeline_get_params.sh " +  fasta_file_name + " " + output_dir+"/"+foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == "plot":  # here do analysis of the results
                 cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
             if run_mode == "tree":  # here do analysis of the results
@@ -252,7 +251,7 @@ else:  # make a list
     if type(foldpair_ids_to_run) == str:
         foldpair_ids_to_run = [foldpair_ids_to_run]
 
-res_DF = run_fold_switch_pipeline(run_mode,foldpair_ids_to_run,output_dir="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
+res_DF = run_fold_switch_pipeline(run_mode,foldpair_ids_to_run,output_dir="Pipeline",pdbids_file="data/foldswitch_PDB_IDs_full.txt",run_job_mode=run_job_mode)
 # res_DF.to_csv(output_dir + "/Results/foldswitch_res.csv")
 
 
