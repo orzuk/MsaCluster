@@ -14,11 +14,11 @@ python3 ./get_msa.py $FASTA_FILE_INPUT ./$OUTPUT_NAME_DIR/output_get_msa  -name 
 mkdir  $OUTPUT_NAME_DIR/output_msa_cluster
 python3  ./ClusterMSA_moriah.py --keyword ShallowMsa -i ./$OUTPUT_NAME_DIR/output_get_msa/DeepMsa.a3m  -o ./$OUTPUT_NAME_DIR/output_msa_cluster
 mkdir ./$OUTPUT_NAME_DIR/AF_preds
-sbatch ./RunAF_params.sh $OUTPUT_NAME_DIR
+sbatch ./Pipeline/RunAF_params.sh $OUTPUT_NAME_DIR
 #mkdir /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/output/esm_fold_output
 #sbatch /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/RunEsmFold.sh
 mkdir  ./$OUTPUT_NAME_DIR/output_cmap_esm
-sbatch ./CmapESM_params.sh $OUTPUT_NAME_DIR
+sbatch ./Pipeline/CmapESM_params.sh $OUTPUT_NAME_DIR
 
 
 
