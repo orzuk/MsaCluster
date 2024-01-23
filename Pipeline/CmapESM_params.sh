@@ -17,5 +17,5 @@ RUN_OPERATION="$2"
 . /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
 
 module load torch/1.3
-mkdir -p ./Pipeline/$OUTPUT_NAME_DIR/output_cmap_esm
-python3  ./runESM.py  --input_msas ./Pipeline/$OUTPUT_NAME_DIR/output_msa_cluster -o ./Pipeline/$OUTPUT_NAME_DIR/output_cmap_esm
+mkdir -p $OUTPUT_NAME_DIR/output_cmap_esm
+python3  ./runESM.py  --input_msas $OUTPUT_NAME_DIR/output_msa_cluster -o $OUTPUT_NAME_DIR/output_cmap_esm
