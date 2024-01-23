@@ -14,7 +14,7 @@ OUTPUT_NAME_DIR="$1"
 RUN_OPERATION="$2"
 
 
-. /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
+source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 
 module load torch/1.3
 mkdir -p $OUTPUT_NAME_DIR/output_cmap_esm
