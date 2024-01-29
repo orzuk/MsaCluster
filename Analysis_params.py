@@ -146,8 +146,8 @@ if __name__ == '__main__':
     save_org_cmaps(f'{path}', fold1)
     save_org_cmaps(f'{path}', fold2)
 
-    seq_fold1 = extract_protein_sequence(f'{path}/{fold1}.pdb')
-    seq_fold2 = extract_protein_sequence(f'{path}/{fold2}.pdb')
+    seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
+    seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
 
     fold1_idxs,fold2_idxs = get_align_indexes(seq_fold1, seq_fold2)
 
