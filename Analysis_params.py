@@ -178,6 +178,7 @@ if __name__ == '__main__':
             cmap_res_analysis.append(scores_dict)
 
     cmap_scores_df = pd.DataFrame(cmap_res_analysis)
+    cmap_scores_df.to_csv(f'{path}/Analysis/cmap_scores_df.csv')
 
     unzip_files(folder_path=f'{path}/AF_preds')
 
@@ -204,6 +205,7 @@ if __name__ == '__main__':
     df_af['is_fold1'] = (df_af['Fold'] == fold1[:-1]).astype(int)
     df_af['unique_fold_score'] = df_af.groupby('cluster_num')['is_fold1'].transform('mean')
     df_af.drop(columns=['is_fold1'],inplace=True)
+    df_af.to_csv(f'{path}/Analysis/df_af.csv')
     print('Finish !')
 
 
