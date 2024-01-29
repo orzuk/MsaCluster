@@ -66,7 +66,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
         print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
 
         if run_job_mode == "inline":
-            run_fold_switch_pipeline_one_family(run_mode, foldpair_id,  pdbids[i], pdbchains[i], fasta_file_name)
+            run_fold_switch_pipeline_one_family(run_mode, foldpair_id,pdbids[i],pdbchains[i],fasta_file_name)
         else:  # run job
             if run_mode == "get_msa":
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
@@ -85,6 +85,9 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
             if run_mode == "tree":  # here do analysis of the results
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+            if run_mode == 'Analysis':
+                run_str = f"sbatch  ./Pipeline/get_msa_params.sh {foldpair_id}"
+
 
             print("Send job for " + run_mode + ":\n" + run_str)
             os.system(run_str)

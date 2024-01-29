@@ -1,16 +1,11 @@
-from Bio.SeqUtils import seq1
-import matplotlib.pyplot as plt
 from argparse import  ArgumentParser
 from Bio.PDB import PDBParser, PDBIO, Select
-from Bio import SeqIO
-import mdtraj as md
 from contact_map import ContactFrequency, ContactDifference
 import numpy as np
 import mdtraj as md
 import os
 import pandas as pd
 from scipy.stats import spearmanr
-import tmscoring
 import gzip
 import subprocess
 import re
@@ -25,7 +20,7 @@ def save_org_cmaps(path,fold):
     return frame_contacts
 
 def get_tmscore_align(path_fold1,path_fold2):
-    command = f"/Users/steveabecassis/Desktop/TMalign {path_fold1} {path_fold2}"
+    command = f"TMalign {path_fold1} {path_fold2}"
     output = subprocess.check_output(command, shell=True)
     match = re.search(r"TM-score=\s+(\d+\.\d+)", str(output))
     if match:
@@ -134,18 +129,24 @@ if __name__ == '__main__':
     Cmap analysis
     '''
 
-
-    path = '/Users/steveabecassis/Desktop/1eboE_5fhcJ'
+    parser = ArgumentParser()
+    parser.add_argument("input",help="Should be the pdb pair including the chain like 1eboE_5fhcJ")
+    args = parser.parse_args()
+    pair_output_path = args.input
+    path = f'Pipeline/{pair_output_path}'
     if not os.path.exists(f'{path}/cmaps_pairs'):
         print("Mkdir: " + f'{path}/cmaps_pairs')
         os.mkdir(f'{path}/cmaps_pairs')
+    if not os.path.exists(f'{path}/Analysis'):
+        print("Mkdir: " + f'{path}/Analysis')
+        os.mkdir(f'{path}/Analysis')
     fold1 = '1eboE'
     fold2 = '5fhcJ'
     save_org_cmaps(f'{path}', fold1)
     save_org_cmaps(f'{path}', fold2)
 
-    seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
-    seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
+    seq_fold1 = extract_protein_sequence(f'{path}/{fold1}.pdb')
+    seq_fold2 = extract_protein_sequence(f'{path}/{fold2}.pdb')
 
     fold1_idxs,fold2_idxs = get_align_indexes(seq_fold1, seq_fold2)
 
@@ -182,8 +183,8 @@ if __name__ == '__main__':
     pdb_files = os.listdir(f'{path}/AF_preds')
     res = []
     pdb_files = [i for i in pdb_files if 'pdb' in str(i)]
-    pdb_fold1_path = f'/Users/steveabecassis/Desktop/1eboE_5fhcJ/chain_pdb_files/{fold1}.pdb'
-    pdb_fold2_path = f'/Users/steveabecassis/Desktop/1eboE_5fhcJ/chain_pdb_files/{fold2}.pdb'
+    pdb_fold1_path = f'{path}/chain_pdb_files/{fold1}.pdb'
+    pdb_fold2_path = f'{path}/chain_pdb_files/{fold2}.pdb'
     for pdb_file in pdb_files:
         if ('pdb' in str(pdb_file)) & ('gz' not in str(pdb_file)):
             # score_pdb1 = tmscoring.get_tm(f'{path}/AF_preds/{pdb_file}', pdb_fold1_path)

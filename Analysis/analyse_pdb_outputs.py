@@ -34,6 +34,8 @@ if __name__ == '__main__':
     print('Finish !')
 
 
+
+
     df = pd.DataFrame(res)
     df.loc[df.score_pdb1 > df.score_pdb2 ,'Fold'] = pdb1_name
     df.loc[df.score_pdb1 < df.score_pdb2, 'Fold'] = pdb2_name
