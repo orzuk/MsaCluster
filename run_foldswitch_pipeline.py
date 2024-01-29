@@ -86,7 +86,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             if run_mode == "tree":  # here do analysis of the results
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == 'Analysis':
-                run_str = f"sbatch  ./Pipeline/Analysis.sh {foldpair_id}"
+                run_str = f"sbatch  ./Pipeline/Analysis.sh input {foldpair_id}"
 
 
             print("Send job for " + run_mode + ":\n" + run_str)
