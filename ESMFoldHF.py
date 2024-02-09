@@ -15,6 +15,8 @@ from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OF
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 import argparse
 from Bio import SeqIO
+from Bio import PDB
+from Bio.PDB import PDBParser
 
 #iminuit==1.5.4
 #tmscoring
@@ -43,6 +45,20 @@ def convert_outputs_to_pdb(outputs):
         pdbs.append(to_pdb(pred))
     return pdbs
 
+def extract_protein_sequence(pdb_file):
+    parser = PDBParser()
+    structure = parser.get_structure("protein_structure", pdb_file)
+
+    residue_sequence = ""
+
+    # Iterate through the structure and extract the residue sequence
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                if PDB.is_aa(residue):
+                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
+
+    return residue_sequence
 
 # Save string to pdb
 def save_string_as_pdb(pdb_string, file_path):
@@ -59,24 +75,23 @@ def get_sequence_from_fasta(fasta_file_path):
     return sequence
 
 if __name__ == '__main__':
+
     parser = ArgumentParser()
-    parser.add_argument("-input", default="input", help="Should be a .a3m file")
-    parser.add_argument("-output", help="Directory to write the results to")
+    parser.add_argument("-input",help="Should be a path")
     parser.add_argument("-name", help="msa name")
 
     args = parser.parse_args()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Running ESM-Fold on device: " + device)
 
-    # class args:
-    #     input = './2QKEE_002.a3m'
-    #     output = './'
-    #     name = 'test'
-    input_path = './Pipeline/output/output_msa_cluster'
-    msas_files = os.listdir(args.input)
+    fold_pair = args.input
+    input_path = f'./Pipeline/{fold_pair}/output_msa_cluster'
+
+    msas_files = os.listdir(input_path)
     print('Load model...!')
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+    model = model.to(device)
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     print('Finish to load model !')
 
@@ -85,11 +100,11 @@ if __name__ == '__main__':
             seq = msa_fil.read().splitlines()
         msa_name = msa[:-4]
         seqs = [i.replace('-', '') for i in seq if '>' not in i]
-        if len(seqs) > 30:
-            seqs = sample(seqs,30)
+        if len(seqs) > 10:
+            seqs = sample(seqs,10)
 
         # model.esm = model.esm.half()
-        model.trunk.set_chunk_size(64)
+        model.trunk.set_chunk_size(128)
         model.esm.float()
 
         for i in range(len(seqs)):
@@ -103,7 +118,16 @@ if __name__ == '__main__':
                 print(f'Write pdb output {i}...!')
                 pdb = convert_outputs_to_pdb(outputs)
                 print(pdb[0])
-                save_string_as_pdb(pdb[0], f'./Pipeline/output/esm_fold_output/{msa_name}_{i}.pdb')
+                save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/esm_fold_output/{msa_name}_{i}.pdb')
                 print(f'Finish to write pdb output {i} !')
             except:
                 continue
+
+
+
+        folds = fold_pair.split("_")
+        fold1 = folds[0]
+        fold2 = folds[1]
+        path = f'./Pipeline/{fold_pair}'
+        seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
+        seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')

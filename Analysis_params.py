@@ -141,8 +141,10 @@ if __name__ == '__main__':
     if not os.path.exists(f'{path}/Analysis'):
         print("Mkdir: " + f'{path}/Analysis')
         os.mkdir(f'{path}/Analysis')
-    fold1 = '1eboE'
-    fold2 = '5fhcJ'
+
+    folds = pair_output_path.split("_")
+    fold1 = folds[0]
+    fold2 = folds[1]
     save_org_cmaps(f'{path}', fold1)
     save_org_cmaps(f'{path}', fold2)
 
