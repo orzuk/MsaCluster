@@ -111,7 +111,7 @@ if __name__ == '__main__':
 
 
         for i in range(len(seqs)):
-            # try:
+            try:
                 print(f'Get ESM prediction {i}...')
                 inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)#.to(device)
                 outputs = model(**inputs)
@@ -121,10 +121,10 @@ if __name__ == '__main__':
                 print(f'Write pdb output {i}...!')
                 pdb = convert_outputs_to_pdb(outputs)
                 print(pdb[0])
-                save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/esm_fold_output/{msa_name}_{i}.pdb')
+                save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
                 print(f'Finish to write pdb output {i} !')
-            # except:
-            #     continue
+            except:
+                continue
 
 
 
@@ -139,10 +139,10 @@ if __name__ == '__main__':
         outputs = model(**inputs)
         folded_positions = outputs.positions
         pdb = convert_outputs_to_pdb(outputs)
-        save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/esm_fold_output/{fold1}_esm.pdb')
+        save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
 
         inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
         outputs = model(**inputs)
         folded_positions = outputs.positions
         pdb = convert_outputs_to_pdb(outputs)
-        save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/esm_fold_output/{fold2}_esm.pdb')
+        save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
