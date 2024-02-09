@@ -83,7 +83,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    # print("Running ESM-Fold on device: " + device)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Running ESM-Fold on device: " + device)
+
+    print("Running ESM-Fold on device: " + device)
 
     fold_pair = args.input
     input_path = f'./Pipeline/{fold_pair}/output_msa_cluster'
