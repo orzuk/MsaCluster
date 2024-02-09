@@ -1,12 +1,14 @@
 import torch
 import esm
 
+print('Import success !')
 model = esm.pretrained.esmfold_v1()
 model = model.eval().cuda()
-
+print('Success to load models !')
 # Optionally, uncomment to set a chunk size for axial attention. This can help reduce memory.
 # Lower sizes will have lower memory requirements at the cost of increased speed.
 # model.set_chunk_size(128)
+
 
 sequence = "MKTVRQERLKSIVRILERSKEPVSGAQLAEELSVSRQVIVQDIAYLRSLGYNIVATPRGYVLAGG"
 # Multimer prediction can be done with chains separated by ':'
