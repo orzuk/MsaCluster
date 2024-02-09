@@ -90,11 +90,11 @@ if __name__ == '__main__':
 
     msas_files = os.listdir(input_path)
     print('Load model...!')
-    model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1")
+    model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     model.trunk.set_chunk_size(128)
     model.esm.float()
     model = model.to(device)
-    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     print('Finish to load model !')
 
     for msa in msas_files:
