@@ -93,7 +93,7 @@ if __name__ == '__main__':
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     model.trunk.set_chunk_size(128)
     model.esm.float()
-    model = model.to(device)
+    # model = model.to(device)
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     print('Finish to load model !')
 
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         for i in range(len(seqs)):
             try:
                 print(f'Get ESM prediction {i}...')
-                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True).to(device)
+                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)#.to(device)
                 outputs = model(**inputs)
                 folded_positions = outputs.positions
                 print(f'Finish ESM prediction {i}!')
@@ -133,13 +133,13 @@ if __name__ == '__main__':
         seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
         seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
 
-        inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
+        inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
         outputs = model(**inputs)
         folded_positions = outputs.positions
         pdb = convert_outputs_to_pdb(outputs)
         save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/esm_fold_output/{fold1}_esm.pdb')
 
-        inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
+        inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
         outputs = model(**inputs)
         folded_positions = outputs.positions
         pdb = convert_outputs_to_pdb(outputs)
