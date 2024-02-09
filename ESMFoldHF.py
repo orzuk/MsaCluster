@@ -86,7 +86,6 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Running ESM-Fold on device: " + device)
 
-    print("Running ESM-Fold on device: " + device)
 
     fold_pair = args.input
     input_path = f'./Pipeline/{fold_pair}/output_msa_cluster'
@@ -112,7 +111,7 @@ if __name__ == '__main__':
 
 
         for i in range(len(seqs)):
-            try:
+            # try:
                 print(f'Get ESM prediction {i}...')
                 inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)#.to(device)
                 outputs = model(**inputs)
@@ -124,8 +123,8 @@ if __name__ == '__main__':
                 print(pdb[0])
                 save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/esm_fold_output/{msa_name}_{i}.pdb')
                 print(f'Finish to write pdb output {i} !')
-            except:
-                continue
+            # except:
+            #     continue
 
 
 

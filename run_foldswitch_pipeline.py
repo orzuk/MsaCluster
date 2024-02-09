@@ -76,7 +76,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             if run_mode == "run_esm":
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_esm_for_" + foldpair_id + ".out' ./Pipeline/CmapESM_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == "run_esmfold":
-                run_str = f"sbatch /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/RunEsmFold_params.sh {foldpair_id}"
+                run_str = f"sbatch /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/RunEsmFold_params.sh  {foldpair_id}"
             if run_mode == "run_AF":  # run alpha-fold to predict structures
                 run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
             if run_mode == "run_pipeline":
