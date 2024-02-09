@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:a30
 
 OUTPUT_NAME_DIR="$1"
-RUN_OPERATION="$2"
+
 
 . /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
 

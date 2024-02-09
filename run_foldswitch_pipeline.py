@@ -88,7 +88,6 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             if run_mode == 'Analysis':
                 run_str = f"python3  ./Analysis_params.py  {foldpair_id}"
 
-
             print("Send job for " + run_mode + ":\n" + run_str)
             os.system(run_str)
     # for i in range(n_fam):
