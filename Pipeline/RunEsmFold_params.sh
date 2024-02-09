@@ -4,7 +4,8 @@
 #SBATCH --ntasks=16
 #SBATCH --mem=256G
 #SBATCH --partition=puffin
-#SBATCH --gres=gpu:a100-3-40
+#SBATCH --gres gpu:a30:3
+
 
 OUTPUT_NAME_DIR="$1"
 
