@@ -7,6 +7,21 @@ from protein_plot_utils import *
 from utils import *
 from MSA_Clust import *
 import platform
+import requests
+
+
+def download_pdb(pdb_id):
+    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+    response = requests.get(url)
+
+    # Check if the request was successful (status code 200)
+    if response.status_code == 200:
+        filename = f"./pdb_files/{pdb_id}.pdb"
+        with open(filename, 'w') as file:
+            file.write(response.text)
+        print(f"Downloaded {filename}")
+    else:
+        print(f"Failed to download PDB file for ID {pdb_id}. Status code: {response.status_code}")
 
 
 
@@ -14,6 +29,13 @@ import platform
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
 # MSAs can be represented as a3m format
+
+
+
+
+
+
+
 def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
 
     if type(pdbids_file) == str:                       # input as file
@@ -39,8 +61,13 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
     if run_mode == "plot":
         pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
 
+
+    idx_test = 0
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
+        idx_test +=1
+        if idx_test>3:
+            break
         output_pair_dir = f'{output_dir}/{foldpair_id}'
         if not os.path.exists(output_pair_dir):
             print("Mkdir: " + output_pair_dir)
@@ -54,6 +81,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
 
 
         i = foldpair_ids.index(foldpair_id)
+        download_pdb(pdbids[i][0])
+        download_pdb(pdbids[i][1])
         create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
 
         get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0],output_pair_dir)
