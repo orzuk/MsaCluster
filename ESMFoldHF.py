@@ -88,10 +88,11 @@ if __name__ == '__main__':
 
 
     input_ = args.input
+    print('input:',input_)
     fold_pair = input_.replace("/Pipeline", "",1)  # The '1' indicates to replace the first occurrence only
     input_path = f'./Pipeline/{fold_pair}/output_msa_cluster'
 
-    msas_files = os.listdir(input_path)
+    msas_files = os.listdir(f'./Pipeline/{fold_pair}/output_msa_cluster')
     print('Load model...!')
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     model.trunk.set_chunk_size(64)
