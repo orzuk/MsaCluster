@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     input_ = args.input
     print('input:',input_)
-    fold_pair = input_.replace("/Pipeline", "",1)  # The '1' indicates to replace the first occurrence only
+    fold_pair = input_.replace("Pipeline/", "",1)  # The '1' indicates to replace the first occurrence only
     input_path = f'./Pipeline/{fold_pair}/output_msa_cluster'
 
     msas_files = os.listdir(f'./Pipeline/{fold_pair}/output_msa_cluster')
