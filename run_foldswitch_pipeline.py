@@ -62,12 +62,12 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
         pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
 
 
-    idx_test = 0
+    # idx_test = 0
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
-        idx_test +=1
-        if idx_test>3:
-            break
+        # idx_test +=1
+        # if idx_test>3:
+        #     break
         output_pair_dir = f'{output_dir}/{foldpair_id}'
         if not os.path.exists(output_pair_dir):
             print("Mkdir: " + output_pair_dir)
