@@ -101,6 +101,29 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     print('Finish to load model !')
 
+
+    folds = fold_pair.split("_")
+    fold1 = folds[0]
+    fold2 = folds[1]
+    path = f'./Pipeline/{fold_pair}'
+    print(f'seq fold1:{path}/chain_pdb_files/{fold1}.pdb')
+    seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
+    seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
+
+    inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
+    outputs = model(**inputs)
+    folded_positions = outputs.positions
+    pdb = convert_outputs_to_pdb(outputs)
+    print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
+    save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
+
+    inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
+    outputs = model(**inputs)
+    folded_positions = outputs.positions
+    pdb = convert_outputs_to_pdb(outputs)
+    save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
+
+
     for msa in msas_files:
         with open(f'{input_path}/{msa}', 'r') as msa_fil:
             seq = msa_fil.read().splitlines()
@@ -131,23 +154,3 @@ if __name__ == '__main__':
 
 
 
-    folds = fold_pair.split("_")
-    fold1 = folds[0]
-    fold2 = folds[1]
-    path = f'./Pipeline/{fold_pair}'
-    print(f'seq fold1:{path}/chain_pdb_files/{fold1}.pdb')
-    seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
-    seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
-
-    inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
-    outputs = model(**inputs)
-    folded_positions = outputs.positions
-    pdb = convert_outputs_to_pdb(outputs)
-    print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
-    save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
-
-    inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
-    outputs = model(**inputs)
-    folded_positions = outputs.positions
-    pdb = convert_outputs_to_pdb(outputs)
-    save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
