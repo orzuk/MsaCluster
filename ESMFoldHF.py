@@ -87,7 +87,8 @@ if __name__ == '__main__':
     print("Running ESM-Fold on device: " + device)
 
 
-    fold_pair = args.input
+    input_ = args.input
+    fold_pair = input_.replace("/Pipeline", "",1)  # The '1' indicates to replace the first occurrence only
     input_path = f'./Pipeline/{fold_pair}/output_msa_cluster'
 
     msas_files = os.listdir(input_path)
