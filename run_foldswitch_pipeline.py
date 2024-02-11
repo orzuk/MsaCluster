@@ -65,60 +65,63 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
     # idx_test = 0
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
-        # idx_test +=1
-        # if idx_test>3:
-        #     break
-        output_pair_dir = f'{output_dir}/{foldpair_id}'
-        if not os.path.exists(output_pair_dir):
-            print("Mkdir: " + output_pair_dir)
-            os.mkdir(output_pair_dir)
-        if not os.path.exists(f'./{output_pair_dir}/chain_pdb_files'):
-            print("Mkdir: " + f'./{output_pair_dir}/chain_pdb_files')
-            os.mkdir(f'./{output_pair_dir}/chain_pdb_files')
-        if not os.path.exists(f'./{output_pair_dir}/fasta_chain_files'):
-            print("Mkdir: " + f'./{output_pair_dir}/fasta_chain_files')
-            os.mkdir(f'./{output_pair_dir}/fasta_chain_files')
+        try:
+            # idx_test +=1
+            # if idx_test>3:
+            #     break
+            output_pair_dir = f'{output_dir}/{foldpair_id}'
+            if not os.path.exists(output_pair_dir):
+                print("Mkdir: " + output_pair_dir)
+                os.mkdir(output_pair_dir)
+            if not os.path.exists(f'./{output_pair_dir}/chain_pdb_files'):
+                print("Mkdir: " + f'./{output_pair_dir}/chain_pdb_files')
+                os.mkdir(f'./{output_pair_dir}/chain_pdb_files')
+            if not os.path.exists(f'./{output_pair_dir}/fasta_chain_files'):
+                print("Mkdir: " + f'./{output_pair_dir}/fasta_chain_files')
+                os.mkdir(f'./{output_pair_dir}/fasta_chain_files')
 
 
-        i = foldpair_ids.index(foldpair_id)
-        download_pdb(pdbids[i][0])
-        download_pdb(pdbids[i][1])
-        create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
+            i = foldpair_ids.index(foldpair_id)
+            download_pdb(pdbids[i][0])
+            download_pdb(pdbids[i][1])
+            create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
 
-        get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0],output_pair_dir)
+            get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0],output_pair_dir)
 
-#        if i < 76:  # already done
-#            print("Already plotted")
-#            continue
-        fasta_file_name = output_dir + "/" + foldpair_id + "/fasta_chain_files/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
-#        cur_family_dir = output_dir + "/" + foldpair_id
-        print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
+    #        if i < 76:  # already done
+    #            print("Already plotted")
+    #            continue
+            fasta_file_name = output_dir + "/" + foldpair_id + "/fasta_chain_files/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
+    #        cur_family_dir = output_dir + "/" + foldpair_id
+            print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
 
-        if run_job_mode == "inline":
-            run_fold_switch_pipeline_one_family(run_mode, foldpair_id,pdbids[i],pdbchains[i],fasta_file_name)
-        else:  # run job
-            if run_mode == "get_msa":
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+            if run_job_mode == "inline":
+                run_fold_switch_pipeline_one_family(run_mode, foldpair_id,pdbids[i],pdbchains[i],fasta_file_name)
+            else:  # run job
+                if run_mode == "get_msa":
+                    run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
 
-            if run_mode == "cluster_msa":  # here do analysis of the results
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/cluster_msa_for_" + foldpair_id + ".out' ./Pipeline/ClusterMSA_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-            if run_mode == "run_esm":
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_esm_for_" + foldpair_id + ".out' ./Pipeline/CmapESM_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-            if run_mode == "run_esmfold":
-                run_str = f"sbatch /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/RunEsmFold_params.sh  {foldpair_id}"
-            if run_mode == "run_AF":  # run alpha-fold to predict structures
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-            if run_mode == "run_pipeline":
-                run_str = "sbatch   ./pipeline_get_params.sh " +  fasta_file_name + " " + output_dir+"/"+foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-            if run_mode == "plot":  # here do analysis of the results
-                cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
-            if run_mode == "tree":  # here do analysis of the results
-                run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-            if run_mode == 'Analysis':
-                run_str = f"python3  ./Analysis_params.py  {foldpair_id}"
+                if run_mode == "cluster_msa":  # here do analysis of the results
+                    run_str = "sbatch -o './Pipeline/" + foldpair_id + "/cluster_msa_for_" + foldpair_id + ".out' ./Pipeline/ClusterMSA_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                if run_mode == "run_esm":
+                    run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_esm_for_" + foldpair_id + ".out' ./Pipeline/CmapESM_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                if run_mode == "run_esmfold":
+                    run_str = f"sbatch /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/RunEsmFold_params.sh  {foldpair_id}"
+                if run_mode == "run_AF":  # run alpha-fold to predict structures
+                    run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                if run_mode == "run_pipeline":
+                    run_str = "sbatch   ./pipeline_get_params.sh " +  fasta_file_name + " " + output_dir+"/"+foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                if run_mode == "plot":  # here do analysis of the results
+                    cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
+                if run_mode == "tree":  # here do analysis of the results
+                    run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                if run_mode == 'Analysis':
+                    run_str = f"python3  ./Analysis_params.py  {foldpair_id}"
 
-            print("Send job for " + run_mode + ":\n" + run_str)
-            os.system(run_str)
+                print("Send job for " + run_mode + ":\n" + run_str)
+                os.system(run_str)
+        except:
+            continue
     # for i in range(n_fam):
     #    cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
     #    pred_vec[i] = predict_fold_switch_from_MSA_cluster(cur_MSA, clust_params)
