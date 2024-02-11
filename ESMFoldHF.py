@@ -122,6 +122,7 @@ if __name__ == '__main__':
 
                 print(f'Write pdb output {i}...!')
                 pdb = convert_outputs_to_pdb(outputs)
+                print(f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
                 print(pdb[0])
                 save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
                 print(f'Finish to write pdb output {i} !')
@@ -134,6 +135,7 @@ if __name__ == '__main__':
     fold1 = folds[0]
     fold2 = folds[1]
     path = f'./Pipeline/{fold_pair}'
+    print(f'seq fold1:{path}/chain_pdb_files/{fold1}.pdb')
     seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
     seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
 
@@ -141,6 +143,7 @@ if __name__ == '__main__':
     outputs = model(**inputs)
     folded_positions = outputs.positions
     pdb = convert_outputs_to_pdb(outputs)
+    print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
     save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
 
     inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)#.to(device)
