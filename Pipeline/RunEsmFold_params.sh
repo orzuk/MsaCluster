@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=05:00:00
+#SBATCH --time=24:00:00
 #SBATCH --ntasks=16
 #SBATCH --mem=256G
 #SBATCH --partition=puffin
