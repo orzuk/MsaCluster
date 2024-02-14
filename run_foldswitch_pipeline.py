@@ -82,9 +82,9 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
 
 
             i = foldpair_ids.index(foldpair_id)
-            download_pdb(pdbids[i][0])
-            download_pdb(pdbids[i][1])
-            create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
+            # download_pdb(pdbids[i][0])
+            # download_pdb(pdbids[i][1])
+            # create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
 
             get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0],output_pair_dir)
 
