@@ -130,18 +130,19 @@ if __name__ == '__main__':
     '''
 
     parser = ArgumentParser()
-    parser.add_argument("input",help="Should be the pdb pair including the chain like 1eboE_5fhcJ")
+    parser.add_argument("-input",help="Should be the pdb pair including the chain like 1eboE_5fhcJ")
     args = parser.parse_args()
     pair_output_path = args.input
     fold_pair = pair_output_path.replace("Pipeline/", "", 1)
+    print(f'Fold_pair: {fold_pair}')
     path = f'./Pipeline/{fold_pair}'
     print(f'Path: {path}')
-    # if not os.path.exists(f'{path}/cmaps_pairs'):
-    #     print("Mkdir: " + f'{path}/cmaps_pairs')
-    #     os.mkdir(f'{path}/cmaps_pairs')
-    # if not os.path.exists(f'{path}/Analysis'):
-    #     print("Mkdir: " + f'{path}/Analysis')
-    #     os.mkdir(f'{path}/Analysis')
+    if not os.path.exists(f'{path}/cmaps_pairs'):
+        print("Mkdir: " + f'{path}/cmaps_pairs')
+        os.mkdir(f'{path}/cmaps_pairs')
+    if not os.path.exists(f'{path}/Analysis'):
+        print("Mkdir: " + f'{path}/Analysis')
+        os.mkdir(f'{path}/Analysis')
 
     folds = pair_output_path.split("_")
     fold1 = folds[0]

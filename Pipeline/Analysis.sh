@@ -7,8 +7,7 @@
 source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 
 OUTPUT_NAME_DIR="$1"
-mkdir -p ./$OUTPUT_NAME_DIR/cmaps_pairs
-mkdir -p ./$OUTPUT_NAME_DIR/Analysis
+
 
 python3 ./Analysis_params.py $OUTPUT_NAME_DIR
 
