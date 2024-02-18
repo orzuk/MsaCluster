@@ -123,34 +123,34 @@ if __name__ == '__main__':
     pdb = convert_outputs_to_pdb(outputs)
     save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
 
-    #
-    # for msa in msas_files:
-    #     with open(f'{input_path}/{msa}', 'r') as msa_fil:
-    #         seq = msa_fil.read().splitlines()
-    #     msa_name = msa[:-4]
-    #     seqs = [i.replace('-', '') for i in seq if '>' not in i]
-    #     if len(seqs) > 10:
-    #         seqs = sample(seqs,10)
-    #
-    #     # model.esm = model.esm.half()
-    #
-    #
-    #     for i in range(len(seqs)):
-    #         try:
-    #             print(f'Get ESM prediction {i}...')
-    #             inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True).to(device)
-    #             outputs = model(**inputs)
-    #             folded_positions = outputs.positions
-    #             print(f'Finish ESM prediction {i}!')
-    #
-    #             print(f'Write pdb output {i}...!')
-    #             pdb = convert_outputs_to_pdb(outputs)
-    #             print(f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
-    #             print(pdb[0])
-    #             save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
-    #             print(f'Finish to write pdb output {i} !')
-    #         except:
-    #             continue
+
+    for msa in msas_files:
+        with open(f'{input_path}/{msa}', 'r') as msa_fil:
+            seq = msa_fil.read().splitlines()
+        msa_name = msa[:-4]
+        seqs = [i.replace('-', '') for i in seq if '>' not in i]
+        if len(seqs) > 10:
+            seqs = sample(seqs,10)
+
+        # model.esm = model.esm.half()
+
+
+        for i in range(len(seqs)):
+            try:
+                print(f'Get ESM prediction {i}...')
+                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True).to(device)
+                outputs = model(**inputs)
+                folded_positions = outputs.positions
+                print(f'Finish ESM prediction {i}!')
+
+                print(f'Write pdb output {i}...!')
+                pdb = convert_outputs_to_pdb(outputs)
+                print(f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
+                print(pdb[0])
+                save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
+                print(f'Finish to write pdb output {i} !')
+            except:
+                continue
 
 
 
