@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH --time=24:00:00
-#SBATCH --ntasks=16
-#SBATCH --mem=256G
+#SBATCH --ntasks=8
+#SBATCH --mem=24G
 #SBATCH --partition=puffin
-#SBATCH --gres=gpu:a30
+#SBATCH --gres=gpu:a30:2
 
 OUTPUT_NAME_DIR="$1"
 
