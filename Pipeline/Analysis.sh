@@ -4,12 +4,13 @@
 #SBATCH --ntasks=8
 #SBATCH --mem=8G
 
-source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
-
 OUTPUT_NAME_DIR="$1"
 
+source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 
-python3 ./Analysis_params.py $OUTPUT_NAME_DIR
+
+
+python3 ./Analysis_params.py -input $OUTPUT_NAME_DIR
 
 
 
