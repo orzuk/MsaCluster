@@ -17,7 +17,8 @@ import argparse
 from Bio import SeqIO
 from Bio import PDB
 from Bio.PDB import PDBParser
-
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
 #iminuit==1.5.4
 #tmscoring
 
@@ -75,6 +76,10 @@ def get_sequence_from_fasta(fasta_file_path):
     return sequence
 
 if __name__ == '__main__':
+    print('######################## memory_summary ####################################')
+    print(torch.cuda.memory_summary())
+    print('############################################################################')
+
 
     parser = ArgumentParser()
     parser.add_argument("-input",help="Should be a path")
