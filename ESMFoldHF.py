@@ -106,6 +106,10 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     print('Finish to load model !')
 
+    print('######################## memory_summary ####################################')
+    print(torch.cuda.memory_summary())
+    print('############################################################################')
+
 
     folds = fold_pair.split("_")
     fold1 = folds[0]
@@ -122,11 +126,22 @@ if __name__ == '__main__':
     print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
     save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
 
+
+    print('######################## memory_summary ####################################')
+    print(torch.cuda.memory_summary())
+    print('############################################################################')
+
+
     inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
     outputs = model(**inputs)
     folded_positions = outputs.positions
     pdb = convert_outputs_to_pdb(outputs)
     save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
+
+
+    print('######################## memory_summary ####################################')
+    print(torch.cuda.memory_summary())
+    print('############################################################################')
 
 
     for msa in msas_files:
