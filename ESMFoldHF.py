@@ -141,6 +141,7 @@ if __name__ == '__main__':
     print(torch.cuda.memory_summary())
     print('############################################################################')
 
+    torch.cuda.empty_cache()
 
     # if len(seq_fold2)
     inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
