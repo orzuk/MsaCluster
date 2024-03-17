@@ -18,9 +18,10 @@ from Bio import SeqIO
 from Bio import PDB
 from Bio.PDB import PDBParser
 import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
 #iminuit==1.5.4
 #tmscoring
+
 
 
 # Specific conversion for atoms
@@ -90,7 +91,7 @@ if __name__ == '__main__':
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Running ESM-Fold on device: " + device)
-
+    torch.backends.cuda.matmul.allow_tf32 = True
 
     input_ = args.input
     print('input:',input_)
@@ -141,6 +142,7 @@ if __name__ == '__main__':
     print('############################################################################')
 
 
+    if len(seq_fold2)
     inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
     outputs = model(**inputs)
     folded_positions = outputs.positions
