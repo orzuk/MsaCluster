@@ -119,6 +119,14 @@ if __name__ == '__main__':
     seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
     seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
 
+    print('################################seq_fold1############################################')
+    seq_fold1
+    print('############################################################################')
+    print('###################################seq_fold2#########################################')
+    seq_fold2
+    print('############################################################################')
+
+
     inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
     outputs = model(**inputs)
     folded_positions = outputs.positions
