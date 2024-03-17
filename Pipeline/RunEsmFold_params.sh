@@ -4,7 +4,7 @@
 #SBATCH --ntasks=8
 #SBATCH --mem=24G
 #SBATCH --partition=dogfish
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:a100:3
 
 OUTPUT_NAME_DIR="$1"
 
