@@ -18,7 +18,7 @@ from Bio import SeqIO
 from Bio import PDB
 from Bio.PDB import PDBParser
 import os
-# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
 #iminuit==1.5.4
 #tmscoring
 
