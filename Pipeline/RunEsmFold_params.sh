@@ -2,9 +2,9 @@
 
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=8
-#SBATCH --mem=48G
+#SBATCH --mem=24G
 #SBATCH --partition=dogfish
-#SBATCH --gres=gpu:a100:2
+#SBATCH --gres=gpu:a100:1
 
 OUTPUT_NAME_DIR="$1"
 
