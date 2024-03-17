@@ -142,7 +142,7 @@ if __name__ == '__main__':
     print('############################################################################')
 
 
-    if len(seq_fold2)
+    # if len(seq_fold2)
     inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
     outputs = model(**inputs)
     folded_positions = outputs.positions
