@@ -91,7 +91,6 @@ if __name__ == '__main__':
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Running ESM-Fold on device: " + device)
-    torch.backends.cuda.matmul.allow_tf32 = True
 
     input_ = args.input
     print('input:',input_)
@@ -101,10 +100,14 @@ if __name__ == '__main__':
     msas_files = os.listdir(f'./Pipeline/{fold_pair}/output_msa_cluster')
     print('Load model...!')
     model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+    model = model.cuda()
+    model.esm = model.esm.half()
+    torch.backends.cuda.matmul.allow_tf32 = True
     model.trunk.set_chunk_size(64)
     model.esm.float()
     model = model.to(device)
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+    tokenizer = tokenizer.cuda()
     print('Finish to load model !')
 
     print('######################## memory_summary ####################################')
@@ -130,7 +133,8 @@ if __name__ == '__main__':
 
 
     inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
-    outputs = model(**inputs)
+    with torch.no_grad():
+        outputs = model(**inputs)
     folded_positions = outputs.positions
     pdb = convert_outputs_to_pdb(outputs)
     print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
