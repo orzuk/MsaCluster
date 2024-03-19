@@ -131,10 +131,10 @@ if __name__ == '__main__':
 
 
 
-    inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False).to(device)
+    inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False)['input_ids']
     inputs = inputs.cuda()
     with torch.no_grad():
-        outputs = model(**inputs)
+        outputs = model(inputs)
     folded_positions = outputs.positions
     pdb = convert_outputs_to_pdb(outputs)
     print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
@@ -147,10 +147,10 @@ if __name__ == '__main__':
 
 
     # if len(seq_fold2)
-    inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True).to(device)
+    inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)['input_ids']
     inputs = inputs.cuda()
     with torch.no_grad():
-        outputs = model(**inputs)
+        outputs = model(inputs)
     folded_positions = outputs.positions
     pdb = convert_outputs_to_pdb(outputs)
     save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
@@ -175,10 +175,10 @@ if __name__ == '__main__':
         for i in range(len(seqs)):
             try:
                 print(f'Get ESM prediction {i}...')
-                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True).to(device)
+                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)['input_ids']
                 inputs = inputs.cuda()
                 with torch.no_grad():
-                    outputs = model(**inputs)
+                    outputs = model(inputs)
                 folded_positions = outputs.positions
                 print(f'Finish ESM prediction {i}!')
 
