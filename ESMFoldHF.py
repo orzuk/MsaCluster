@@ -77,10 +77,6 @@ def get_sequence_from_fasta(fasta_file_path):
     return sequence
 
 if __name__ == '__main__':
-    print('######################## memory_summary ####################################')
-    print(torch.cuda.memory_summary())
-    print('############################################################################')
-
 
     parser = ArgumentParser()
     parser.add_argument("-input",help="Should be a path")
@@ -109,10 +105,6 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
     print('Finish to load model !')
 
-    print('######################## memory_summary ####################################')
-    print(torch.cuda.memory_summary())
-    print('############################################################################')
-
 
     folds = fold_pair.split("_")
     fold1 = folds[0]
@@ -139,11 +131,7 @@ if __name__ == '__main__':
     pdb = convert_outputs_to_pdb(outputs)
     print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
     save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
-
-
-    print('######################## memory_summary ####################################')
-    print(torch.cuda.memory_summary())
-    print('############################################################################')
+    print(f'Success to save {fold1} pdb file !')
 
 
     # if len(seq_fold2)
@@ -154,12 +142,7 @@ if __name__ == '__main__':
     folded_positions = outputs.positions
     pdb = convert_outputs_to_pdb(outputs)
     save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
-
-
-    print('######################## memory_summary ####################################')
-    print(torch.cuda.memory_summary())
-    print('############################################################################')
-
+    print(f'Success to save {fold2} pdb file !')
 
     for msa in msas_files:
         with open(f'{input_path}/{msa}', 'r') as msa_fil:
@@ -169,7 +152,6 @@ if __name__ == '__main__':
         if len(seqs) > 10:
             seqs = sample(seqs,10)
 
-        # model.esm = model.esm.half()
 
 
         for i in range(len(seqs)):

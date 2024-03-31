@@ -56,7 +56,7 @@ summary_df[summary_df['len_msa_cluster']>0]['CmapESM_SUCCESS'].mean()
 summary_df[summary_df['len_msa_cluster']>0]['AF_SUCCESS'].mean()
 summary_df[summary_df['len_msa_cluster']>0]['EsmFold_SUCCESS'].mean()
 
-
+summary_df.sort_values(by='protein_pair',inplace=True)
 # summary_df[summary_df['len_msa_cluster']>0][summary_df['len_msa_cluster'] != (summary_df['len_cmap_esm']-1)]
 # summary_df[summary_df['len_msa_cluster']>0][summary_df['len_msa_cluster'] != (summary_df['len_AF_preds'])]
 
@@ -64,7 +64,9 @@ success_data = summary_df[summary_df['len_msa_cluster']>0][summary_df['len_msa_c
 
 
 
-summary_df.columns
+#summary_df['EsmFold_SUCCESS'].sum()
+
+
 
 
 

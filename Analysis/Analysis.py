@@ -42,6 +42,7 @@ def get_jaccard_index_score(cmap1,cmap2,th=0.4):
     jaccard_index = round(np.sum(intersection) / np.sum(union),3)
     print(f"Jaccard Index: {jaccard_index}")
     return jaccard_index
+
 def spearman_score(cmap1,cmap2):
     # Calculate Spearman Correlation
     correlation,_ = spearmanr(cmap1.flatten(), cmap2.flatten())
