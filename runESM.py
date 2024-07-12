@@ -99,7 +99,7 @@ if __name__=='__main__':
 
     if args.model == 'esm1b':
         for name, inputs in sequences.items():
-            batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
+            batch_labels,batch_strs,batch_tokens = batch_converter([inputs])
             batch_tokens = batch_tokens.to(next(mdl.parameters()).device)
             print('ESM1b predicting...')
             pred = mdl.predict_contacts(batch_tokens)[0].cpu()

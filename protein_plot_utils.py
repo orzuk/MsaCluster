@@ -268,6 +268,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #        break
 # next plotP
 
+import pymolPy3
+
 
 # Align two pdb structures from two pdb files
 def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environment=True):
@@ -560,3 +562,6 @@ def plot_foldswitch_contacts_and_predictions(
     save_flag = False  # add as input
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
+
+
+
