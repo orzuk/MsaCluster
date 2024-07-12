@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sortable Table</title>
+    <title>Sortable Table of HTML Files</title>
     <style>
         table {
             border-collapse: collapse;
@@ -26,33 +26,36 @@
     <table id="myTable">
         <thead>
             <tr>
-                <th onclick="sortTable(0)">Column 1</th>
-                <th onclick="sortTable(1)">Column 2</th>
-                <th onclick="sortTable(2)">HTML Files</th>
+                <th onclick="sortTable(0)">File Name</th>
+                <th onclick="sortTable(1)">Link</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>Value 1</td>
-                <td>Value 2</td>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/file1.html" target="_blank">File 1</a></td>
+                <td>1iytA_2naoF.html</td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/1iytA_2naoF.html" target="_blank">View</a></td>
             </tr>
             <tr>
-                <td>Value 3</td>
-                <td>Value 4</td>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/file1.html" target="_blank">File 2</a></td>
+                <td>5i2sA_5i2mA.html</td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/5i2sA_5i2mA.html" target="_blank">View</a></td>
             </tr>
-            <!-- Add more rows as needed -->
+            <tr>
+                <td>4ow6B_4ae0A.html</td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/4ow6B_4ae0A.html" target="_blank">View</a></td>
+            </tr>
+            <!-- Add the rest of the files here -->
+            <tr>
+                <td>3l5nB_2a73B.html</td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/3l5nB_2a73B.html" target="_blank">View</a></td>
+            </tr>
         </tbody>
     </table>
 
     <script>
-        // (Keep the sortTable function as it was in the previous example)
+        // (The sortTable function remains the same)
     </script>
 </body>
 </html>
-
-
 
 ## Running from python: 
 The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
