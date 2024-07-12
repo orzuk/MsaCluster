@@ -41,7 +41,7 @@
                 <td>0.79</td>
                 <td>0.46</td>
             </tr>
-                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA.html</a></td>
                 <td>0.79</td>
                 <td>0.45</td>
             </tr>
