@@ -33,15 +33,15 @@
         </thead>
         <tbody>
             <tr>
-                <td><a href="https://raw.githubusercontent.com/yourusername/your-repo-name/main/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
                 <td>0.79</td>
                 <td>0.56</td>
             </tr>
-                <td><a href="https://raw.githubusercontent.com/yourusername/your-repo-name/main/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
                 <td>0.79</td>
                 <td>0.45</td>
             </tr>
-                <td><a href="https://raw.githubusercontent.com/yourusername/your-repo-name/main/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
+                <td><a href="https://raw.githubusercontent.com/steveabecassis/MsaCluster/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
                 <td>0.79</td>
                 <td>0.45</td>
             </tr>
