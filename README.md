@@ -422,23 +422,22 @@
                 <td>0.79</td>
                 <td>0.79</td>
             </tr>
-
             <!-- Add more rows as needed -->
         </tbody>
     </table>
 
     <script>
-        // (Keep the sortTable function as it was in the previous example)
+            // (Keep the sortTable function as it was in the previous example)
     </script>
 </body>
 </html>
-
-## Running from python: 
-The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
-
-python3 run_foldswitch_pipeline [operation] [foldpair_id]
-
-For example: 
+    
+    ## Running from python: 
+    The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
+    
+    python3 run_foldswitch_pipeline [operation] [foldpair_id]
+    
+    For example: 
 
 python3 run_foldswitch_pipeline cluster_msa 1jfkA_2nxqB
 
