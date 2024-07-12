@@ -40,7 +40,7 @@
             <tr>
                 <td>Value 3</td>
                 <td>Value 4</td>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/file2.html" target="_blank">File 2</a></td>
+                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/file1.html" target="_blank">File 2</a></td>
             </tr>
             <!-- Add more rows as needed -->
         </tbody>
@@ -51,6 +51,7 @@
     </script>
 </body>
 </html>
+
 
 
 ## Running from python: 
