@@ -35,12 +35,12 @@
             <tr>
                 <td>Value 1</td>
                 <td>Value 2</td>
-                <td><a href="./HTML/file1.html" target="_blank">File 1</a></td>
+                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/file1.html" target="_blank">File 1</a></td>
             </tr>
             <tr>
                 <td>Value 3</td>
                 <td>Value 4</td>
-                <td><a href="./HTML/file2.html" target="_blank">File 2</a></td>
+                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/file2.html" target="_blank">File 2</a></td>
             </tr>
             <!-- Add more rows as needed -->
         </tbody>
