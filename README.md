@@ -22,12 +22,12 @@
             <tr>
                 <td>Data 1</td>
                 <td>Data 2</td>
-                <td><a href="./file1.html">File1</a></td>
+                <td><a href="./HTML/file1.html">File1</a></td>
             </tr>
             <tr>
                 <td>Data 3</td>
                 <td>Data 4</td>
-                <td><a href="./file2.html">File2</a></td>
+                <td><a href="./HTML/file2.html">File2</a></td>
             </tr>
         </tbody>
     </table>
