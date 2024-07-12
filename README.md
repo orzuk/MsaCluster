@@ -113,11 +113,6 @@
                 <td>0.79</td>
             </tr>
             <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/.DS_Store" target="_blank">.DS_</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
                 <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2vfxL_3gmhL.html" target="_blank">2vfxL_3gmhL</a></td>
                 <td>0.79</td>
                 <td>0.79</td>
