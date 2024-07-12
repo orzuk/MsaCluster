@@ -1,13 +1,91 @@
 # MsaCluster
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sortable Table</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            cursor: pointer;
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <table id="myTable">
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">Column 1</th>
+                <th onclick="sortTable(1)">Column 2</th>
+                <th onclick="sortTable(2)">Column with Links</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Value 1</td>
+                <td>Value 2</td>
+                <td><a href="./HTML/file1.html">Link 1</a></td>
+            </tr>
+            <tr>
+                <td>Value 3</td>
+                <td>Value 4</td>
+                <td><a href="./HTML/file1.html">Link 2</a></td>
+            </tr>
+            <!-- Add more rows as needed -->
+        </tbody>
+    </table>
 
-| Column 1 | Column 2 | HTML Files                                                           |
-|----------|----------|----------------------------------------------------------------------|
-| Data 1   | Data 2   | [File1](https://steveabecassis.github.io/MsaCluster/HTML/file1.html) |
-| Data 3   | Data 4   | [File2](https://steveabecassis.github.io/MsaCluster/HTML/file2.html) |
-
-
-
+    <script>
+        function sortTable(n) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById("myTable");
+            switching = true;
+            dir = "asc";
+            while (switching) {
+                switching = false;
+                rows = table.rows;
+                for (i = 1; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[n];
+                    y = rows[i + 1].getElementsByTagName("TD")[n];
+                    if (dir == "asc") {
+                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else if (dir == "desc") {
+                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount++;
+                } else {
+                    if (switchcount == 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
 
 
 
