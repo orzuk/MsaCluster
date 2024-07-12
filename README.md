@@ -1,38 +1,10 @@
 # MsaCluster
 
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sortable Table</title>
-    <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
-</head>
-<body>
-    <table class="sortable">
-        <thead>
-            <tr>
-                <th>Column 1</th>
-                <th>Column 2</th>
-                <th>HTML Files</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Data 1</td>
-                <td>Data 2</td>
-                <td><a href="./HTML/file1.html">File1</a></td>
-            </tr>
-            <tr>
-                <td>Data 3</td>
-                <td>Data 4</td>
-                <td><a href="./HTML/file2.html">File2</a></td>
-            </tr>
-        </tbody>
-    </table>
-</body>
-</html>
+| Column 1 | Column 2 | HTML Files                                                           |
+|----------|----------|----------------------------------------------------------------------|
+| Data 1   | Data 2   | [File1](https://steveabecassis.github.io/MsaCluster/HTML/file1.html) |
+| Data 3   | Data 4   | [File2](https://steveabecassis.github.io/MsaCluster/HTML/file2.html) |
 
 
 
