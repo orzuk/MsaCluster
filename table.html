@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Table</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive Table</h1>
+    <table id="myTable">
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">Fold Pair</th>
+                <th onclick="sortTable(1)">Best TM Score AF 1</th>
+                <th onclick="sortTable(2)">Best TM Score AF 2</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1iytA_2naoF.html" target="_blank">1iytA_2naoF</a></td>
+                <td>0.79</td>
+                <td>0.79</td>
+            </tr>
+            <tr>
+                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5i2sA_5i2mA.html" target="_blank">5i2sA_5i2mA</a></td>
+                <td>0.79</td>
+                <td>0.79</td>
+            </tr>
+            <!-- More rows as needed -->
+        </tbody>
+    </table>
+
+    <script>
+        function sortTable(column) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById("myTable");
+            switching = true;
+            dir = "asc"; // Set the initial sorting direction to ascending
+            // Continue looping until no switching has been done
+            while (switching) {
+                switching = false; // start by saying no switching is needed
+                rows = table.rows;
+                for (i = 1; i < rows.length - 1; i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[column];
+                    y = rows[i + 1].getElementsByTagName("TD")[column];
+                    if (dir === "asc") {
+                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else if (dir === "desc") {
+                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount++;
+                } else {
+                    if (switchcount === 0 && dir === "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
