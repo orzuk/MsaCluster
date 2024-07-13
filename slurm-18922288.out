@@ -1,3 +1,0 @@
-mkdir: cannot create directory 'output/esm_fold_output': File exists
-/var/spool/slurmd/job18922288/slurm_script: line 9: 199742 Killed                  python3 ./ESMFoldHF.py -input ./2QKEE_002.a3m -output ./output/esm_fold_output/ -name 'test'
-slurmstepd: error: Detected 1 oom-kill event(s) in StepId=18922288.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.

@@ -1,14 +1,10 @@
-from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
 # import itertools
 # import os
 # from pathlib import Path
-import time
-from protein_utils import *
-from phytree_utils import *
+from scripts.phytree_utils import *
 from glob import glob
 
 import torch
-from scipy.spatial.distance import squareform, pdist, cdist
 import matplotlib as mpl
 import argparse
 mpl.use("agg")

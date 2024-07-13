@@ -1,15 +1,12 @@
 import argparse
 import pandas as pd
-from Bio import SeqIO
-import numpy as np
-import sys, os
+import os
 from polyleven import levenshtein
-from sklearn.cluster import DBSCAN
 from hdbscan import HDBSCAN
 import numpy as np
 import pickle
 from glob import glob
-from msa_utils import *
+from scripts.msa_utils import *
 
 
 def dihedral_wrapper(traj):

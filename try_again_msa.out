@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "./get_msa.py", line 4, in <module>
-    from colabfold.batch import get_msa_and_templates
-ModuleNotFoundError: No module named 'colabfold.batch'

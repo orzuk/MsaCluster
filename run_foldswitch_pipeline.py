@@ -1,11 +1,7 @@
 # Rub pipeline from a list of PDBs
-import copy
 
-import pandas as pd
-from phytree_utils import *
-from protein_plot_utils import *
+from scripts.protein_plot_utils import *
 from utils import *
-from MSA_Clust import *
 import platform
 import requests
 
@@ -218,8 +214,6 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
     print("Run command line for " + run_mode + ":\n" + run_str)
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec
 #    os.system(run_str)
-
-from Bio import Align
 
 # problematic_families = ["1nqjB_1nqdA", "1qlnA_1h38D", "3l5nB_2a73B", "2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # second, third is large, no/one cmaps were generated !
 # problematic_families = ["2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # 2bzyB_2lqwA bad (missing ) true cmap!!

@@ -1,9 +1,8 @@
-from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
 # import itertools
 # import os
 # from pathlib import Path
 import time
-from protein_utils import *
+from scripts.protein_utils import *
 
 import numpy as np
 import torch

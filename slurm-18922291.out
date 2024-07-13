@@ -1,2 +1,0 @@
-mkdir: cannot create directory 'output/esm_fold_output': File exists
-slurmstepd: error: *** JOB 18922291 ON dogfish-01 CANCELLED AT 2023-09-06T00:06:16 ***
