@@ -1,22 +1,16 @@
 # MsaCluster
 
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Include the DataTables CSS -->
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.css">
-    <!-- Include jQuery Library -->
-    <script type="text/javascript" src="https://code.jquery.com/jquery-3.5.1.js"></script>
-    <!-- Include DataTables JavaScript -->
-    <script type="text/javascript" src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
 </head>
 <body>
     <table id="myTable">
         <thead>
             <tr>
-                <th>Fold Pair</th>
-                <th>Best TM score AF 1</th>
-                <th>Best TM score AF 2</th> <!-- It seems like you had the same header name twice -->
+                <th onclick="sortTable(0)">Fold Pair</th>
+                <th onclick="sortTable(1)">Best TM score AF 1</th>
+                <th onclick="sortTable(2)">Best TM score AF 2</th>
             </tr>
         </thead>
         <tbody>
@@ -35,12 +29,40 @@
     </table>
 
     <script>
-        $(document).ready( function () {
-            $('#myTable').DataTable();
-        } );
+        function sortTable(column) {
+            var table, rows, switching, i, x, y, shouldSwitch;
+            table = document.getElementById("myTable");
+            switching = true;
+            // Make a loop that will continue until no switching has been done:
+            while (switching) {
+                // Start by saying: no switching is done:
+                switching = false;
+                rows = table.rows;
+                // Loop through all table rows (except the first, which contains table headers):
+                for (i = 1; i < (rows.length - 1); i++) {
+                    // Start by saying there should be no switching:
+                    shouldSwitch = false;
+                    // Get the two elements you want to compare, one from current row and one from the next:
+                    x = rows[i].getElementsByTagName("TD")[column];
+                    y = rows[i + 1].getElementsByTagName("TD")[column];
+                    // Check if the two rows should switch place, based on the direction, asc or desc:
+                    if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                        // If so, mark as a switch and break the loop:
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+                if (shouldSwitch) {
+                    // If a switch has been marked, make the switch and mark that a switch has been done:
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                }
+            }
+        }
     </script>
 </body>
 </html>
+
 
     
 ## Running from python: 
