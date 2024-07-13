@@ -28,7 +28,6 @@
             <!-- More rows -->
         </tbody>
     </table>
-
     <script>
         function sortTable(column) {
             var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
