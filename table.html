@@ -34,47 +34,45 @@
             <tr>
                 <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1iytA_2naoF.html" target="_blank">1iytA_2naoF</a></td>
                 <td>0.79</td>
-                <td>0.79</td>
+                <td>0.81</td>
             </tr>
             <tr>
                 <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5i2sA_5i2mA.html" target="_blank">5i2sA_5i2mA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
+                <td>0.88</td>
+                <td>0.85</td>
             </tr>
             <!-- More rows as needed -->
         </tbody>
     </table>
 
     <script>
-        // Create an array to track the direction of sorting for each column
-        var sortDirections = {};
+        var sortDirection = [];
 
         function sortTable(column) {
-            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            var table, rows, switching, i, x, y, xValue, yValue, shouldSwitch;
             table = document.getElementById("myTable");
             switching = true;
-            // Check if the direction is already set for this column and toggle it
-            if (sortDirections[column] === "asc") {
-                dir = "desc";
-            } else {
-                dir = "asc";
-            }
-            sortDirections[column] = dir; // Set the direction to the current column
+            // Toggle the direction each time the column header is clicked
+            sortDirection[column] = !sortDirection[column];
 
             while (switching) {
                 switching = false;
-                rows = table.rows;
+                rows = table.getElementsByTagName("tr");
+                // Loop through all rows (except the first header row)
                 for (i = 1; i < rows.length - 1; i++) {
                     shouldSwitch = false;
                     x = rows[i].getElementsByTagName("TD")[column];
                     y = rows[i + 1].getElementsByTagName("TD")[column];
-                    if (dir === "asc") {
-                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                    xValue = isNaN(parseFloat(x.innerHTML)) ? x.innerHTML.toLowerCase() : parseFloat(x.innerHTML);
+                    yValue = isNaN(parseFloat(y.innerHTML)) ? y.innerHTML.toLowerCase() : parseFloat(y.innerHTML);
+
+                    if (sortDirection[column]) {
+                        if (xValue > yValue) {
                             shouldSwitch = true;
                             break;
                         }
-                    } else if (dir === "desc") {
-                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                    } else {
+                        if (xValue < yValue) {
                             shouldSwitch = true;
                             break;
                         }
@@ -83,12 +81,6 @@
                 if (shouldSwitch) {
                     rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
                     switching = true;
-                    switchcount++;
-                } else {
-                    if (switchcount === 0 && dir === "asc") {
-                        dir = "desc";
-                        switching = true;
-                    }
                 }
             }
         }
