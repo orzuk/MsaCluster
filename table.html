@@ -4,44 +4,49 @@
     <title>Interactive Protein Comparison Table</title>
     <style>
         body {
-            font-family: Arial, sans-serif; /* Sets a modern sans-serif font */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modern, readable font */
+            background-color: #eceff1; /* Light grey-blue background for soft look */
+            color: #333; /* Soft dark color for text */
             margin: 20px;
-            background-color: #f4f9ff; /* A light blue background */
-            color: #333; /* Dark grey text for better readability */
         }
         table {
-            width: 90%;
-            margin: 20px auto; /* Centering the table on the page */
+            width: 80%; /* Slightly reduced width for better focus */
+            margin: auto; /* Centered in the page */
             border-collapse: collapse;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Adds a subtle shadow for depth */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Subtle shadow for depth */
         }
         th, td {
-            border: 1px solid #ccc;
-            padding: 12px 15px; /* More padding for better spacing */
+            border: 1px solid #dee2e6; /* Light grey border */
+            padding: 12px 16px; /* Ample padding for content */
             text-align: left;
         }
         th {
-            background-color: #007bff; /* A strong blue header */
-            color: #fff; /* White text for headers */
-            font-size: 16px; /* Slightly larger text for headers */
+            background-color: #007bff; /* Bright blue for headers */
+            color: #ffffff; /* White text for contrast */
+            font-size: 16px; /* Larger font size for headers */
         }
         tr:nth-child(even) {
-            background-color: #f2f2f2; /* Zebra striping for rows */
+            background-color: #f8f9fa; /* Very light grey for even rows */
         }
         tr:hover {
-            background-color: #add8e6; /* Light blue row highlight on hover */
+            background-color: #b0bec5; /* Medium light blue for hover */
         }
         a {
-            color: #007bff; /* Matching the link color with the header */
-            text-decoration: none; /* No underline */
+            color: #065a82; /* Darker blue for links to match theme */
+            text-decoration: none; /* No underline to keep it clean */
         }
         a:hover {
-            text-decoration: underline; /* Underline on hover for better interaction */
+            text-decoration: underline; /* Underline on hover for visibility */
+        }
+        h2 {
+            text-align: center; /* Center-align the title */
+            color: #333; /* Consistent text color */
+            margin-top: 0; /* Reducing space above the title */
         }
     </style>
 </head>
 <body>
-    <h2>Protein Structure Comparison Results</h2> <!-- Title above the table -->
+    <h2>Protein Structure Comparison Table</h2>
     <table id="myTable">
         <thead>
             <tr>
