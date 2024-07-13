@@ -1,33 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Interactive Table</title>
+    <title>Interactive Protein Comparison Table</title>
     <style>
+        body {
+            font-family: Arial, sans-serif; /* Sets a modern sans-serif font */
+            margin: 20px;
+            background-color: #f4f9ff; /* A light blue background */
+            color: #333; /* Dark grey text for better readability */
+        }
         table {
-            width: 100%;
+            width: 90%;
+            margin: 20px auto; /* Centering the table on the page */
             border-collapse: collapse;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Adds a subtle shadow for depth */
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid #ccc;
+            padding: 12px 15px; /* More padding for better spacing */
             text-align: left;
         }
         th {
-            background-color: #f2f2f2;
-            cursor: pointer; /* Indicates the header is clickable */
+            background-color: #007bff; /* A strong blue header */
+            color: #fff; /* White text for headers */
+            font-size: 16px; /* Slightly larger text for headers */
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2; /* Zebra striping for rows */
         }
         tr:hover {
-            background-color: #ddd;
+            background-color: #add8e6; /* Light blue row highlight on hover */
+        }
+        a {
+            color: #007bff; /* Matching the link color with the header */
+            text-decoration: none; /* No underline */
+        }
+        a:hover {
+            text-decoration: underline; /* Underline on hover for better interaction */
         }
     </style>
 </head>
 <body>
+    <h2>Protein Structure Comparison Results</h2> <!-- Title above the table -->
     <table id="myTable">
         <thead>
             <tr>
                 <th onclick="sortTable(0)">Fold Pair</th>
-                <th onclick="sortTable(1)">Best TM score AF 1</th>
-                <th onclick="sortTable(2)">Best TM score AF 2</th>
+                <th onclick="sortTable(1)">Best TM Score AF 1</th>
+                <th onclick="sortTable(2)">Best TM Score AF 2</th>
             </tr>
         </thead>
         <tbody>
@@ -52,13 +72,11 @@
             var table, rows, switching, i, x, y, xValue, yValue, shouldSwitch;
             table = document.getElementById("myTable");
             switching = true;
-            // Toggle the direction each time the column header is clicked
             sortDirection[column] = !sortDirection[column];
 
             while (switching) {
                 switching = false;
                 rows = table.getElementsByTagName("tr");
-                // Loop through all rows (except the first header row)
                 for (i = 1; i < rows.length - 1; i++) {
                     shouldSwitch = false;
                     x = rows[i].getElementsByTagName("TD")[column];
