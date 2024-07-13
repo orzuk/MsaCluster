@@ -404,9 +404,6 @@
         </tbody>
     </table>
 
-    <script>
-            // (Keep the sortTable function as it was in the previous example)
-    </script>
 </body>
 </html>
     
