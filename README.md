@@ -28,7 +28,7 @@
             <tr>
                 <th onclick="sortTable(0)">Fold Pair</th>
                 <th onclick="sortTable(1)">Best TM score AF 1</th>
-                <th onclick="sortTable(2)">Best TM score AF 1</th>
+                <th onclick="sortTable(2)">Best TM score AF 2</th> <!-- Changed header for clarity -->
             </tr>
         </thead>
         <tbody>
@@ -43,371 +43,6 @@
                 <td>0.79</td>
             </tr>
             <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4ow6B_4ae0A.html" target="_blank">4ow6B_4ae0A</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1qlnA_1h38D.html" target="_blank">1qlnA_1h38D</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1mnmD_1mnmC.html" target="_blank">1mnmD_1mnmC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5bmyA_5b3zA.html" target="_blank">5bmyA_5b3zA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4rmbB_4rmbA.html" target="_blank">4rmbB_4rmbA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5et5A_3ifaA.html" target="_blank">5et5A_3ifaA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3hdfA_3hdeA.html" target="_blank">3hdfA_3hdeA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4rwqB_4rwnA.html" target="_blank">4rwqB_4rwnA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3kdsG_2ce7C.html" target="_blank">3kdsG_2ce7C</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3r9jC_2kxoA.html" target="_blank">3r9jC_2kxoA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5l35G_5l35D.html" target="_blank">5l35G_5l35D</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1fzpD_2frhA.html" target="_blank">1fzpD_2frhA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2kkwA_2n0aD.html" target="_blank">2kkwA_2n0aD</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3m7pA_3ejhA.html" target="_blank">3m7pA_3ejhA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2vfxL_3gmhL.html" target="_blank">2vfxL_3gmhL</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5c3iF_3kuyA.html" target="_blank">5c3iF_3kuyA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1xtgB_3j97M.html" target="_blank">1xtgB_3j97M</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4pyjA_4pyiA.html" target="_blank">4pyjA_4pyiA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3meeA_4b3oB.html" target="_blank">3meeA_4b3oB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4tsyD_3zwgN.html" target="_blank">4tsyD_3zwgN</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1jfkA_2nxqB.html" target="_blank">1jfkA_2nxqB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2z9oB_1repC.html" target="_blank">2z9oB_1repC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4h2aA_3j9cA.html" target="_blank">4h2aA_3j9cA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5jytA_2qkeE.html" target="_blank">5jytA_2qkeE</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5jztG_5jzhA.html" target="_blank">5jztG_5jzhA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2h44A_1rkpA.html" target="_blank">2h44A_1rkpA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2c1vB_2c1uC.html" target="_blank">2c1vB_2c1uC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3mkoA_5ineA.html" target="_blank">3mkoA_5ineA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3j7vG_3j7wB.html" target="_blank">3j7vG_3j7wB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1wp8C_5ejbC.html" target="_blank">1wp8C_5ejbC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1svfC_4wsgC.html" target="_blank">1svfC_4wsgC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5lj3M_3tp2A.html" target="_blank">5lj3M_3tp2A</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1nocA_1qomB.html" target="_blank">1nocA_1qomB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3ztjE_5hmgA.html" target="_blank">3ztjE_5hmgA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5c1vB_5c1vA.html" target="_blank">5c1vB_5c1vA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5wrgC_1wyyB.html" target="_blank">5wrgC_1wyyB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4gqcB_4gqcC.html" target="_blank">4gqcB_4gqcC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3lqcA_1xntA.html" target="_blank">3lqcA_1xntA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4yhdG_7ahlE.html" target="_blank">4yhdG_7ahlE</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1xezA_3o44A.html" target="_blank">1xezA_3o44A</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3g0hA_3ewsB.html" target="_blank">3g0hA_3ewsB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4dxrA_4dxtA.html" target="_blank">4dxrA_4dxtA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3lowA_3m1bF.html" target="_blank">3lowA_3m1bF</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/6c6sD_2ougC.html" target="_blank">6c6sD_2ougC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3t5oA_4a5wB.html" target="_blank">3t5oA_4a5wB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2lv1A_6lniA.html" target="_blank">2lv1A_6lniA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5hk5H_4jphB.html" target="_blank">5hk5H_4jphB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5tpnA_1g2cF.html" target="_blank">5tpnA_1g2cF</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1x0gD_1x0gA.html" target="_blank">1x0gD_1x0gA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4o01D_4o0pA.html" target="_blank">4o01D_4o0pA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2namA_1uxmK.html" target="_blank">2namA_1uxmK</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1qb3A_3qy2A.html" target="_blank">1qb3A_3qy2A</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2jmrA_4j3oF.html" target="_blank">2jmrA_4j3oF</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4qhhA_4qhfA.html" target="_blank">4qhhA_4qhfA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2lelA_2k0qA.html" target="_blank">2lelA_2k0qA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5ly6B_5aoeB.html" target="_blank">5ly6B_5aoeB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/5f5rB_5f3kA.html" target="_blank">5f5rB_5f3kA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1nqjB_1nqdA.html" target="_blank">1nqjB_1nqdA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4aalA_4aanA.html" target="_blank">4aalA_4aanA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3l9qB_4rr2D.html" target="_blank">3l9qB_4rr2D</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2uy7D_5fluE.html" target="_blank">2uy7D_5fluE</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4ydqB_4twaA.html" target="_blank">4ydqB_4twaA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2kb8A_6vw2A.html" target="_blank">2kb8A_6vw2A</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1rk4B_1k0nA.html" target="_blank">1rk4B_1k0nA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3zxgB_5ec5P.html" target="_blank">3zxgB_5ec5P</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2k42A_1ceeB.html" target="_blank">2k42A_1ceeB</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4g0dZ_4fu4C.html" target="_blank">4g0dZ_4fu4C</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1kctA_3t1pA.html" target="_blank">1kctA_3t1pA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/7kdtB_6z4uA.html" target="_blank">7kdtB_6z4uA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1zk9A_3jv6A.html" target="_blank">1zk9A_3jv6A</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/1dzlA_5keqF.html" target="_blank">1dzlA_5keqF</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4zrbH_4zrbC.html" target="_blank">4zrbH_4zrbC</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2wcdX_4phqA.html" target="_blank">2wcdX_4phqA</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
                 <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/2qqjA_4qdsA.html" target="_blank">2qqjA_4qdsA</a></td>
                 <td>0.79</td>
                 <td>0.79</td>
@@ -417,22 +52,70 @@
                 <td>0.79</td>
                 <td>0.79</td>
             </tr>
-            <!-- Add more rows as needed -->
+            <!-- More rows as needed -->
         </tbody>
     </table>
 
     <script>
-            // (Keep the sortTable function as it was in the previous example)
+        function sortTable(n) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById("myTable");
+            switching = true;
+            // Set the sorting direction to ascending:
+            dir = "asc"; 
+            // Make a loop that will continue until no switching has been done:
+            while (switching) {
+                // Start by saying: no switching is done:
+                switching = false;
+                rows = table.rows;
+                // Loop through all table rows (except the first, which contains table headers):
+                for (i = 1; i < (rows.length - 1); i++) {
+                    // Start by saying there should be no switching:
+                    shouldSwitch = false;
+                    // Get the two elements you want to compare, one from current row and one from the next:
+                    x = rows[i].getElementsByTagName("TD")[n];
+                    y = rows[i + 1].getElementsByTagName("TD")[n];
+                    // Check if the two rows should switch place, based on the direction, asc or desc:
+                    if (dir == "asc") {
+                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                            // If so, mark as a switch and break the loop:
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else if (dir == "desc") {
+                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    }
+                }
+                if (shouldSwitch) {
+                    // If a switch has been marked, make the switch and mark that a switch has been done:
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    // Each time a switch is done, increase this count by 1:
+                    switchcount ++;      
+                } else {
+                    // If no switching has been done AND the direction is "asc",
+                    // set the direction to "desc" and run the while loop again.
+                    if (switchcount == 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
     </script>
 </body>
 </html>
+
     
-    ## Running from python: 
-    The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
-    
-    python3 run_foldswitch_pipeline [operation] [foldpair_id]
-    
-    For example: 
+## Running from python: 
+The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
+
+python3 run_foldswitch_pipeline [operation] [foldpair_id]
+
+For example: 
 
 python3 run_foldswitch_pipeline cluster_msa 1jfkA_2nxqB
 
