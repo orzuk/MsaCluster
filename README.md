@@ -1,17 +1,22 @@
 # MsaCluster
 
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Include the DataTables CSS -->
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.css">
+    <!-- Include jQuery Library -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <!-- Include DataTables JavaScript -->
+    <script type="text/javascript" src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
 </head>
 <body>
     <table id="myTable">
         <thead>
             <tr>
-                <th onclick="sortTable(0)">Fold Pair</th>
-                <th onclick="sortTable(1)">Best TM score AF 1</th>
-                <th onclick="sortTable(2)">Best TM score AF 1</th>
+                <th>Fold Pair</th>
+                <th>Best TM score AF 1</th>
+                <th>Best TM score AF 2</th> <!-- It seems like you had the same header name twice -->
             </tr>
         </thead>
         <tbody>
@@ -25,22 +30,18 @@
                 <td>0.79</td>
                 <td>0.79</td>
             </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4ow6B_4ae0A.html" target="_blank">4ow6B_4ae0A</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <tr>
-                <td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3l5nB_2a73B.html" target="_blank">3l5nB_2a73B</a></td>
-                <td>0.79</td>
-                <td>0.79</td>
-            </tr>
-            <!-- Add more rows as needed -->
+            <!-- More rows -->
         </tbody>
     </table>
 
+    <script>
+        $(document).ready( function () {
+            $('#myTable').DataTable();
+        } );
+    </script>
 </body>
 </html>
+
     
 ## Running from python: 
 The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
