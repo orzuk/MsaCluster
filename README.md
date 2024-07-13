@@ -1,6 +1,6 @@
 # MsaCluster
 
-You can find the full results table in this [link](https://github.com/steveabecassis/MsaCluster/table.html).
+You can find the full results table in this [link](https://github.com/steveabecassis/MsaCluster/blob/master/table.html).
     
 ## Running from python: 
 The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
