@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Table</title>
     <style>
         table {
@@ -16,6 +14,7 @@
         }
         th {
             background-color: #f2f2f2;
+            cursor: pointer; /* Indicates the header is clickable */
         }
         tr:hover {
             background-color: #ddd;
@@ -23,13 +22,12 @@
     </style>
 </head>
 <body>
-    <h1>Interactive Table</h1>
     <table id="myTable">
         <thead>
             <tr>
                 <th onclick="sortTable(0)">Fold Pair</th>
-                <th onclick="sortTable(1)">Best TM Score AF 1</th>
-                <th onclick="sortTable(2)">Best TM Score AF 2</th>
+                <th onclick="sortTable(1)">Best TM score AF 1</th>
+                <th onclick="sortTable(2)">Best TM score AF 2</th>
             </tr>
         </thead>
         <tbody>
@@ -48,14 +46,23 @@
     </table>
 
     <script>
+        // Create an array to track the direction of sorting for each column
+        var sortDirections = {};
+
         function sortTable(column) {
             var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
             table = document.getElementById("myTable");
             switching = true;
-            dir = "asc"; // Set the initial sorting direction to ascending
-            // Continue looping until no switching has been done
+            // Check if the direction is already set for this column and toggle it
+            if (sortDirections[column] === "asc") {
+                dir = "desc";
+            } else {
+                dir = "asc";
+            }
+            sortDirections[column] = dir; // Set the direction to the current column
+
             while (switching) {
-                switching = false; // start by saying no switching is needed
+                switching = false;
                 rows = table.rows;
                 for (i = 1; i < rows.length - 1; i++) {
                     shouldSwitch = false;
