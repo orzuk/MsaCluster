@@ -60,3 +60,4 @@ def save_org_cmaps(chain_pdb_file_path,fold):
     traj = md.load(filename_or_filenames=f'{chain_pdb_file_path}/{fold}.pdb')
     frame_contacts = ContactFrequency(traj[0])
     np.save(f'./Pipeline/org_cmaps/{fold}.npy',frame_contacts)
+

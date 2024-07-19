@@ -1,11 +1,13 @@
 import os
 import pandas as pd
 from tqdm import tqdm
-files = os.listdir('./HTML')
+files = os.listdir('/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_1507')
 folder = '/Users/steveabecassis/Desktop/Pipeline'
 for file in files:
     try:
         fold_pair = file[:-5]
+        if (len(os.listdir(f'/Users/steveabecassis/Desktop/Pipeline/{fold_pair}/output_msa_cluster')) < 2):
+            continue
         df_af = pd.read_csv(f'{folder}/{fold_pair}/Analysis/df_af.csv')
         df_af = df_af[df_af.cluster_num != 'Query'].iloc[:, 1:-1]
         if(len(df_af[df_af.score_pdb1 > df_af.score_pdb2])>0):
@@ -31,6 +33,7 @@ for file in files:
 
         try:
             df_cmap = pd.read_csv(f'{folder}/{fold_pair}/Analysis/new_cmap_res.csv')
+            df_cmap.fillna(0,inplace=True)
             df_cmap['f1Score_1'] = (df_cmap['precision_1'] * df_cmap['recall_1']) / (df_cmap['precision_1'] + df_cmap['recall_1'])
             df_cmap['f1Score_2'] = (df_cmap['precision_2'] * df_cmap['recall_2']) / (df_cmap['precision_2'] + df_cmap['recall_2'])
             if len(df_cmap[df_cmap.f1Score_1 > df_cmap.f1Score_2])>0:
