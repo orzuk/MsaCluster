@@ -153,47 +153,47 @@
 <tr><td><a href="https://steveabecassis.github.io/MsaCluster/HTML/4q79F_4uv2D.html" target="_blank">4q79F_4uv2D</a></td><td>0.83</td><td>0.82</td><td>-</td><td>-</td><td>-</td><td>-</td><td>0.20</td><td>0.02</td><td>0.02</td><td>0.00</td></tr>
 <tr><td><a href="https://steveabecassis.github.io/MsaCluster/HTML/3l5nB_2a73B.html" target="_blank">3l5nB_2a73B</a></td><td>0.47</td><td>0.75</td><td>-</td><td>-</td><td>0.76</td><td>0.63</td><td>0.15</td><td>0.13</td><td>-</td><td>0.02</td></tr>
 
-            </tbody>
-        </table>
+        </tbody>
+    </table>
 
-        <script>
-            var sortDirection = [];
+    <script>
+        var sortDirection = [];
 
-            function sortTable(column) {
-                var table, rows, switching, i, x, y, xValue, yValue, shouldSwitch;
-                table = document.getElementById("myTable");
-                switching = true;
-                sortDirection[column] = !sortDirection[column];
+        function sortTable(column) {
+            var table, rows, switching, i, x, y, xValue, yValue, shouldSwitch;
+            table = document.getElementById("myTable");
+            switching = true;
+            sortDirection[column] = !sortDirection[column];
 
-                while (switching) {
-                    switching = false;
-                    rows = table.getElementsByTagName("TR");
-                    for (i = 1; i < rows.length - 1; i++) {
-                        shouldSwitch = false;
-                        x = rows[i].getElementsByTagName("TD")[column];
-                        y = rows[i + 1].getElementsByTagName("TD")[column];
-                        xValue = x.innerHTML === '-' ? -Infinity : (isNaN(parseFloat(x.innerHTML)) ? x.innerHTML.toLowerCase() : parseFloat(x.innerHTML));
-                        yValue = y.innerHTML === '-' ? -Infinity : (isNaN(parseFloat(y.innerHTML)) ? y.innerHTML.toLowerCase() : parseFloat(y.innerHTML));
+            while (switching) {
+                switching = false;
+                rows = table.getElementsByTagName("TR");
+                for (i = 1; i < rows.length - 1; i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[column];
+                    y = rows[i + 1].getElementsByTagName("TD")[column];
+                    xValue = x.innerHTML === '-' ? -Infinity : (isNaN(parseFloat(x.innerHTML)) ? x.innerHTML.toLowerCase() : parseFloat(x.innerHTML));
+                    yValue = y.innerHTML === '-' ? -Infinity : (isNaN(parseFloat(y.innerHTML)) ? y.innerHTML.toLowerCase() : parseFloat(y.innerHTML));
 
-                        if (sortDirection[column]) {
-                            if (xValue > yValue) {
-                                shouldSwitch = true;
-                                break;
-                            }
-                        } else {
-                            if (xValue < yValue) {
-                                shouldSwitch = true;
-                                break;
-                            }
+                    if (sortDirection[column]) {
+                        if (xValue > yValue) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else {
+                        if (xValue < yValue) {
+                            shouldSwitch = true;
+                            break;
                         }
                     }
-                    if (shouldSwitch) {
-                        rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                        switching = true;
-                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
                 }
             }
-        </script>
-    </body>
-    </html>
-    
+        }
+    </script>
+</body>
+</html>
+
