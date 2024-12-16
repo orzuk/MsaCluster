@@ -70,9 +70,6 @@ for fold_pair in tqdm(fold_pairs):
         except:
             BEST_RECALL_FOLD2_AF ='-'
 
-
-
-
         res.append({'fold_pair':fold_pair,'BEST_AF1':BEST_AF1,'BEST_AF2':BEST_AF2,'BEST_ESM1':BEST_ESM1,'BEST_ESM1_AF':BEST_ESM1_AF,
                     'BEST_ESM2':BEST_ESM2,'BEST_ESM2_AF':BEST_ESM2_AF,'BEST_RECALL_FOLD1':BEST_RECALL_FOLD1,'BEST_RECALL_FOLD1_AF':BEST_RECALL_FOLD1_AF,
                     'BEST_RECALL_FOLD2':BEST_RECALL_FOLD2,'BEST_RECALL_FOLD2_AF':BEST_RECALL_FOLD2_AF})
@@ -87,3 +84,33 @@ final_res_df = pd.DataFrame(res)
 # final_res_df.astype(str).to_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
 # '4rmbB_4rmbA' , 1fzpD_2frhA 2lepA_4hddA
 df = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
+df.columns
+
+af_success = df[(df['BEST_AF1'] != '-') & (df['BEST_AF2'] != '-')]
+perc_AF_success = 100 - round(100*len(af_success)/len(df),2)
+perc_AF_success
+
+
+af1 = af_success[af_success['BEST_RECALL_FOLD1_AF'] >  af_success['BEST_RECALL_FOLD2_AF']][(af_success['BEST_AF1'] >  af_success['BEST_AF2']) | ( af_success['BEST_AF2'] == '-')]
+af2 = af_success[af_success['BEST_RECALL_FOLD1_AF'] <  af_success['BEST_RECALL_FOLD2_AF']][(af_success['BEST_AF1'] <  af_success['BEST_AF2']) | ( af_success['BEST_AF1'] == '-')]
+perc_cmap_af_success = 100 - round(100*(len(af1) + len(af2))/len(af_success),2)
+perc_cmap_af_success
+
+cmap_success = df[(df['BEST_RECALL_FOLD1'] == '-') | (df['BEST_RECALL_FOLD2'] == '-')]
+perc_cmap_success_success = 100 - round(100*len(cmap_success)/len(df),2)
+perc_cmap_success_success
+
+
+
+
+
+
+
+
+
+
+
+'''
+AF SUCCESS --> 62/85
+AF FAIL    --> 23/85
+'''

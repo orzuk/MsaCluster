@@ -31,3 +31,32 @@ len(df_nb_check)
 7) Push new notebook and new tables to github
 8) Fix thesis text with new cmaps etc...
 '''
+
+from Bio.PDB import PDBParser
+from Bio.SeqUtils import seq1
+
+
+def get_sequences_from_pdb(file_path):
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure('PDB_structure', file_path)
+
+    sequences = {}
+    for model in structure:
+        for chain in model:
+            sequence = []
+            for residue in chain:
+                if residue.id[0] == ' ':  # Ignore heteroatoms
+                    try:
+                        sequence.append(residue.resname)
+                    except KeyError:
+                        continue
+            chain_id = chain.id
+            single_letter_seq = seq1("".join(sequence))  # Convert 3-letter codes to 1-letter
+            sequences[chain_id] = (single_letter_seq, len(single_letter_seq))
+    return sequences
+
+seq_1 = get_sequences_from_pdb('/Users/steveabecassis/Desktop/Pipeline/4o01D_4o0pA/chain_pdb_files/4o01D.pdb').get('D')
+seq_2 = get_sequences_from_pdb('/Users/steveabecassis/Desktop/Pipeline/4o01D_4o0pA/chain_pdb_files/4o0pA.pdb').get('A')
+
+from Bio import pairwise2
+alignments = pairwise2.align.globalxx(seq_1[0], seq_2[0])
