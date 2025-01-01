@@ -17,7 +17,7 @@ from matplotlib.colors import Normalize, to_hex
 
 # Use ete3 package for visualization
 from ete3 import *
-from msa_utils import *
+from .msa_utils import *
 import random
 
 

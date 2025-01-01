@@ -3,9 +3,9 @@
 import py3Dmol
 import platform
 
-if not platform.system() == "Linux":  # doesn't work on unix
-    import pymol
-    from pymol import cmd  # , stored
+#if not platform.system() == "Linux":  # Plotting doesn't work on unix
+import pymol
+from pymol import cmd  # , stored
 
 # import pickle
 # from pyvirtualdisplay import Display
@@ -37,6 +37,10 @@ import math
 def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters= True):
     #    i = foldpair_ids.index(foldpair_id)
     #    cur_family_dir = fasta_dir + "/" + foldpair_id
+    plot("Start plotting inside make_foldswith_all_plots2!!!")
+ #   pymol.finish_launching(['pymol', '-cq'])
+    plot("Start plotting inside make_foldswith_all_plots!!!")
+
     print("foldpair_id: " + foldpair_id)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
@@ -84,11 +88,13 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
     print("All predicted MSA transformer files:")
     print(msa_transformer_pred.keys())
-    print(msa_transformer_pred.values())
-    print("Exit function! shapes:")
-    print(msa_transformer_pred['p'].shape)
-    print(msa_transformer_pred['Msa_000'].shape)  # Show shape. Should be square form: n*n residues
+#    print(msa_transformer_pred.values())
+#    print("Exit function! shapes:")
+#    print(msa_transformer_pred['p'].shape)
+#    print("Exit function! shapes2:")
+#    print(msa_transformer_pred['Msa_000'].shape)  # Show shape. Should be square form: n*n residues
 
+    print("Get matching indices:")
     match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap,
                                                                            msa_transformer_pred)
 
@@ -97,12 +103,13 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     print(match_true_cmap)
 #    print(match_true_cmap.shape)
     print("Exit function! match predicted:")
-    print(match_predicted_cmaps)
+#    print(match_predicted_cmaps)
     print(match_predicted_cmaps.keys())
     print(type(match_predicted_cmaps))
     print(len(match_predicted_cmaps))
 #    return 9999999999
 
+    print("Plot Array")
     plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap,
                                         fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
 
@@ -137,6 +144,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     bio_tree = Phylo.read(phytree_file, "newick")  # This is different from write_newick_with_quotes !!!!
     print("Convert to ete3 tree:")
     ete_tree = convert_biopython_to_ete3(bio_tree)
+    print("Converted to ete3 tree:")
 #    print("Load treefile: " + phytree_file)
 #    ete_tree = read_tree_ete(phytree_file)
 #    for node in ete_tree.traverse():
@@ -146,6 +154,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #    print(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
     ete_leaves_cluster_ids = seqs_ids_to_cluster_ids(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m",
                                                      [n.name for n in ete_tree])
+    print("Converted seq ids to cluster ids:")
 
 #    print(len(cluster_node_values))
 #    print("Set node values and draw:")
@@ -157,20 +166,28 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #    print("Now create leaves dictionary:")
 #    print("Keys:")
 #    print([n.name for n in ete_tree])
-#    print("ete keys:")
-#    print([ete_leaves_cluster_ids[n.name] for n in ete_tree])
+    print("ete tree:", ete_tree)
+    print("ete_leaves_cluster_ids", ete_leaves_cluster_ids)
+
+    print("MAtch: ", [ete_leaves_cluster_ids[n.name] for n in ete_tree])
 #    print("cluster:")
 #    print(cluster_node_values)
-#    print("cluster keys:")
+    print("cluster keys: ", cluster_node_values)
 #    print([cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree])
+    for n in ete_tree:
+        print("n=", n, " ; key=", ete_leaves_cluster_ids[n.name], " ; n.name=", n.name)
+        if ete_leaves_cluster_ids[n.name] != 'p':
+            print("cnv=", cluster_node_values[ete_leaves_cluster_ids[n.name]])
 
     ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
-#    print("Unique Node Values: ")
-#    print(set(ete_leaves_node_values.values()))
-#    print("Cluster node values:")
-#    print(cluster_node_values)
+    print("Unique Node Values: ")
+    print(set(ete_leaves_node_values.values()))
+    print("Cluster node values:")
+    print(cluster_node_values)
+    print("Convert to data-frame:")
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
     ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
+    print("Dump pickle:")
     with open('tree_draw.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
         pickle.dump([phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values], f)
     print("Node Values: ")
@@ -283,7 +300,8 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
     """
 
     if open_environment:  # Initialize PyMOL
-        pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
+#        pymol.cmd.set("quiet", 1)
+        pymol.finish_launching(['pymol', '-cq'])  # '-c' for command line (no GUI)
 
     # Delete existing objects
     cmd.delete('all')
@@ -461,6 +479,7 @@ def plot_contacts_and_predictions(
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
     save_flag = False  # add as input
+    print("Now plotting cmap: save-flag=", save_flag)
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
 
@@ -560,6 +579,8 @@ def plot_foldswitch_contacts_and_predictions(
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
     save_flag = False  # add as input
+    print("Now plotting cmap foldswitch: save-flag=", save_flag)
+
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
 

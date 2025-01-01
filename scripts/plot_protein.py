@@ -6,7 +6,9 @@
 import pymol
 from pymol import cmd
 
-pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
+
+# pymol.cmd.set("quiet", 1)
+pymol.finish_launching(['pymol', '-cq'])  # '-c' for command line (no GUI)
 
 # Delete existing objects
 cmd.delete('all')

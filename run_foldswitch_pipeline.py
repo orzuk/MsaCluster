@@ -20,20 +20,27 @@ def download_pdb(pdb_id):
         print(f"Failed to download PDB file for ID {pdb_id}. Status code: {response.status_code}")
 
 
-
-
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
 # MSAs can be represented as a3m format
 
 
-
-
-
-
-
 def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
 
+    if run_mode == "help":
+        print("Available run modes for fold-switch pipeline analysis:")
+        print("- load: Load PDB files, contact maps, and fasta sequences.")
+        print("- get_msa: Generate MSAs for sequences.")
+        print("- cluster_msa: Cluster MSAs.")
+        print("- run_esm: Run ESM transformer on sequences.")
+        print("- run_esmfold: Run ESMFold for structure prediction.")
+        print("- run_pipeline: Execute the entire pipeline.")
+        print("- plot: Generate plots for fold-switch data.")
+        print("- tree: Reconstruct phylogenetic trees.")
+        print("- Analysis: Perform custom analyses.")
+        return
+
+    print("START RFS PIPELINE!!")
     if type(pdbids_file) == str:                       # input as file
         with open(pdbids_file, "r") as file:           # read all pdb ids
             pdbids = [line.rstrip() for line in file]  # two per row
@@ -42,8 +49,6 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
         pdbids    = [s.split("\t") for s in pdbids]
         pdbchains = [[s[0][-1], s[1][-1]] for s in pdbids]
         pdbids    = [[s[0][:-1], s[1][:-1]] for s in pdbids]
-
-
 
 
     n_fam = len(pdbids)  # number of families
@@ -55,12 +60,14 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             foldpair_ids_to_run = [foldpair_ids_to_run]
 
     if run_mode == "plot":
-        pymol.finish_launching(['pymol', '-c'])  # '-c' for command line (no GUI)
+        print("Running plot!!")
+        pymol.finish_launching(['pymol', '-cq'])  # '-c' for command line, q for quiet (no GUI)
 
-
+        print("Running plot after pymol launch!!")
     # idx_test = 0
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
+        print("Run on fold pairs")
         try:
             # idx_test +=1
             # if idx_test>3:
@@ -81,12 +88,10 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             # download_pdb(pdbids[i][0])
             # download_pdb(pdbids[i][1])
             # create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
-
+            print("i is ", i)
+            print("Search chain: ", f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb')
             get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0],output_pair_dir)
-
-    #        if i < 76:  # already done
-    #            print("Already plotted")
-    #            continue
+            print("Got fasta chain")
             fasta_file_name = output_dir + "/" + foldpair_id + "/fasta_chain_files/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
     #        cur_family_dir = output_dir + "/" + foldpair_id
             print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
@@ -108,15 +113,29 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 if run_mode == "run_pipeline":
                     run_str = "sbatch   ./pipeline_get_params.sh " +  fasta_file_name + " " + output_dir+"/"+foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
                 if run_mode == "plot":  # here do analysis of the results
+                    run_str = ''
+                    pymol.finish_launching(['pymol', '-cq'])
+                    print("Running make_plot from outside33 again!")
+                    print(pdbids[i])
+                    print(output_dir)
+                    print(foldpair_id)
+                    print("pdbchjain", pdbchains[i])
+                    print("plot tree clusters:", plot_tree_clusters)
+
                     cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
+                    print("Finished Running make_plot from outside333")
+                print("Finished IF")
                 if run_mode == "tree":  # here do analysis of the results
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
+                print("Finished IF2")
                 if run_mode == 'Analysis':
                     run_str = f"sbatch  /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/Analysis.sh  {foldpair_id}"
-
-                print("Send job for " + run_mode + ":\n" + run_str)
-                os.system(run_str)
+                print("Finished IF3")
+                if run_str != '':
+                    print("Send job for " + run_mode + ":\n" + run_str)
+                    os.system(run_str)
         except:
+            print("Failed plot function")
             continue
     # for i in range(n_fam):
     #    cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
@@ -197,14 +216,14 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
         run_str = ''
 #        run_str = 'python  ./run_tree_reconstruct.py  --method distance  --input_msas ./Pipeline/' + foldpair_id + \
 #                  '/output_get_msa/DeepMsa.a3m -o ./Pipeline/' + foldpair_id + '/output_phytree'
-    if run_mode == "ancestral": # perform ancestral reconstuction
+    if run_mode == "ancestral": # perform ancestral reconstruction
         msa_file = 'Pipeline/' + foldpair_id + '/output_get_msa/DeepMsa.a3m'
         anc_output_file = 'Pipeline/' + foldpair_id + '/output_phytree/' + \
                           os.path.basename(msa_file).replace(".a3m", "_anc_seq.a3m")
         output_tree_file = 'Pipeline/' + foldpair_id + \
                     '/output_phytree/' + os.path.basename(msa_file).replace(".a3m", "_tree.nwk")
         reconstruct_ancestral_sequences(output_tree_file, msa_file, anc_output_file)
-    if run_mode == "plot":
+    if run_mode == "plot":  # Plotting, works only in windows?
         cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores = \
             make_foldswitch_all_plots(pdbids, output_dir, foldpair_id, pdbchains, plot_tree_clusters)
         run_str = ''  # no plotting in this mode !!!!
@@ -224,6 +243,7 @@ if platform.system() == "Linux":
     if len(sys.argv) > 2:
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
     run_job_mode = "job"
+    plot_tree_clusters = False
 else:
     print("Run on windows")
     run_mode = "plot"  # "load_seq_and_struct" #    "plot" # "run_esmfold"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]

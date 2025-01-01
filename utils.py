@@ -1,15 +1,11 @@
-from Bio.PDB import PDBParser
 from Bio.SeqUtils import seq1
-import mdtraj as md
-import numpy as np
-import matplotlib.pyplot as plt
-from argparse import  ArgumentParser
 from Bio.PDB import PDBParser, PDBIO, Select
 from Bio import SeqIO
 import mdtraj as md
-from contact_map import ContactFrequency, ContactDifference
 import numpy as np
-import mdtraj as md
+import matplotlib.pyplot as plt
+from argparse import ArgumentParser
+from contact_map import ContactFrequency, ContactDifference
 
 pdf_files_path = f'/Users/steveabecassis/Desktop/pdb_file'
 pdb_file = f'{pdf_files_path}/1jfk.pdb'

@@ -17,9 +17,8 @@ import matplotlib.pyplot as plt
 import Bio
 import Bio.PDB
 import Bio.SeqRecord
-from Bio import SeqIO
+from Bio import SeqIO, AlignIO
 from Bio.PDB import PDBParser
-
 
 import pickle
 import os
@@ -27,9 +26,8 @@ import sys
 import urllib
 
 import biotite.structure as bs
-from biotite.structure.io.pdbx import PDBxFile, get_structure
+from biotite.structure.io.pdbx import get_structure
 from biotite.structure.io.pdb import PDBFile
-
 from biotite.database import rcsb
 
 from tmtools import tm_align
@@ -39,8 +37,6 @@ from tmtools.io import get_structure as tmtool_get_structure  # can't have get_s
 import iminuit
 import tmscoring  # for comparing structures
 
-
-from Bio import AlignIO
 
 # from TreeConstruction import DistanceTreeConstructor
 
@@ -194,14 +190,15 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
  #   pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, cbeta_coord1 = read_seq_coord_contacts_from_pdb(structure, "F")
 #    s1 = tmtool_get_structure(pdb_file1)  # This is similar to biotite?
 
+    # Fetch or read structure for two PDB files
     if len(pdb_file1) == 4:  # pdb id
-        s1 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))[0]
+        s1 = get_structure(rcsb.fetch(pdb_file1, "cif"), model=1)  # model=1 for first model
     else:  # file
-        s1 = PDBFile.read(pdb_file1).get_structure()[0]
+        s1 = PDBFile.read(pdb_file1).get_structure(model=1)
     if len(pdb_file2) == 4:  # pdb id
-        s2 = get_structure(PDBxFile.read(rcsb.fetch(pdb_file1, "cif")))[0]
+        s2 = get_structure(rcsb.fetch(pdb_file2, "cif"), model=1)
     else:  # file
-        s2 = PDBFile.read(pdb_file2).get_structure()[0]
+        s2 = PDBFile.read(pdb_file2).get_structure(model=1)
 
     with open("temp_tm_align_structs.pkl", "wb") as f:
         pickle.dump([s1, s2, chain1, chain2], f)
