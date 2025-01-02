@@ -18,6 +18,7 @@ import Bio
 import Bio.PDB
 import Bio.SeqRecord
 from Bio import SeqIO, AlignIO
+from Bio.PDB.Polypeptide import is_aa
 from Bio.PDB import PDBParser
 
 import pickle
@@ -26,9 +27,17 @@ import sys
 import urllib
 
 import biotite.structure as bs
-from biotite.structure.io.pdbx import get_structure
+# from biotite.structure.io.pdbx import get_structure
+
 from biotite.structure.io.pdb import PDBFile
 from biotite.database import rcsb
+from biotite.structure import filter_amino_acids
+
+#from biotite.structure.io.pdbx import PDBxFile, get_structure
+#from biotite.structure import filter_amino_acids
+#import os
+#import tempfile
+
 
 from tmtools import tm_align
 from tmtools.io import get_residue_data  # can't have get_structure here too !!!
@@ -36,6 +45,10 @@ from tmtools.io import get_structure as tmtool_get_structure  # can't have get_s
 
 import iminuit
 import tmscoring  # for comparing structures
+# Helper function for loading
+import tempfile
+
+from Bio.PDB.MMCIFParser import MMCIFParser
 
 
 # from TreeConstruction import DistanceTreeConstructor
@@ -266,6 +279,51 @@ def extend(a, b, c, L, A, D):
     return c + sum([m * d for m, d in zip(m, d)])
 
 
+
+def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
+    """
+    Load sequence and structure for given PDB IDs and chains using Biopython.
+    """
+    print("Inside load function")
+
+    print("Loading seq and struct for " + pdbids[0] + " , " + pdbids[1])
+    for fold in range(2):
+        if not os.path.exists(cur_family_dir):
+            print("Mkdir: " + cur_family_dir)
+            os.mkdir(cur_family_dir)
+
+        print(f"Get seq + struct for {pdbids[fold]}, out of {len(pdbids)}")
+        cif_file_path = rcsb.fetch(pdbids[fold], "cif")  # Fetch CIF file path
+
+        # Parse CIF file using Biopython
+        parser = MMCIFParser(QUIET=True)
+        structure = parser.get_structure(pdbids[fold], cif_file_path)
+
+        # Process structure
+        pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = read_seq_coord_contacts_from_pdb(
+            structure, chain=pdbchains[fold]
+        )
+
+        # Save sequence to FASTA file
+        fasta_file_name = os.path.join(
+            cur_family_dir, f"{pdbids[fold]}{pdbchains[fold]}.fasta"
+        )
+        with open(fasta_file_name, "w") as text_file:
+            text_file.writelines([
+                f"> {pdbids[fold].upper()}:{pdbchains[fold].upper()}\n",
+                pdb_seq
+            ])
+
+        # Save contacts to a binary file
+        contact_file = os.path.join(
+            cur_family_dir, f"{pdbids[fold]}{pdbchains[fold]}_pdb_contacts.npy"
+        )
+        np.save(contact_file, pdb_contacts)
+
+        print(f"Saved contacts to: {contact_file}")
+        print("FINISHED read_seq_coord_contacts_from_pdb ALL IS GOOD!")
+
+
 # Extract contact map from a pdb-file
 # Also extract the distances themselves (more informative than the thresholded contacts)
 # And the sequences
@@ -281,51 +339,68 @@ def extend(a, b, c, L, A, D):
 # pdb_seq - sequence extracted from pdb file, after removing residues with missing atoms
 # good_res_ids - indices of full good residues
 # Cbeta - coordinates of Cbeta atoms (N*#chains numpy array)
+
 def read_seq_coord_contacts_from_pdb(
-        structure: bs.AtomArray,
+        structure,
         distance_threshold: float = 8.0,
         chain: Optional[str] = None,
-) -> np.ndarray:
-    mask = ~structure.hetero
-    if chain is not None:
-        mask &= structure.chain_id == chain
-    # Problem: what if they're not compatible?
-    N = structure.coord[mask & (structure.atom_name == "N")]
-    CA = structure.coord[mask & (structure.atom_name == "CA")]
-    C = structure.coord[mask & (structure.atom_name == "C")]
-    pdb_seq = "".join([aa_long_short[a] for a in structure.res_name[np.where(mask & (structure.atom_name == "N"))[0]]])
+) -> Tuple[np.ndarray, np.ndarray, str, np.ndarray, np.ndarray]:
+    """
+    Extract distances, contacts, sequence, and coordinates from a PDB structure.
 
-    good_res_ids = structure.res_id[mask & (structure.atom_name == "N")]  # all residues indices
-    if len(N) != len(CA) or len(N) != len(C) or len(C) != len(CA):  # missing atoms
-        print("Missing atoms in PDB! remove residues!")
-        print([len(N), len(CA), len(C)])
-        good_res_ids = np.intersect1d(np.intersect1d(structure.res_id[mask & (structure.atom_name == "N")],
-                                                     structure.res_id[mask & (structure.atom_name == "CA")]),
-                                      structure.res_id[mask & (structure.atom_name == "C")])
-        N = structure.coord[mask & (structure.atom_name == "N") & np.in1d(structure.res_id, good_res_ids)]
-        CA = structure.coord[mask & (structure.atom_name == "CA") & np.in1d(structure.res_id, good_res_ids)]
-        C = structure.coord[mask & (structure.atom_name == "C") & np.in1d(structure.res_id, good_res_ids)]
-        pdb_seq = "".join([aa_long_short[a] for a in structure.res_name[
-            np.where(mask & (structure.atom_name == "N") & np.in1d(structure.res_id, good_res_ids))[0]]])
+    Parameters:
+    - structure: Bio.PDB.Structure object
+    - distance_threshold: Distance threshold for contact definition
+    - chain: Chain ID to filter
 
-        # Change in structure coordinates?
-        # return []
-    Cbeta = extend(C, N, CA, 1.522, 1.927, -2.143)
+    Returns:
+    - dist: Pairwise distance matrix
+    - contacts: Binary contact map
+    - pdb_seq: Sequence of the protein
+    - good_res_ids: Indices of valid residues
+    - Cbeta: Coordinates of C-beta atoms
+    """
+    residues = []
+    for model in structure:
+        for ch in model:
+            if chain is None or ch.id == chain:
+                residues.extend([res for res in ch if is_aa(res, standard=True)])
+
+    # Get atom coordinates
+    N_coords, CA_coords, C_coords = [], [], []
+    good_res_ids, pdb_seq = [], []
+
+    for res in residues:
+        try:
+            N = res["N"].get_coord()
+            CA = res["CA"].get_coord()
+            C = res["C"].get_coord()
+            N_coords.append(N)
+            CA_coords.append(CA)
+            C_coords.append(C)
+            pdb_seq.append(aa_long_short[res.resname])
+            good_res_ids.append(res.id[1])
+        except KeyError:
+            continue  # Skip residues missing these atoms
+
+    N_coords = np.array(N_coords)
+    CA_coords = np.array(CA_coords)
+    C_coords = np.array(C_coords)
+    pdb_seq = "".join(pdb_seq)
+    good_res_ids = np.array(good_res_ids)
+
+    if len(N_coords) != len(CA_coords) or len(CA_coords) != len(C_coords):
+        print("Warning: Some residues have missing atoms.")
+
+    # Calculate C-beta coordinates
+    Cbeta = extend(C_coords, N_coords, CA_coords, 1.522, 1.927, -2.143)
+
+    # Calculate distances and contacts
     dist = squareform(pdist(Cbeta))
+    contacts = (dist < distance_threshold).astype(int)
+    contacts[np.isnan(dist)] = -1  # Handle NaNs
 
-    with open("bad_dists.pkl", "wb") as f:
-        pickle.dump([dist, distance_threshold], f)
-    with open('bad_dists.pkl', 'rb') as f:
-        dist, distance_threshold = pickle.load(f)
-
-#    print("DIST SHAPE: ")
-#    print(type(dist))
-#    print(dist.shape)
-
-    contacts = dist < distance_threshold
-    contacts = contacts.astype(np.int64)
-    contacts[np.isnan(dist)] = -1
-    return dist, contacts, pdb_seq, good_res_ids, Cbeta   # [aa_long_short[aa] for aa in structure.res_name[good_res_ids]]
+    return dist, contacts, pdb_seq, good_res_ids, Cbeta
 
 
 # Evaluate precision of predicted contacts with respect to true contacts

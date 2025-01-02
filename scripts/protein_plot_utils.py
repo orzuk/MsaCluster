@@ -2,6 +2,10 @@
 # import nglview as nv
 import py3Dmol
 import platform
+import sys
+import os
+
+# sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
 #if not platform.system() == "Linux":  # Plotting doesn't work on unix
 import pymol
@@ -15,8 +19,14 @@ from pymol import cmd  # , stored
 # from io import BytesIO
 from Bio import Align
 # from MSA_Clust import match_predicted_and_true_contact_maps
-from phytree_utils import *
-from MSA_Clust import *
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
+
+# from scripts import phytree_utils
+from .phytree_utils import *
+
+# from scripts/phytree_utils import *
+from .MSA_Clust import *
 
 import math
 
