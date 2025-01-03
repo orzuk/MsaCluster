@@ -168,7 +168,6 @@ def compare_designs(S, pdbID1, pdbID2):
     return df_tm, S, S1, S2, AF, AF1, AF2  # Return all sequences, structures and their similarity
 
 
-
 # Extract a sequence from a protein pdb file.
 # Next do it by chain (?)
 def extract_protein_sequence(pdb_file):
@@ -185,6 +184,27 @@ def extract_protein_sequence(pdb_file):
             sequences.append(''.join(seq))
 
     return sequences
+
+
+
+def clean_sequence(residue_energies):
+    """
+    Clean residue energies to extract a valid amino acid sequence.
+
+    Parameters:
+    - residue_energies (list of tuples): Residue data [(residue_name, residue_index, energy), ...]
+
+    Returns:
+    - str: Cleaned amino acid sequence.
+    """
+    cleaned_sequence = [
+        res[0].split(":")[0]  # Remove metadata after ":"
+        for res in residue_energies
+        if res[0].split(":")[0] in aa_long_short.keys()  # Keep only valid residues
+    ]
+
+    cleaned_sequence = [  aa_long_short[x] for x in cleaned_sequence]
+    return "".join(cleaned_sequence)
 
 
 # Compute tmscores of two structures, interface to tmscore module
@@ -658,8 +678,15 @@ def get_calphas(struct):
 
 
 # Match between cmaps, get only aligned indices
-# Match between cmaps, get only aligned indices
 def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
+    """
+       Match between cmaps, get only aligned indices
+
+       Parameters:
+       - pairwise_alignment: Object with alignment of two sequences .
+       - true_cmap : Matrix representing first contact map .
+       - pred_cmap : Matrix representing second contact map .
+       """
     #    n_true = len(true_cmap)  # always 2 !!
     #    n_pred = len(pred_cmap)  # variable number !!
 
@@ -678,7 +705,6 @@ def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
     #        print(true_cmap[i])
     #        print(true_cmap[i].shape)
     #        print(true_cmap[i][cur_ind,cur_ind])
-
 
     ctr = 0
     for fold in pred_cmap.keys():  # range(n_pred):  # get predicted

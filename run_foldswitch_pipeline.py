@@ -97,10 +97,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             # download_pdb(pdbids[i][0])
             # download_pdb(pdbids[i][1])
             # create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
-            print("i is ", i)
-            print("Search chain: ", f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb')
-            get_fasta_chain_seq(f'./{output_pair_dir}/chain_pdb_files/{pdbids[i][0] + pdbchains[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0],output_pair_dir)
-            print("Got fasta chain")
+            print("Search chain: ", f'./{output_pair_dir}/{pdbids[i][0]}.pdb')
+            get_fasta_chain_seq(f'./{output_pair_dir}/{pdbids[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0], output_pair_dir)  # Why only first fold here?
             fasta_file_name = output_dir + "/" + foldpair_id + "/fasta_chain_files/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
             cur_family_dir = output_dir + "/" + foldpair_id
             print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
@@ -129,8 +127,11 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                     run_str = ''
                     print(f"Running PyRosetta energy computation for fold pairs: {foldpair_ids_to_run}")
                     pdb_pair_files = [("Pipeline/" + p + "/" + p[:4] + ".pdb" ,  "Pipeline/" + p + "/" + p[-5:-1] + ".pdb") for p in foldpair_ids_to_run]
-                    deltaG_output_file = "deltaG_results.txt"
-                    run_compute_deltaG_with_output(pdb_pair_files, foldpair_ids_to_run, deltaG_output_file)
+                    deltaG_output_file = "Pipeline/output_deltaG/deltaG_results.txt"
+                    output_dir = "Pipeline/output_deltaG"
+                    compute_global_and_residue_energies(pdb_pair_files, foldpair_ids_to_run, output_dir)
+
+#                    run_compute_deltaG_with_output(pdb_pair_files, foldpair_ids_to_run, deltaG_output_file)
 
                     '''
                     for foldpair_id in foldpair_ids_to_run:
