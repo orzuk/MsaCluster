@@ -76,8 +76,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
     # idx_test = 0
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
-        print("Run on fold pairs")
-        if 1 < 2: # try: # Change to try catch !!!
+        print("Run on fold pairs ", foldpair_id)
+        try: # Change to try catch !!!
             # idx_test +=1
             # if idx_test>3:
             #     break
@@ -92,10 +92,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 print("Mkdir: " + f'./{output_pair_dir}/fasta_chain_files')
                 os.mkdir(f'./{output_pair_dir}/fasta_chain_files')
 
-
             i = foldpair_ids.index(foldpair_id)
-            # download_pdb(pdbids[i][0])
-            # download_pdb(pdbids[i][1])
             # create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
             print("Search chain: ", f'./{output_pair_dir}/{pdbids[i][0]}.pdb')
             get_fasta_chain_seq(f'./{output_pair_dir}/{pdbids[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0], output_pair_dir)  # Why only first fold here?
@@ -125,11 +122,12 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
                 if run_mode == "compute_deltaG":  # Compute free energy !!! NEW !!
                     run_str = ''
-                    print(f"Running PyRosetta energy computation for fold pairs: {foldpair_ids_to_run}")
                     pdb_pair_files = [("Pipeline/" + p + "/" + p[:4] + ".pdb" ,  "Pipeline/" + p + "/" + p[-5:-1] + ".pdb") for p in foldpair_ids_to_run]
                     deltaG_output_file = "Pipeline/output_deltaG/deltaG_results.txt"
-                    output_dir = "Pipeline/output_deltaG"
-                    compute_global_and_residue_energies(pdb_pair_files, foldpair_ids_to_run, output_dir)
+#                    compute_global_and_residue_energies(pdb_pair_files, foldpair_ids_to_run, output_dir)
+                    pdb_pair_files = [("Pipeline/" + foldpair_id + "/" + foldpair_id[:4] + ".pdb",
+                                       "Pipeline/" + foldpair_id + "/" + foldpair_id[-5:-1] + ".pdb") ]
+                    compute_global_and_residue_energies(pdb_pair_files, [foldpair_id], "Pipeline/output_deltaG")
 
 #                    run_compute_deltaG_with_output(pdb_pair_files, foldpair_ids_to_run, deltaG_output_file)
 
@@ -169,9 +167,9 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 if run_str != '':
                     print("Send job for " + run_mode + ":\n" + run_str)
                     os.system(run_str)
-#        except:  # Uncomment !!
-#            print("Failed " + run_mode + " function")
-#            continue
+        except:  # Uncomment !!
+            print("Failed " + run_mode + " function")
+            continue
     # for i in range(n_fam):
     #    cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
     #    pred_vec[i] = predict_fold_switch_from_MSA_cluster(cur_MSA, clust_params)
