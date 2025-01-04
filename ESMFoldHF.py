@@ -68,13 +68,6 @@ def save_string_as_pdb(pdb_string, file_path):
         pdb_file.write(pdb_string)
 
 
-# Read fasta file
-def get_sequence_from_fasta(fasta_file_path):
-    sequence = None
-    for record in SeqIO.parse(fasta_file_path, "fasta"):
-        sequence = str(record.seq)
-        break
-    return sequence
 
 if __name__ == '__main__':
 

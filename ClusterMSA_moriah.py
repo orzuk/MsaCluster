@@ -9,35 +9,6 @@ from glob import glob
 from scripts.msa_utils import *
 
 
-def dihedral_wrapper(traj):
-    """Featurize an MD trajectory into a vector space via calculation
-    of dihedral (torsion) angles of alpha carbon backbone
-
-    Lifted from MSMBuilder, RT McGibbon
-
-    Parameters
-    ----------
-    traj : mdtraj.Trajectory
-        A molecular dynamics trajectory to featurize.
-
-    Returns
-    -------
-    features : np.ndarray, dtype=float, shape=(n_samples, n_features)
-        A featurized trajectory is a 2D array of shape
-        `(length_of_trajectory x n_features)` where each `features[i]`
-        vector is computed by applying the featurization function
-        to the `i`th snapshot of the input trajectory.
-
-    """
-    ca = [a.index for a in traj.top.atoms if a.name == 'CA']
-    if len(ca) < 4:
-        return np.zeros((len(traj), 0), dtype=np.float32)
-
-    alpha_indices = np.array(
-        [(ca[i - 1], ca[i], ca[i + 1], ca[i + 2]) for i in range(1, len(ca) - 2)])
-    result = md.compute_dihedrals(traj, alpha_indices)
-
-    return result[0]
 
 
 def consensusVoting(seqs):

@@ -15,20 +15,6 @@ from biotite.structure.io.pdbx import get_structure
 from Bio.PDB.MMCIFParser import MMCIFParser
 
 
-def download_pdb(pdb_id):
-    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-    response = requests.get(url)
-
-    # Check if the request was successful (status code 200)
-    if response.status_code == 200:
-        filename = f"./pdb_files/{pdb_id}.pdb"
-        with open(filename, 'w') as file:
-            file.write(response.text)
-        print(f"Downloaded {filename}")
-    else:
-        print(f"Failed to download PDB file for ID {pdb_id}. Status code: {response.status_code}")
-
-
 # Run pipeline on a bunch of families (MSAs can be given, or read from file
 # or generated on the fly)
 # MSAs can be represented as a3m format

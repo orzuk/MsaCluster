@@ -1,6 +1,9 @@
 import os
 import re
 from collections import defaultdict
+import ast
+import os
+
 
 def find_python_files(root_dir):
     """Find all Python files in the project, excluding venv and __pycache__ directories."""
@@ -49,7 +52,45 @@ def find_unused_files(dependencies, all_files):
     return unused_files
 
 
-if __name__ == "__main__":
+
+def find_function_definitions_and_calls(directory):
+    functions = {}
+    calls = set()
+
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".py"):
+                filepath = os.path.join(root, file)
+                with open(filepath, "r") as f:
+                    try:
+                        tree = ast.parse(f.read(), filename=filepath)
+                        for node in ast.walk(tree):
+                            if isinstance(node, ast.FunctionDef):
+                                functions[node.name] = filepath
+                            elif isinstance(node, ast.Call):
+                                if isinstance(node.func, ast.Name):
+                                    calls.add(node.func.id)
+                                elif isinstance(node.func, ast.Attribute):
+                                    calls.add(node.func.attr)
+                    except Exception as e:
+                        print(f"Error parsing {filepath}: {e}")
+
+    return functions, calls
+
+
+analyze_functions = True
+analyze_files = False
+if analyze_functions:
+    directory = "/mnt/c/Code/Github/MsaCluster"
+    functions, calls = find_function_definitions_and_calls(directory)
+
+    unused = {name: path for name, path in functions.items() if name not in calls}
+    print("Unused functions:")
+    for name, path in unused.items():
+        print(f"{name} in {path}")
+
+if analyze_files:
+#if __name__ == "__main__":
     root_dir = "."  # Replace with your project root directory
     python_files = find_python_files(root_dir)
     dependencies = map_dependencies(root_dir, python_files)
