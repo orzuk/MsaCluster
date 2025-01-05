@@ -11,7 +11,7 @@ import numpy as np
 #if parent_dir not in sys.path:
 #    sys.path.append(parent_dir)
 
-from scripts.protein_utils import *
+from utils.protein_utils import *
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 

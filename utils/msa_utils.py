@@ -22,3 +22,24 @@ def write_fasta(names, seqs, outfile='tmp.fasta'):
             f.write(">%s\n%s\n" % (nm, seq))
 
 
+
+def get_align_indexes(seqA, seqB):
+    alignments = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)
+    best_align = alignments[0]
+    seqA = best_align.seqA
+    seqB = best_align.seqB
+    cursA = 0
+    cursB = 0
+    seqA_idxs = []
+    seqB_idxs = []
+    for aa in range(len(seqA)):
+        if (seqA[aa] != '-') & (seqB[aa] != '-'):
+            seqA_idxs.append(cursA)
+            seqB_idxs.append(cursB)
+            cursA += 1
+            cursB += 1
+        if (seqA[aa] == '-') & (seqB[aa] != '-'):
+            cursB += 1
+        if (seqA[aa] != '-') & (seqB[aa] == '-'):
+            cursA += 1
+    return seqA_idxs, seqB_idxs

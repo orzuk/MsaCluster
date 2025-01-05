@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import Bio
 import Bio.PDB
 import Bio.SeqRecord
-from Bio import SeqIO, AlignIO
+from Bio import SeqIO, PDB, AlignIO
 from Bio.PDB.Polypeptide import is_aa
 from Bio.PDB import PDBParser
 
@@ -25,6 +25,7 @@ import pickle
 import os
 import sys
 import urllib
+import mdtraj as md
 
 import biotite.structure as bs
 # from biotite.structure.io.pdbx import get_structure
@@ -265,13 +266,18 @@ def extend(a, b, c, L, A, D):
     return c + sum([m * d for m, d in zip(m, d)])
 
 
-
 def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
     """
     Load sequence and structure for given PDB IDs and chains using Biopython.
-    """
-    print("Inside load function")
+     Parameters:
+    - cur_family_dir: directory
+    - foldpair_id: ID of pair (not used)
+    - pdbids: PDB IDs
+    - pdbchains: Chain IDs
 
+    Returns:
+    - Nothing, saves output to files
+    """
     print("Loading seq and struct for " + pdbids[0] + " , " + pdbids[1])
     for fold in range(2):
         if not os.path.exists(cur_family_dir):
@@ -305,9 +311,7 @@ def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
             cur_family_dir, f"{pdbids[fold]}{pdbchains[fold]}_pdb_contacts.npy"
         )
         np.save(contact_file, pdb_contacts)
-
         print(f"Saved contacts to: {contact_file}")
-        print("FINISHED read_seq_coord_contacts_from_pdb ALL IS GOOD!")
 
 
 # Extract contact map from a pdb-file
@@ -567,7 +571,7 @@ def read_pdb(pdbcode, pdbfilenm):
 
 
 # Match between cmaps, get only aligned indices
-def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
+def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
     """
        Match between cmaps, get only aligned indices
 
@@ -579,6 +583,9 @@ def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
     #    n_true = len(true_cmap)  # always 2 !!
     #    n_pred = len(pred_cmap)  # variable number !!
 
+    print("Pairwise alignment: ")
+    print(pairwise_alignment)
+#    print("Cmap sizes: ", true_cmap.shape, pred_cmap.shape)
     match_true_cmap = {}  # [None]*2
     match_pred_cmap = {}  # [None]*n_pred
 
@@ -602,6 +609,77 @@ def get_matching_indices_two_maps(pairwise_alignment, true_cmap, pred_cmap):
     return match_true_cmap, match_pred_cmap
 
 
+def Calculate_RMSD(structure_1: str, structure_2: str, structure_1_index: List[int], structure_2_index: List[int]) -> int:
+    """
+    calculate the RMSD between two structures using MDtraj library
+    this script will fail if mdtraj is not loaded in your python environment
+    recommend python 3.10
+    """
+
+    #with warnings.catch_warnings(action="ignore"):
+    #    turn_off_warnings()
+    #load structure information in mdtraj
+    pdb = md.load(structure_1)
+    pdb_ca = pdb.atom_slice(structure_1_index) #select only CA atoms
+
+    #load structure information in mdtraj
+    reference = md.load(structure_2)
+    reference_ca = reference.atom_slice(structure_2_index) #select only CA atoms
+
+    # Calculate RMSD of CA atoms
+    pdb_ca.superpose(reference_ca)
+    return md.rmsd(pdb_ca, reference_ca, frame=0)
+
+
+def Alpha_Carbon_Indices(pdb: str) -> List:
+    """
+    take in a pdb file and identify the index of every alpha carbon
+    """
+    structure = PDB.PDBParser(QUIET=True).get_structure('protein', pdb)
+
+    alpha_carbons = []
+
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                if 'CA' in residue:
+                    resid = residue.resname
+                    alpha_carbons.append([resid, residue['CA'].get_serial_number() - 1])
+    return alpha_carbons
+
+
+def Match_Alpha_Carbons(pdb_1: str, pdb_2: str) -> List[int]:
+    """
+    Take in two pdb structure files and search through them for matching alpha carbons
+    This should identify positions correctly even if sequences are not identical
+    """
+    alpha_c_1 = Alpha_Carbon_Indices(pdb_1)
+    alpha_c_2 = Alpha_Carbon_Indices(pdb_2)
+
+    matching_alpha_carbons1 = []
+    matching_alpha_carbons2 = []
+
+    for i, (resname_1, ca_index1) in enumerate(alpha_c_1):
+        for j, (resname_2, ca_index2) in enumerate(alpha_c_2):
+            if resname_2 == resname_1 and ca_index1 not in [_[1] for _ in matching_alpha_carbons1] and ca_index2 not in [_[1] for _ in matching_alpha_carbons2]:
+                #prevent erroneous match at NTD
+                if i > 0 and j > 0:
+                    if alpha_c_1[i-1][0] != alpha_c_2[j-1][0]: #check previous matches
+                        continue
+                # prevent erroneous backtracking
+                if len(matching_alpha_carbons1) > 2 and len(matching_alpha_carbons2) > 2:
+                    if ca_index2 < matching_alpha_carbons2[-1][-1]:
+                        continue
+                #prevent erroneous match at CTD
+                if i < len(alpha_c_1) - 1 and j < len(alpha_c_2) - 1:
+                    if alpha_c_1[i+1][0] != alpha_c_2[j+1][0]: #check next matches
+                        continue
+
+                matching_alpha_carbons1.append([resname_1, ca_index1])
+                matching_alpha_carbons2.append([resname_2, ca_index2])
+                break
+    #skip first residue to avoid erroneous glycine match
+    return matching_alpha_carbons1[1:], matching_alpha_carbons2[1:]
 
 
 run_example = False

@@ -11,22 +11,12 @@ import os
 import pymol
 from pymol import cmd  # , stored
 
-# import pickle
-# from pyvirtualdisplay import Display
-# from IPython.display import display, Image
-# import requests
-# from PIL import Image
-# from io import BytesIO
 from Bio import Align
 # from MSA_Clust import match_predicted_and_true_contact_maps
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
-
 # from scripts import phytree_utils
-from .phytree_utils import *
-
-# from scripts/phytree_utils import *
-from .MSA_Clust import *
+from utils.phytree_utils import *
+from scripts.MSA_Clust import *
 
 import math
 
@@ -88,24 +78,34 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                 msa_pred_files}  # remove 'shallow' string
 
     try:
-        true_cmap = {pdbids[fold] + pdbchains[fold]: np.genfromtxt(fasta_dir +  # problem with first !!
+        print("Current dir: ", os.getcwd())
+        print("Try to extract true cmap from: ",
+              fasta_dir + "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy")
+        true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !! # genfromtxt
                     "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy").astype(int)
                      for fold in range(2)}
+        print(true_cmap[pdbids[0] + pdbchains[0]])
+        print(true_cmap[pdbids[1] + pdbchains[1]])
     except:
+        print("Couldn't extract true cmap !!! ")
         true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !!
                     "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy",
                         allow_pickle=True).astype(int) for fold in range(2)}
-
-    print("All predicted MSA transformer files:")
-    print(msa_transformer_pred.keys())
+    print("Loaded true cmap!")
+#    print("All predicted MSA transformer files:")
+#    print(msa_transformer_pred.keys())
 #    print(msa_transformer_pred.values())
 #    print("Exit function! shapes:")
 #    print(msa_transformer_pred['p'].shape)
 #    print("Exit function! shapes2:")
 #    print(msa_transformer_pred['Msa_000'].shape)  # Show shape. Should be square form: n*n residues
 
+#    print("Dump pickle for debug:")
+#    with open('debug_match_index.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
+#        pickle.dump([pairwise_alignment], f) #  true_cmap, msa_transformer_pred], f)
+
     print("Get matching indices:")
-    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_maps(pairwise_alignment, true_cmap,
+    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(pairwise_alignment, true_cmap,
                                                                            msa_transformer_pred)
 
 
@@ -343,6 +343,15 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
 
 # Plot multiple contacts and predictions together
 def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
+    """
+    Plot multiple contacts and predictions together
+
+    Parameters:
+    predictions: Contact map predictions
+    contacts: True Contact MAps (pair)
+    save_file (str): Path to save the output image.
+    """
+
     n_pred = len(predictions)
     n_row = math.ceil(math.sqrt(n_pred))  # *2
     if n_row * (n_row - 1) >= n_pred:  # *2
