@@ -2,7 +2,7 @@
 # import os
 # from pathlib import Path
 import time
-from scripts.protein_utils import *
+from utils.protein_utils import *
 
 import numpy as np
 import torch

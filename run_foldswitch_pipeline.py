@@ -1,8 +1,8 @@
 # Rub pipeline from a list of PDBs
 
-from scripts.protein_plot_utils import *
-from scripts.energy_utils import *
-from utils import *
+from utils.protein_plot_utils import *
+from utils.energy_utils import *
+from utils.utils import *
 import platform
 import requests
 # from biotite.structure.io.pdbx import get_structure
@@ -63,6 +63,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
         print("Run on fold pairs ", foldpair_id)
+        # if 1 < 2: #
         try: # Change to try catch !!!
             # idx_test +=1
             # if idx_test>3:
@@ -141,10 +142,10 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                     print(pdbids[i])
                     print(output_dir)
                     print(foldpair_id)
-                    print("pdbchjain", pdbchains[i])
-                    print("plot tree clusters:", plot_tree_clusters)
-
-                    cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i] = make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
+                    print("pdbchain", pdbchains[i])
+                    print("plot clusters predictions:", plot_tree_clusters)
+                    cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i], _ = \
+                        make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
                     print("Finished Running make_plot from outside333")
                 if run_mode == "tree":  # here do analysis of the results
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke

@@ -6,7 +6,7 @@ from hdbscan import HDBSCAN
 import numpy as np
 import pickle
 from glob import glob
-from scripts.msa_utils import *
+from utils.msa_utils import *
 
 
 
