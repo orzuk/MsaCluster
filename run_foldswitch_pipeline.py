@@ -63,8 +63,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
     # pred_vec = [0] * n_fam     # loop on MSAs
     for foldpair_id in foldpair_ids_to_run:
         print("Run on fold pairs ", foldpair_id)
-        # if 1 < 2: #
-        try: # Change to try catch !!!
+        if 1 < 2: #
+        # try: # Change to try catch !!!
             # idx_test +=1
             # if idx_test>3:
             #     break
@@ -154,9 +154,9 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 if run_str != '':
                     print("Send job for " + run_mode + ":\n" + run_str)
                     os.system(run_str)
-        except:  # Uncomment !!
-            print("Failed " + run_mode + " function")
-            continue
+        # except:  # Uncomment !!
+        #    print("Failed " + run_mode + " function")
+        #    continue
     # for i in range(n_fam):
     #    cur_MSA = MSAs_dir[i] # This should be replaced by code generating/reading the MSA
     #    pred_vec[i] = predict_fold_switch_from_MSA_cluster(cur_MSA, clust_params)
