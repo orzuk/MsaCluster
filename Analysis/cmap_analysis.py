@@ -1,15 +1,17 @@
 import numpy as np
 import pandas as pd
-import pcmap
+# import pcmap
 import Bio.PDB
 
 pdb_code = "2nxq"
 pdb_filename = "/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/2nxq.pdb"
 
+
 def calc_residue_dist(residue_one, residue_two) :
     """Returns the C-alpha distance between two residues"""
-    diff_vector  = residue_one["CA"].coord - residue_two["CA"].coord
+    diff_vector = residue_one["CA"].coord - residue_two["CA"].coord
     return np.sqrt(np.sum(diff_vector * diff_vector))
+
 
 def calc_dist_matrix(chain_one, chain_two) :
     """Returns a matrix of C-alpha distances between two chains"""
@@ -22,7 +24,7 @@ def calc_dist_matrix(chain_one, chain_two) :
 
 a = np.loadtxt('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_cmap_output/msa_t__cluster_000.npy')
 
-c2 = pcmap.contactMap("/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/2nxq.pdb")
+# c2 = pcmap.contactMap("/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/2nxq.pdb")  # can't install pcmap !!
 
 structure = Bio.PDB.PDBParser().get_structure(pdb_code, pdb_filename)
 model = structure[0]

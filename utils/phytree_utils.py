@@ -8,7 +8,6 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import ParsimonyScorer, NNITreeSearcher, ParsimonyTreeConstructor
 
-
 import matplotlib.pyplot as plt
 import pickle
 from pylab import *
@@ -19,7 +18,8 @@ from matplotlib.colors import Normalize, to_hex
 from ete3 import *
 from .msa_utils import *
 import random
-
+import os
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 def resolve_duplicated_ids(ids_list):
         """
@@ -266,6 +266,7 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
         if '.' not in output_file:
             output_file = output_file + ".png"
         tree.render(output_file, w=800, units="px", tree_style=ts, layout=layout)
+        print("Did tree render!!! ")
     else:
         tree.show(tree_style=ts, layout=layout)
 

@@ -7,8 +7,8 @@ from polyleven import levenshtein
 import subprocess
 
 # import seaborn as sns
-from scripts.protein_utils import *
-from scripts.msa_utils import *
+from utils.protein_utils import *
+from utils.msa_utils import *
 # from protein_plot_utils import make_foldswitch_all_plots
 import random
 from glob import glob
@@ -52,6 +52,7 @@ def compute_cmap_distances(cmaps, cmap_main = []):
         cmap_main = cmap_main / n_maps
 
     for cur_cmap in cmaps.keys():  # Compute distance to centroid
+        print("cmap=", cur_cmap, " Cmap dist: ", sum(cmaps[cur_cmap] - cmap_main)**2)
         D += sum(cmaps[cur_cmap] - cmap_main)**2
     return D/n_maps  # normalize
 
@@ -195,37 +196,33 @@ def MSA_transformer(MSAs, MSAs_names, true_contacts = {}):
 # np.loadtxt('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_cmap_output/msa_t__cluster_000.npy')
 
 
-# Compute the true vs. predicted contact map, predict for each contact if it is:
+# Compute the true vs. predicted contact map. Determine for each contact if it is:
 # 1. Present in both
 # 2. Present in first
 # 3. Present in second
 # 4. Absent
 # Input:
 # cmap_clusters: dictionary of contact maps, one for each cluster
-# cmap_true: dictionary of contact maps, one for each fold
+# cmap_true: dictionary of TWO contact maps, one for each fold
 # Output:
 # shared_unique_contacts: dictionary of contact maps, one for each type of contact (shared, unique in fold 1, unique in fold 2)
 # shared_unique_contacts_metrics: dictionary of metrics, one for each type of contact (shared, unique in fold 1, unique in fold 2)
-# contacts_united: contact map of the union of the two folds
+# contacts_united: contact map of the union of the two true folds: 0 - no contact , 1 - both contacts , 2 - unique contact (different on each side)
 def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
     # First divide the contacts into both, one and two
     fold_ids = list(cmap_true.keys())
-
-#    print(fold_ids[0])
-#    print(cmap_true[fold_ids[0]])
     seqlen = cmap_true[fold_ids[0]].shape[0]
 
     relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
     top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}
 
-    contacts_united = (
-                cmap_true[fold_ids[0]] + cmap_true[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
+    contacts_united = (cmap_true[fold_ids[0]] + cmap_true[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
     for fold in fold_ids:
-        contacts_united[np.where(cmap_true[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
+        contacts_united[np.where(cmap_true[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0 # Now: 0 - no contact, 1: show only on one side, 2: contact in both
     # Flip contact in one and both:
     cc = copy.deepcopy(contacts_united)
     contacts_united[cc == 1] = 2
-    contacts_united[cc == 2] = 1
+    contacts_united[cc == 2] = 1  # Now: 0 - no contact, 2: show unique on one side, 1: contact in both
 
     # Next, evaluate shared and unique contacts separately.
 
@@ -234,39 +231,16 @@ def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
         shared_unique_contacts[fold] = ((contacts_united == 2) & top_bottom_mask[fold]).astype(int)
         shared_unique_contacts[fold] = shared_unique_contacts[fold] + shared_unique_contacts[fold].transpose() # make symmetric
 
+    # Only here use the predictions
     shared_unique_contacts_metrics = {"shared": None, fold_ids[0]: None, fold_ids[1]: None}
     for ctype in shared_unique_contacts_metrics:
         shared_unique_contacts_metrics[ctype] = {}
         for clust in cmap_clusters:
             shared_unique_contacts_metrics[ctype][clust] = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
-#            print(shared_unique_contacts_metrics["shared"])
-#            print(shared_unique_contacts[ctype])
-#            print(clust)
-#            print(type(cmap_clusters))
-#            print(cmap_clusters[clust])
-#            xxx = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
-#            print(xxx)
 
     return shared_unique_contacts, shared_unique_contacts_metrics, contacts_united
 
 
-
-# Taken from here:
-# https://stackoverflow.com/questions/76682974/similarity-score-sequence-alignment
-def lev_distance_matrix(seqs):
-    """Calculate Levenshtein distance and ratio metrics
-       on input pair of strings.
-    """
-    seqs = sorted(seqs)
-
-    return {
-        seqs[0]: {
-            seqs[1]: {
-                "distance": pylev.distance(*seqs),
-                "ratio": pylev.ratio(*seqs),
-            }
-        }
-    }
 
 
 # Get the cluster ids of individual sequences

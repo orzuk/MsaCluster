@@ -69,3 +69,32 @@ def save_org_cmaps(chain_pdb_file_path,fold):
     frame_contacts = ContactFrequency(traj[0])
     np.save(f'./Pipeline/org_cmaps/{fold}.npy',frame_contacts)
 
+
+def find_max_keys(input_dict):
+    """
+    Given a dictionary of the format {key: {subkey1: value1, subkey2: value2, ...}},
+    find the keys that maximize the values for each subkey.
+
+    Parameters:
+        input_dict (dict): Dictionary of dictionaries with numeric values.
+
+    Returns:
+        dict: A dictionary with subkeys as keys and tuples as values, where each tuple contains
+              (key_with_max_value, max_value).
+    """
+    result = {}
+
+    # Check the subkeys present in the first inner dictionary
+    first_key = next(iter(input_dict))
+    subkeys = input_dict[first_key].keys()
+
+    for subkey in subkeys:
+        max_key = None
+        max_value = float('-inf')
+        for key, subdict in input_dict.items():
+            if subdict[subkey] > max_value:
+                max_key = key
+                max_value = subdict[subkey]
+        result[subkey] = (max_key, max_value)
+
+    return result

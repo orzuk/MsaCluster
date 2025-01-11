@@ -171,8 +171,6 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
     return res_DF # return results
 
 
-
-
 # Run inline one family. Shouldn't get command line arguments but use function input!!!
 def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains, fasta_file_name):
     cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = [None]*3

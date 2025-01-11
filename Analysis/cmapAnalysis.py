@@ -7,6 +7,8 @@ from Bio import PDB
 from Bio import pairwise2
 import pandas as pd
 import numpy as np
+from cmap_analysis.PlotUtils import *
+
 
 def extract_protein_sequence(pdb_file):
     parser = PDBParser()
@@ -25,39 +27,6 @@ def extract_protein_sequence(pdb_file):
                     residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
 
     return residue_sequence
-
-
-def get_align_indexes(seqA, seqB):
-    alignments = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)
-    best_alignment = alignments[0]
-    aligned_seq1, aligned_seq2, score, begin, end = best_alignment
-    index_pairs = []
-    seq1_index = seq2_index = 0
-
-    for a, b in zip(aligned_seq1, aligned_seq2):
-        if a != '-' and b != '-':
-            index_pairs.append((seq1_index, seq2_index))
-            seq1_index += 1
-            seq2_index += 1
-        elif a != '-':
-            seq1_index += 1
-        elif b != '-':
-            seq2_index += 1
-
-    idx_seqA = [i[0] for i in index_pairs]
-    idx_seqB = [i[-1] for i in index_pairs]
-    return idx_seqA, idx_seqB
-
-
-def get_contact_map_from_pdb(pdb_file, size=None, start_pos=0, end_pos=-1):
-    pdb_obj = md.load_pdb(pdb_file)
-    distances, pairs = md.compute_contacts(pdb_obj)
-    contacts = md.geometry.squareform(distances, pairs)[0]
-    if size is None:
-        size = contacts.shape[0]
-    arr = np.zeros([size, size])
-    arr[np.where(contacts[start_pos:end_pos, start_pos:end_pos] < 0.5)] = 1
-    return arr
 
 
 def dilate_with_tolerance(array, tolerance):
@@ -79,8 +48,8 @@ if __name__ == '__main__':
             seq_fold2 = extract_protein_sequence(f'{folder}/{fold_pair}/chain_pdb_files/{fold2}.pdb')
 
             fold1_idxs ,fold2_idxs = get_align_indexes(seq_fold1, seq_fold2)
-            cmap_pdb1             = get_contact_map_from_pdb(f'{folder}/{fold_pair}/chain_pdb_files/{fold1}.pdb')[fold1_idxs][:, fold1_idxs]
-            cmap_pdb2             = get_contact_map_from_pdb(f'{folder}/{fold_pair}/chain_pdb_files/{fold2}.pdb')[fold2_idxs][:, fold2_idxs]
+            cmap_pdb1             = plot_tool.get_contact_map_from_pdb(f'{folder}/{fold_pair}/chain_pdb_files/{fold1}.pdb')[fold1_idxs][:, fold1_idxs]
+            cmap_pdb2             = plot_tool.get_contact_map_from_pdb(f'{folder}/{fold_pair}/chain_pdb_files/{fold2}.pdb')[fold2_idxs][:, fold2_idxs]
 
             dilated_cmap1 = dilate_with_tolerance(cmap_pdb1, tolerance)
             dilated_cmap2 = dilate_with_tolerance(cmap_pdb2, tolerance)

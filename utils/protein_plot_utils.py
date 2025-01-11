@@ -12,11 +12,11 @@ import pymol
 from pymol import cmd  # , stored
 
 from Bio import Align
-# from MSA_Clust import match_predicted_and_true_contact_maps
-
 # from scripts import phytree_utils
 from utils.phytree_utils import *
 from scripts.MSA_Clust import *
+from utils.utils import *
+from matplotlib.colors import ListedColormap
 
 import math
 
@@ -71,12 +71,13 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         print("Long sequence! Length = " + " > maximum supported length of 1024")
         return [None]*3
 
+    print("Full msa_trans keys: ")
+    print({file.split("\\")[-1] for file in msa_pred_files})
     try:  # read in text format or python format the pairwise predicted contact maps of msa transformer for each cluster
-        msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.genfromtxt(file) for file in msa_pred_files}
+        msa_transformer_pred = {file.split("\\")[-1][9:-4]: np.genfromtxt(file) for file in msa_pred_files}
     except:
-        msa_transformer_pred = {file.split("\\")[-1][14:-4]: np.load(file, allow_pickle=True) for file in
-                                msa_pred_files}  # remove 'shallow' string
-
+        msa_transformer_pred = {file.split("\\")[-1][9:-4]: np.load(file, allow_pickle=True) for file in msa_pred_files}  # remove 'shallow' string
+    print("msa_pred_files: ", msa_pred_files)
     try:
         print("Current dir: ", os.getcwd())
         print("Try to extract true cmap from: ",
@@ -105,12 +106,28 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #        pickle.dump([pairwise_alignment], f) #  true_cmap, msa_transformer_pred], f)
 
     print("Get matching indices:")
-    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(pairwise_alignment, true_cmap,
-                                                                           msa_transformer_pred)
+    match_true_cmap, match_predicted_cmaps = \
+        get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, msa_transformer_pred)
 
-
+    print("msa transfomers keys: ", msa_transformer_pred.keys())
     print("Exit function! match true:")
     print(match_true_cmap)
+    print("pdbids", pdbids, "pdbchains", pdbchains)
+    for f in range(2):
+        plt.imshow(1-match_true_cmap[pdbids[f]+pdbchains[f]].astype(int),  cmap='gray', vmin=0, vmax=1)
+        plt.axis('off')  # Turn off axes for a cleaner image
+        plt.show()
+
+        # Save the array to an image file
+        output_file = "temp_binary_" + pdbids[f]+pdbchains[f] + "_cmap.png"
+        plt.imsave(output_file, 1-match_true_cmap[pdbids[f]+pdbchains[f]].astype(int), cmap='gray')
+        print(f"Image saved to {output_file}")
+
+    differences = np.argwhere(match_true_cmap[pdbids[0]+pdbchains[0]] != match_true_cmap[pdbids[1]+pdbchains[1]])
+#    print("Indices where the arrays are different:")
+#    print(differences)
+    print("Means of fold differences: ", np.mean(match_true_cmap[pdbids[0]+pdbchains[0]] ), np.mean(match_true_cmap[pdbids[1]+pdbchains[1]] ))
+
 #    print(match_true_cmap.shape)
     print("Exit function! match predicted:")
 #    print(match_predicted_cmaps)
@@ -121,15 +138,15 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
     print("Plot Array")
     plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap,
-                                        fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id)
+                                        fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id + '_all_clusters_cmap')
 
     print("Plotted Array")
 #    return 9999999999
 
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(
         match_predicted_cmaps, match_true_cmap)  # here number of cmaps is #clusters + 1
-    print("Cmap metrics shared:")
-    print(shared_unique_contacts_metrics["shared"])
+#    print("Cmap metrics shared:")
+#    print(shared_unique_contacts_metrics["shared"])
 #    for fold in range(2):
 #        print("Cmap metrics for " + pdbids[fold] + pdbchains[fold] + ":")
 #        print(shared_unique_contacts_metrics[pdbids[fold] + pdbchains[fold]])
@@ -140,10 +157,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                    shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
                                    shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5']) for ctype in
                            match_predicted_cmaps}  # Why only shared?
-    print("FIRST CLUSTER NODE VALUES:")
-    print(cluster_node_values)
-    print("Shape:")
-    print(len(cluster_node_values))
+#    print("FIRST CLUSTER NODE VALUES:")
+#    print(cluster_node_values)
+#    print("Shape:")
+#    print(len(cluster_node_values))
     # ADDD A VALUE FOR THE TOTAL TM SCORE !!!
 
     # load tree
@@ -176,33 +193,36 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #    print("Now create leaves dictionary:")
 #    print("Keys:")
 #    print([n.name for n in ete_tree])
-    print("ete tree:", ete_tree)
-    print("ete_leaves_cluster_ids", ete_leaves_cluster_ids)
+#    print("ete tree:", ete_tree)  # long - better plot in an image file
+#    print("ete_leaves_cluster_ids: ", ete_leaves_cluster_ids)
 
-    print("MAtch: ", [ete_leaves_cluster_ids[n.name] for n in ete_tree])
+#    print("Match: ", [ete_leaves_cluster_ids[n.name] for n in ete_tree])
 #    print("cluster:")
 #    print(cluster_node_values)
-    print("cluster keys: ", cluster_node_values)
+#    print("cluster keys: ", cluster_node_values)
 #    print([cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree])
-    for n in ete_tree:
-        print("n=", n, " ; key=", ete_leaves_cluster_ids[n.name], " ; n.name=", n.name)
-        if ete_leaves_cluster_ids[n.name] != 'p':
-            print("cnv=", cluster_node_values[ete_leaves_cluster_ids[n.name]])
+#    for n in ete_tree:
+#        adjusted_key = foldpair_id + '/output_cmap_esm/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]
+#        print("n=", n, " ; key=", ete_leaves_cluster_ids[n.name], " ; n.name=", n.name, ' adjusted_key=', adjusted_key)
+#
+#        if ete_leaves_cluster_ids[n.name] != 'p':
+#            print("cnv=",  cluster_node_values[adjusted_key]) # ete_leaves_cluster_ids[n.name]])
 
-    ete_leaves_node_values = {n.name: cluster_node_values[ete_leaves_cluster_ids[n.name]] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
-    print("Unique Node Values: ")
-    print(set(ete_leaves_node_values.values()))
-    print("Cluster node values:")
-    print(cluster_node_values)
-    print("Convert to data-frame:")
+    ete_leaves_node_values = {n.name: cluster_node_values[foldpair_id + '/output_cmap_esm/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]]
+                              for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
+#    print("Unique Node Values: ")
+#    print(set(ete_leaves_node_values.values()))
+#    print("Cluster node values:")
+#    print(cluster_node_values)
+#    print("Convert to data-frame:")
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
     ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
-    print("Dump pickle:")
-    with open('tree_draw.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
-        pickle.dump([phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values], f)
-    print("Node Values: ")
-    print(ete_leaves_node_values)
-    print(type(ete_leaves_node_values))
+#    print("Dump pickle:")
+#    with open('tree_draw.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
+#        pickle.dump([phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values], f)
+#    print("Node Values: ")
+#    print(ete_leaves_node_values)
+#    print(type(ete_leaves_node_values))
 #    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
 #        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
     if plot_tree_clusters:  # plot only clusters
@@ -275,6 +295,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
+        concat_scores = [] # temp
 
 #    with open('bad_tree_and_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
 #        phytree_file, ete_leaves_node_values, outfile = pickle.load(f)
@@ -358,7 +379,7 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
         n_col = n_row - 1
     else:
         n_col = n_row
-    PDB_IDS = predictions.keys()  # [p[name] for p in predictions]
+
     contacts_ids = contacts.keys()
     fig, axes = plt.subplots(figsize=(18, 18), nrows=n_row, ncols=n_col, layout="compressed")
     #    print("Num cmaps: " + str(n_pred))
@@ -366,19 +387,19 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
     #    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
     ctr = 0
     #    for ax, name in zip(axes, PDB_IDS):
-#    print("n_col=" + str(n_col))
-#    print("n_row=" + str(n_row))
-#    print(PDB_IDS)
 #    print("Contact lens:" + str(len(contacts)))
-    for name in PDB_IDS:  # loop over predictions
+    recall = {}
+    for name in predictions.keys():  # loop over predictions
         if n_col == 1:
             ax = axes[ctr]
         else:
             ax = axes[ctr // n_col, ctr % n_col]
         ctr = ctr + 1
 #        print("Plotting prediction: " + name)  # + " -> true: " + true_name)
-        plot_foldswitch_contacts_and_predictions(
+        recall[name] = plot_foldswitch_contacts_and_predictions(
             predictions[name], contacts, ax=ax, title=name, show_legend= ctr == 1)
+
+
 
     ##        for true_name in contacts_ids: # loop over two folds
     ##            print("Plotting prediction: " + name + " -> true: " + true_name)
@@ -390,6 +411,35 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
         print("Save cmap fig: " + save_file + '.png')
     else:
         plt.show()
+
+    # Find maximum and display plot for the best clusters:
+#    print("Recall all clusters:", recall)
+#    print("Recall no deep: ", {x:recall[x] for x in recall.keys() if "deep" not in x})
+    best_recall_clusters = find_max_keys({x:recall[x] for x in recall.keys() if "deep" not in x})  # Need to exclude the deep alignment here !!!
+    print("Best recall clusters: ", best_recall_clusters)
+    best_cluster_ids = {x : int(best_recall_clusters[x][0][-3:]) for x in best_recall_clusters}
+    print("Best recall clusters with IDS: ", best_recall_clusters, best_cluster_ids)
+    fold_ids = list(contacts.keys())
+    # Create a new figure for the second plot
+    plt.figure(figsize=(10, 8))  # Adjust size as needed
+    best_recall = plot_foldswitch_contacts_and_predictions( (predictions[best_recall_clusters[fold_ids[0]][0]],
+                                                              predictions[best_recall_clusters[fold_ids[1]][0]]),
+                                                           contacts, title="Best clusters", show_legend=True)
+#    fig = plt.gcf()  # Get current figure
+    ax = plt.gca()  # Get current Axes
+    print("New labels: ", ax.get_xlabel() + ' cluster ' + str(best_cluster_ids[fold_ids[0]]),
+          ax.get_ylabel() + ' cluster ' + str(best_cluster_ids[fold_ids[1]]))
+    ax.set_xlabel(ax.get_xlabel() + ' cluster ' + str(best_cluster_ids[fold_ids[0]]))
+    ax.set_ylabel(ax.get_ylabel() + ' cluster ' + str(best_cluster_ids[fold_ids[1]]))
+    print("New NEW labels: ", ax.get_xlabel() ,  ax.get_ylabel() )
+#    plt.draw()
+#    ax.figure.canvas.draw()
+    print("best recall: ", best_recall)
+    plt.savefig(save_file.replace('all', 'best'))
+    plt.close()  # Close the figure to avoid reuse issues
+
+#    print("Save best cmap fig: " + save_file + '_best_clusters_cmap.png')
+
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
 
 
@@ -399,7 +449,7 @@ def plot_contacts_and_predictions(
         ax: Optional[mpl.axes.Axes] = None,
         # artists: Optional[ContactAndPredictionArtists] = None,
         cmap: str = "Blues",
-        ms: float = 1,
+        ms: float = 0.5,  # size of circles
         title: Union[bool, str, Callable[[float], str]] = True,
         animated: bool = False,
 ) -> None:
@@ -445,13 +495,12 @@ def plot_contacts_and_predictions(
     # artists = ContactAndPredictionArtists(img, oc, fp, tp, ti)
 
     # Show second structure here!
-
     ax.legend(loc="upper left")
     ax.axis("square")
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
     save_flag = False  # add as input
-    print("Now plotting cmap: save-flag=", save_flag)
+#    print("Now plotting cmap: save-flag=", save_flag)
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
 
@@ -467,94 +516,203 @@ def plot_foldswitch_contacts_and_predictions(
         title: Union[bool, str, Callable[[float], str]] = True,
         animated: bool = False,
         show_legend: bool = False,
+        save_flag: bool = False,
 ) -> None:
     fold_ids = list(contacts.keys())
-    if isinstance(predictions, torch.Tensor):
-        predictions = predictions.detach().cpu().numpy()
-    for fold in fold_ids:
+
+    # Handle single or double predictions
+    if not isinstance(predictions, tuple):
+        predictions = [predictions, predictions]
+        two_predictions = False
+    else:
+        two_predictions = True
+    for p in range(2):
+        if isinstance(predictions[p], torch.Tensor):
+            predictions[p] = predictions[p].detach().cpu().numpy()
+    predictions = tuple(predictions)
+
+    for fold in fold_ids: # always two contact maps
         if isinstance(contacts[fold], torch.Tensor):
             contacts[fold] = contacts[fold].detach().cpu().numpy()
     if ax is None:
         ax = plt.gca()
 
-    if len(fold_ids) == 1: # same PDB ID, duplicate
+    if len(fold_ids) == 1:  # same PDB ID, duplicate
         fold_ids[1] = fold_ids[0]
-    seqlen = contacts[fold].shape[0]
-#    print(seqlen)
-#    for fold in fold_ids:
-#        print(contacts[fold].shape)
-#    print(fold_ids)
+    seqlen = contacts[fold_ids[0]].shape[0]  # take length of the first
     relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
-    top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}
+    top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}  # first is lower left, second is upper right
     #    masked_image = np.ma.masked_where(bottom_mask, predictions)
-    masked_image = np.ma.masked_where(top_bottom_mask[list(fold_ids)[0]], predictions)
-    invalid_mask = np.abs(np.add.outer(np.arange(seqlen), -np.arange(seqlen))) < 6
-    predictions = predictions.copy()
-    predictions[invalid_mask] = float("-inf")
+#    masked_image = np.ma.masked_where(top_bottom_mask[list(fold_ids)[0]], predictions[0])
+    invalid_mask = np.abs(np.add.outer(np.arange(seqlen), -np.arange(seqlen))) < 6  # stripe around diagonal
+    topl_val = [[], []]
+    pred_contacts = [[], []]
+    _, _, contacts_united = match_predicted_and_true_contact_maps({title: predictions[0]}, contacts)  # only contacts matter, not predictions
+    for p in range(2):
+        predictions[p][invalid_mask] = float("-inf") # don't show predictions near diagonal
+        topl_val[p] = np.sort(predictions[p].reshape(-1))[-seqlen]
+        pred_contacts[p] = predictions[p] >= topl_val[p]
+        print("fold ", p , fold_ids[p], " toplval=", topl_val[p], " num prediction=", sum(pred_contacts[p]))
 
-##    contacts_united = (contacts[fold_ids[0]] + contacts[fold_ids[1]])  # 0: no contact, 1: contact in one, 2: contact in both
-##    for fold in fold_ids:
-##        contacts_united[np.where(contacts[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
-    # Flip contact in one and both:
- ##   cc = copy.deepcopy(contacts_united)
-##    contacts_united[cc == 1] = 2
-##    contacts_united[cc == 2] = 1
+#    contacts_united_both_predictions = contacts_united[0]*top_bottom_mask[fold_ids[0]] + \
+#                                       contacts_united[1]*(1-top_bottom_mask[fold_ids[1]])
 
-    _, _, contacts_united = match_predicted_and_true_contact_maps({title:predictions}, contacts)
 
-    topl_val = np.sort(predictions.reshape(-1))[-seqlen]
-    pred_contacts = predictions >= topl_val
-    true_positives, false_positives, other_contacts = {}, {}, {}  # [None]*2, [None]*2, [None]*2
+#    if two_predictions:
+#        _, _, contacts_united2 = match_predicted_and_true_contact_maps({title: predictions[1]}, contacts)
+#        topl_val2 = np.sort(predictions[1].reshape(-1))[-seqlen]
+#        pred_contacts2 = predictions[1] >= topl_val2
 
+    true_positives, false_positives, other_contacts = {}, {}, {}
+    recall = {}
+
+    p = 0
     for fold in fold_ids:
-        #        print(fold)
-        #        print(true_positives[fold])
-        #        print(contacts[fold])
-        #        print("Top-Bottom")
-        #       print(top_bottom_mask[fold])
-        true_positives[fold] = contacts[fold] & pred_contacts & top_bottom_mask[fold]
-        false_positives[fold] = ~contacts[fold] & pred_contacts & top_bottom_mask[fold]
-        other_contacts[fold] = contacts[fold] & ~pred_contacts & top_bottom_mask[fold]
+        true_positives[fold] = contacts[fold] & pred_contacts[p] & top_bottom_mask[fold]
+        false_positives[fold] = ~contacts[fold] & pred_contacts[p] & top_bottom_mask[fold]
+        other_contacts[fold] = contacts[fold] & ~pred_contacts[p] & top_bottom_mask[fold]
+#        print("True Positives: ", true_positives[fold], " False positives: ", false_positives[fold] , " Other: ", other_contacts[fold])
+#        print("True Positives: ", sum(true_positives[fold]), " False positives: ", sum(false_positives[fold]) , " Other: ", sum(other_contacts[fold]))
+        recall[fold] = sum(true_positives[fold]) / ( sum(true_positives[fold]) + sum(other_contacts[fold] ) )
+        p += 1
 
     if isinstance(title, str):
         title_text: Optional[str] = title
     elif title:
-        long_range_pl = compute_precisions(predictions, contacts, minsep=24)[
-            "P@L"
-        ].item()
+        long_range_pl0 = compute_precisions(predictions[0], contacts, minsep=24)["P@L"].item()
+        long_range_pl1 = compute_precisions(predictions[1], contacts, minsep=24)["P@L"].item()
         if callable(title):
-            title_text = title(long_range_pl)
+            title_text = title(long_range_pl0 + long_range_pl1)
         else:
-            title_text = f"Long Range P@L: {100 * long_range_pl:0.1f}"
+            title_text = f"Long Range P@L: {100 * long_range_pl0:0.1f} , {100 * long_range_pl1:0.1f}"
     else:
         title_text = None
 
-    #    img = ax.imshow(masked_image, cmap=cmap, animated=animated)  # Show main image
-    img = ax.imshow(contacts_united, cmap=cmap, animated=animated)  # Show main image
-#    for fold in fold_ids:
-#        oc = ax.plot(*np.where(other_contacts[fold]), "o", c="grey", ms=ms, label="other")[0]
+    colors = ['white', 'lightgray', 'darkgray']  # background, unique, shared
+    custom_cmap = ListedColormap(colors)
+    img = ax.imshow(contacts_united, cmap=custom_cmap, animated=animated)
+
     ms = ms * 50 / seqlen
-#    print("ms: " + str(ms))
+    # Create legend entries with square markers for contacts
+    shared_contacts = ax.scatter([], [], marker='s', c='lightgray', s=ms * 50, label='Shared Contacts')
+    unique_contacts = ax.scatter([], [], marker='s', c='darkgray', s=ms * 50, label='Unique Contacts')
+    # Create existing circular markers for predictions
     fp = ax.plot(*np.where(false_positives[fold_ids[0]]), "o", c="r", ms=ms, label="FP")[0]
     tp = ax.plot(*np.where(true_positives[fold_ids[0]]), "o", c="b", ms=ms, label="TP")[0]
-    fp = ax.plot(*np.where(false_positives[fold_ids[1]]), "o", c="r", ms=ms)[0]
-    tp = ax.plot(*np.where(true_positives[fold_ids[1]]), "o", c="b", ms=ms)[0]
-    ti = ax.set_title(title_text) if title_text is not None else None
-    # artists = ContactAndPredictionArtists(img, oc, fp, tp, ti)
+    fp2 = ax.plot(*np.where(false_positives[fold_ids[1]]), "o", c="r", ms=ms)[0]
+    tp2 = ax.plot(*np.where(true_positives[fold_ids[1]]), "o", c="b", ms=ms)[0]
 
-    # Show second structure here!
     if show_legend:
-        ax.legend(loc="upper left")
+        # Include all items in the legend - both scatter and plot handles
+        legend_elements = [shared_contacts, unique_contacts, tp, fp]
+        ax.legend(handles=legend_elements, loc="upper left")
+
     ax.axis("square")
-    ax.set_xlabel(fold_ids[0], fontsize=14)
-    ax.set_ylabel(fold_ids[1], fontsize=14)
+    print("Recall is: ", recall, " fold ids is: ", fold_ids)
+    print("0: ", recall[fold_ids[0]], str(recall[fold_ids[0]]))
+    ax.set_xlabel(fold_ids[0] + ", recall=" + str(round(recall[fold_ids[0]], 3)), fontsize=14)
+    ax.set_ylabel(fold_ids[1] + ", recall=" + str(round(recall[fold_ids[1]], 3)), fontsize=14)
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
-    save_flag = False  # add as input
-    print("Now plotting cmap foldswitch: save-flag=", save_flag)
 
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
+    return recall
 
+
+
+# Enable one or two true contact maps
+def plot_foldswitch_contacts_and_predictions2(
+        predictions: Union[torch.Tensor, np.ndarray, Tuple[Union[torch.Tensor, np.ndarray], Union[torch.Tensor, np.ndarray]]],
+        contacts: Union[torch.Tensor, np.ndarray],
+        ax: Optional[mpl.axes.Axes] = None,
+        cmap: str = "gray_r",
+        ms: float = 5,
+        title: Union[bool, str, Callable[[float], str]] = True,
+        animated: bool = False,
+        show_legend: bool = False,
+) -> Dict[str, float]:
+    fold_ids = list(contacts.keys())
+
+    # Handle single or double predictions
+    if isinstance(predictions, tuple):
+        prediction_1, prediction_2 = predictions
+        two_predictions = True
+    else:
+        prediction_1, prediction_2 = predictions, predictions  # Use the same prediction for both folds
+        two_predictions = False
+
+    # Convert tensors to numpy arrays
+    if isinstance(prediction_1, torch.Tensor):
+        prediction_1 = prediction_1.detach().cpu().numpy()
+    if isinstance(prediction_2, torch.Tensor):
+        prediction_2 = prediction_2.detach().cpu().numpy()
+
+    for fold in fold_ids:
+        if isinstance(contacts[fold], torch.Tensor):
+            contacts[fold] = contacts[fold].detach().cpu().numpy()
+
+    if ax is None:
+        ax = plt.gca()
+
+    seqlen = contacts[fold_ids[0]].shape[0]
+    relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
+    top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}
+    invalid_mask = np.abs(relative_distance) < 6
+
+    # Mask invalid regions in predictions
+    prediction_1 = prediction_1.copy()
+    prediction_1[invalid_mask] = float("-inf")
+    prediction_2 = prediction_2.copy()
+    prediction_2[invalid_mask] = float("-inf")
+
+    # Combine contacts into a single map for display
+    contacts_united = np.zeros_like(contacts[fold_ids[0]], dtype=float)
+    contacts_united[top_bottom_mask[fold_ids[0]]] = contacts[fold_ids[0]][top_bottom_mask[fold_ids[0]]]
+    contacts_united[top_bottom_mask[fold_ids[1]]] = contacts[fold_ids[1]][top_bottom_mask[fold_ids[1]]]
+
+    # Calculate top-L threshold and contact predictions
+    topl_val_1 = np.sort(prediction_1.reshape(-1))[-seqlen]
+    pred_contacts_1 = prediction_1 >= topl_val_1
+
+    topl_val_2 = np.sort(prediction_2.reshape(-1))[-seqlen]
+    pred_contacts_2 = prediction_2 >= topl_val_2
+
+    # Compute recall for each fold
+    recall = {}
+    true_positives = {}
+    false_positives = {}
+    other_contacts = {}
+
+    for fold, pred_contacts in zip(fold_ids, [pred_contacts_1, pred_contacts_2]):
+        true_positives[fold] = contacts[fold] & pred_contacts & top_bottom_mask[fold]
+        false_positives[fold] = ~contacts[fold] & pred_contacts & top_bottom_mask[fold]
+        other_contacts[fold] = contacts[fold] & ~pred_contacts & top_bottom_mask[fold]
+
+        recall[fold] = np.sum(true_positives[fold]) / (np.sum(true_positives[fold]) + np.sum(other_contacts[fold]))
+
+    # Plot the contact map (gray)
+    ax.imshow(contacts_united, cmap=cmap, animated=animated)
+
+    # Plot predictions
+    ms = ms * 50 / seqlen
+    # First prediction dots (upper-left)
+    ax.plot(*np.where(true_positives[fold_ids[0]]), "o", c="b", ms=ms, label="TP Fold 1")
+    ax.plot(*np.where(false_positives[fold_ids[0]]), "o", c="r", ms=ms, label="FP Fold 1")
+
+    # Second prediction dots (bottom-right)
+    if two_predictions:
+        ax.plot(*np.where(true_positives[fold_ids[1]]), "o", c="b", ms=ms)
+        ax.plot(*np.where(false_positives[fold_ids[1]]), "o", c="r", ms=ms)
+
+    if show_legend:
+        ax.legend(loc="upper left")
+
+    ax.axis("square")
+    ax.set_xlabel(f"{fold_ids[0]} Recall: {recall[fold_ids[0]]:.3f}", fontsize=12)
+    ax.set_ylabel(f"{fold_ids[1]} Recall: {recall[fold_ids[1]]:.3f}", fontsize=12)
+    ax.set_xlim([0, seqlen])
+    ax.set_ylim([0, seqlen])
+    return recall
 
 

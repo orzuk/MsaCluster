@@ -1,7 +1,7 @@
 # import itertools
 # import os
 # from pathlib import Path
-from scripts.phytree_utils import *
+from utils.phytree_utils import *
 from glob import glob
 
 import torch

@@ -32,6 +32,7 @@ import biotite.structure as bs
 
 from biotite.structure.io.pdb import PDBFile
 from biotite.database import rcsb
+from biotite.structure.io.pdbx import get_structure
 from biotite.structure import filter_amino_acids
 
 #from biotite.structure.io.pdbx import PDBxFile, get_structure
@@ -398,7 +399,7 @@ def read_seq_coord_contacts_from_pdb(
 # predictions - matrix of predicted residue affinities
 # targets - matrix of binary contacts
 # Output :
-# AUC - Area under the ROC curve for preditcing contacts
+# AUC - Area under the ROC curve for predicting contacts
 # P@L - percent of top L contacts recovered among
 def compute_precisions(
         predictions: torch.Tensor,
