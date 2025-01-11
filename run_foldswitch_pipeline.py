@@ -108,6 +108,9 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 if run_mode == "run_AF":  # run alpha-fold to predict structures
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
                 if run_mode == "compute_deltaG":  # Compute free energy !!! NEW !!
+                    if run_os == "Windows":
+                        print("Can't run pyrosetta in windows. Re-run in linux. Abortting")
+                        exit(99)
                     run_str = ''
                     pdb_pair_files = [("Pipeline/" + p + "/" + p[:4] + ".pdb" ,  "Pipeline/" + p + "/" + p[-5:-1] + ".pdb") for p in foldpair_ids_to_run]
                     deltaG_output_file = "Pipeline/output_deltaG/deltaG_results.txt"
@@ -229,6 +232,7 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
 # problematic_families = ["2bzyB_2lqwA", "4cmqB_4zt0C", "5tpnA_1g2cF"]  # 2bzyB_2lqwA bad (missing ) true cmap!!
 foldpair_ids_to_run = 'ALL'  # '3j7vG_3j7wB' # '2vfxL_3gmhL' # '1xjuB_1xjtA'  # "ALL"
 if platform.system() == "Linux":
+    run_os = "Linux"
     print("Run on cluster command line")
     run_mode = sys.argv[1]
     if len(sys.argv) > 2:
@@ -237,6 +241,7 @@ if platform.system() == "Linux":
     plot_tree_clusters = False
 else:
     print("Run on windows")
+    run_os = "Windows"
     run_mode = "plot"  # "load_seq_and_struct" #    "plot" # "run_esmfold"   # "plot"  # "load"  # "run_esm" # "plot" # "run_esm"  # sys.argv[1]
     run_job_mode = "inline"
     foldpair_ids_to_run = "1dzlA_5keqF"  #   "4ydqB_4twaA"  #  "3t5oA_4a5wB" # "3meeA_4b3oB"  # "2kb8A_6vw2A"  #  problematic, needs padding !

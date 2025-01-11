@@ -1,4 +1,9 @@
-import pyrosetta
+try:
+    import pyrosetta
+    PYROSETTA_AVAILABLE = True
+except ImportError:
+    print("Can't run pyrosetta in windows. Re-run in linux")
+    PYROSETTA_AVAILABLE = False
 
 import csv
 import matplotlib.pyplot as plt
