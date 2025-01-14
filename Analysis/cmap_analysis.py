@@ -1,6 +1,5 @@
-import pandas as pd
 from tqdm import tqdm
-from Analysis.PlotUtils import *
+from olds.Analysis import *
 
 def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
     """
