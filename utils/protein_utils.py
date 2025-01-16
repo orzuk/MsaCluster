@@ -290,12 +290,15 @@ def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
 
         # Parse CIF file using Biopython
         parser = MMCIFParser(QUIET=True)
+#        parser = PDBParser()  #
         structure = parser.get_structure(pdbids[fold], cif_file_path)
 
+#        structure = get_structure(rcsb.fetch(pdbids[fold], "cif"), model=1)
+
         # Process structure
-        pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = read_seq_coord_contacts_from_pdb(
-            structure, chain=pdbchains[fold]
-        )
+        pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = \
+            read_seq_coord_contacts_from_pdb(structure, chain=pdbchains[fold])
+        print("pdb_seq=", pdb_seq, " len=", len(pdb_seq))
 
         # Save sequence to FASTA file
         fasta_file_name = os.path.join(
@@ -315,6 +318,104 @@ def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
         print(f"Saved contacts to: {contact_file}")
 
 
+def read_seq_coord_contacts_from_pdb(
+        structure,
+        distance_threshold: float = 8.0,
+        chain: Optional[str] = None,
+        model_num: int = 0  # Default to first model
+) -> Tuple[np.ndarray, np.ndarray, str, np.ndarray, np.ndarray]:
+    """
+    Extract distances, contacts, sequence, and coordinates from a PDB structure,
+    specifically handling NMR structures with multiple models.
+    """
+    print(f"Structure ID: {structure.id}")
+
+    # Get list of all models
+    models = list(structure.get_models())
+    num_models = len(models)
+    print(f"Number of models found: {num_models}")
+
+    if num_models == 0:
+        raise ValueError("No models found in structure")
+
+    # Use specified model or default to first
+    if model_num >= num_models:
+        print(f"Warning: Requested model {model_num} not found. Using model 0")
+        model_num = 0
+
+    model = models[model_num]
+    print(f"Using model {model_num}")
+
+    # Collect residues from specified chain
+    residues = []
+    chains_found = []
+
+    for ch in model:
+        chains_found.append(ch.id)
+        if chain is None or ch.id == chain:
+            print(f"Processing chain {ch.id}")
+            chain_residues = [res for res in ch if is_aa(res, standard=False)]
+            print(f"Found {len(chain_residues)} residues in chain {ch.id}")
+            residues.extend(chain_residues)
+
+    print(f"Available chains: {chains_found}")
+
+    if not residues:
+        raise ValueError(f"No valid residues found. Available chains: {chains_found}. Specified chain: {chain}")
+
+    # Get C-alpha coordinates
+    CA_coords = []
+    good_res_ids, pdb_seq = [], []
+
+    for res in residues:
+        try:
+            CA = res["CA"].get_coord()
+            CA_coords.append(CA)
+            if res.resname in aa_long_short:
+                pdb_seq.append(aa_long_short[res.resname])
+            else:
+                print(f"Non-standard residue {res.resname} at position {res.id[1]}")
+                pdb_seq.append("X")
+            good_res_ids.append(res.id[1])
+        except KeyError:
+            print(f"Missing CA atom in residue {res.resname} {res.id[1]}")
+            continue
+
+    if not CA_coords:
+        raise ValueError("No C-alpha coordinates found in structure")
+
+    print(f"Processed {len(CA_coords)} residues with CA atoms")
+
+    CA_coords = np.array(CA_coords)
+    pdb_seq = "".join(pdb_seq)
+    good_res_ids = np.array(good_res_ids)
+
+    # Calculate distances and contacts
+    dist = squareform(pdist(CA_coords))
+    contacts = (dist < distance_threshold).astype(int)
+    contacts[np.isnan(dist)] = -1
+
+    return dist, contacts, pdb_seq, good_res_ids, CA_coords
+
+
+def load_pdb_structure(pdb_file):
+    """
+    Load PDB file with specific handling for NMR structures
+    """
+    import warnings
+    from Bio.PDB import PDBParser
+    from Bio.PDB.PDBExceptions import PDBConstructionWarning
+
+    # Suppress BiopythonWarning about PDB format
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', PDBConstructionWarning)
+
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure('PDB', pdb_file)
+
+        return structure
+
+
 # Extract contact map from a pdb-file
 # Also extract the distances themselves (more informative than the thresholded contacts)
 # And the sequences
@@ -331,7 +432,7 @@ def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
 # good_res_ids - indices of full good residues
 # Cbeta - coordinates of Cbeta atoms (N*#chains numpy array)
 
-def read_seq_coord_contacts_from_pdb(
+def read_seq_coord_contacts_from_pdb_old(
         structure,
         distance_threshold: float = 8.0,
         chain: Optional[str] = None,
