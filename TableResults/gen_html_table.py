@@ -157,18 +157,21 @@ def generate_html_table(df, output_file='output.html'):
 
 
 def main():
+    # Dataframe summary results generate by the script summary_table.py
+    SUMMARY_RESUlT = '/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq'
     # Get the current directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
-
     # Read the parquet file
-    input_file = os.path.join(current_dir, "your_data.parquet")  # Replace with your parquet file name
     output_file = os.path.join(current_dir, "protein_comparison_table.html")
 
-    print(f"Reading parquet file: {input_file}")
-    df = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
 
+    print(f"Reading parquet file")
+    df = pd.read_parquet(SUMMARY_RESUlT)
+    # Add the column of similarity between the two fold of the fold pair (score calulated with the script get_tm_align_score.py)
+    fold1_fold2_sim = pd.read_parquet('/Users/steveabecassis/Desktop/fold1_fold2_sim.parq')
+    df_all = pd.merge(df,fold1_fold2_sim,on='fold_pair')
     # Generate the HTML file
-    generate_html_table(df, output_file)
+    generate_html_table(df_all, output_file)
     print("HTML file generated successfully!")
 
 

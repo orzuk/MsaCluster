@@ -8,10 +8,6 @@ OUTPUT_NAME_DIR="$1"
 
 source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 
-
-
 python3 ./Analysis_params.py -input $OUTPUT_NAME_DIR
-
-
 
 #3v0tA_3uyiA

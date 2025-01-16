@@ -1,17 +1,4 @@
-from argparse import  ArgumentParser
-from Bio.PDB import PDBParser, PDBIO, Select
-from contact_map import ContactFrequency, ContactDifference
-import numpy as np
-import mdtraj as md
-import os
-import pandas as pd
-from scipy.stats import spearmanr
-import gzip
-import subprocess
-import re
-from Bio import pairwise2
-from Bio import PDB
-from Analysis.Analysis import *
+from olds.Analysis import *
 
 
 if __name__ == '__main__':
