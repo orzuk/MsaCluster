@@ -265,7 +265,6 @@ Contains `.sh` files for running scripts on the HURCS cluster. These include pip
 
 ---
 
-With this structure, you can easily locate the script you need based on its functionality and purpose. For more detailed usage instructions, refer to the respective script documentation or comments within the code.
 
 
 
