@@ -15,7 +15,7 @@ for fold_pair in tqdm(fold_pairs):
         df_af = pd.read_csv(f'{folder}/{fold_pair}/Analysis/df_af.csv')
         df_af['fold_pair'] = fold_pair
         df_af_all = pd.concat([df_af_all,df_af])
-    except:
+   except:
         print(fold_pair)
         continue
 
