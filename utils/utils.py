@@ -41,7 +41,6 @@ def create_chain_pdb_files(fold_1,fold_2,pdb_file_path,chain_pdb_file_path):
     io.save(f'./{chain_pdb_file_path}/{fold_2}.pdb', ChainSelect(chain_fold_2))
 
 
-
 # Extract the protein sequence from a pdb file
 def get_fasta_chain_seq(pdb_file, fold_name, output_dir):
     # Create a PDB parser
