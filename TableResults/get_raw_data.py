@@ -4,13 +4,10 @@ from tqdm import tqdm
 import re
 
 folder = '/Users/steveabecassis/Desktop/Pipeline'
-files_notebook = os.listdir('/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_2110')
-files = os.listdir(folder)
-pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
-fold_pairs = [i for i in files if re.match(pattern, i) ]
-res = []
 df_cmap_analysis = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline/cmap_exact_analysis_tol0_2510.parq')
 df_esmfold_analysis = pd.read_csv(f'/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv')
+pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
+res = []
 df_af_all = pd.DataFrame()
 fold_pairs = os.listdir('/Users/steveabecassis/Desktop/Pipeline')
 for fold_pair in tqdm(fold_pairs):

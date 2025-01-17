@@ -4,6 +4,13 @@ import subprocess
 import re
 from tqdm import tqdm
 
+
+'''
+To run this script on your local computer you have to specify where the TM align software is installed on your computer and adapt the function
+get_tmscore_align changing your path.
+And to set in pipeline_folder your path where the results are on your machine
+'''
+
 final_res       = []
 # pipeline_folder = '/Users/steveabecassis/Desktop/Pipeline_res/Pipeline'
 pipeline_folder = '/Users/steveabecassis/Desktop/Pipeline'
@@ -57,7 +64,7 @@ if __name__=='__main__':
     df.sort_values(by=['fold_pair','cluster_num'],inplace=True)
     df_summary                 = df[['fold_pair','TM_mean_cluster_pdb1', 'TM_mean_cluster_pdb2', 'cluster_num','is_fold_1', 'is_fold_2', 'cluster_fold_1', 'cluster_fold_2','sample_count']].drop_duplicates(subset=['fold_pair','cluster_num','TM_mean_cluster_pdb1', 'TM_mean_cluster_pdb2'])
 
-    df.to_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv',index=False)
+    # df.to_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv',index=False)
 
 
 

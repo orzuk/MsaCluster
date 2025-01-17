@@ -105,6 +105,9 @@ def process_array_tolerance(arr, tolerance=1):
 
 
 if __name__ == '__main__':
+    '''
+    Define the models outputs path on your local computer
+    '''
     folder    = '/Users/steveabecassis/Desktop/Pipeline'
     tolerance = 0
     final_df = pd.read_parquet(f'{folder}/cmap_exact_analysis.parq')
@@ -118,7 +121,7 @@ if __name__ == '__main__':
         try:
             fold1     = fold_pair.split('_')[0]
             fold2     = fold_pair.split('_')[-1]
-            plot_tool = PlotTool(folder='/Users/steveabecassis/Desktop/Pipeline', fold_pair=fold_pair)
+            plot_tool = PlotTool(folder=folder, fold_pair=fold_pair)
 
             cmap_pdb1 = plot_tool.get_contact_map_from_pdb(f'{plot_tool.folder}/{plot_tool.fold_pair}/chain_pdb_files/{plot_tool.fold1}.pdb')
             cmap_pdb2 = plot_tool.get_contact_map_from_pdb(f'{plot_tool.folder}/{plot_tool.fold_pair}/chain_pdb_files/{plot_tool.fold2}.pdb')

@@ -31,28 +31,27 @@ def run_notebook(notebook_path, input_string, output_html_path):
 
 # Example usage
 if __name__ == '__main__':
+    '''
+    OUTPUT_PATH : The output you want the html notebook outputs
+    fold_pairs  : List of protein pairs you want to run the analysis
+    '''
+    OUTPUT_PATH = '/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_2110'
+    fold_pairs = ['4cmqB_4zt0C', '4n9wA_4nc9C', '1nrjB_2gedB']
     errors = []
     no_cluster = []
-    notebook_path = '/Users/steveabecassis/Desktop/Pipeline_res/TemplateNotebook.ipynb'
-    files_doned = os.listdir('/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_2110')
-    fold_pairs = ['4cmqB_4zt0C', '4n9wA_4nc9C', '1nrjB_2gedB']
+    notebook_path = './MsaCluster/Analysis/NotebookGen/TemplateNotebook.ipynb'
     for fold_pair in fold_pairs:
-        if f'{fold_pair}.html' in files_doned:
-            continue
         if '.sh' in fold_pair:
             continue
         try:
-            if(len(os.listdir(f'/Users/steveabecassis/Desktop/Pipeline/{fold_pair}/output_msa_cluster'))<2):
-                no_cluster.append(fold_pair)
-                continue
             print('##############################################################################')
             print(fold_pair)
             print('##############################################################################')
-            input_string     = fold_pair
-            output_html_path = f'/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_2110/{input_string}.html'
-            run_notebook(notebook_path,input_string,output_html_path)
+            output_html_path = f'{OUTPUT_PATH}/{fold_pair}.html'
+            run_notebook(notebook_path,fold_pair,output_html_path)
         except Exception as e:
             print(e)
             errors.append({'fold_pair': fold_pair, 'error':e})
             continue
-    pd.DataFrame(errors).to_csv('/Users/steveabecassis/Desktop/Pipeline_res/errors_2110.csv',index=False)
+    print('Finish to run !')
+    # pd.DataFrame(errors).to_csv('/Users/steveabecassis/Desktop/Pipeline_res/errors_2110.csv',index=False)

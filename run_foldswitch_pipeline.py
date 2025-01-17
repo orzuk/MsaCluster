@@ -1,5 +1,4 @@
 # Rub pipeline from a list of PDBs
-
 from utils.protein_plot_utils import *
 from utils.energy_utils import *
 from utils.utils import *
