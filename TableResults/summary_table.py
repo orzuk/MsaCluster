@@ -90,4 +90,4 @@ for fold_pair in tqdm(fold_pairs):
 
 final_res_df = pd.DataFrame(res)
 # final_res_df.astype(str).to_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
-df = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
+# df = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')

@@ -30,6 +30,14 @@ from Bio.PDB.Polypeptide import three_to_one
 from io import StringIO
 import numpy as np
 
+
+
+'''
+In the PlotTool class define you own path
+'''
+
+
+
 # Function to read PDB file
 def read_pdb_file(file_path):
     with open(file_path, 'r') as file:

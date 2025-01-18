@@ -15,8 +15,8 @@ def get_tmscore_align(path_fold1,path_fold2):
         return None
 
 
-path_fold1 = '/Users/steveabecassis/Desktop/Pipeline/3t5oA_4a5wB/chain_pdb_files/3t5oA.pdb'
-path_fold2 = '/Users/steveabecassis/Desktop/Pipeline/3t5oA_4a5wB/chain_pdb_files/4a5wB.pdb'
+# path_fold1 = '/Users/steveabecassis/Desktop/Pipeline/3t5oA_4a5wB/chain_pdb_files/3t5oA.pdb'
+# path_fold2 = '/Users/steveabecassis/Desktop/Pipeline/3t5oA_4a5wB/chain_pdb_files/4a5wB.pdb'
 
 if __name__ == '__main__':
     res = []
