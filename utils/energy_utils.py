@@ -107,8 +107,32 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
     print(f"Results for each PDB pair saved to {output_dir}")
 
 
-# Supporting Functions
 
+def read_energy_tuples(file_path):
+    """
+    Reads a file and extracts energy values as a list of tuples (residue, index, energy).
+
+    Args:
+        file_path (str): Path to the file containing energies.
+
+    Returns:
+        list: A list of tuples, each containing (residue_name, residue_index, energy_value).
+    """
+    energy_tuples = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            parts = line.strip().split()
+            if len(parts) >= 3:
+                try:
+                    residue = parts[0]
+                    index = int(parts[1])  # Convert the residue index to integer
+                    energy = float(parts[2])  # Convert the energy value to float
+                    energy_tuples.append((residue, index, energy))
+                except ValueError:
+                    pass  # Ignore lines that don't have valid data
+    return energy_tuples
+
+# Supporting Functions
 def compute_deltaG_and_residue_energies(
     pdb_path: str, log_file_path: str = None, silent: bool = True
 ):
@@ -222,7 +246,7 @@ def plot_residue_energy_differences(residue_comparison, pdb_id_1, pdb_id_2, top_
         plt.show()
 
 
-def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1, pdb_id_2, output_file, top_n=5):
+def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1, pdb_id_2, output_file=None, top_n=5):
     """
     Align sequences from two PDB files and compare residue energies.
 
@@ -275,8 +299,10 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
     # Prepare for plotting
     indices = np.arange(len(delta_energies))
     delta_energies_filtered = [d if d is not None else 0 for d in delta_energies]
-    bar_colors = ["blue"] * len(delta_energies)
+    if output_file is None:
+        return delta_energies, delta_energies_filtered
 
+    bar_colors = ["blue"] * len(delta_energies)
     for idx, _ in top_indices:
         bar_colors[idx] = "red"
 
@@ -290,14 +316,6 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
         plt.text(idx, delta + (1 if delta > 0 else -3), f"{residue_name}\n{idx + 1}",
                  color="red", ha="center", fontsize=8)
 
-#        plt.text(
-#            idx,
-#            delta + np.sign(delta) * 0.5,  # Offset for better readability
-#            f"{residue_name}\n{idx + 1}",
-#            ha="center",
-#            color="black",
-#            fontsize=8
-#        )
 
     plt.title(f"ΔG({pdb_id_1[:-4]}) - ΔG({pdb_id_2[:-4]})")
     plt.xlabel("Aligned Residue Index")
@@ -309,6 +327,8 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
     plt.close()
 
     print(f"Plot saved to {output_file}")
+
+    return delta_energies, delta_energies_filtered
 
 
 def compute_deltaG_with_pyrosetta(pdb_path: str, log_file_path: str = None):

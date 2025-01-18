@@ -126,16 +126,6 @@ def aa_point_mutation_to_aa(aa, genetic_code_dict):
              in l]))
 
 
-# Run design on every position, collect
-def design_every_position(S, pdbID):
-    n = len(S)  # get number of amino-acids
-    S_des = [''] * n  # The output designed sequence
-    for i in range(n):  # loop on positions
-        cur_S = run_design(S, pdbID, i)  # run design function using ProteinMPNN, keeping all positions fixed except i
-        S_des[i] = cur_S[i]  # change the i-th letter of the i-th protein
-    S_des = "".join(S_des)  # convert to string
-    return S_des
-
 
 # Extract a sequence from a protein pdb file.
 # Next do it by chain (?)
