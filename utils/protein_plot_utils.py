@@ -298,6 +298,11 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                      'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
                                      fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
 
+    global_plots = True
+    if global_plots:
+        print("Make global plots!")
+        global_pairs_statistics_plots(output_file="Pipeline/Results/Figures/fold_pair_scatter_plot.png")
+
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores
 
 #        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
@@ -725,5 +730,78 @@ def plot_foldswitch_contacts_and_predictions(
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
     return recall
+
+
+
+
+def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter_plot.png"):
+    """
+    Reads a CSV file and creates a scatter plot with specific values.
+
+    Args:
+        file_path (str): Path to the input CSV file.
+        output_file (str): Path to save the scatter plot image.
+    """
+    # Load the data
+    # load three output files
+    af_res_file = "data/df_af_all.csv"
+    msa_trans_res_file = "data/df_cmap_all.csv"
+    esmf_res_file = 'data/df_esmfold_all.csv'
+
+    af_df = pd.read_csv(af_res_file)
+    msa_trans_def = pd.read_csv(msa_trans_res_file)
+    esmf_df = pd.read_csv(esmf_res_file)
+
+    print(list(af_df.columns.values))
+    print(list(msa_trans_def.columns.values))
+    print(list(esmf_df.columns.values))
+
+
+
+#    esmf_df = pd.read_csv(file_path)
+
+    # Group data by the first column
+    grouped = esmf_df.groupby(esmf_df.columns[0])
+
+    # Initialize the plot
+    plt.figure(figsize=(10, 8))
+
+    for fold_pair, group in grouped:
+        # Compute means
+        mean_x = group['TM_mean_cluster_pdb1'].mean()
+        mean_y = group['TM_mean_cluster_pdb2'].mean()
+
+        # Compute maximums
+        max_x = group['TMscore_fold1'].max()
+        max_y = group['TMscore_fold2'].max()
+
+        # Plot the mean values with '+'
+        # Convert dict_keys to a list for comparison
+        first_key = list(grouped.groups.keys())[0]
+
+        # Plot the mean values with '+'
+        plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
+
+        # Plot the maximum values with '*'
+        plt.scatter(max_x, max_y, marker='*', color='red', label='Max' if fold_pair == first_key else "")
+
+        plt.plot([mean_x, max_x], [mean_y, max_y], linestyle='--', color='gray', alpha=0.5)
+
+        # Add fold-pair text for max values
+        plt.text(max_x, max_y, fold_pair, fontsize=8, ha='right', color='black')
+
+    # Customize the plot
+    plt.xlabel('TMscore fold1')
+    plt.ylabel('TMscore fold2')
+    plt.title('Scatter Plot of ESMFold vs. Fold Pairs')
+    plt.legend(loc='upper left')
+    plt.grid(True)
+
+    # Save the plot to a file
+    plt.tight_layout()
+    plt.savefig(output_file)
+    plt.close()
+    print(f"Scatter plot saved to {output_file}")
+
 
 
