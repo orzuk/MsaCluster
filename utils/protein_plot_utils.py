@@ -224,6 +224,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         print("total node values: " )
         print(cluster_node_values.shape)
         AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/ShallowMsa*model_1_*pdb")
+        print("AF_model_files= ", AF_model_files)
         for fold in range(2):
             ctr = 0
             for c in cluster_node_values.index:  # loop over cluster names
@@ -248,10 +249,12 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                     fold, true_pdb_file, cur_AF_file, pdbchains = pickle.load(f)
 #                tmscores_mat[fold, ctr] = compute_tmscore(true_pdb_file, cur_AF_file, pdbchains[fold], pdbchains[0])
 #                tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-                tmscores_df.iloc[ctr, fold] = compute_tmscore(
-                    'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-                    cur_AF_file,  # NEED A CHAIN!!!!!
-                                                          pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
+                print("Compute tm score for: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
+                      cur_AF_file, pdbchains[fold], pdbchains[0])
+                print("first chain: ", pdbchains[fold])
+                print("second chain: ", pdbchains[0], " finished")
+                tmscores_df.iloc[ctr, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
+                    cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
 #                print(xx)
 #                tmscores_mat[fold, ctr] = xx
                 ctr += 1
@@ -423,8 +426,8 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
     residue_energies_1 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[1][:4]}.txt"))
 
     delta_energies, delta_energies_filtered = align_and_compare_residues(residue_energies_0, residue_energies_1, fold_ids[0][:4], fold_ids[1][:4])
-    print("delta_energies", delta_energies, " len=", len(delta_energies))
-    print("delta_energies_filtered", delta_energies_filtered, " len=", len(delta_energies_filtered))
+#    print("delta_energies", delta_energies, " len=", len(delta_energies))
+#    print("delta_energies_filtered", delta_energies_filtered, " len=", len(delta_energies_filtered))
     print("n_AA_aligned=", n_AA_aligned)
 
     delta_energies_filtered = np.array(delta_energies_filtered[:n_AA_aligned])  # Temp: need to fix alignment here!!!
@@ -715,7 +718,7 @@ def plot_foldswitch_contacts_and_predictions(
         )
 
     ax.axis("square")
-    print("Recall is: ", {k:round(recall[k], 4) for k in recall}, " fold ids is: ", fold_ids)
+#    print("Recall is: ", {k:round(recall[k], 4) for k in recall}, " fold ids is: ", fold_ids)
     if cluster_names is None:
         ax.set_xlabel(fold_ids[0] + ", recall=" + str(round(recall[fold_ids[0]], 4)) , fontsize=14)
         ax.set_ylabel(fold_ids[1] + ", recall=" + str(round(recall[fold_ids[1]], 4)), fontsize=14)
@@ -749,14 +752,12 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
     esmf_res_file = 'data/df_esmfold_all.csv'
 
     af_df = pd.read_csv(af_res_file)
-    msa_trans_def = pd.read_csv(msa_trans_res_file)
+    msa_trans_df = pd.read_csv(msa_trans_res_file)
     esmf_df = pd.read_csv(esmf_res_file)
 
     print(list(af_df.columns.values))
-    print(list(msa_trans_def.columns.values))
+    print(list(msa_trans_df.columns.values))
     print(list(esmf_df.columns.values))
-
-
 
 #    esmf_df = pd.read_csv(file_path)
 
@@ -765,7 +766,6 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
 
     # Initialize the plot
     plt.figure(figsize=(10, 8))
-
     for fold_pair, group in grouped:
         # Compute means
         mean_x = group['TM_mean_cluster_pdb1'].mean()
@@ -799,9 +799,49 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
 
     # Save the plot to a file
     plt.tight_layout()
-    plt.savefig(output_file)
+    plt.savefig(output_file[:-4] + "_ESMFold.png")
     plt.close()
-    print(f"Scatter plot saved to {output_file}")
+    print(f"ESMFold Scatter plot saved to {output_file}")
+
+
+    # Plot cmap recalls
+    grouped = msa_trans_df.groupby('FoldPair')
+    plt.figure(figsize=(10, 8))
+
+    for fold_pair, group in grouped:
+        # Calculate mean values for recall_only_fold1 and recall_only_fold2
+        mean_x = group['recall_only_fold1'].mean()
+        mean_y = group['recall_only_fold2'].mean()
+
+        # Find the max values and corresponding row
+        max_row = group.loc[group[['recall_only_fold1', 'recall_only_fold2']].sum(axis=1).idxmax()]
+        max_x = max_row['recall_only_fold1']
+        max_y = max_row['recall_only_fold2']
+
+        first_key = list(grouped.groups.keys())[0]
+
+        # Plot the mean with '+'
+        plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
+
+        # Plot the max with '*' and add text annotation
+        plt.scatter(max_x, max_y, marker='*', color='red', label='Max' if fold_pair == first_key else "")
+        plt.text(max_x, max_y, fold_pair, fontsize=9, ha='right')
+
+        # Add a faint line connecting mean and max points
+        plt.plot([mean_x, max_x], [mean_y, max_y], linestyle='--', color='gray', alpha=0.5)
+
+    plt.xlabel("Recall Fold 1")
+    plt.ylabel("Recall Fold 2")
+    plt.title("Recall Comparison Unique Contacts")
+    plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
+    plt.axvline(0, color='black', linewidth=0.8, linestyle='--')
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend(loc='upper left')
+    plt.tight_layout()
+
+    # Save the plot to the specified file
+    plt.savefig(output_file[:-4] + "_msa_trans.png")
+    plt.close()
 
 
 

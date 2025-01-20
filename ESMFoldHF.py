@@ -1,5 +1,3 @@
-import os
-
 # from ESMFold import convert_outputs_to_pdb, save_string_as_pdb
 # from transformers import AutoTokenizer, EsmForProteinFolding
 # from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
@@ -14,14 +12,13 @@ from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 import argparse
-from Bio import SeqIO
-from Bio import PDB
+from Bio import PDB, SeqIO
 from Bio.PDB import PDBParser
 import os
+from utils.protein_utils import *
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
 #iminuit==1.5.4
 #tmscoring
-
 
 
 # Specific conversion for atoms
@@ -47,20 +44,6 @@ def convert_outputs_to_pdb(outputs):
         pdbs.append(to_pdb(pred))
     return pdbs
 
-def extract_protein_sequence(pdb_file):
-    parser = PDBParser()
-    structure = parser.get_structure("protein_structure", pdb_file)
-
-    residue_sequence = ""
-
-    # Iterate through the structure and extract the residue sequence
-    for model in structure:
-        for chain in model:
-            for residue in chain:
-                if PDB.is_aa(residue):
-                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
-
-    return residue_sequence
 
 # Save string to pdb
 def save_string_as_pdb(pdb_string, file_path):

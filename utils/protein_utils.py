@@ -131,18 +131,21 @@ def aa_point_mutation_to_aa(aa, genetic_code_dict):
 # Next do it by chain (?)
 def extract_protein_sequence(pdb_file):
     parser = PDBParser()
-    structure = parser.get_structure("protein", pdb_file)
+    structure = parser.get_structure("protein_structure", pdb_file)
 
-    sequences = []
+    residue_sequence = ""
+#    flag = 0
+    # Iterate through the structure and extract the residue sequence
     for model in structure:
         for chain in model:
-            seq = []
+#            if flag != 0:  # for taking only first chain
+#                break
+#            flag += 1
             for residue in chain:
-                if residue.get_id()[0] == ' ':
-                    seq.append(residue.get_resname())
-            sequences.append(''.join(seq))
+                if PDB.is_aa(residue):
+                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
+    return residue_sequence
 
-    return sequences
 
 
 def clean_sequence(residue_energies):
@@ -165,9 +168,20 @@ def clean_sequence(residue_energies):
     return "".join(cleaned_sequence)
 
 
+def get_tmscore_align(path_fold1,path_fold2):
+    command = f"/Users/steveabecassis/Desktop/TMalign {path_fold1} {path_fold2}"  # should change path
+    output = subprocess.check_output(command, shell=True)
+    match = re.search(r"TM-score=\s+(\d+\.\d+)", str(output))
+    if match:
+        result = match.group(1)
+        return float(result)
+    else:
+        return None
+
+
 # Compute tmscores of two structures, interface to tmscore module
 # Input:
-# pdb_file1, pdb_file2 - names of two input pdb files
+# pdb_file1, pdb_file2 - names of two input pdb files (without chain name)
 # chain1, chain2 - names of two chains
 # Output:
 #

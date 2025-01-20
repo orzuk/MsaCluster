@@ -19,7 +19,8 @@ from Bio.PDB.MMCIFParser import MMCIFParser
 # MSAs can be represented as a3m format
 
 
-def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pipeline", pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
+def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pipeline",
+                             pdbids_file="data/foldswitch_PDB_IDs_full.txt", run_job_mode="inline"):
     if run_mode == "help":
         print("Available run modes for fold-switch pipeline analysis:")
         print("- load: Load PDB files, contact maps, and fasta sequences.")
@@ -237,7 +238,7 @@ if platform.system() == "Linux":
     if len(sys.argv) > 2:
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
     run_job_mode = "job"
-    plot_tree_clusters = False
+    plot_tree_clusters = True # try plotting clusters !!! False
 else:
     print("Run on windows")
     run_os = "Windows"

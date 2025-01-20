@@ -22,62 +22,7 @@ from Bio.PDB.Polypeptide import three_to_one
 from io import StringIO
 import numpy as np
 from tqdm import tqdm
-
-
-def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
-    """
-    Align two contact maps and resize them to match the smaller map's dimensions.
-
-    :param cmap1: First contact map (2D symmetric numpy array)
-    :param cmap2: Second contact map (2D symmetric numpy array)
-    :param window_size: Size of the sliding window for comparison
-    :param step_size: Step size for sliding the window
-    :return: Tuple of (aligned_cmap1, aligned_cmap2), both with dimensions of the smaller input map
-    """
-
-    # Determine which map is larger
-    if cmap1.shape[0] * cmap1.shape[1] >= cmap2.shape[0] * cmap2.shape[1]:
-        larger_cmap, smaller_cmap = cmap1, cmap2
-    else:
-        larger_cmap, smaller_cmap = cmap2, cmap1
-
-    best_score = float('-inf')
-    best_offset = (0, 0)
-
-    # Find the best alignment
-    for i in range(0, larger_cmap.shape[0] - smaller_cmap.shape[0] + 1, step_size):
-        for j in range(0, larger_cmap.shape[1] - smaller_cmap.shape[1] + 1, step_size):
-            window = larger_cmap[i:i + smaller_cmap.shape[0], j:j + smaller_cmap.shape[1]]
-            score = np.sum(window * smaller_cmap)  # Simple dot product for similarity
-
-            if score > best_score:
-                best_score = score
-                best_offset = (i, j)
-
-    # Extract the aligned portion from the larger map
-    aligned_larger = larger_cmap[best_offset[0]:best_offset[0] + smaller_cmap.shape[0],
-                     best_offset[1]:best_offset[1] + smaller_cmap.shape[1]]
-
-    # Ensure we return cmap1 and cmap2 in the correct order
-    if cmap1.shape[0] * cmap1.shape[1] >= cmap2.shape[0] * cmap2.shape[1]:
-        return aligned_larger, smaller_cmap
-    else:
-        return smaller_cmap, aligned_larger
-
-def load_pred_cmap(fileName):
-    cmap = np.load(f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm/{fileName}.npy')
-    cmap[cmap > 0.3] = 1
-    cmap[cmap <= 0.3] = 0
-    return cmap
-
-def get_only_cmaps(cmap1,cmap2):
-    diff_folds = cmap1 - cmap2
-    only_fold1 = diff_folds.copy()
-    only_fold1[only_fold1 == -1] = 0
-    only_fold2 = diff_folds.copy()
-    only_fold2[only_fold2 == 1] = 0
-    only_fold2[only_fold2 == -1] = 1
-    return only_fold1,only_fold2
+from cmap_analysis import *
 
 
 def process_array_tolerance(arr, tolerance=1):

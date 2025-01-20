@@ -7,41 +7,24 @@ import mdtraj as md
 from contact_map import ContactFrequency, ContactDifference
 import warnings
 warnings.filterwarnings("ignore")
-import mdtraj as md
 import numpy as np
 from matplotlib.pyplot import *
-import matplotlib.pyplot as plt
 import prody
 import os
 from scipy.ndimage import binary_dilation
 import matplotlib.patches as mpatches
 from IPython.display import display, HTML
-from Bio import PDB
-from Bio import pairwise2
-from Bio.PDB import Superimposer
-import py3Dmol
-import ipywidgets as widgets
-from Bio.PDB import PDBParser
-from Bio import pairwise2
-import py3Dmol
-from Bio import PDB, Align
-from Bio.PDB import PDBParser, PDBIO
+from Bio import pairwise2, PDB, Align
+from Bio.PDB import PDBParser, PDBIO, Superimposer
 from Bio.PDB.Polypeptide import three_to_one
+import ipywidgets as widgets
 from io import StringIO
-import numpy as np
-
+from utils.msa_utils import *
 
 
 '''
 In the PlotTool class define you own path
 '''
-
-
-
-# Function to read PDB file
-def read_pdb_file(file_path):
-    with open(file_path, 'r') as file:
-        return file.read()
 
 
 def get_seq_from_structure(structure):
@@ -138,46 +121,6 @@ def visualize_alignement_structure(PATH_PDB1, PATH_PDB2):
     display(widgets.HBox([toggle1, toggle2]))
 
 
-def extract_protein_sequence(pdb_file):
-    parser = PDBParser()
-    structure = parser.get_structure("protein_structure", pdb_file)
-
-    residue_sequence = ""
-    flag = 0
-    # Iterate through the structure and extract the residue sequence
-    for model in structure:
-        for chain in model:
-            if flag != 0:
-                break
-            flag += 1
-            for residue in chain:
-                if PDB.is_aa(residue):
-                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
-    return residue_sequence
-
-
-def get_align_indexes(seqA, seqB):
-    alignments = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)
-    best_align = alignments[0]
-    seqA = best_align.seqA
-    seqB = best_align.seqB
-    cursA = 0
-    cursB = 0
-    seqA_idxs = []
-    seqB_idxs = []
-    for aa in range(len(seqA)):
-        if (seqA[aa] != '-') & (seqB[aa] != '-'):
-            seqA_idxs.append(cursA)
-            seqB_idxs.append(cursB)
-            cursA += 1
-            cursB += 1
-        if (seqA[aa] == '-') & (seqB[aa] != '-'):
-            cursB += 1
-        if (seqA[aa] != '-') & (seqB[aa] == '-'):
-            cursA += 1
-    return seqA_idxs, seqB_idxs
-
-
 def dilate_with_tolerance(array, tolerance):
     structure = np.ones((2 * tolerance + 1, 2 * tolerance + 1), dtype=int)
     return binary_dilation(array, structure=structure).astype(int)
@@ -185,7 +128,7 @@ def dilate_with_tolerance(array, tolerance):
 
 def load_pred_cmap(fileName):
     cmap = np.load(f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm/{fileName}.npy')
-    cmap[cmap > 0.4] = 1
+    cmap[cmap > 0.4] = 1  # 0.3 or 0.4? should be input to function?
     cmap[cmap <= 0.4] = 0
     return cmap
 

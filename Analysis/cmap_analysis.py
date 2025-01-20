@@ -1,6 +1,8 @@
 from tqdm import tqdm
 from olds.Analysis import *
 from PlotUtils import *
+
+
 def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
     """
     Align two contact maps and resize them to match the smaller map's dimensions.
@@ -41,11 +43,6 @@ def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
     else:
         return smaller_cmap, aligned_larger
 
-def load_pred_cmap(fileName):
-    cmap = np.load(f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm/{fileName}.npy')
-    cmap[cmap > 0.3] = 1
-    cmap[cmap <= 0.3] = 0
-    return cmap
 
 def load_cmap(path):
     cmap = np.load(path)
