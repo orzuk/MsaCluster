@@ -10,6 +10,7 @@ import torch
 import torch.nn.functional as F  # for padding
 
 from scipy.spatial.distance import squareform, pdist, cdist
+
 import numpy as np
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
 import matplotlib as mpl
@@ -33,7 +34,13 @@ import biotite.structure as bs
 from biotite.structure.io.pdb import PDBFile
 from biotite.database import rcsb
 from biotite.structure.io.pdbx import get_structure
-from biotite.structure import filter_amino_acids
+from biotite.structure import filter_amino_acids, distance, AtomArray
+from biotite.structure.residues import get_residues
+# Biotite provides a mapping of residue codes to single-letter amino acid codes
+# from biotite.sequence.residues import RESIDUE_CODES_3TO1
+from biotite.sequence import ProteinSequence
+import numpy as np
+
 
 #from biotite.structure.io.pdbx import PDBxFile, get_structure
 #from biotite.structure import filter_amino_acids
@@ -99,7 +106,10 @@ def genetic_code():
 aa_long_short = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
                  'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N',
                  'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
-                 'ALA': 'A', 'VAL': 'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
+                 'ALA': 'A', 'VAL': 'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M',
+                 'ASX': 'B', 'XLE': 'J', 'PYL': 'O', 'SEC': 'U', 'UNK': 'X', 'GLX': 'Z'}
+
+
 aa_short_long = {y: x for x, y in aa_long_short.items()}
 
 
@@ -185,7 +195,38 @@ def get_tmscore_align(path_fold1,path_fold2):
 # chain1, chain2 - names of two chains
 # Output:
 #
-def compute_tmscore(pdb_file1, pdb_file2, chain1=[], chain2=[]):
+def compute_tmscore(pdb_file1, pdb_file2, chain1=None, chain2=None):
+    print("Compute tmscore: File 1:", pdb_file1, ", File 2:", pdb_file2, " ; Chains:", chain1, chain2)
+
+    # Fetch or read structures
+    if len(pdb_file1) == 4:  # PDB ID
+        s1 = get_structure(rcsb.fetch(pdb_file1, "cif"), model=1)
+    else:
+        s1 = PDBFile.read(pdb_file1).get_structure(model=1)
+
+    if len(pdb_file2) == 4:  # PDB ID
+        s2 = get_structure(rcsb.fetch(pdb_file2, "cif"), model=1)
+    else:
+        s2 = PDBFile.read(pdb_file2).get_structure(model=1)
+
+
+    # Process chains and sequences
+    pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
+        read_seq_coord_contacts_from_pdb(s1, chain=chain1)
+    pdb_dists2, pdb_contacts2, pdb_seq2, pdb_good_res_inds2, coords2 = \
+        read_seq_coord_contacts_from_pdb(s2, chain=chain2)
+
+#    print("Sequences processed.")
+
+    # Perform alignment
+    res = tm_align(coords1, coords2, pdb_seq1, pdb_seq2)
+
+    print("Normalized TM-score (chain1):", res.tm_norm_chain1)
+
+    return res.tm_norm_chain1
+
+
+def compute_tmscore_old(pdb_file1, pdb_file2, chain1=[], chain2=[]):
     print("Start compute tmscore:")
     print(pdb_file1)
     print(pdb_file2)
@@ -323,6 +364,60 @@ def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
 
 
 def read_seq_coord_contacts_from_pdb(
+        structure: AtomArray,
+        distance_threshold: float = 8.0,
+        chain: Optional[str] = None
+) -> Tuple[np.ndarray, np.ndarray, str, np.ndarray, np.ndarray]:
+    """
+    Extract distances, contacts, sequence, and coordinates from an AtomArray structure.
+
+    Parameters:
+    - structure (AtomArray): Biotite structure containing atomic data.
+    - distance_threshold (float): Cutoff distance for contacts in Å.
+    - chain (Optional[str]): Specific chain to process (if None, all chains are used).
+
+    Returns:
+    - dist (np.ndarray): Pairwise distance matrix of Cα atoms.
+    - contacts (np.ndarray): Binary contact map (1 for contact, 0 otherwise).
+    - pdb_seq (str): Protein sequence as a string.
+    - good_res_ids (np.ndarray): Indices of valid residues.
+    - CA_coords (np.ndarray): Coordinates of Cα atoms.
+    """
+
+    # Filter by chain ID if specified
+    if chain is not None:
+        structure = structure[structure.chain_id == chain]
+
+    # Filter amino acids only
+    amino_acid_filter = filter_amino_acids(structure)
+    structure = structure[amino_acid_filter]
+
+    # Get residues and their starting indices
+    residues, residue_starts = get_residues(structure)
+
+    # Map residues to single-letter codes (fallback to "X" for unknown residues)
+    pdb_seq = "".join(aa_long_short.get(res, "X") for res in residues)
+
+    # Extract Cα coordinates
+    ca_mask = structure.atom_name == "CA"
+    CA_coords = structure.coord[ca_mask]
+
+    if len(CA_coords) == 0:
+        raise ValueError("No Cα atoms found in structure.")
+
+    # Extract valid residue indices
+    good_res_ids = residue_starts
+
+    # Calculate pairwise distances for Cα atoms
+    dist = squareform(pdist(CA_coords))
+
+    # Create binary contact map based on distance threshold
+    contacts = (dist < distance_threshold).astype(int)
+
+    return dist, contacts, pdb_seq, good_res_ids, CA_coords
+
+
+def read_seq_coord_contacts_from_pdb_old(
         structure,
         distance_threshold: float = 8.0,
         chain: Optional[str] = None,
@@ -332,7 +427,7 @@ def read_seq_coord_contacts_from_pdb(
     Extract distances, contacts, sequence, and coordinates from a PDB structure,
     specifically handling NMR structures with multiple models.
     """
-    print(f"Structure ID: {structure.id}")
+#    print(f"Structure ID: {structure.id}")
 
     # Get list of all models
     models = list(structure.get_models())

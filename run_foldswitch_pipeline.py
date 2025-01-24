@@ -141,15 +141,15 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 if run_mode == "plot":  # here do analysis of the results
                     run_str = ''
                     pymol.finish_launching(['pymol', '-cq'])
-                    print("Running make_plot from outside33 again!")
-                    print(pdbids[i])
-                    print(output_dir)
-                    print(foldpair_id)
-                    print("pdbchain", pdbchains[i])
-                    print("plot clusters predictions:", plot_tree_clusters)
+#                    print("Running make_plot from outside33 again!")
+#                    print(pdbids[i])
+#                    print(output_dir)
+#                    print(foldpair_id)
+#                    print("pdbchain", pdbchains[i])
+#                    print("plot clusters predictions:", plot_tree_clusters)
                     cmap_dists_vec[i], seqs_dists_vec[i], num_seqs_msa_vec[i], _ = \
                         make_foldswitch_all_plots(pdbids[i], output_dir, foldpair_id, pdbchains[i], plot_tree_clusters)
-                    print("Finished Running make_plot from outside333")
+#                    print("Finished Running make_plot from outside333")
                 if run_mode == "tree":  # here do analysis of the results
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
                 if run_mode == 'Analysis':
@@ -205,6 +205,7 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
 
     if run_mode == "tree":
         msa_file = 'Pipeline/' + foldpair_id + '/output_get_msa/DeepMsa.a3m'
+        print("reconstruct phylogenetic tree from msa=", msa_file)
         phytree_from_msa(msa_file, output_tree_file= 'Pipeline/' + foldpair_id + \
                     '/output_phytree/' + os.path.basename(msa_file).replace(".a3m", "_tree.nwk"))
         run_str = ''
@@ -237,7 +238,7 @@ if platform.system() == "Linux":
     run_mode = sys.argv[1]
     if len(sys.argv) > 2:
         foldpair_ids_to_run = sys.argv[2]  # enable running for a specific family (default is running on all of them)
-    run_job_mode = "job"
+    run_job_mode = "inline" # "job"
     plot_tree_clusters = True # try plotting clusters !!! False
 else:
     print("Run on windows")

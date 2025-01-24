@@ -9,9 +9,7 @@ from colabfold.batch import msa_to_str
 from colabfold.batch import get_queries
 
 from argparse import ArgumentParser
-
-print("Current dir: ", os.getcwd())
-
+print("Get MSA, Current dir: ", os.getcwd())
 # sequence = "DAEFRHDSGYEVHHQKLVFFAEDVGSNKGAIIGLMVGGVVIA"
 # result_dir = Path('./')
 # jobname = 'test'
@@ -25,7 +23,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("input", default="input",help="Should be a .fasta file")
     parser.add_argument("results", help="Directory to write the results to")
-    parser.add_argument("-name", help="msa name")
+    parser.add_argument("--name", help="msa name")
     # parser.add_argument("--msa-mode",default="mmseqs2_uniref_env",choices=["mmseqs2_uniref_env","mmseqs2_uniref","single_sequence"],help="Choose the Db" )
     args = parser.parse_args()
     result_dir = Path(args.results)

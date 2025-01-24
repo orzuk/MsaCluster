@@ -7,6 +7,7 @@ import py3Dmol
 import platform
 import sys
 import os
+import re
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
@@ -39,14 +40,16 @@ import math
 # 1. Phylogenetic tree with matching scores to each of the fold switches
 # 2. Cmap of each cluster and its match to the two folds
 # 3. Two folds aligned
-def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters= True):
+def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters= True, plot_contacts = False):
     #    i = foldpair_ids.index(foldpair_id)
     #    cur_family_dir = fasta_dir + "/" + foldpair_id
-    plot("Start plotting inside make_foldswith_all_plots2!!!")
+#    plot("Start plotting inside make_foldswith_all_plots2!!!")
  #   pymol.finish_launching(['pymol', '-cq'])
-    plot("Start plotting inside make_foldswith_all_plots!!!")
+#    plot("Start plotting inside make_foldswith_all_plots!!!")
 
-    print("foldpair_id: " + foldpair_id)
+     # Temp decide what to plot here
+
+    print("Plot for foldpair_id: " + foldpair_id)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
     #    msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
@@ -99,7 +102,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !!
                     "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy",
                         allow_pickle=True).astype(int) for fold in range(2)}
-    print("Loaded true cmap!")
 #    print("All predicted MSA transformer files:")
 #    print(msa_transformer_pred.keys())
 #    print(msa_transformer_pred.values())
@@ -133,10 +135,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #        plt.imsave(output_file, 1-match_true_cmap[pdbids[f]+pdbchains[f]].astype(int), cmap='gray')
 #        print(f"Image saved to {output_file}")
 
-    differences = np.argwhere(match_true_cmap[pdbids[0]+pdbchains[0]] != match_true_cmap[pdbids[1]+pdbchains[1]])
+#    differences = np.argwhere(match_true_cmap[pdbids[0]+pdbchains[0]] != match_true_cmap[pdbids[1]+pdbchains[1]])
 #    print("Indices where the arrays are different:")
 #    print(differences)
-    print("Means of fold differences: ", np.mean(match_true_cmap[pdbids[0]+pdbchains[0]] ), np.mean(match_true_cmap[pdbids[1]+pdbchains[1]] ))
+#    print("Means of fold differences: ", np.mean(match_true_cmap[pdbids[0]+pdbchains[0]] ), np.mean(match_true_cmap[pdbids[1]+pdbchains[1]] ))
 
 #    print(match_true_cmap.shape)
 #    print("Exit function! match predicted:")
@@ -146,13 +148,10 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #    print(match_predicted_cmaps)
 #    return 9999999999
 
-    print("Plot Array")
-    plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap,
-                                        fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id + '_all_clusters_cmap')
-
-##    print("Match predicted after plot array:")
-##    print(match_predicted_cmaps)
-#    return 9999999999
+    if plot_contacts:
+        print("Plot Array")
+        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap,
+                                    fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id + '_all_clusters_cmap')
 
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(
         match_predicted_cmaps, match_true_cmap)  # here number of cmaps is #clusters + 1
@@ -173,12 +172,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                    shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
                                    shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5']) for ctype in
                            match_predicted_cmaps}  # Why only shared?
-#    print("FIRST CLUSTER NODE VALUES:")
-#    print(cluster_node_values)
-#    print("Shape:")
-#    print(len(cluster_node_values))
-    # ADDD A VALUE FOR THE TOTAL TM SCORE !!!
-
     # load tree
     #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
     #        print(phytree_msa_str)
@@ -218,53 +211,65 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 
         # Compute tm scores of the predicted models of AF, ESM fold and the two structures
         tmscores_mat = np.zeros([2, n_cmaps])
-        tmscores_df = pd.DataFrame(index=cluster_node_values.index, columns=['TMscore_fold1', 'TMscore_fold1'])
+        print("create tm_scores dataframe")
+        print("cluster_node_values", cluster_node_values, " Index: ", cluster_node_values.index)
 
+        new_indices = [match.group() for s in cluster_node_values.index for match in re.finditer(r'M[sS][aA][a-zA-Z0-9_].*', s)]
+        print("Parsed shortenede indices: ", new_indices)
+
+        tmscores_df = pd.DataFrame(index=new_indices,
+                                   columns=['TMscore_fold1', 'TMscore_fold1'])  # modify index to exclude directory
         print("total cmaps: " + str(n_cmaps))
         print("total node values: " )
         print(cluster_node_values.shape)
-        AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/ShallowMsa*model_1_*pdb")
-        print("AF_model_files= ", AF_model_files)
+        AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/*Msa*model_1_*pdb")
+#        print("AF_model_files= ", AF_model_files)
         for fold in range(2):
-            ctr = 0
-            for c in cluster_node_values.index:  # loop over cluster names
-                print(c)  # tm score here
-                cur_AF_file = AF_model_files[AF_model_files == c]
-                print("Cur AF file: " + cur_AF_file)
-                print("Cur TrueFold File: " + 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb')
-                print("Cur pdbchains: ")
-                print(pdbchains[fold])
-                print("Run compute tmscore:")
-                print("total cmaps: " + str(n_cmaps))
-                print("total node values: ")
-                print(cluster_node_values.shape)
-                print("fold, ctr:" + str(fold) + ", " + str(ctr))
-                print(tmscores_mat[fold, ctr])
+ #           ctr = 0
+            for c in range(len(tmscores_df.index)): # cluster_node_values.index:  # loop over cluster names
+                cur_AF_file = next((element for element in AF_model_files if tmscores_df.index[c] in element
+                                    or (tmscores_df.index[c][-4:] == 'deep' and 'Deep' in element)), None)
+
+#                    cluster_node_values.index)[c] # AF_model_files[AF_model_files == cluster_node_values.index[c]]
+                print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file)
+ #               print("Cur TrueFold File: " + 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb')
+ #               print("Cur pdbchains: ")
+ #               print(pdbchains[fold])
+ #               print("Run compute tmscore:")
+ #               print("total cmaps: " + str(n_cmaps))
+ #               print("total node values: ")
+ #               print(cluster_node_values.shape)
+ #               print("fold, ctr:" + str(fold) + ", " + str(ctr))
+ #               print(tmscores_mat[fold, ctr])
 
                 # Save to debug just the function "compute_tmscore"
-                true_pdb_file = 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb'
-                with open('compute_tmscore.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
-                    pickle.dump([fold, true_pdb_file, cur_AF_file, pdbchains], f)
-                with open('compute_tmscore.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-                    fold, true_pdb_file, cur_AF_file, pdbchains = pickle.load(f)
+#                true_pdb_file = 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb'
+#                with open('compute_tmscore.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
+#                    pickle.dump([fold, true_pdb_file, cur_AF_file, pdbchains], f)
+#                with open('compute_tmscore.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+#                    fold, true_pdb_file, cur_AF_file, pdbchains = pickle.load(f)
 #                tmscores_mat[fold, ctr] = compute_tmscore(true_pdb_file, cur_AF_file, pdbchains[fold], pdbchains[0])
 #                tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-                print("Compute tm score for: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-                      cur_AF_file, pdbchains[fold], pdbchains[0])
-                print("first chain: ", pdbchains[fold])
-                print("second chain: ", pdbchains[0], " finished")
-                tmscores_df.iloc[ctr, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
+#                print("Compute tm score for: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
+#                      cur_AF_file, pdbchains[fold], pdbchains[0])
+#                print("first chain: ", pdbchains[fold])
+#                print("second chain: ", pdbchains[0], " ; finished")
+                # Why recalculagte tm score each time? could load precomputed scores
+                tmscores_df.iloc[c, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
                     cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
 #                print(xx)
 #                tmscores_mat[fold, ctr] = xx
-                ctr += 1
+#                ctr += 1
 
         # Get induced subtree
+        print("phytree_file=", phytree_file)
+        print("representative_cluster_leaves", representative_cluster_leaves)
         clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
-        print("New cluster_node_values:")
-        print(cluster_node_values)  # this is transposed !!!
-        print("cluster_subtree:")
-        print(clusters_subtree)
+        print("New cluster_node_values index: ", cluster_node_values.index)
+
+        cluster_node_values.index = new_indices
+        print("New cluster_node_values:", cluster_node_values)
+        print("cluster_subtree: ", clusters_subtree)
         for n in clusters_subtree.iter_leaves(): # change name
             n.name = ete_leaves_cluster_ids[n.name]
 #        print("Now renamed cluster_subtree:")
@@ -279,8 +284,14 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #        print(type(tmscores_df))
 #        print("Now concatenate shapes: cluster_node, tmscores: " + str(cluster_node_values.shape) + ", " + str(tmscores_df.shape))
         concat_scores = pd.concat([tmscores_df, cluster_node_values], ignore_index= True, axis=1)
-        print("Concat scores:")
-        print(concat_scores)
+        print("Concat scores:", concat_scores)
+#        print("Clusters subtree", clusters_subtree)
+        # save to pickle:
+        with open('tree_clusters.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
+                pickle.dump([clusters_subtree, concat_scores,
+                             fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster",
+                             tmscores_df, phytree_file, representative_cluster_leaves,
+                             ete_leaves_node_values, ete_leaves_cluster_ids], f) #  true_cmap, msa_transformer_pred], f)
         visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")

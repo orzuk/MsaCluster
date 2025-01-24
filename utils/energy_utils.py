@@ -17,7 +17,6 @@ import numpy as np
 #    sys.path.append(parent_dir)
 
 from utils.protein_utils import *
-from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 
 

@@ -1,17 +1,16 @@
 import copy
 
-from Bio import Phylo  # for phylogenetic trees
+
+# for phylogenetic trees
 from Bio import Phylo, AlignIO
-from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
+from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor, ParsimonyScorer, NNITreeSearcher, ParsimonyTreeConstructor
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from Bio.Phylo.TreeConstruction import ParsimonyScorer, NNITreeSearcher, ParsimonyTreeConstructor
 
 import matplotlib.pyplot as plt
 import pickle
 from pylab import *
-
 from matplotlib.colors import Normalize, to_hex
 
 # Use ete3 package for visualization
@@ -20,6 +19,7 @@ from .msa_utils import *
 import random
 import os
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
 
 def resolve_duplicated_ids(ids_list):
         """
@@ -69,11 +69,6 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 
     seqs_IDs = resolve_duplicated_ids(seqs_IDs)  # resolve duplicate ids:
 
-
-#    alignment = AlignIO.read(msa_file, "fasta")
-#    print(seqs)
-#    print([len(s) for s in seqs])
-
     seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]  # Here must give correct names to sequences!
 
     # Create a MultipleSeqAlignment object from the SeqRecord objects
@@ -81,15 +76,6 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
 
     # Calculate a distance matrix from the alignment
     calculator = DistanceCalculator('identity')
-#    print("Alignment: ")
-#    print(alignment)
-#    print([type(s) for s in alignment])
-#    print(type(alignment))
-#    with open('bad_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
-#        pickle.dump([alignment, calculator], f)
-#    with open('bad_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-#        alignment, calculator = pickle.load(f)
-#    all_ids = [s.id for s in alignment]
 
     distance_matrix = calculator.get_distance(alignment)
 
@@ -103,7 +89,6 @@ def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
     if not os.path.exists(os.path.dirname(output_tree_file)):
         os.makedirs(os.path.dirname(output_tree_file))
     #    tree_file = "phylogenetic_tree.nwk"  # Replace with your desired output file
-#    print("Output tree file: " + output_tree_file)
 
     # Add quotes to node names (needed?):
 ##    for clade in tree.find_clades():
@@ -170,8 +155,6 @@ def write_newick_with_quotes(tree, file_path):
         f.write(newick_str)
 
 
-
-
 # Induced subtree for an ete3 tree
 # keep only the input leaves appearing in 'leaf_names'
 def extract_induced_subtree(tree, leaf_names):
@@ -205,8 +188,8 @@ def extract_induced_subtree(tree, leaf_names):
 # Draw phylogenetic tree, with values assigned to each leaf
 # Input:
 # phylo_tree - a phylogenetic tree object
-# output_file - where to save image
 # node_values - vector/matrix of values representing each node
+# output_file - where to save image
 def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None):
     from copy import deepcopy
 
@@ -221,10 +204,12 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
     else:
         print("input phylotree: ")
         print(phylo_tree)
-        print("copy tree:")
+        print("node names:", node_names)
         tree = deepcopy(phylo_tree)
 
     tree = extract_induced_subtree(tree, node_names)
+    print("Induced sub-tree:")
+    print(tree)
 
     # get only subtree based on node_values_matrix
 
