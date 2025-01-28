@@ -23,6 +23,7 @@ print("ete_leaves_cluster_ids: ", ete_leaves_cluster_ids)
 print("ete_leaves_cluster_ids_unique: ", set(ete_leaves_cluster_ids.values()))
 print("len: ", len(ete_leaves_cluster_ids.values()), " len unique: ", len(set(ete_leaves_cluster_ids.values())))
 print("concat_scores: ", concat_scores)
+print("tmscores_df", tmscores_df)
 print("phytree_file=", phytree_file)
 bio_tree = Phylo.read(phytree_file, "newick")  # This is different from write_newick_with_quotes !!!!
 print("Convert to ete3 tree:")
@@ -33,7 +34,14 @@ ll = list(representative_cluster_leaves.values())
 ll.sort()
 print("representative_cluster_leaves values sorted: ", ll)
 
-# visualize_tree_with_heatmap(clusters_subtree, concat_scores, out_tree_file)
+
+visualize_tree_with_heatmap(clusters_subtree, concat_scores, 'temp_local_tree.png')
+
+# esmf_df = pd.read_csv(ESMF_MODEL_FILE)
+# print("ESM DF: ", esmf_df)
+
+# msa_trans_df = pd.read_csv(MSA_TRANS_MODEL_FILE)
+# print("MSA-Trans DF: ", msa_trans_df)
 
 
 # node_names = ['1dzlA_5keqF/output_cmap_esm/msa_t__MSA_deep',

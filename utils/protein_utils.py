@@ -221,7 +221,7 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=None, chain2=None):
     # Perform alignment
     res = tm_align(coords1, coords2, pdb_seq1, pdb_seq2)
 
-    print("Normalized TM-score (chain1):", res.tm_norm_chain1)
+    print("Normalized TM-score (chain1):", round(res.tm_norm_chain1, 3))
 
     return res.tm_norm_chain1
 

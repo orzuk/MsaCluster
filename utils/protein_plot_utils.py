@@ -1,12 +1,7 @@
-# from protein_utils import *
+from config import *
 # import nglview as nv
-import copy
 
-import numpy as np
-import py3Dmol
 import platform
-import sys
-import os
 import re
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
@@ -22,8 +17,6 @@ from scripts.MSA_Clust import *
 from utils.utils import *
 from utils.energy_utils import *
 from matplotlib.colors import ListedColormap
-
-
 import math
 
 
@@ -40,7 +33,8 @@ import math
 # 1. Phylogenetic tree with matching scores to each of the fold switches
 # 2. Cmap of each cluster and its match to the two folds
 # 3. Two folds aligned
-def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tree_clusters= True, plot_contacts = False):
+def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
+                              plot_tree_clusters= True, plot_contacts = False, global_plots = False):
     #    i = foldpair_ids.index(foldpair_id)
     #    cur_family_dir = fasta_dir + "/" + foldpair_id
 #    plot("Start plotting inside make_foldswith_all_plots2!!!")
@@ -140,13 +134,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #    print(differences)
 #    print("Means of fold differences: ", np.mean(match_true_cmap[pdbids[0]+pdbchains[0]] ), np.mean(match_true_cmap[pdbids[1]+pdbchains[1]] ))
 
-#    print(match_true_cmap.shape)
-#    print("Exit function! match predicted:")
-#    print(match_predicted_cmaps)
-#    print(match_predicted_cmaps.keys())
-#    print(type(match_predicted_cmaps))
-#    print(match_predicted_cmaps)
-#    return 9999999999
 
     if plot_contacts:
         print("Plot Array")
@@ -156,17 +143,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(
         match_predicted_cmaps, match_true_cmap)  # here number of cmaps is #clusters + 1
 
-##    print("Match predicted after match_predicted_and_true_contact_maps:")
-##    print(match_predicted_cmaps)
-
-
-#    print("Cmap metrics shared:")
-#    print(shared_unique_contacts_metrics["shared"])
-#    for fold in range(2):
-#        print("Cmap metrics for " + pdbids[fold] + pdbchains[fold] + ":")
-#        print(shared_unique_contacts_metrics[pdbids[fold] + pdbchains[fold]])
-        # important: choose which metric to use!!
-#    cluster_node_values = {ctype: shared_unique_contacts_metrics["shared"][ctype]['long_AUC'] for ctype in
 #                           match_predicted_cmaps}  # Why only shared?
     cluster_node_values = {ctype: (shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
                                    shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
@@ -191,7 +167,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                                      [n.name for n in ete_tree])
     print("Converted seq ids to cluster ids:")
 
-
     ete_leaves_node_values = {n.name: cluster_node_values[foldpair_id + '/output_cmap_esm/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]]
                               for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
@@ -210,19 +185,22 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
         representative_cluster_leaves = unique_values_dict({n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'} )
 
         # Compute tm scores of the predicted models of AF, ESM fold and the two structures
-        tmscores_mat = np.zeros([2, n_cmaps])
-        print("create tm_scores dataframe")
-        print("cluster_node_values", cluster_node_values, " Index: ", cluster_node_values.index)
+#        print("cluster_node_values", cluster_node_values, " Index: ", cluster_node_values.index)
 
         new_indices = [match.group() for s in cluster_node_values.index for match in re.finditer(r'M[sS][aA][a-zA-Z0-9_].*', s)]
         print("Parsed shortenede indices: ", new_indices)
 
         tmscores_df = pd.DataFrame(index=new_indices,
-                                   columns=['TMscore_fold1', 'TMscore_fold1'])  # modify index to exclude directory
+                                   columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])  # modify index to exclude directory
         print("total cmaps: " + str(n_cmaps))
-        print("total node values: " )
-        print(cluster_node_values.shape)
+        print("total node values: ", cluster_node_values.shape)
         AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/*Msa*model_1_*pdb")
+        ESM_model_files = ''  # don't have them currently
+        af_df = pd.read_csv(AF_MODEL_FILE, dtype=str)
+        msa_trans_df = pd.read_csv(MSA_TRANS_MODEL_FILE, dtype=str)
+        esmf_df = pd.read_csv(ESMF_MODEL_FILE, dtype=str)
+#        print("read results files!")
+
 #        print("AF_model_files= ", AF_model_files)
         for fold in range(2):
  #           ctr = 0
@@ -231,16 +209,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                     or (tmscores_df.index[c][-4:] == 'deep' and 'Deep' in element)), None)
 
 #                    cluster_node_values.index)[c] # AF_model_files[AF_model_files == cluster_node_values.index[c]]
-                print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file)
- #               print("Cur TrueFold File: " + 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb')
- #               print("Cur pdbchains: ")
- #               print(pdbchains[fold])
- #               print("Run compute tmscore:")
- #               print("total cmaps: " + str(n_cmaps))
- #               print("total node values: ")
- #               print(cluster_node_values.shape)
- #               print("fold, ctr:" + str(fold) + ", " + str(ctr))
- #               print(tmscores_mat[fold, ctr])
+                print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file, " fold-pair id=", foldpair_id)
 
                 # Save to debug just the function "compute_tmscore"
 #                true_pdb_file = 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb'
@@ -254,22 +223,42 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #                      cur_AF_file, pdbchains[fold], pdbchains[0])
 #                print("first chain: ", pdbchains[fold])
 #                print("second chain: ", pdbchains[0], " ; finished")
-                # Why recalculagte tm score each time? could load precomputed scores
+                # Why recalculate tm score each time? could load precomputed scores
                 tmscores_df.iloc[c, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
                     cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
-#                print(xx)
-#                tmscores_mat[fold, ctr] = xx
-#                ctr += 1
+
+                if not 'eep' in cur_AF_file:
+                    # Update ESM Fold values
+#                    print("esm clus num", esmf_df['cluster_num'], "tmscoresindex", tmscores_df.index[c][4:])
+                    filtered_df = esmf_df[(esmf_df['fold_pair'] == foldpair_id) &
+                                          (esmf_df['cluster_num'] == tmscores_df.index[c][4:])]
+#                    print("ESMf Filtered df: ", filtered_df, " key: ", 'TM_mean_cluster_pdb' + str(fold+1))
+                    tmscores_df.iloc[c, fold+2] = float(filtered_df['TM_mean_cluster_pdb' + str(fold+1)].iloc[0])
+
+                    # Update MSA-Transformer recall values
+
+#                    tmp_clust_num = str(int(tmscores_df.index[c][4:]))
+#                    print("Cluster num: ", tmscores_df.index[c][4:], " and ", tmp_clust_num)
+#                    filtered_df = msa_trans_df[(msa_trans_df['FoldPair'] == foldpair_id) &
+#                                               (msa_trans_df['cluster_num'] == tmscores_df.index[c][4:])]
+#                    print("MSA_Trans Filtered df: ", filtered_df, " key: ", 'recall_only_fold' + str(fold+1))
+
+#                    print("Filtered values: ", filtered_df['recall_only_fold' + str(fold+1)])
+#                    print("Filtered values again: ", filtered_df['recall_only_fold1'])
+#                    print("Filtered values again zero: ", filtered_df['recall_only_fold1'].iloc[0])
+#                    print("Filtered values again zero zero: ", filtered_df['recall_only_fold1'][0])
+
+#                    tmscores_df.iloc[c, fold+5] = filtered_df['recall_only_fold' + str(fold+1)].iloc[0]
 
         # Get induced subtree
-        print("phytree_file=", phytree_file)
-        print("representative_cluster_leaves", representative_cluster_leaves)
+#        print("phytree_file=", phytree_file)
+#        print("representative_cluster_leaves", representative_cluster_leaves)
         clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
-        print("New cluster_node_values index: ", cluster_node_values.index)
+#        print("New cluster_node_values index: ", cluster_node_values.index)
 
         cluster_node_values.index = new_indices
-        print("New cluster_node_values:", cluster_node_values)
-        print("cluster_subtree: ", clusters_subtree)
+#        print("New cluster_node_values:", cluster_node_values)
+#        print("cluster_subtree: ", clusters_subtree)
         for n in clusters_subtree.iter_leaves(): # change name
             n.name = ete_leaves_cluster_ids[n.name]
 #        print("Now renamed cluster_subtree:")
@@ -284,7 +273,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
 #        print(type(tmscores_df))
 #        print("Now concatenate shapes: cluster_node, tmscores: " + str(cluster_node_values.shape) + ", " + str(tmscores_df.shape))
         concat_scores = pd.concat([tmscores_df, cluster_node_values], ignore_index= True, axis=1)
-        print("Concat scores:", concat_scores)
+        concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
+#        print("Concat scores:", concat_scores)
 #        print("Clusters subtree", clusters_subtree)
         # save to pickle:
         with open('tree_clusters.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
@@ -312,7 +302,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains, plot_tr
                                      'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
                                      fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
 
-    global_plots = True
     if global_plots:
         print("Make global plots!")
         global_pairs_statistics_plots(output_file="Pipeline/Results/Figures/fold_pair_scatter_plot.png")
@@ -543,8 +532,8 @@ def plot_foldswitch_contacts_and_predictions(
         title: Union[bool, str, Callable[[float], str]] = True,
         animated: bool = False,
         show_legend: bool = False,
-        save_flag: bool = False,
-) -> None:
+        save_flag: bool = False):
+
     fold_ids = list(contacts.keys())
 
     # Handle single or double predictions
@@ -746,8 +735,7 @@ def plot_foldswitch_contacts_and_predictions(
     return recall
 
 
-
-
+# MAke global plots for all families
 def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter_plot.png"):
     """
     Reads a CSV file and creates a scatter plot with specific values.
@@ -758,17 +746,13 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
     """
     # Load the data
     # load three output files
-    af_res_file = "data/df_af_all.csv"
-    msa_trans_res_file = "data/df_cmap_all.csv"
-    esmf_res_file = 'data/df_esmfold_all.csv'
+    af_df = pd.read_csv(AF_MODEL_FILE)
+    msa_trans_df = pd.read_csv(MSA_TRANS_MODEL_FILE)
+    esmf_df = pd.read_csv(ESMF_MODEL_FILE)
 
-    af_df = pd.read_csv(af_res_file)
-    msa_trans_df = pd.read_csv(msa_trans_res_file)
-    esmf_df = pd.read_csv(esmf_res_file)
-
-    print(list(af_df.columns.values))
-    print(list(msa_trans_df.columns.values))
-    print(list(esmf_df.columns.values))
+    print(af_df.columns.to_list())
+    print(msa_trans_df.columns.to_list())
+    print(esmf_df.columns.to_list())
 
 #    esmf_df = pd.read_csv(file_path)
 
