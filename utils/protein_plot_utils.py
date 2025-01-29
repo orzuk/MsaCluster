@@ -1,7 +1,5 @@
 from config import *
 # import nglview as nv
-
-import platform
 import re
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
@@ -11,7 +9,6 @@ import pymol
 from pymol import cmd  # , stored
 
 from Bio import Align
-# from scripts import phytree_utils
 from utils.phytree_utils import *
 from scripts.MSA_Clust import *
 from utils.utils import *
@@ -34,23 +31,12 @@ import math
 # 2. Cmap of each cluster and its match to the two folds
 # 3. Two folds aligned
 def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
-                              plot_tree_clusters= True, plot_contacts = False, global_plots = False):
-    #    i = foldpair_ids.index(foldpair_id)
-    #    cur_family_dir = fasta_dir + "/" + foldpair_id
-#    plot("Start plotting inside make_foldswith_all_plots2!!!")
- #   pymol.finish_launching(['pymol', '-cq'])
-#    plot("Start plotting inside make_foldswith_all_plots!!!")
-
-     # Temp decide what to plot here
-
+                              plot_tree_clusters= False, plot_contacts = True, global_plots = False):
     print("Plot for foldpair_id: " + foldpair_id)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
-    #    msa_file = fasta_dir + "/" + foldpair_id + "/output_get_msa/DeepMsa.a3m"
-    #    MSA = read_msa(msa_file)  # AlignIO.read(open(msa_file), "fasta")
     msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
     n_cmaps = len(msa_pred_files)
-#    n_cmaps = min(3, n_cmaps)  # temp for debug !!
     msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
     msa_clusters = {file.split("\\")[-1][:-4]: read_msa(file) for file in msa_files}
 
@@ -75,8 +61,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
         print("Long sequence! Length = " + " > maximum supported length of 1024")
         return [None]*4
 
-#    print("Full msa_trans keys: ")
-#    print({file.split("\\")[-1] for file in msa_pred_files})
     try:  # read in text format or python format the pairwise predicted contact maps of msa transformer for each cluster
         msa_transformer_pred = {file.split("\\")[-1][9:-4]: np.genfromtxt(file) for file in msa_pred_files}
     except:
@@ -89,51 +73,15 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
         true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !! # genfromtxt
                     "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy").astype(int)
                      for fold in range(2)}
-#        print(true_cmap[pdbids[0] + pdbchains[0]])
-#        print(true_cmap[pdbids[1] + pdbchains[1]])
     except:
         print("Couldn't extract true cmap !!! ")
         true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !!
                     "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy",
                         allow_pickle=True).astype(int) for fold in range(2)}
-#    print("All predicted MSA transformer files:")
-#    print(msa_transformer_pred.keys())
-#    print(msa_transformer_pred.values())
-#    print("Exit function! shapes:")
-#    print(msa_transformer_pred['p'].shape)
-#    print("Exit function! shapes2:")
-#    print(msa_transformer_pred['Msa_000'].shape)  # Show shape. Should be square form: n*n residues
 
-#    print("Dump pickle for debug:")
-#    with open('debug_match_index.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
-#        pickle.dump([pairwise_alignment], f) #  true_cmap, msa_transformer_pred], f)
-
-    print("Get matching indices:")
+    print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
     match_true_cmap, match_predicted_cmaps = \
         get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, msa_transformer_pred)
-
-#    print("Pairwise alignment: ", pairwise_alignment)
-#    print("True cmap: ", true_cmap)
-#    print("msa transfomers keys: ", msa_transformer_pred.keys())
-#    print("Exit function! match true:")
-#    print(match_true_cmap)
-#    print("Match predicted: ", match_predicted_cmaps)
-    print("pdbids", pdbids, "pdbchains", pdbchains)
-#    for f in range(2):
-#        plt.imshow(1-match_true_cmap[pdbids[f]+pdbchains[f]].astype(int),  cmap='gray', vmin=0, vmax=1)
-#        plt.axis('off')  # Turn off axes for a cleaner image
-#        plt.show()
-#
-#        # Save the array to an image file
-#        output_file = "temp_binary_" + pdbids[f]+pdbchains[f] + "_cmap.png"
-#        plt.imsave(output_file, 1-match_true_cmap[pdbids[f]+pdbchains[f]].astype(int), cmap='gray')
-#        print(f"Image saved to {output_file}")
-
-#    differences = np.argwhere(match_true_cmap[pdbids[0]+pdbchains[0]] != match_true_cmap[pdbids[1]+pdbchains[1]])
-#    print("Indices where the arrays are different:")
-#    print(differences)
-#    print("Means of fold differences: ", np.mean(match_true_cmap[pdbids[0]+pdbchains[0]] ), np.mean(match_true_cmap[pdbids[1]+pdbchains[1]] ))
-
 
     if plot_contacts:
         print("Plot Array")
@@ -193,9 +141,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
         tmscores_df = pd.DataFrame(index=new_indices,
                                    columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])  # modify index to exclude directory
         print("total cmaps: " + str(n_cmaps))
-        print("total node values: ", cluster_node_values.shape)
+#        print("total node values: ", cluster_node_values.shape)
         AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/*Msa*model_1_*pdb")
-        ESM_model_files = ''  # don't have them currently
         af_df = pd.read_csv(AF_MODEL_FILE, dtype=str)
         msa_trans_df = pd.read_csv(MSA_TRANS_MODEL_FILE, dtype=str)
         esmf_df = pd.read_csv(ESMF_MODEL_FILE, dtype=str)
@@ -211,70 +158,24 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
 #                    cluster_node_values.index)[c] # AF_model_files[AF_model_files == cluster_node_values.index[c]]
                 print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file, " fold-pair id=", foldpair_id)
 
-                # Save to debug just the function "compute_tmscore"
-#                true_pdb_file = 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb'
-#                with open('compute_tmscore.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
-#                    pickle.dump([fold, true_pdb_file, cur_AF_file, pdbchains], f)
-#                with open('compute_tmscore.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-#                    fold, true_pdb_file, cur_AF_file, pdbchains = pickle.load(f)
-#                tmscores_mat[fold, ctr] = compute_tmscore(true_pdb_file, cur_AF_file, pdbchains[fold], pdbchains[0])
-#                tmscores_mat[fold, ctr] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-#                print("Compute tm score for: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-#                      cur_AF_file, pdbchains[fold], pdbchains[0])
-#                print("first chain: ", pdbchains[fold])
-#                print("second chain: ", pdbchains[0], " ; finished")
-                # Why recalculate tm score each time? could load precomputed scores
                 tmscores_df.iloc[c, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
                     cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
 
                 if not 'eep' in cur_AF_file:
                     # Update ESM Fold values
-#                    print("esm clus num", esmf_df['cluster_num'], "tmscoresindex", tmscores_df.index[c][4:])
                     filtered_df = esmf_df[(esmf_df['fold_pair'] == foldpair_id) &
                                           (esmf_df['cluster_num'] == tmscores_df.index[c][4:])]
-#                    print("ESMf Filtered df: ", filtered_df, " key: ", 'TM_mean_cluster_pdb' + str(fold+1))
                     tmscores_df.iloc[c, fold+2] = float(filtered_df['TM_mean_cluster_pdb' + str(fold+1)].iloc[0])
 
-                    # Update MSA-Transformer recall values
-
-#                    tmp_clust_num = str(int(tmscores_df.index[c][4:]))
-#                    print("Cluster num: ", tmscores_df.index[c][4:], " and ", tmp_clust_num)
-#                    filtered_df = msa_trans_df[(msa_trans_df['FoldPair'] == foldpair_id) &
-#                                               (msa_trans_df['cluster_num'] == tmscores_df.index[c][4:])]
-#                    print("MSA_Trans Filtered df: ", filtered_df, " key: ", 'recall_only_fold' + str(fold+1))
-
-#                    print("Filtered values: ", filtered_df['recall_only_fold' + str(fold+1)])
-#                    print("Filtered values again: ", filtered_df['recall_only_fold1'])
-#                    print("Filtered values again zero: ", filtered_df['recall_only_fold1'].iloc[0])
-#                    print("Filtered values again zero zero: ", filtered_df['recall_only_fold1'][0])
-
-#                    tmscores_df.iloc[c, fold+5] = filtered_df['recall_only_fold' + str(fold+1)].iloc[0]
 
         # Get induced subtree
-#        print("phytree_file=", phytree_file)
-#        print("representative_cluster_leaves", representative_cluster_leaves)
         clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
-#        print("New cluster_node_values index: ", cluster_node_values.index)
-
         cluster_node_values.index = new_indices
-#        print("New cluster_node_values:", cluster_node_values)
-#        print("cluster_subtree: ", clusters_subtree)
         for n in clusters_subtree.iter_leaves(): # change name
             n.name = ete_leaves_cluster_ids[n.name]
-#        print("Now renamed cluster_subtree:")
-#        print(clusters_subtree)
-
-#        print("Cluster node values:")
-#        print(cluster_node_values)
-#        print("TMScores mat: ")
-#        print(tmscores_df)
-#        print("Types node_values, tmscores_mat:")
-#        print(type(cluster_node_values))
-#        print(type(tmscores_df))
-#        print("Now concatenate shapes: cluster_node, tmscores: " + str(cluster_node_values.shape) + ", " + str(tmscores_df.shape))
         concat_scores = pd.concat([tmscores_df, cluster_node_values], ignore_index= True, axis=1)
         concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
-#        print("Concat scores:", concat_scores)
+ #        print("Concat scores:", concat_scores)
 #        print("Clusters subtree", clusters_subtree)
         # save to pickle:
         with open('tree_clusters.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
@@ -286,9 +187,6 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
     else:  # plot entire tree
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
         concat_scores = [] # temp
-
-#    with open('bad_tree_and_msa.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-#        phytree_file, ete_leaves_node_values, outfile = pickle.load(f)
 
     # Collect :
 ##    print("Match predicted before compute_cmap_distances:")
@@ -376,7 +274,6 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
         n_col = n_row
 
     n_AA_aligned = len(contacts[next(iter(contacts))])  # number of aligned amino-acids in contacts
-    contacts_ids = contacts.keys()
     fig, axes = plt.subplots(figsize=(18, 18), nrows=n_row, ncols=n_col, layout="compressed")
     #    print("Num cmaps: " + str(n_pred))
     #    print(axes.shape)
@@ -396,12 +293,6 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
             predictions[name], contacts, ax=ax, title=name, show_legend= ctr == 1)
 
 
-
-    ##        for true_name in contacts_ids: # loop over two folds
-    ##            print("Plotting prediction: " + name + " -> true: " + true_name)
-    ##           plot_contacts_and_predictions(
-    ##                predictions[name], contacts[true_name], ax=ax, title = name)
-    #            prediction, target, ax=ax, title = lambda prec: f"{name}: Long Range P@L: {100 * prec:0.1f}")
     if len(save_file) > 0:  # save and close plot (enable automatic saving of multiple plots)
         plt.savefig(save_file + '.png')
         print("Save cmap fig: " + save_file + '.png')
@@ -433,29 +324,16 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
     delta_energies_filtered = np.array(delta_energies_filtered[:n_AA_aligned])  # Temp: need to fix alignment here!!!
 
     best_recall = plot_foldswitch_contacts_and_predictions( predictions=(predictions[best_recall_clusters[fold_ids[0]][0]],
-                                                              predictions[best_recall_clusters[fold_ids[1]][0]]),
+                                                            predictions[best_recall_clusters[fold_ids[1]][0]]),
                                                             contacts=contacts, title="Best clusters", show_legend=True,
                                                             cluster_names= (str(best_cluster_ids[fold_ids[0]]), str(best_cluster_ids[fold_ids[1]])),
                                                             x_vector = delta_energies_filtered,
                                                             y_vector = delta_energies_filtered)
-#    fig = plt.gcf()  # Get current figure
-#    ax = plt.gca()  # Get current Axes
-#    print("New labels: ", ax.get_xlabel() + ' cluster ' + str(best_cluster_ids[fold_ids[0]]),
-#          ax.get_ylabel() + ' cluster ' + str(best_cluster_ids[fold_ids[1]]))
-#    ax.set_xlabel(ax.get_xlabel() + ' cluster ' + str(best_cluster_ids[fold_ids[0]]))
-#    ax.set_ylabel(ax.get_ylabel() + ' cluster ' + str(best_cluster_ids[fold_ids[1]]))
-#    print("New NEW labels: ", ax.get_xlabel() ,  ax.get_ylabel() )
-#    plt.draw()
-#    ax.figure.canvas.draw()
     print("best recall: ", best_recall)
     plt.savefig(save_file.replace('all', 'best'))
     plt.close()  # Close the figure to avoid reuse issues
 
-#    print("Save best cmap fig: " + save_file + '_best_clusters_cmap.png')
-
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
-
-
 def plot_contacts_and_predictions(
         predictions: Union[torch.Tensor, np.ndarray],
         contacts: Union[torch.Tensor, np.ndarray],
@@ -528,7 +406,7 @@ def plot_foldswitch_contacts_and_predictions(
         # artists: Optional[ContactAndPredictionArtists] = None,
         cmap: str = "gray_r",  # "Blues",
         ms: float = 3,
-        hit_sign: str = 'o',
+        hit_sign: str = 'x',
         title: Union[bool, str, Callable[[float], str]] = True,
         animated: bool = False,
         show_legend: bool = False,
@@ -595,7 +473,6 @@ def plot_foldswitch_contacts_and_predictions(
     else:
         title_text = None
 
-
     # Start drawing
     # Check if vectors are provided
     include_vectors = x_vector is not None or y_vector is not None
@@ -603,16 +480,8 @@ def plot_foldswitch_contacts_and_predictions(
     # Create the figure and axes
     if include_vectors:
         fig = plt.figure(figsize=(10, 10))
-#        gs = GridSpec(2, 2, width_ratios=[1, 0.03], height_ratios=[0.03, 1], figure=fig)
         gs = GridSpec(2, 2, width_ratios=[1, 0.03], height_ratios=[0.03, 1], figure=fig, wspace=0.05, hspace=0.05)
-
         ax = fig.add_subplot(gs[1, 0])
-        ax_xvec = fig.add_subplot(gs[0, 0], sharex=ax)
-        ax_yvec = fig.add_subplot(gs[1, 1], sharey=ax)
-
-#        fig = plt.figure(figsize=(8, 8))
-#        gs = GridSpec(2, 2, width_ratios=[1, 30], height_ratios=[30, 1], figure=fig)
-#        ax = fig.add_subplot(gs[0, 1])
 
     colors = ['white', 'lightgray', 'darkgray']  # background, unique, shared
     custom_cmap = ListedColormap(colors)
@@ -625,37 +494,41 @@ def plot_foldswitch_contacts_and_predictions(
 
     categories = ["false_positives", "true_positives", "true_positives_unique"]
     colors = ["r", "b", "g"]
+    relative_size = [1,1,1.5]
     labels = ["False Positives", "True Shared Positives", "True Unique Positives"]
     plots = []
     offset = -0.15  # Amount to shift circles to the left
     for i, category in enumerate(categories):
         x_coords, y_coords = np.where(locals()[category][fold_ids[0]])
-        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors[i], ms=ms, label=labels[i])[0])
+        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors[i], ms=ms*relative_size[i], label=labels[i])[0])
         x_coords, y_coords = np.where(locals()[category][fold_ids[1]])
-        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors[i], ms=ms)[0])
-
+        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors[i], ms=ms*relative_size[i])[0])
 
     # Add a single colorbar for x_vector and y_vector
     if include_vectors:
+        ax_xvec = fig.add_subplot(gs[0, 0], sharex=ax)
+        ax_yvec = fig.add_subplot(gs[1, 1], sharey=ax)
         # Normalize vector values
         combined_vector = np.concatenate([x_vector.flatten(), y_vector.flatten()])
         norm = plt.Normalize(vmin=combined_vector.min(), vmax=combined_vector.max())
 
         # Plot x_vector heatmap
-        # x_vector = np.array(x_vector).reshape(1, -1)  # Ensure it's a 1-row heatmap
+
         ax_xvec.imshow(x_vector[np.newaxis, :], aspect="auto", cmap=vector_cmap, norm=norm)
+#        original_aspect_x = ax_xvec.get_data_ratio()  # Get the current aspect ratio
+#        ax_xvec.imshow(x_vector[np.newaxis, :], aspect=original_aspect_x *0.7, cmap=vector_cmap, norm=norm)  # Reduce width by 30%
         ax_xvec.axis("off")
 
         # Plot y_vector heatmap
-        # y_vector = np.array(y_vector).reshape(-1, 1)  # Ensure it's a 1-column heatmap
         ax_yvec.imshow(y_vector[:, np.newaxis], aspect="auto", cmap=vector_cmap, norm=norm)
+#        original_aspect_y = ax_yvec.get_data_ratio()
+#        ax_yvec.imshow(y_vector[:, np.newaxis], aspect=original_aspect_y *0.7, cmap=vector_cmap, norm=norm)  # Reduce height by 30%
         ax_yvec.axis("off")
 
         # Add colorbar for vectors
         cbar_ax = fig.add_axes([0.93, 0.3, 0.02, 0.4])  # [left, bottom, width, height]
         cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=vector_cmap), cax=cbar_ax)
-#        cbar.set_label("ΔΔG (kcal/mol)", fontsize=10)
-        cbar.set_label("ΔΔG (kcal/mol)", rotation=90, labelpad=-40, va='bottom')
+        cbar.set_label("ΔΔG (kcal/mol)", rotation=90, labelpad=-45, va='bottom')
 
         plt.tight_layout(rect=[0, 0, 0.9, 1])  # Leave space for the colorbar
 
