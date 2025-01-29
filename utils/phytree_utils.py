@@ -8,16 +8,8 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 
-
-import matplotlib.pyplot as plt
-from ete3 import TreeStyle, TextFace, RectFace, NodeStyle
-from PIL import Image, ImageDraw, ImageFont
-from matplotlib.colors import Normalize, to_hex
-
-
 import pickle
 from pylab import *
-from matplotlib.colors import Normalize, to_hex
 
 # Use ete3 package for visualization
 from ete3 import *
@@ -25,6 +17,14 @@ from .msa_utils import *
 import random
 import os
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+os.environ["XDG_RUNTIME_DIR"] = "/tmp"
+
+from ete3 import TreeStyle, TextFace, RectFace, NodeStyle
+import numpy as np
+from matplotlib.colors import Normalize, to_hex
+from matplotlib import pyplot as plt
+from matplotlib.colorbar import ColorbarBase
+
 
 
 def resolve_duplicated_ids(ids_list):
@@ -191,10 +191,14 @@ def extract_induced_subtree(tree, leaf_names):
     return subtree
 
 
+
+
+
+
+# Updated visualize_tree_with_heatmap function with vertical colorbars
 def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None):
-    from ete3 import TreeStyle, TextFace, RectFace, NodeStyle
-    import numpy as np
-    from matplotlib.colors import Normalize, to_hex
+    if output_file is not None:
+        matplotlib.use('Agg')  # Non-GUI backend (e.g., for saving figures)
 
     # Ensure the data matrix is a numpy array
     node_names = node_values_matrix.index.tolist()
@@ -203,13 +207,15 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
     # Extract the induced subtree
     tree = extract_induced_subtree(phylo_tree, node_names)
 
-    # Normalize the node values for two groups
-    first_group_values = node_values_matrix[:, :4].flatten()  # First 4 columns
-    second_group_values = node_values_matrix[:, 4:].flatten()  # Last 3 columns
-    norm1 = Normalize(vmin=first_group_values.min(), vmax=first_group_values.max())
-    norm2 = Normalize(vmin=second_group_values.min(), vmax=second_group_values.max())
-    cmap1 = plt.cm.viridis  # Colormap for the first group
-    cmap2 = plt.cm.plasma   # Colormap for the second group
+    # Normalize the node values separately for the two groups
+    group1 = node_values_matrix[:, :4].flatten()  # First 4 columns
+    group2 = node_values_matrix[:, 4:].flatten()  # Last 3 columns
+
+    norm1 = Normalize(vmin=group1.min(), vmax=group1.max())
+    norm2 = Normalize(vmin=group2.min(), vmax=group2.max())
+
+    cmap1 = plt.cm.viridis  # Colormap for first 4 columns
+    cmap2 = plt.cm.plasma   # Colormap for last 3 columns
 
     # Create TreeStyle
     ts = TreeStyle()
@@ -233,25 +239,153 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
             node.set_style(node_style)
 
             # Add heatmap rectangles and spacers
-            group_breaks = [2, 4]  # Add spacers after 2nd and 4th columns
-            column_offset = 0  # Start column indexing at 0
+            group_breaks = [2, 4]  # Define spacers after 2nd and 4th columns
 
-            for i, value in enumerate(values[:4]):  # First 4 columns
-                hex_color = to_hex(cmap1(norm1(value)))
+            initial_spacer = RectFace(width=10, height=20, fgcolor="white", bgcolor="white")  # Increase width for more space
+            faces.add_face_to_node(initial_spacer, node, column=0, position="aligned")
+            column_offset = 1  # Shift all heatmap columns to the right
+
+
+#            spacer = RectFace(width=50, height=20, fgcolor="white", bgcolor="white")  # Adjust width to control space
+
+
+            for i, value in enumerate(values):
+                # Determine the normalization and colormap
+                if i < 4:  # First 4 columns
+                    hex_color = to_hex(cmap1(norm1(value)))
+                else:  # Last 3 columns
+                    hex_color = to_hex(cmap2(norm2(value)))
+
+                # Add the heatmap block
                 rect_face = RectFace(width=20, height=20, fgcolor="black", bgcolor=hex_color)
                 faces.add_face_to_node(rect_face, node, column=i + column_offset, position="aligned")
 
-            column_offset += 1  # Spacer after first group
+                # Add a spacer after the group ends
+                if i + 1 in group_breaks:
+                    spacer = RectFace(width=5, height=20, fgcolor="white", bgcolor="white")
+                    column_offset += 1  # Increment column index for the spacer
+                    faces.add_face_to_node(spacer, node, column=i + column_offset, position="aligned")
 
-            for i, value in enumerate(values[4:]):  # Last 3 columns
-                hex_color = to_hex(cmap2(norm2(value)))
+    # Assign the layout function to TreeStyle
+    ts.layout_fn = layout
+
+    # Render the tree temporarily to get its dimensions
+    temp_tree_file = "temp_tree.png"
+    tree.render(temp_tree_file, w=800, units="px", tree_style=ts, layout=layout)
+
+    # Load the tree image to combine with colorbars
+    tree_img = plt.imread(temp_tree_file)
+    fig, ax_tree = plt.subplots(figsize=(12, 8))
+    fig.subplots_adjust(left=0.05, right=0.92, top=0.95, bottom=0.1)  # Move right limit closer
+
+    ax_tree.imshow(tree_img)
+    ax_tree.axis("off")  # Hide axes
+
+    # Colorbar for the first 4 columns (TM-Score)
+#    cbar_ax1 = fig.add_axes([0.88, 0.55, 0.02, 0.35])  # Narrower and closer
+    cbar_ax1 = fig.add_axes([0.75, 0.6, 0.015, 0.3])  # Move closer & narrower
+    cb1 = ColorbarBase(cbar_ax1, cmap=cmap1, norm=norm1, orientation="vertical")
+#    cbar_ax1.set_title("TM-Score", fontsize=10, pad=10, loc='left', rotation=90)
+    cbar_ax1.set_ylabel("TM-Score", fontsize=10, labelpad=10, rotation=90)
+
+    # Colorbar for the last 3 columns (Recall)
+#    cbar_ax2 = fig.add_axes([0.88, 0.1, 0.02, 0.35])  # Narrower and closer
+    cbar_ax2 = fig.add_axes([0.75, 0.2, 0.015, 0.3])  # Same for second colorbar
+    cb2 = ColorbarBase(cbar_ax2, cmap=cmap2, norm=norm2, orientation="vertical")
+#    cbar_ax2.set_title("Recall", fontsize=10, pad=10, loc='left', rotation=90)
+    cbar_ax2.set_ylabel("Recall", fontsize=10, labelpad=10, rotation=90)
+
+    # Add the major title dynamically (AF, ESMF, MSAT)
+    tree_width = calculate_tree_width(temp_tree_file)  # Implement a helper to calculate width from the image
+#    print("x offset=", int(tree_width * 0.5))
+#    add_figure_title(temp_tree_file,
+#        title="AF   ESMF   MSAT",  # The title for the heatmap
+#        title_x_offset=int(tree_width * 0.5), # 0.775),  # Adjust this value to center the title
+#        title_y_offset=-50,  # Negative to place below the heatmap
+#        font_size=18,
+#        extra_space_ratio=0.03)  # Adds space at the bottom for the title
+    fig.text(0.68, 0.08, "AF   ESMF  MSAT", ha='center', fontsize=10, fontweight='bold')
+
+    # Save the combined figure
+    if output_file is not None:
+        if '.' not in output_file:
+            output_file = output_file + ".png"
+        fig.savefig(output_file, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    # Clean up the temporary file
+    import os
+    os.remove(temp_tree_file)
+
+
+# Updated visualize_tree_with_heatmap function
+def visualize_tree_with_heatmap_working(phylo_tree, node_values_matrix, output_file=None):
+    from ete3 import TreeStyle, TextFace, RectFace, NodeStyle
+    import numpy as np
+    from matplotlib.colors import Normalize, to_hex
+    from matplotlib import pyplot as plt
+    from matplotlib.colorbar import ColorbarBase
+
+    # Ensure the data matrix is a numpy array
+    node_names = node_values_matrix.index.tolist()
+    node_values_matrix = np.array(node_values_matrix)
+
+    # Extract the induced subtree
+    tree = extract_induced_subtree(phylo_tree, node_names)
+
+    # Normalize the node values separately for the two groups
+    group1 = node_values_matrix[:, :4].flatten()  # First 4 columns
+    group2 = node_values_matrix[:, 4:].flatten()  # Last 3 columns
+
+    norm1 = Normalize(vmin=group1.min(), vmax=group1.max())
+    norm2 = Normalize(vmin=group2.min(), vmax=group2.max())
+
+    cmap1 = plt.cm.viridis  # Colormap for first 4 columns
+    cmap2 = plt.cm.plasma   # Colormap for last 3 columns
+
+    # Create TreeStyle
+    ts = TreeStyle()
+    ts.show_leaf_name = True
+    ts.show_branch_length = True
+    ts.show_scale = False
+
+    # Define layout function for rendering heatmap
+    def layout(node):
+        if node.is_leaf():
+            # Simplify the leaf names
+            index = tree.get_leaf_names().index(node.name)
+            node.name = str(index)  # Use numeric names for simplicity
+
+            # Access the row in the data matrix
+            values = node_values_matrix[index]
+
+            # Set node style
+            node_style = NodeStyle()
+            node_style["size"] = 0  # Hide the default node circle
+            node.set_style(node_style)
+
+            # Add heatmap rectangles and spacers
+            group_breaks = [2, 4]  # Define spacers after 2nd and 4th columns
+            column_offset = 0  # Start column indexing at 0
+
+            for i, value in enumerate(values):
+                # Determine the normalization and colormap
+                if i < 4:  # First 4 columns
+                    hex_color = to_hex(cmap1(norm1(value)))
+                else:  # Last 3 columns
+                    hex_color = to_hex(cmap2(norm2(value)))
+
+                # Add the heatmap block
                 rect_face = RectFace(width=20, height=20, fgcolor="black", bgcolor=hex_color)
-                faces.add_face_to_node(rect_face, node, column=i + 4 + column_offset, position="aligned")
+                faces.add_face_to_node(rect_face, node, column=i + column_offset, position="aligned")
 
-            # Add spacers after group breaks
-            for i in group_breaks:
-                spacer = RectFace(width=5, height=20, fgcolor="white", bgcolor="white")
-                faces.add_face_to_node(spacer, node, column=i + column_offset, position="aligned")
+                # Add a spacer after the group ends
+                if i + 1 in group_breaks:
+                    spacer = RectFace(width=5, height=20, fgcolor="white", bgcolor="white")
+                    column_offset += 1  # Increment column index for the spacer
+                    faces.add_face_to_node(spacer, node, column=i + column_offset, position="aligned")
+
+            print(f"Processed node: {node.name}, column_offset: {column_offset}")
 
     # Assign the layout function to TreeStyle
     ts.layout_fn = layout
@@ -264,7 +398,34 @@ def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None
         output_file = output_file + ".png"
     tree.render(output_file, w=800, units="px", tree_style=ts, layout=layout)
 
-    print("Tree heatmap with two separate color scales rendered to:", output_file)
+    # Render colorbars to the right of the heatmap
+#    fig, ax = plt.subplots(figsize=(2, 6))  # Adjust size if needed
+
+    # Colorbar for the first 4 columns (TM-Score)
+#    cax1 = fig.add_axes([0.85, 0.55, 0.03, 0.35])  # [left, bottom, width, height]
+#    cb1 = ColorbarBase(cax1, cmap=cmap1, norm=norm1, orientation='vertical')
+#    cax1.set_title("TM-Score", fontsize=10, pad=10)
+
+    # Colorbar for the last 3 columns (Recall)
+#    cax2 = fig.add_axes([0.85, 0.1, 0.03, 0.35])  # Adjust vertical position for spacing
+#    cb2 = ColorbarBase(cax2, cmap=cmap2, norm=norm2, orientation='vertical')
+#    cax2.set_title("Recall", fontsize=10, pad=10)
+
+    # Save or display the colorbars alongside the heatmap
+#    fig.savefig(output_file.replace(".png", "_colorbars.png"))
+#    plt.close(fig)  # Close the figure to avoid overlapping issues
+
+    tree_width = calculate_tree_width(output_file)  # Implement a helper to calculate width from the image
+    # Add the major title dynamically
+    add_figure_title(
+        output_file,
+        title="AF   ESMF   MSAT",  # The title for the heatmap
+        title_x_offset=int(tree_width * 0.775),  # Centered title
+        title_y_offset=-5,  # Adjust as needed
+        font_size=18,  # Larger font size for the major title
+        extra_space_ratio=0.03)
+    print("Did tree save!!! ")
+
 
 
 def visualize_tree_with_heatmap_working(phylo_tree, node_values_matrix, output_file=None):
@@ -307,19 +468,28 @@ def visualize_tree_with_heatmap_working(phylo_tree, node_values_matrix, output_f
             node.set_style(node_style)
 
             # Add heatmap rectangles and spacers
-            group_breaks = [2, 4]  # Add spacers after 2nd and 4th columns
+            group_breaks = [2, 4]  # Define spacers after 2nd and 4th columns
             column_offset = 0  # Start column indexing at 0
 
             for i, value in enumerate(values):
-                hex_color = to_hex(cmap(norm(value)))
+                # Determine the normalization and colormap
+                if i < 4:  # First 4 columns
+                    hex_color = to_hex(cmap1(norm1(value)))
+                else:  # Last 3 columns
+                    hex_color = to_hex(cmap2(norm2(value)))
+
+                # Add the heatmap block
                 rect_face = RectFace(width=20, height=20, fgcolor="black", bgcolor=hex_color)
                 faces.add_face_to_node(rect_face, node, column=i + column_offset, position="aligned")
 
-                # Add a spacer after group ends
+                # Add a spacer after the group ends
                 if i + 1 in group_breaks:
                     spacer = RectFace(width=5, height=20, fgcolor="white", bgcolor="white")
                     column_offset += 1  # Increment column index for the spacer
                     faces.add_face_to_node(spacer, node, column=i + column_offset, position="aligned")
+
+            print(f"Processed node: {node.name}, column_offset: {column_offset}")
+
 
     # Assign the layout function to TreeStyle
     ts.layout_fn = layout
@@ -330,7 +500,6 @@ def visualize_tree_with_heatmap_working(phylo_tree, node_values_matrix, output_f
         return
     if '.' not in output_file:
         output_file = output_file + ".png"
-#    temp_render_file = "temp_tree_render.png"
     tree.render(output_file, w=800, units="px", tree_style=ts, layout=layout)
     tree_width = calculate_tree_width(output_file)  # Implement a helper to calculate width from the image
 
@@ -343,17 +512,6 @@ def visualize_tree_with_heatmap_working(phylo_tree, node_values_matrix, output_f
         font_size=18,  # Larger font size for the major title
         extra_space_ratio=0.03)
     print("Did tree save!!! ")
-
-    # Render the final tree
-#    if output_file:
-#        print("Saving tree image to : " + output_file)
-#        if '.' not in output_file:
-#            output_file = output_file + ".png"
-#        img.save(output_file)
-#        tree.render(output_file, w=800, units="px", tree_style=ts, layout=layout)
-#        print("Did tree save!!! ")
-#    else:
-#        tree.show(tree_style=ts)
 
 
 def calculate_tree_width(rendered_tree_path):

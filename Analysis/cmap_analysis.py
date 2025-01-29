@@ -58,7 +58,6 @@ def get_only_cmaps(cmap1,cmap2):
     return only_fold1,only_fold2
 
 
-
 if __name__ == '__main__':
     '''
     Define the models outputs path on your local computer

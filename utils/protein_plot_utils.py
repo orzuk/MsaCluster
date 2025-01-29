@@ -574,32 +574,6 @@ def plot_foldswitch_contacts_and_predictions(
     true_positives, true_positives_unique, false_positives, other_contacts = {}, {}, {}, {}
     recall = {}
 
-    # Plot the contact maps
-#    maps = [("True Contacts " + fold_ids[0], contacts[fold_ids[0]]),
-#            ("True Contacts " + fold_ids[1], contacts[fold_ids[1]]),
-#            ("Predicted Contacts 1", pred_contacts[0]),
-#            ("Predicted Contacts 2", pred_contacts[1])]
-#
-#    plot_2by2 = False
-#    if plot_2by2:
-#        # Create a 2x2 figure
-#        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(10, 10), layout="compressed")
-#        for ax, (tmp_title, contact_map) in zip(axes.ravel(), maps):
-#            ax.imshow(contact_map, cmap="gray_r", animated=animated)  # Black (1) and White (0)
-#            #        ax.plot([0, contact_map.shape[0]], [0, contact_map.shape[1]], c="red", linestyle="-", linewidth=0.5)
-#            #        ax.plot(*np.where(false_positives[fold_ids[0]]), hit_sign, c="r", ms=ms, label="FP")[0]
-#            ax.set_title(tmp_title)
-#            ax.axis("off")
-##            ax.invert_xaxis()  # Flip the x-axis direction
-#            ax.invert_yaxis()  # Flip the x-axis direction
-#
-#        ax.axis("square")
-#
-#        # Adjust layout and save to file
-#        plt.tight_layout()
-#        plt.savefig('cmap_vs_predictions.png')
-#        plt.close()
-
     p = 0
     for fold in fold_ids:
         true_positives[fold] = contacts[fold] & pred_contacts[p] & top_bottom_mask[fold]
@@ -660,18 +634,6 @@ def plot_foldswitch_contacts_and_predictions(
         x_coords, y_coords = np.where(locals()[category][fold_ids[1]])
         plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors[i], ms=ms)[0])
 
-#    if x_vector is not None:
-#        ax_xvec = fig.add_subplot(gs[1, 1])
-#        x_vector = np.array(x_vector).reshape(1, -1)  # Ensure it's a 1-row heatmap
-#        img_xvec = ax_xvec.imshow(x_vector, cmap=vector_cmap, aspect='auto')
-#        ax_xvec.axis("off")
-#
-#        # Add y_vector heatmap
-#    if y_vector is not None:
-#        ax_yvec = fig.add_subplot(gs[0, 0])
-#        y_vector = np.array(y_vector).reshape(-1, 1)  # Ensure it's a 1-column heatmap
-#        img_yvec = ax_yvec.imshow(y_vector, cmap=vector_cmap, aspect='auto')
-#        ax_yvec.axis("off")
 
     # Add a single colorbar for x_vector and y_vector
     if include_vectors:

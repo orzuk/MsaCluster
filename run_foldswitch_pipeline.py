@@ -31,6 +31,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
         print("- run_pipeline: Execute the entire pipeline.")
         print("- plot: Generate plots for fold-switch data.")
         print("- tree: Reconstruct phylogenetic trees.")
+        print("- make_main_html_table: [T.B.D.] Create data-frame and load it to make nice main html")
+        print("- make_individual_pairs_html: [T.B.D.] Harder (requires notebooks!) ")
         print("- compute_deltaG: Compute free energy of the structure + sequence using Rosetta")
         print("- Analysis: Perform custom analyses.")
         return
@@ -171,6 +173,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
          'seq_dists': seqs_dists_vec,
          'n_msa': num_seqs_msa_vec
          })
+
+    print("Finished run pipeline, returning res_DF")
     return res_DF # return results
 
 
