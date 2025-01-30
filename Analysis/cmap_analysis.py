@@ -99,7 +99,7 @@ if __name__ == '__main__':
                     # np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_1_tol_0.npy', visualization_map_1_tol)
                     # np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_2_tol_0.npy', visualization_map_2_tol)
 
-                    res.append({'FoldPair':fold_pair,'File':cmap,'recall_only_fold1':recall_only_fold1,'recall_only_fold2':recall_only_fold2})
+                    res.append({'fold_pair':fold_pair,'File':cmap,'recall_only_fold1':recall_only_fold1,'recall_only_fold2':recall_only_fold2})
                 except Exception as e:
                     print(e)
                     continue
@@ -113,3 +113,4 @@ if __name__ == '__main__':
     success_cmap_score = final_df.FoldPair.unique()
     # final_df.to_parquet(f'{folder}/cmap_exact_analysis_tol0_2510.parq')
     final_df['cluster_num'] = final_df.File.apply(lambda x:x[-7:-4])
+    print('steve')
