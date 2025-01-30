@@ -18,9 +18,9 @@ for fold_pair in tqdm(fold_pairs):
    except:
         print(fold_pair)
         continue
-
 df_af_all = df_af_all.iloc[:,1:]
-# df_af_all.to_csv('/Users/steveabecassis/Desktop/df_af_all.csv',index=False)
+df_af_all = df_af_all[['fold_pair','pdb_file', 'score_pdb1', 'score_pdb2', 'Fold', 'cluster_num']]
+df_af_all.to_csv('./data/df_af_all.csv',index=False)
 # df_cmap_analysis.to_csv('/Users/steveabecassis/Desktop/df_cmap_all.csv',index=False)
 # df_esmfold_analysis.to_csv('/Users/steveabecassis/Desktop/df_esmfold_all.csv',index=False)
 
