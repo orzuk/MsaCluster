@@ -9,8 +9,6 @@ from glob import glob
 from utils.msa_utils import *
 
 
-
-
 def consensusVoting(seqs):
     ## Find the consensus sequence
     consensus = ""

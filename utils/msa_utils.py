@@ -1,4 +1,5 @@
 from Bio import SeqIO
+from Bio import pairwise2
 
 
 def lprint(string, f):

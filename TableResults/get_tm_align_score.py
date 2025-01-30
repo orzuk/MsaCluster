@@ -3,16 +3,7 @@ import subprocess
 import re
 import pandas as pd
 from tqdm import tqdm
-
-def get_tmscore_align(path_fold1,path_fold2):
-    command = f"TMalign {path_fold1} {path_fold2}"
-    output = subprocess.check_output(command, shell=True)
-    match = re.search(r"TM-score=\s+(\d+\.\d+)", str(output))
-    if match:
-        result = match.group(1)
-        return float(result)
-    else:
-        return None
+from utils.protein_utils import *
 
 
 # path_fold1 = '/Users/steveabecassis/Desktop/Pipeline/3t5oA_4a5wB/chain_pdb_files/3t5oA.pdb'

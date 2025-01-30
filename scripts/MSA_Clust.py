@@ -52,7 +52,7 @@ def compute_cmap_distances(cmaps, cmap_main = []):
         cmap_main = cmap_main / n_maps
 
     for cur_cmap in cmaps.keys():  # Compute distance to centroid
-        print("cmap=", cur_cmap, " Cmap dist: ", sum(cmaps[cur_cmap] - cmap_main)**2)
+#        print("cmap=", cur_cmap, " Cmap dist: ", sum(cmaps[cur_cmap] - cmap_main)**2)
         D += sum(cmaps[cur_cmap] - cmap_main)**2
     return D/n_maps  # normalize
 

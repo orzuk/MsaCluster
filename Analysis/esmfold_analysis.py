@@ -3,6 +3,7 @@ import os
 import subprocess
 import re
 from tqdm import tqdm
+from utils.protein_utils import *
 
 
 '''
@@ -20,15 +21,6 @@ fold_pairs      = os.listdir(pipeline_folder)
 # fold1     = fold_pair.split('_')[0]
 # fold2     = fold_pair.split('_')[1]
 
-def get_tmscore_align(path_fold1,path_fold2):
-    command = f"/Users/steveabecassis/Desktop/TMalign {path_fold1} {path_fold2}"
-    output = subprocess.check_output(command, shell=True)
-    match = re.search(r"TM-score=\s+(\d+\.\d+)", str(output))
-    if match:
-        result = match.group(1)
-        return float(result)
-    else:
-        return None
 
 
 if __name__=='__main__':

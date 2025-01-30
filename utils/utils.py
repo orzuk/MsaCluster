@@ -1,3 +1,4 @@
+from config import *
 from Bio.SeqUtils import seq1
 from Bio.PDB import PDBParser, PDBIO, Select
 from Bio import SeqIO
@@ -7,15 +8,7 @@ import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from contact_map import ContactFrequency, ContactDifference
 
-user = 'zuk_laptop'  # "steve_moriah", "steve_laptop", "zuk_moriah"
-
-# Set here all directories:
-if user == "steve_moriah":
-    pdf_files_path = f'/Users/steveabecassis/Desktop/pdb_file'
-if user == "zuk_laptop":
-    pdf_files_path = f'/mnt/c/Data/pdb_file'
-
-pdb_file = f'{pdf_files_path}/1jfk.pdb'
+pdb_file = f'{PDF_FILES_PATH}/1jfk.pdb'
 
 
 class ChainSelect(Select):
