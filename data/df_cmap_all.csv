@@ -1,4 +1,4 @@
-FoldPair,File,recall_only_fold1,recall_only_fold2,cluster_num
+fold_pair,File,recall_only_fold1,recall_only_fold2,cluster_num
 1iytA_2naoF,msa_t__ShallowMsa_000.npy,0,0,000
 1iytA_2naoF,msa_t__ShallowMsa_001.npy,0,0,001
 1iytA_2naoF,msa_t__ShallowMsa_003.npy,0,0,003
