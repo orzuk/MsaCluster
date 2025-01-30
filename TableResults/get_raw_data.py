@@ -3,6 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 import re
 
+
 folder = '/Users/steveabecassis/Desktop/Pipeline'
 df_cmap_analysis = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline/cmap_exact_analysis_tol0_2510.parq')
 df_esmfold_analysis = pd.read_csv(f'/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv')
