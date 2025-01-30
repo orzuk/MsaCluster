@@ -1,5 +1,6 @@
 from olds.Analysis import *
-
+from tqdm import tqdm
+from config import *
 
 if __name__ == '__main__':
 
@@ -13,54 +14,16 @@ if __name__ == '__main__':
     pair_output_path = args.input
     fold_pair = pair_output_path.replace("Pipeline/", "", 1)
     print(f'Fold_pair: {fold_pair}')
-    path = f'./Pipeline/{fold_pair}'
+    path = f'{DATA_DIR}/{fold_pair}'
     print(f'Path: {path}')
-    if not os.path.exists(f'{path}/cmaps_pairs'):
-        print("Mkdir: " + f'{path}/cmaps_pairs')
-        os.mkdir(f'{path}/cmaps_pairs')
     if not os.path.exists(f'{path}/Analysis'):
         print("Mkdir: " + f'{path}/Analysis')
         os.mkdir(f'{path}/Analysis')
 
+
     folds = pair_output_path.split("_")
     fold1 = folds[0]
     fold2 = folds[1]
-    save_org_cmaps(f'{path}', fold1)
-    save_org_cmaps(f'{path}', fold2)
-
-    seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
-    seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
-
-    fold1_idxs,fold2_idxs = get_align_indexes(seq_fold1, seq_fold2)
-
-
-    cmap_fold_1 = np.load(f'{path}/cmaps_pairs/{fold1}.npy')[fold1_idxs][:, fold1_idxs]
-    cmap_fold_2 = np.load(f'{path}/cmaps_pairs/{fold2}.npy')[fold2_idxs][:, fold2_idxs]
-    np.nan_to_num(cmap_fold_1, nan=0,copy=False)
-    np.nan_to_num(cmap_fold_2, nan=0,copy=False)
-
-
-    cmap_res_analysis = []
-    for cmap_cluster in os.listdir(f'{path}/output_cmap_esm'):
-        if ('Shallow' in str(cmap_cluster)):
-            file_name = str(cmap_cluster[:-4])
-            cmap_cluster_loaded = np.load(f'{path}/output_cmap_esm/{cmap_cluster}')[fold1_idxs][:, fold1_idxs]
-            jaccard_index_score_fold1 = get_jaccard_index_score(cmap_fold_1,cmap_cluster_loaded)
-            jaccard_index_score_fold2 = get_jaccard_index_score(cmap_fold_2,cmap_cluster_loaded)
-            spearmanr_score_fold1 = spearman_score(cmap_fold_1, cmap_cluster_loaded)
-            spearmanr_score_fold2 = spearman_score(cmap_fold_2, cmap_cluster_loaded)
-            TP_f1,TN_f1,FP_f1,FN_f1,TP_norm_f1,TN_norm_f1,FP_norm_f1,FN_norm_f1 = get_TP_TN_FP_FN_metrics(cmap_fold_1,cmap_cluster_loaded,th=0.4)
-            TP_f2,TN_f2,FP_f2,FN_f2,TP_norm_f2,TN_norm_f2,FP_norm_f2,FN_norm_f2 = get_TP_TN_FP_FN_metrics(cmap_fold_2, cmap_cluster_loaded, th=0.4)
-
-            scores_dict = {'file_name':file_name,'jaccard_index_score_fold1':jaccard_index_score_fold1,'jaccard_index_score_fold2':jaccard_index_score_fold2,
-                           'spearmanr_score_fold1':spearmanr_score_fold1,'spearmanr_score_fold2':spearmanr_score_fold2,
-                           'TP_f1':TP_f1,'TN_f1':TN_f1,'FP_f1':FP_f1,'FN_f1':FN_f1,'TP_norm_f1':TP_norm_f1,'TN_norm_f1':TN_norm_f1,'FP_norm_f1':FP_norm_f1,'FN_norm_f1':FN_norm_f1,
-                           'TP_fold2': TP_f2, 'TN_f2': TN_f2, 'FP_f2':FP_f2, 'FN_f2': FN_f2, 'TP_norm_f2': TP_norm_f2, 'TN_norm_f2': TN_norm_f2, 'FP_norm_f2': FP_norm_f2, 'FN_norm_f2': FN_norm_f2
-                          }
-            cmap_res_analysis.append(scores_dict)
-
-    cmap_scores_df = pd.DataFrame(cmap_res_analysis)
-    cmap_scores_df.to_csv(f'{path}/Analysis/cmap_scores_df.csv')
 
     unzip_files(folder_path=f'{path}/AF_preds')
 
@@ -69,7 +32,7 @@ if __name__ == '__main__':
     pdb_files = [i for i in pdb_files if 'pdb' in str(i)]
     pdb_fold1_path = f'{path}/chain_pdb_files/{fold1}.pdb'
     pdb_fold2_path = f'{path}/chain_pdb_files/{fold2}.pdb'
-    for pdb_file in pdb_files:
+    for pdb_file in tqdm(pdb_files):
         if ('pdb' in str(pdb_file)) & ('gz' not in str(pdb_file)):
             # score_pdb1 = tmscoring.get_tm(f'{path}/AF_preds/{pdb_file}', pdb_fold1_path)
             # score_pdb2 = tmscoring.get_tm(f'{path}/AF_preds/{pdb_file}', pdb_fold2_path)

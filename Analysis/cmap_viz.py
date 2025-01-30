@@ -23,7 +23,7 @@ from io import StringIO
 import numpy as np
 from tqdm import tqdm
 from cmap_analysis import *
-
+from config import *
 
 def process_array_tolerance(arr, tolerance=1):
     result = arr.copy()
@@ -53,13 +53,11 @@ if __name__ == '__main__':
     '''
     Define the models outputs path on your local computer
     '''
-    folder    = '/Users/steveabecassis/Desktop/Pipeline'
+    folder    = DATA_DIR
     tolerance = 0
-    final_df = pd.read_parquet(f'{folder}/cmap_exact_analysis.parq')
 
     res = []
     for fold_pair in tqdm(os.listdir(folder)):
-        fold_pair = '4cmqB_4zt0C'
         if '.sh' in fold_pair:
             continue
         # fold_pair = '1svfC_4wsgC'
@@ -109,7 +107,7 @@ if __name__ == '__main__':
                         np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_1_tol_0.npy', visualization_map_1_tol)
                         np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_2_tol_0.npy', visualization_map_2_tol)
 
-                        res.append({'FoldPair':fold_pair,'File':cmap,'recall_only_fold1':recall_only_fold1,'recall_only_fold2':recall_only_fold2})
+                        res.append({'fold_pair':fold_pair,'File':cmap,'recall_only_fold1':recall_only_fold1,'recall_only_fold2':recall_only_fold2})
                 except Exception as e:
                     print(e)
                     continue
@@ -119,5 +117,4 @@ if __name__ == '__main__':
             continue
 
     final_df = pd.DataFrame(res)
-
-    # final_df.to_parquet(f'{folder}/cmap_exact_analysis_tol0_2310.parq')
+    final_df.to_csv(f'./data/df_cmap_all.csv',index=False)

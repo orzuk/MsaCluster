@@ -4,6 +4,7 @@ from nbconvert.preprocessors import ExecutePreprocessor
 import os
 from tqdm import tqdm
 import pandas as pd
+from config import *
 
 def run_notebook(notebook_path, input_string, output_html_path):
     # Load the notebook
@@ -13,6 +14,8 @@ def run_notebook(notebook_path, input_string, output_html_path):
     # Inject the input string into the first cell (assuming it's a code cell)
     if notebook['cells'][1]['cell_type'] == 'code':
         notebook['cells'][1]['source'] = f"fold_pair = '{input_string}' "
+    if notebook['cells'][2]['cell_type'] == 'code':
+        notebook['cells'][2]['source'] = f"plot_tool = PlotTool(folder='{DATA_DIR}',fold_pair=fold_pair)"
 
     # Execute the notebook
     ep = ExecutePreprocessor(timeout=600, kernel_name='python3')
@@ -32,14 +35,16 @@ def run_notebook(notebook_path, input_string, output_html_path):
 # Example usage
 if __name__ == '__main__':
     '''
-    OUTPUT_PATH : The output you want the html notebook outputs
     fold_pairs  : List of protein pairs you want to run the analysis
     '''
-    OUTPUT_PATH = '/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_2110'
-    fold_pairs = ['4cmqB_4zt0C', '4n9wA_4nc9C', '1nrjB_2gedB']
+    OUTPUT_PATH = OUTPUT_PATH_NOTEBOOKS
+    # fold_pairs = ['4cmqB_4zt0C', '4n9wA_4nc9C', '1nrjB_2gedB']
+    fold_pairs = ['4n9wA_4nc9C', '1nrjB_2gedB']
+
     errors = []
     no_cluster = []
-    notebook_path = './MsaCluster/Analysis/NotebookGen/TemplateNotebook.ipynb'
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    notebook_path = os.path.join(project_root, 'TemplateNotebook.ipynb')
     for fold_pair in fold_pairs:
         if '.sh' in fold_pair:
             continue

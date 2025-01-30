@@ -1,12 +1,11 @@
 from tqdm import tqdm
 from olds.Analysis import *
 from PlotUtils import *
-
+from config import *
 
 def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
     """
     Align two contact maps and resize them to match the smaller map's dimensions.
-
     :param cmap1: First contact map (2D symmetric numpy array)
     :param cmap2: Second contact map (2D symmetric numpy array)
     :param window_size: Size of the sliding window for comparison
@@ -60,10 +59,8 @@ def get_only_cmaps(cmap1,cmap2):
 
 
 if __name__ == '__main__':
-    '''
-    Define the models outputs path on your local computer
-    '''
-    folder    = '/Users/steveabecassis/Desktop/Pipeline'
+
+    folder    = DATA_DIR
     files = os.listdir(folder)
     pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
     fold_pairs = [i for i in files if re.match(pattern, i)]
@@ -86,6 +83,8 @@ if __name__ == '__main__':
 
             for cmap in tqdm(cmaps):
                 try:
+                    if (cmap == 'VizCmaps') or 'deep' in cmap:
+                        continue
                     if 'Shallow' in cmap:
                         cmap_pred = load_pred_cmap(f'{cmap[:-4]}')
                         cluster = cmap[-7:-4]
@@ -95,7 +94,6 @@ if __name__ == '__main__':
                     visualization_map_2_tol = load_cmap(f'{path_viz_maps}/msa_t__ShallowMsa_{cluster}_visualization_map_2_tol_0.npy')
                     recall_only_fold1 = round(np.count_nonzero(visualization_map_1_tol == 1.75) / np.count_nonzero(cmap_only_pdb1 == 1),2)
                     recall_only_fold2 = round(np.count_nonzero(visualization_map_2_tol == 1.75) / np.count_nonzero(cmap_only_pdb2 == 1), 2)
-
                     # np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_1_tol_0.npy', visualization_map_1_tol)
                     # np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_2_tol_0.npy', visualization_map_2_tol)
 
@@ -110,7 +108,8 @@ if __name__ == '__main__':
             continue
 
     final_df = pd.DataFrame(res)
-    success_cmap_score = final_df.FoldPair.unique()
-    # final_df.to_parquet(f'{folder}/cmap_exact_analysis_tol0_2510.parq')
+    success_cmap_score = final_df.fold_pair.unique()
     final_df['cluster_num'] = final_df.File.apply(lambda x:x[-7:-4])
-    print('steve')
+
+    final_df.to_csv(f'./data/df_cmap_all.csv',index=False)
+

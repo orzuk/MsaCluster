@@ -6,25 +6,36 @@ import matplotlib.pyplot as plt
 import mdtraj as md
 from contact_map import ContactFrequency, ContactDifference
 import warnings
+
 warnings.filterwarnings("ignore")
+import mdtraj as md
 import numpy as np
 from matplotlib.pyplot import *
+import matplotlib.pyplot as plt
 import prody
 import os
 from scipy.ndimage import binary_dilation
 import matplotlib.patches as mpatches
 from IPython.display import display, HTML
-from Bio import pairwise2, PDB, Align
-from Bio.PDB import PDBParser, PDBIO, Superimposer
-from Bio.PDB.Polypeptide import three_to_one
+from Bio import PDB
+from Bio import pairwise2
+from Bio.PDB import Superimposer
+import py3Dmol
 import ipywidgets as widgets
+from Bio.PDB import PDBParser
+from Bio import pairwise2
+import py3Dmol
+from Bio import PDB, Align
+from Bio.PDB import PDBParser, PDBIO
+from Bio.PDB.Polypeptide import three_to_one
 from io import StringIO
-from utils.msa_utils import *
+import numpy as np
 
 
-'''
-In the PlotTool class define you own path
-'''
+# Function to read PDB file
+def read_pdb_file(file_path):
+    with open(file_path, 'r') as file:
+        return file.read()
 
 
 def get_seq_from_structure(structure):
@@ -121,6 +132,46 @@ def visualize_alignement_structure(PATH_PDB1, PATH_PDB2):
     display(widgets.HBox([toggle1, toggle2]))
 
 
+def extract_protein_sequence(pdb_file):
+    parser = PDBParser()
+    structure = parser.get_structure("protein_structure", pdb_file)
+
+    residue_sequence = ""
+    flag = 0
+    # Iterate through the structure and extract the residue sequence
+    for model in structure:
+        for chain in model:
+            if flag != 0:
+                break
+            flag += 1
+            for residue in chain:
+                if PDB.is_aa(residue):
+                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
+    return residue_sequence
+
+
+def get_align_indexes(seqA, seqB):
+    alignments = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)
+    best_align = alignments[0]
+    seqA = best_align.seqA
+    seqB = best_align.seqB
+    cursA = 0
+    cursB = 0
+    seqA_idxs = []
+    seqB_idxs = []
+    for aa in range(len(seqA)):
+        if (seqA[aa] != '-') & (seqB[aa] != '-'):
+            seqA_idxs.append(cursA)
+            seqB_idxs.append(cursB)
+            cursA += 1
+            cursB += 1
+        if (seqA[aa] == '-') & (seqB[aa] != '-'):
+            cursB += 1
+        if (seqA[aa] != '-') & (seqB[aa] == '-'):
+            cursA += 1
+    return seqA_idxs, seqB_idxs
+
+
 def dilate_with_tolerance(array, tolerance):
     structure = np.ones((2 * tolerance + 1, 2 * tolerance + 1), dtype=int)
     return binary_dilation(array, structure=structure).astype(int)
@@ -128,7 +179,7 @@ def dilate_with_tolerance(array, tolerance):
 
 def load_pred_cmap(fileName):
     cmap = np.load(f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm/{fileName}.npy')
-    cmap[cmap > 0.4] = 1  # 0.3 or 0.4? should be input to function?
+    cmap[cmap > 0.4] = 1
     cmap[cmap <= 0.4] = 0
     return cmap
 
@@ -200,14 +251,14 @@ def visualize_structure_alignment(pdb_file1, pdb_file2, chain1='A', chain2='A'):
 
 class PlotTool:
     def __init__(self, folder='/Users/steveabecassis/Desktop/Pipeline', fold_pair='3hdfA_3hdeA'):
-        self.folder    = folder
+        self.folder = folder
         self.fold_pair = fold_pair
         self.fold1 = fold_pair.split('_')[0]
         self.fold2 = fold_pair.split('_')[1]
         self.structure1 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/chain_pdb_files/{self.fold1}.pdb')
         self.structure2 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/chain_pdb_files/{self.fold2}.pdb')
 
-    def read_pdb_file(self,file_path):
+    def read_pdb_file(self, file_path):
         with open(file_path, 'r') as file:
             return file.read()
 
@@ -246,8 +297,7 @@ class PlotTool:
         viewer.show()
         os.remove(aligned_pdb2_path)
 
-
-    def plot_fold_alignement_(self,path_pdb1,path_pdb2):
+    def plot_fold_alignement_(self, path_pdb1, path_pdb2):
         # Select CA atoms for alignment
         structure1 = pr.parsePDB(path_pdb1)
         structure2 = pr.parsePDB(path_pdb2)
@@ -264,7 +314,7 @@ class PlotTool:
         pref = path_pdb2.split('/')[-1][:-4] + '_TEMP'
         print(pref)
         # Write the aligned structure2 to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdb',prefix= pref) as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdb', prefix=pref) as temp_file:
             pr.writePDB(temp_file.name, structure2_aligned)
             aligned_pdb2_path = temp_file.name
         # Read the aligned PDB files
@@ -289,73 +339,70 @@ class PlotTool:
         viewer.setBackgroundColor('white')
         viewer.show()
 
-
     def plot_fold_alignment_1(self, path_pdb1, path_pdb2):
-            try:
-                # Select CA atoms for alignment
-                structure1 = pr.parsePDB(path_pdb1)
-                structure2 = pr.parsePDB(path_pdb2)
-                ca_atoms1 = structure1.select('name CA')
-                ca_atoms2 = structure2.select('name CA')
+        try:
+            # Select CA atoms for alignment
+            structure1 = pr.parsePDB(path_pdb1)
+            structure2 = pr.parsePDB(path_pdb2)
+            ca_atoms1 = structure1.select('name CA')
+            ca_atoms2 = structure2.select('name CA')
 
-                # Ensure CA atoms are found
-                if ca_atoms1 is None or ca_atoms2 is None:
-                    raise ValueError("CA atoms not found in one or both structures")
+            # Ensure CA atoms are found
+            if ca_atoms1 is None or ca_atoms2 is None:
+                raise ValueError("CA atoms not found in one or both structures")
 
-                # Get common residues
-                common_residues = set(ca_atoms1.getResnums()).intersection(ca_atoms2.getResnums())
-                if not common_residues:
-                    raise ValueError("No common residues found for alignment")
+            # Get common residues
+            common_residues = set(ca_atoms1.getResnums()).intersection(ca_atoms2.getResnums())
+            if not common_residues:
+                raise ValueError("No common residues found for alignment")
 
-                matched_ca1 = ca_atoms1.select('resnum ' + ' '.join(map(str, common_residues)))
-                matched_ca2 = ca_atoms2.select('resnum ' + ' '.join(map(str, common_residues)))
+            matched_ca1 = ca_atoms1.select('resnum ' + ' '.join(map(str, common_residues)))
+            matched_ca2 = ca_atoms2.select('resnum ' + ' '.join(map(str, common_residues)))
 
-                # Ensure matched CA atoms are found
-                if matched_ca1 is None or matched_ca2 is None:
-                    raise ValueError("Matched CA atoms not found in one or both structures")
+            # Ensure matched CA atoms are found
+            if matched_ca1 is None or matched_ca2 is None:
+                raise ValueError("Matched CA atoms not found in one or both structures")
 
-                # Calculate transformation and apply to structure2
-                transformation = pr.calcTransformation(matched_ca2, matched_ca1)
-                structure2_aligned = transformation.apply(structure2)
+            # Calculate transformation and apply to structure2
+            transformation = pr.calcTransformation(matched_ca2, matched_ca1)
+            structure2_aligned = transformation.apply(structure2)
 
-                pref = path_pdb2.split('/')[-1][:-4] + '_TEMP'
-                print(pref)
-                # Write the aligned structure2 to a temporary file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdb', prefix=pref) as temp_file:
-                    pr.writePDB(temp_file.name, structure2_aligned)
-                    aligned_pdb2_path = temp_file.name
+            pref = path_pdb2.split('/')[-1][:-4] + '_TEMP'
+            print(pref)
+            # Write the aligned structure2 to a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdb', prefix=pref) as temp_file:
+                pr.writePDB(temp_file.name, structure2_aligned)
+                aligned_pdb2_path = temp_file.name
 
-                # Read the aligned PDB files
-                pdb1 = self.read_pdb_file(path_pdb1)
-                pdb2 = self.read_pdb_file(aligned_pdb2_path)
+            # Read the aligned PDB files
+            pdb1 = self.read_pdb_file(path_pdb1)
+            pdb2 = self.read_pdb_file(aligned_pdb2_path)
 
-                # Create a py3Dmol viewer
-                viewer = py3Dmol.view(width=800, height=600)
+            # Create a py3Dmol viewer
+            viewer = py3Dmol.view(width=800, height=600)
 
-                # Add the first structure with cartoon style
-                viewer.addModel(pdb1, 'pdb')
-                print(f"Blue: {path_pdb1.split('/')[-1][:-4]}")
-                viewer.setStyle({'model': 0}, {'cartoon': {'color': 'blue'}})
+            # Add the first structure with cartoon style
+            viewer.addModel(pdb1, 'pdb')
+            print(f"Blue: {path_pdb1.split('/')[-1][:-4]}")
+            viewer.setStyle({'model': 0}, {'cartoon': {'color': 'blue'}})
 
-                # Add the aligned second structure with cartoon style
-                viewer.addModel(pdb2, 'pdb')
-                print(f"Red: {path_pdb2.split('/')[-1][:-4]}")
-                viewer.setStyle({'model': 1}, {'cartoon': {'color': 'red'}})
+            # Add the aligned second structure with cartoon style
+            viewer.addModel(pdb2, 'pdb')
+            print(f"Red: {path_pdb2.split('/')[-1][:-4]}")
+            viewer.setStyle({'model': 1}, {'cartoon': {'color': 'red'}})
 
-                # Align the second model to the first
-                viewer.zoomTo()
-                viewer.zoom(1.2)
-                viewer.setBackgroundColor('white')
-                viewer.show()
+            # Align the second model to the first
+            viewer.zoomTo()
+            viewer.zoom(1.2)
+            viewer.setBackgroundColor('white')
+            viewer.show()
 
-                # Delete the temporary file
-                os.remove(aligned_pdb2_path)
-            except Exception as e:
-                print(f"An error occurred: {e}")
+            # Delete the temporary file
+            os.remove(aligned_pdb2_path)
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
-
-
-    def align_and_visualize_pdb(self,pdb_file1, pdb_file2,score=None):
+    def align_and_visualize_pdb(self, pdb_file1, pdb_file2, score=None):
         # Load the PDB files using ProDy
         structure1 = pr.parsePDB(pdb_file1)
         structure2 = pr.parsePDB(pdb_file2)
@@ -399,9 +446,7 @@ class PlotTool:
         # Show the viewer
         viewer.show()
 
-
-
-    def plot_single_fold(self,pdb,label=''):
+    def plot_single_fold(self, pdb, label=''):
         viewer = py3Dmol.view(width=400, height=300)
         viewer.addModel(pdb, 'pdb')
         viewer.setStyle({'model': 0}, {'stick': {}})
@@ -412,30 +457,29 @@ class PlotTool:
         viewer.setBackgroundColor('white')
         viewer.show()
 
-    def get_cmap(self,pdp_file_path):
+    def get_cmap(self, pdp_file_path):
         traj = md.load(filename_or_filenames=pdp_file_path)
         # topology = traj.topology
         frame_contacts = ContactFrequency(traj[0])
         return frame_contacts
-    
-    def plot_cmap(self,frame_contacts):
+
+    def plot_cmap(self, frame_contacts):
         fig, ax = frame_contacts.residue_contacts.plot()
         plt.xlabel("Residue")
         xlim = frame_contacts.query_residue_range[-1]
         plt.xlim([0, xlim])
         plt.ylim([0, xlim])
         _ = plt.ylabel("Residue")
-        
-    def plot_diff_cmap(self,cmap1,cmap2):
-        diff = OverrideTopologyContactDifference(cmap1,cmap2,topology=cmap1.topology)
-        diff.residue_contacts.plot(figsize=(12, 8),cmap='seismic', vmin=-1, vmax=1)
-        xlim = max(cmap1.query_residue_range[-1],cmap2.query_residue_range[-1])
+
+    def plot_diff_cmap(self, cmap1, cmap2):
+        diff = OverrideTopologyContactDifference(cmap1, cmap2, topology=cmap1.topology)
+        diff.residue_contacts.plot(figsize=(12, 8), cmap='seismic', vmin=-1, vmax=1)
+        xlim = max(cmap1.query_residue_range[-1], cmap2.query_residue_range[-1])
         plt.xlim([0, xlim])
         plt.ylim([0, xlim])
         _ = plt.ylabel("Residue")
 
-
-    def get_contact_map_from_pdb(self,pdb_file, size=None, start_pos=0, end_pos=-1):
+    def get_contact_map_from_pdb(self, pdb_file, size=None, start_pos=0, end_pos=-1):
         pdb_obj = md.load_pdb(pdb_file)
         distances, pairs = md.compute_contacts(pdb_obj)
         contacts = md.geometry.squareform(distances, pairs)[0]
@@ -445,49 +489,8 @@ class PlotTool:
         arr[np.where(contacts[start_pos:end_pos, start_pos:end_pos] < 0.5)] = 1
         return arr
 
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap, BoundaryNorm
-from matplotlib.patches import Patch
 
-def plot_viz_cmap(file,legend_plot):
-    # Create a sample 2D numpy array (replace this with your actual data)
-    visualization_map = np.load(file)
-    size = 50
 
-    # Create a custom colormap
-    colors = ['grey','blue','lightblue','purple','blue','magenta']
-    # values = [0, 1, 1.25, 1.5, 1.75]
-    bounds = [0,0.49,0.99, 1.24, 1.49, 1.74,2]
-    cmap = ListedColormap(colors)
-    norm = BoundaryNorm(bounds, cmap.N)
 
-    # Create the plot
-    plt.figure(figsize=(10,8))
-    im = plt.imshow(visualization_map, cmap=cmap, norm=norm, interpolation='nearest',origin='lower')
 
-    # Create legend elements
-    legend_elements = [
-        Patch(facecolor='lightblue', edgecolor='black', label='Experiment contact'),
-        Patch(facecolor='purple', edgecolor='black', label='Unique State Experiment contact'),
-        Patch(facecolor='blue', edgecolor='black', label='Experiment contact predicted'),
-        Patch(facecolor='magenta', edgecolor='black', label='Unique State Experiment contact predicted')
-    ]
-
-    # Add the legend
-    plt.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, 0.5))
-
-    # Set title and labels
-    plt.title(legend_plot)
-    plt.xlabel('Residue Index')
-    plt.ylabel('Residue Index')
-
-    # Adjust layout to make room for the legend
-    plt.tight_layout()
-
-    # Show the plot
-    plt.show()
-
-    
-        
-    
 
