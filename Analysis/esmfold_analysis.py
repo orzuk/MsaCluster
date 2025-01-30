@@ -58,14 +58,19 @@ if __name__=='__main__':
 
     # df.to_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv',index=False)
 
+    df_esmfold_analysis = pd.read_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv')
 
 
+    esm_err_fold_pair = [i for i in summary_table.fold_pair.unique() if i not in df_esmfold_analysis.fold_pair.unique()]
+    #miss = [i for i in df_esmfold_analysis.fold_pair.unique() if i not in summary_table.fold_pair.unique()]
 
 
+    summary_table = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
+    summary_table.fold_pair.nunique()
 
 
-
-
+    df_esmfold_analysis.fold_pair.nunique()
+len(esm_err_fold_pair)
     # for fold_pair in fold_pairs:
     #     if 'sh' in fold_pair:
     #         continue
