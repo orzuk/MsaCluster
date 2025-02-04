@@ -31,7 +31,7 @@ import math
 # 2. Cmap of each cluster and its match to the two folds
 # 3. Two folds aligned
 def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
-                              plot_tree_clusters= False, plot_contacts = True, global_plots = False):
+                              plot_tree_clusters= False, plot_contacts = True, global_plots = True):
     print("Plot for foldpair_id: " + foldpair_id)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
@@ -592,46 +592,59 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
 #    esmf_df = pd.read_csv(file_path)
 
     # Group data by the first column
-    grouped = esmf_df.groupby(esmf_df.columns[0])
+    grouped_esmf = esmf_df.groupby(esmf_df.columns[0])
+    grouped_af = af_df.groupby(af_df.columns[0])
+    grouped_msa_trans = msa_trans_df.groupby(msa_trans_df.columns[0])
 
     # Initialize the plot
+    for model in ['AF', 'MSA_TRANS', 'ESMFold']:
+        grouped = grouped_esmf if model == 'ESMFold' else grouped_af if model == 'AF' else grouped_msa_trans
+        plt.figure(figsize=(10, 8))
+        for fold_pair, group in grouped:
+            # Compute means
+            mean_x = group['TM_mean_cluster_pdb1'].mean()
+            mean_y = group['TM_mean_cluster_pdb2'].mean()
+
+            # Compute maximums
+            max_x = group['TMscore_fold1'].max()
+            max_y = group['TMscore_fold2'].max()
+
+            # Plot the mean values with '+'
+            # Convert dict_keys to a list for comparison
+            first_key = list(grouped.groups.keys())[0]
+
+            # Plot the mean values with '+'
+            plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
+
+            # Plot the maximum values with '*'
+            plt.scatter(max_x, max_y, marker='*', color='red', label='Max' if fold_pair == first_key else "")
+
+            plt.plot([mean_x, max_x], [mean_y, max_y], linestyle='--', color='gray', alpha=0.5)
+
+            # Add fold-pair text for max values
+            plt.text(max_x, max_y, fold_pair, fontsize=8, ha='right', color='black')
+
+        # Customize the plot
+        plt.xlabel('TMscore fold1')
+        plt.ylabel('TMscore fold2')
+        plt.title(f'Scatter Plot of {model} vs. Fold Pairs')
+        plt.legend(loc='upper left')
+        plt.grid(True)
+
+        # Save the plot to a file
+        plt.tight_layout()
+        plt.savefig(output_file[:-4] + f"_{model}.png")
+        plt.close()
+        print(f"{model} Scatter plot saved to {output_file}")
+
+    # Now compare AF to ESMFold
     plt.figure(figsize=(10, 8))
-    for fold_pair, group in grouped:
-        # Compute means
+    for fold_pair, group in grouped_af:
         mean_x = group['TM_mean_cluster_pdb1'].mean()
         mean_y = group['TM_mean_cluster_pdb2'].mean()
 
-        # Compute maximums
-        max_x = group['TMscore_fold1'].max()
-        max_y = group['TMscore_fold2'].max()
 
-        # Plot the mean values with '+'
-        # Convert dict_keys to a list for comparison
-        first_key = list(grouped.groups.keys())[0]
-
-        # Plot the mean values with '+'
         plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
-
-        # Plot the maximum values with '*'
-        plt.scatter(max_x, max_y, marker='*', color='red', label='Max' if fold_pair == first_key else "")
-
-        plt.plot([mean_x, max_x], [mean_y, max_y], linestyle='--', color='gray', alpha=0.5)
-
-        # Add fold-pair text for max values
-        plt.text(max_x, max_y, fold_pair, fontsize=8, ha='right', color='black')
-
-    # Customize the plot
-    plt.xlabel('TMscore fold1')
-    plt.ylabel('TMscore fold2')
-    plt.title('Scatter Plot of ESMFold vs. Fold Pairs')
-    plt.legend(loc='upper left')
-    plt.grid(True)
-
-    # Save the plot to a file
-    plt.tight_layout()
-    plt.savefig(output_file[:-4] + "_ESMFold.png")
-    plt.close()
-    print(f"ESMFold Scatter plot saved to {output_file}")
 
 
     # Plot cmap recalls
