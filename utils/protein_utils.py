@@ -40,7 +40,8 @@ from biotite.structure.residues import get_residues
 # from biotite.sequence.residues import RESIDUE_CODES_3TO1
 from biotite.sequence import ProteinSequence
 import numpy as np
-
+import subprocess
+import re
 
 #from biotite.structure.io.pdbx import PDBxFile, get_structure
 #from biotite.structure import filter_amino_acids
@@ -49,8 +50,8 @@ import numpy as np
 
 
 from tmtools import tm_align
-from tmtools.io import get_residue_data  # can't have get_structure here too !!!
-from tmtools.io import get_structure as tmtool_get_structure  # can't have get_structure here too !!!
+# from tmtools.io import get_residue_data  # can't have get_structure here too !!!
+# from tmtools.io import get_structure as tmtool_get_structure  # can't have get_structure here too !!!
 
 import iminuit
 import tmscoring  # for comparing structures

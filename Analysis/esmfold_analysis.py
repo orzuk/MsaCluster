@@ -4,7 +4,7 @@ import subprocess
 import re
 from tqdm import tqdm
 from utils.protein_utils import *
-
+from config import *
 
 '''
 To run this script on your local computer you have to specify where the TM align software is installed on your computer and adapt the function
@@ -13,8 +13,7 @@ And to set in pipeline_folder your path where the results are on your machine
 '''
 
 final_res       = []
-# pipeline_folder = '/Users/steveabecassis/Desktop/Pipeline_res/Pipeline'
-pipeline_folder = '/Users/steveabecassis/Desktop/Pipeline'
+pipeline_folder = DATA_DIR
 fold_pairs      = os.listdir(pipeline_folder)
 
 # fold_pair = '1eboE_5fhcJ'
@@ -56,25 +55,8 @@ if __name__=='__main__':
     df.sort_values(by=['fold_pair','cluster_num'],inplace=True)
     df_summary                 = df[['fold_pair','TM_mean_cluster_pdb1', 'TM_mean_cluster_pdb2', 'cluster_num','is_fold_1', 'is_fold_2', 'cluster_fold_1', 'cluster_fold_2','sample_count']].drop_duplicates(subset=['fold_pair','cluster_num','TM_mean_cluster_pdb1', 'TM_mean_cluster_pdb2'])
 
-    # df.to_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv',index=False)
+    df.to_csv('./data/df_esmfold_analysis.csv',index=False)
 
-    df_esmfold_analysis = pd.read_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv')
-
-
-    esm_err_fold_pair = [i for i in summary_table.fold_pair.unique() if i not in df_esmfold_analysis.fold_pair.unique()]
-    #miss = [i for i in df_esmfold_analysis.fold_pair.unique() if i not in summary_table.fold_pair.unique()]
+    # df_esmfold_analysis = pd.read_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv')
 
 
-    summary_table = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
-    summary_table.fold_pair.nunique()
-
-
-    df_esmfold_analysis.fold_pair.nunique()
-len(esm_err_fold_pair)
-    # for fold_pair in fold_pairs:
-    #     if 'sh' in fold_pair:
-    #         continue
-    #     try:
-    #         a=1
-    #     except Exception as e:
-    #         print(e)
