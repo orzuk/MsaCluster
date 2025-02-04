@@ -39,7 +39,4 @@ if os.getenv('USER') == 'steveabecassis':
     DATA_DIR = '/Users/steveabecassis/Desktop/Pipeline'
     OUTPUT_PATH_NOTEBOOKS = '/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_3001'
     CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
-    LOCAL_RUN = True
-
-
-
+    # LOCAL_RUN = True
