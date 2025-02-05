@@ -7,11 +7,11 @@
 
 
 
-. /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate
+#. /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate
 #source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 #module load torch/1.3
-mkdir -p ./Pipeline/2pbkB_3njqA/output_esm_fold
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
+#mkdir -p ./Pipeline/2pbkB_3njqA/output_esm_fold
+#export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
 python3  ./ESMFoldHF.py  -input 2pbkB_3njqA
 
 
