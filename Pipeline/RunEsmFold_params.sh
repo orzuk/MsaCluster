@@ -8,7 +8,7 @@
 OUTPUT_NAME_DIR="$1"
 
 
-#./sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
+. /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate
 #source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
 #module load torch/1.3
 mkdir -p ./Pipeline/$OUTPUT_NAME_DIR/output_esm_fold
