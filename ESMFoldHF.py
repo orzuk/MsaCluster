@@ -3,7 +3,7 @@
 # from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 # from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
 from argparse import  ArgumentParser
-import torch
+# import torch
 from random import sample
 import random
 random.seed(10)
