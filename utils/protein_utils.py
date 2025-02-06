@@ -27,7 +27,8 @@ import os
 import sys
 # import urllib
 import mdtraj as md
-
+from Bio.PDB import *
+from Bio.PDB.Polypeptide import protein_letters_3to1
 # import biotite.structure as bs
 # from biotite.structure.io.pdbx import get_structure
 
@@ -140,23 +141,23 @@ def aa_point_mutation_to_aa(aa, genetic_code_dict):
 
 # Extract a sequence from a protein pdb file.
 # Next do it by chain (?)
+
 def extract_protein_sequence(pdb_file):
     parser = PDBParser()
-    structure = parser.get_structure("protein_structure", pdb_file)
+    structure = parser.get_structure('protein', pdb_file)
+    residue_sequence = ''
 
-    residue_sequence = ""
-#    flag = 0
-    # Iterate through the structure and extract the residue sequence
     for model in structure:
         for chain in model:
-#            if flag != 0:  # for taking only first chain
-#                break
-#            flag += 1
             for residue in chain:
-                if PDB.is_aa(residue):
-                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
-    return residue_sequence
+                if is_aa(residue):  # Only process amino acid residues
+                    try:
+                        residue_sequence += protein_letters_3to1[residue.get_resname()]
+                    except KeyError:
+                        # Handle non-standard amino acids
+                        residue_sequence += '-'
 
+    return residue_sequence
 
 
 def clean_sequence(residue_energies):
