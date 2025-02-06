@@ -1,7 +1,7 @@
 # Some utilities for proteins and their mutations
-import copy
-
-import pandas as pd
+# import copy
+#
+# import pandas as pd
 # import esm
 import string
 
@@ -11,10 +11,10 @@ import torch.nn.functional as F  # for padding
 
 from scipy.spatial.distance import squareform, pdist, cdist
 
-import numpy as np
+# import numpy as np
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
-import matplotlib as mpl
-import matplotlib.pyplot as plt
+# import matplotlib as mpl
+# import matplotlib.pyplot as plt
 import Bio
 import Bio.PDB
 import Bio.SeqRecord
@@ -25,10 +25,10 @@ from Bio.PDB import PDBParser
 import pickle
 import os
 import sys
-import urllib
+# import urllib
 import mdtraj as md
 
-import biotite.structure as bs
+# import biotite.structure as bs
 # from biotite.structure.io.pdbx import get_structure
 
 from biotite.structure.io.pdb import PDBFile
@@ -38,7 +38,7 @@ from biotite.structure import filter_amino_acids, distance, AtomArray
 from biotite.structure.residues import get_residues
 # Biotite provides a mapping of residue codes to single-letter amino acid codes
 # from biotite.sequence.residues import RESIDUE_CODES_3TO1
-from biotite.sequence import ProteinSequence
+# from biotite.sequence import ProteinSequence
 import numpy as np
 import subprocess
 import re
@@ -53,10 +53,10 @@ from tmtools import tm_align
 # from tmtools.io import get_residue_data  # can't have get_structure here too !!!
 # from tmtools.io import get_structure as tmtool_get_structure  # can't have get_structure here too !!!
 
-import iminuit
-import tmscoring  # for comparing structures
+# import iminuit
+# import tmscoring  # for comparing structures
 # Helper function for loading
-import tempfile
+# import tempfile
 
 from Bio.PDB.MMCIFParser import MMCIFParser
 
