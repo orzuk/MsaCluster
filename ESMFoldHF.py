@@ -99,7 +99,8 @@ if __name__ == '__main__':
 
 
 
-    inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False)['input_ids']
+    inputs = tokenizer([seq_fold1],return_tensors="pt",add_special_tokens=False,adding=True,truncation=True,max_length=1024)['input_ids']
+
     inputs = inputs.cuda()
     with torch.no_grad():
         outputs = model(inputs)
@@ -111,7 +112,7 @@ if __name__ == '__main__':
 
 
     # if len(seq_fold2)
-    inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)['input_ids']
+    inputs = tokenizer([seq_fold2],return_tensors="pt",add_special_tokens=False,adding=True,truncation=True,max_length=1024)['input_ids']
     inputs = inputs.cuda()
     with torch.no_grad():
         outputs = model(inputs)
