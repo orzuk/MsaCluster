@@ -125,7 +125,7 @@ if __name__ == '__main__':
         with open(f'{input_path}/{msa}', 'r') as msa_fil:
             seq = msa_fil.read().splitlines()
         msa_name = msa[:-4]
-        seqs = [i.replace('-', '') for i in seq if '>' not in i]
+        seqs = [i.replace('-', '<mask>') for i in seq if '>' not in i]
         if len(seqs) > 10:
             seqs = sample(seqs,10)
 
@@ -134,7 +134,7 @@ if __name__ == '__main__':
         for i in range(len(seqs)):
             try:
                 print(f'Get ESM prediction {i}...')
-                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)['input_ids']
+                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True,max_length=1024)['input_ids']
                 inputs = inputs.cuda()
                 with torch.no_grad():
                     outputs = model(inputs)

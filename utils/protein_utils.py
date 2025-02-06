@@ -142,6 +142,15 @@ def aa_point_mutation_to_aa(aa, genetic_code_dict):
 # Extract a sequence from a protein pdb file.
 # Next do it by chain (?)
 
+def process_sequence(seq):
+    # Remove any whitespace and ensure uppercase
+    seq = seq.strip().upper()
+    # Replace gaps with the ESM mask token
+    seq = seq.replace('-', '<mask>')  # ESMfold uses <mask> token for masked positions
+    # Remove any other invalid characters
+    seq = ''.join(c for c in seq if c in 'ACDEFGHIKLMNPQRSTVWY<mask>')
+    return seq
+
 def extract_protein_sequence(pdb_file):
     parser = PDBParser()
     structure = parser.get_structure('protein', pdb_file)
@@ -156,6 +165,7 @@ def extract_protein_sequence(pdb_file):
                     except KeyError:
                         # Handle non-standard amino acids
                         residue_sequence += '-'
+    residue_sequence = process_sequence(residue_sequence)
 
     return residue_sequence
 
