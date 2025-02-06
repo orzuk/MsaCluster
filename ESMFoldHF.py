@@ -125,7 +125,7 @@ if __name__ == '__main__':
         with open(f'{input_path}/{msa}', 'r') as msa_fil:
             seq = msa_fil.read().splitlines()
         msa_name = msa[:-4]
-        seqs = [i.replace('-', '<mask>') for i in seq if '>' not in i]
+        seqs = [process_sequence(i) for i in seq if '>' not in i]
         if len(seqs) > 10:
             seqs = sample(seqs,10)
 
