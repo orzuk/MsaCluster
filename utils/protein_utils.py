@@ -146,10 +146,12 @@ def process_sequence(seq):
     # Remove any whitespace and ensure uppercase
     seq = seq.strip().upper()
     # Replace gaps with the ESM mask token
-    seq = seq.replace('-', '<mask>')  # ESMfold uses <mask> token for masked positions
+    seq = seq.replace('-', '')  # ESMfold uses <mask> token for masked positions
     # Remove any other invalid characters
-    seq = ''.join(c for c in seq if c in 'ACDEFGHIKLMNPQRSTVWY<mask>')
+    seq = ''.join(c for c in seq if c in 'ACDEFGHIKLMNPQRSTVWY')
     return seq
+
+
 
 def extract_protein_sequence(pdb_file):
     parser = PDBParser()
