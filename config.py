@@ -34,12 +34,29 @@ To add a new user, extend the logic below with the appropriate paths.
 # Define the user: change this to match the current user's environment
 user = "zuk_laptop"  # Options: "steve_moriah", "zuk_laptop"
 
+print("RUNNING WITH USER: ",os.getenv('USER'), "ENVIRONMENT: ", platform.system())
 
 if os.getenv('USER') == 'steveabecassis':
     DATA_DIR = '/Users/steveabecassis/Desktop/Pipeline'
     OUTPUT_PATH_NOTEBOOKS = '/Users/steveabecassis/Desktop/Pipeline_res/HTMLs_new_3001'
-    CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
+    TABLE_RES_DIR = '/Users/steveabecassis/PycharmProjects/MsaCluster/data'
     LOCAL_RUN = True
+
+
+if os.getenv('USER') == 'orzuk':
+    REPO_DIR = '/mnt/c/Code/Github/MsaCluster'
+    DATA_DIR = REPO_DIR + '/Pipeline'
+    OUTPUT_PATH_NOTEBOOKS = REPO_DIR + '/HTML'
+    TABLE_RES_DIR = REPO_DIR + '/data'
+    FIGURE_RES_DIR = DATA_DIR + '/Results/Figures'
+    LOCAL_RUN = True
+
+
+AF_MODEL_FILE = TABLE_RES_DIR + "/df_af_all.csv"
+MSA_TRANS_MODEL_FILE = TABLE_RES_DIR +  "/df_cmap_all.csv"
+ESMF_MODEL_FILE = TABLE_RES_DIR + "/df_esmfold_all.csv"
+CMAP_RES_PATH = TABLE_RES_DIR + 'df_cmap_all.csv'
+
 
 
 

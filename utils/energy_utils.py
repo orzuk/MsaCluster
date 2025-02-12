@@ -55,7 +55,7 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
         writer = csv.writer(global_file, delimiter="\t")
         writer.writerow(["Pair", "PDB_ID", "Delta_G", "Residue_Count", "Chain_Count"])
 
-#        print("All pdb-pairs: ", pdb_pairs)
+        print("All pdb-pairs: ", pdb_pairs)
 #        for pdb_pair_file, foldpair_id in zip(pdb_pair_files, foldpair_ids):
         for pair in pdb_pairs:
             pdb1_path, pdb2_path = pair # pdb1, pdb2
@@ -79,6 +79,7 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
 
                 # Save residue-specific energies
                 residue_file = os.path.join(output_dir, f"deltaG_{pdb_file[:-4]}.txt")
+                print("Saving to residue_file: ", residue_file)
                 with open(residue_file, "w") as residue_out:
                     residue_out.write("Residue_Name\tIndex\tEnergy\n")
                     for res_name, res_index, res_energy in residue_energies[ctr]:
@@ -87,12 +88,6 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
                 # Compare residue energies and visualize differences
 #                residue_energies[ctr] = compute_deltaG_and_residue_energies(pdb1_path, log_file_path=log_file_path, silent=True)[1]
                 ctr += 1
-#            residue_energies2 = compute_deltaG_and_residue_energies(pdb2_path, log_file)[1]
-#            print("Residue energies: ", residue_energies)
-#            print("0: ", residue_energies[0])
-#            print("1: ", residue_energies[1])
-#            print(len(residue_energies))
-#            print(type(residue_energies))
 
             # Save visualization
             image_file = os.path.join(output_dir, f"deltaG_diff_{pdb1}_{pdb2}.jpg")

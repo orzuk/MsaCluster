@@ -148,6 +148,12 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
         esmf_df = pd.read_csv(ESMF_MODEL_FILE, dtype=str)
 #        print("read results files!")
 
+        print("ALL AF MODEL FILES: ", AF_model_files)
+        print("All of TMScors indices: ", tmscores_df.index)
+        print("Their intersection with AF_model_files: ", set(tmscores_df.index).intersection(set(AF_model_files)))
+        print("Missing from TMScors indices: ", set(AF_model_files) - set(tmscores_df.index))
+        print("Missing from AF_model_files indices: ", set(tmscores_df.index) - set(AF_model_files))
+
 #        print("AF_model_files= ", AF_model_files)
         for fold in range(2):
  #           ctr = 0
@@ -155,9 +161,13 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
                 cur_AF_file = next((element for element in AF_model_files if tmscores_df.index[c] in element
                                     or (tmscores_df.index[c][-4:] == 'deep' and 'Deep' in element)), None)
 
+                if cur_AF_file is None:
+                    tmscores_df.iloc[c, fold] = 0
+                    continue
 #                    cluster_node_values.index)[c] # AF_model_files[AF_model_files == cluster_node_values.index[c]]
                 print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file, " fold-pair id=", foldpair_id)
-
+                print("pdb_file1: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb', 
+                      " ; pdb_file2: ", cur_AF_file)
                 tmscores_df.iloc[c, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
                     cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
 
@@ -202,7 +212,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
 
     if global_plots:
         print("Make global plots!")
-        global_pairs_statistics_plots(output_file="Pipeline/Results/Figures/fold_pair_scatter_plot.png")
+        global_pairs_statistics_plots(output_file=FIGURE_RES_DIR + "/fold_pair_scatter_plot.png")
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores
 
@@ -601,13 +611,29 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
         grouped = grouped_esmf if model == 'ESMFold' else grouped_af if model == 'AF' else grouped_msa_trans
         plt.figure(figsize=(10, 8))
         for fold_pair, group in grouped:
-            # Compute means
-            mean_x = group['TM_mean_cluster_pdb1'].mean()
-            mean_y = group['TM_mean_cluster_pdb2'].mean()
 
-            # Compute maximums
-            max_x = group['TMscore_fold1'].max()
-            max_y = group['TMscore_fold2'].max()
+
+            if model == 'ESMFold':
+                mean_x = group['TM_mean_cluster_pdb1'].mean()
+                mean_y = group['TM_mean_cluster_pdb2'].mean()
+
+                # Compute maximums
+                max_x = group['TMscore_fold1'].max()
+                max_y = group['TMscore_fold2'].max()
+            elif model == 'AF':
+                mean_x = group['score_pdb1'].mean()
+                mean_y = group['score_pdb2'].mean()
+
+                # Compute maximums
+                max_x = group['score_pdb1'].max()
+                max_y = group['score_pdb2'].max()
+            else:    
+                mean_x = group['recall_only_fold1'].mean()
+                mean_y = group['recall_only_fold2'].mean()
+
+                # Compute maximums
+                max_x = group['recall_only_fold1'].max()
+                max_y = group['recall_only_fold2'].max()
 
             # Plot the mean values with '+'
             # Convert dict_keys to a list for comparison
@@ -625,8 +651,12 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
             plt.text(max_x, max_y, fold_pair, fontsize=8, ha='right', color='black')
 
         # Customize the plot
-        plt.xlabel('TMscore fold1')
-        plt.ylabel('TMscore fold2')
+        if model == 'cmap':
+            plt.xlabel('Recall Fold 1')
+            plt.ylabel('Recall Fold 2')
+        else:
+            plt.xlabel('TMscore fold1')
+            plt.ylabel('TMscore fold2')
         plt.title(f'Scatter Plot of {model} vs. Fold Pairs')
         plt.legend(loc='upper left')
         plt.grid(True)
@@ -639,16 +669,22 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
 
     # Now compare AF to ESMFold
     plt.figure(figsize=(10, 8))
-    for fold_pair, group in grouped_af:
+    for fold_pair, group in grouped_esmf:
         mean_x = group['TM_mean_cluster_pdb1'].mean()
-        mean_y = group['TM_mean_cluster_pdb2'].mean()
+        mean_y = grouped_af.get_group(fold_pair)['score_pdb1'].mean()
 
 
         plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
 
+    plt.xlabel("TMScore ESMF")
+    plt.ylabel("TMScore AF")
+    plt.title("TMScore Comparison ESMF vs. AF")
+    plt.legend(loc='upper left')
+    plt.tight_layout()
+
 
     # Plot cmap recalls
-    grouped = msa_trans_df.groupby('FoldPair')
+    grouped = msa_trans_df.groupby('fold_pair')
     plt.figure(figsize=(10, 8))
 
     for fold_pair, group in grouped:

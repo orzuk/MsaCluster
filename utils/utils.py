@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from contact_map import ContactFrequency, ContactDifference
 
-pdb_file = f'{PDF_FILES_PATH}/1jfk.pdb'
+# pdb_file = f'{PDF_FILES_PATH}/1jfk.pdb'
 
 
 class ChainSelect(Select):

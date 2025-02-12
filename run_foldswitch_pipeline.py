@@ -119,8 +119,9 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
 #                    compute_global_and_residue_energies(pdb_pair_files, foldpair_ids_to_run, output_dir)
                     pdb_pair_files = [("Pipeline/" + foldpair_id + "/" + foldpair_id[:4] + ".pdb",
                                        "Pipeline/" + foldpair_id + "/" + foldpair_id[-5:-1] + ".pdb") ]
+                    print("Running compute_global_and_residue_energies for ", foldpair_id)
                     compute_global_and_residue_energies(pdb_pair_files, [foldpair_id], "Pipeline/output_deltaG")
-
+                    print("Finished compute_global_and_residue_energies for ", foldpair_id)
 #                    run_compute_deltaG_with_output(pdb_pair_files, foldpair_ids_to_run, deltaG_output_file)
 
                     '''
@@ -180,6 +181,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
 
 # Run inline one family. Shouldn't get command line arguments but use function input!!!
 def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains, fasta_file_name):
+    run_str = ''
     cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = [None]*3
     cur_family_dir = output_dir + "/" + foldpair_id
     if run_mode == "load_seq_struct":  #      if load_seq_and_struct or run_pipeline:  # also for entire pipeline
@@ -215,6 +217,21 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
         run_str = ''
 #        run_str = 'python  ./run_tree_reconstruct.py  --method distance  --input_msas ./Pipeline/' + foldpair_id + \
 #                  '/output_get_msa/DeepMsa.a3m -o ./Pipeline/' + foldpair_id + '/output_phytree'
+
+    if run_mode == "compute_deltaG":  # Compute free energy !!! NEW !!
+        if run_os == "Windows":
+            print("Can't run pyrosetta in windows. Re-run in linux. Abortting")
+            exit(99)
+        run_str = ''
+        pdb_pair_files = [("Pipeline/" + p + "/" + p[:4] + ".pdb" ,  "Pipeline/" + p + "/" + p[-5:-1] + ".pdb") for p in foldpair_ids_to_run]
+        deltaG_output_file = "Pipeline/output_deltaG/deltaG_results.txt"
+#       compute_global_and_residue_energies(pdb_pair_files, foldpair_ids_to_run, output_dir)
+        pdb_pair_files = [("Pipeline/" + foldpair_id + "/" + foldpair_id[:4] + ".pdb",
+                        "Pipeline/" + foldpair_id + "/" + foldpair_id[-5:-1] + ".pdb") ]
+        print("Running compute_global_and_residue_energies for ", foldpair_id)
+        compute_global_and_residue_energies(pdb_pair_files, [foldpair_id], "Pipeline/output_deltaG")
+        print("Finished compute_global_and_residue_energies for ", foldpair_id)
+
     if run_mode == "ancestral": # perform ancestral reconstruction
         msa_file = 'Pipeline/' + foldpair_id + '/output_get_msa/DeepMsa.a3m'
         anc_output_file = 'Pipeline/' + foldpair_id + '/output_phytree/' + \
