@@ -1,7 +1,7 @@
 # Some utilities for proteins and their mutations
-import copy
-
-import pandas as pd
+# import copy
+#
+# import pandas as pd
 # import esm
 import string
 
@@ -11,10 +11,10 @@ import torch.nn.functional as F  # for padding
 
 from scipy.spatial.distance import squareform, pdist, cdist
 
-import numpy as np
+# import numpy as np
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
-import matplotlib as mpl
-import matplotlib.pyplot as plt
+# import matplotlib as mpl
+# import matplotlib.pyplot as plt
 import Bio
 import Bio.PDB
 import Bio.SeqRecord
@@ -25,10 +25,11 @@ from Bio.PDB import PDBParser
 import pickle
 import os
 import sys
-import urllib
+# import urllib
 import mdtraj as md
-
-import biotite.structure as bs
+from Bio.PDB import *
+from Bio.PDB.Polypeptide import protein_letters_3to1
+# import biotite.structure as bs
 # from biotite.structure.io.pdbx import get_structure
 
 from biotite.structure.io.pdb import PDBFile
@@ -38,7 +39,7 @@ from biotite.structure import filter_amino_acids, distance, AtomArray
 from biotite.structure.residues import get_residues
 # Biotite provides a mapping of residue codes to single-letter amino acid codes
 # from biotite.sequence.residues import RESIDUE_CODES_3TO1
-from biotite.sequence import ProteinSequence
+# from biotite.sequence import ProteinSequence
 import numpy as np
 import subprocess
 import re
@@ -53,10 +54,10 @@ from tmtools import tm_align
 # from tmtools.io import get_residue_data  # can't have get_structure here too !!!
 # from tmtools.io import get_structure as tmtool_get_structure  # can't have get_structure here too !!!
 
-import iminuit
-import tmscoring  # for comparing structures
+# import iminuit
+# import tmscoring  # for comparing structures
 # Helper function for loading
-import tempfile
+# import tempfile
 
 from Bio.PDB.MMCIFParser import MMCIFParser
 
@@ -140,23 +141,35 @@ def aa_point_mutation_to_aa(aa, genetic_code_dict):
 
 # Extract a sequence from a protein pdb file.
 # Next do it by chain (?)
+
+def process_sequence(seq):
+    # Remove any whitespace and ensure uppercase
+    seq = seq.strip().upper()
+    # Replace gaps with the ESM mask token
+    seq = seq.replace('-', '')  # ESMfold uses <mask> token for masked positions
+    # Remove any other invalid characters
+    seq = ''.join(c for c in seq if c in 'ACDEFGHIKLMNPQRSTVWY')
+    return seq
+
+
+
 def extract_protein_sequence(pdb_file):
     parser = PDBParser()
-    structure = parser.get_structure("protein_structure", pdb_file)
+    structure = parser.get_structure('protein', pdb_file)
+    residue_sequence = ''
 
-    residue_sequence = ""
-#    flag = 0
-    # Iterate through the structure and extract the residue sequence
     for model in structure:
         for chain in model:
-#            if flag != 0:  # for taking only first chain
-#                break
-#            flag += 1
             for residue in chain:
-                if PDB.is_aa(residue):
-                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
-    return residue_sequence
+                if is_aa(residue):  # Only process amino acid residues
+                    try:
+                        residue_sequence += protein_letters_3to1[residue.get_resname()]
+                    except KeyError:
+                        # Handle non-standard amino acids
+                        residue_sequence += '-'
+    residue_sequence = process_sequence(residue_sequence)
 
+    return residue_sequence
 
 
 def clean_sequence(residue_energies):

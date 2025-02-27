@@ -3,7 +3,7 @@
 # from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
 # from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
 from argparse import  ArgumentParser
-import torch
+# import torch
 from random import sample
 import random
 random.seed(10)
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     model.trunk.set_chunk_size(64)
     model.esm.float()
     model = model.to(device)
-    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1",low_cpu_mem_usage=True)
     print('Finish to load model !')
 
 
@@ -99,7 +99,8 @@ if __name__ == '__main__':
 
 
 
-    inputs = tokenizer([seq_fold1], return_tensors="pt", add_special_tokens=False)['input_ids']
+    inputs = tokenizer([seq_fold1],return_tensors="pt",add_special_tokens=False,padding=True,truncation=True,max_length=1024)['input_ids']
+
     inputs = inputs.cuda()
     with torch.no_grad():
         outputs = model(inputs)
@@ -111,7 +112,7 @@ if __name__ == '__main__':
 
 
     # if len(seq_fold2)
-    inputs = tokenizer([seq_fold2], return_tensors="pt", add_special_tokens=False, padding=True)['input_ids']
+    inputs = tokenizer([seq_fold2],return_tensors="pt",add_special_tokens=False,padding=True,truncation=True,max_length=1024)['input_ids']
     inputs = inputs.cuda()
     with torch.no_grad():
         outputs = model(inputs)
@@ -124,7 +125,7 @@ if __name__ == '__main__':
         with open(f'{input_path}/{msa}', 'r') as msa_fil:
             seq = msa_fil.read().splitlines()
         msa_name = msa[:-4]
-        seqs = [i.replace('-', '') for i in seq if '>' not in i]
+        seqs = [process_sequence(i) for i in seq if '>' not in i]
         if len(seqs) > 10:
             seqs = sample(seqs,10)
 
@@ -133,7 +134,7 @@ if __name__ == '__main__':
         for i in range(len(seqs)):
             try:
                 print(f'Get ESM prediction {i}...')
-                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True)['input_ids']
+                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True,max_length=1024)['input_ids']
                 inputs = inputs.cuda()
                 with torch.no_grad():
                     outputs = model(inputs)

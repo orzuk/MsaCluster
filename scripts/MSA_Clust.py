@@ -12,6 +12,7 @@ from utils.msa_utils import *
 # from protein_plot_utils import make_foldswitch_all_plots
 import random
 from glob import glob
+import copy
 
 sys.path.append('alphafold')
 

@@ -15,6 +15,7 @@ from utils.utils import *
 from utils.energy_utils import *
 from matplotlib.colors import ListedColormap
 import math
+import pandas as pd
 
 
 # Make all plots
@@ -31,7 +32,7 @@ import math
 # 2. Cmap of each cluster and its match to the two folds
 # 3. Two folds aligned
 def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
-                              plot_tree_clusters= False, plot_contacts = True, global_plots = True):
+                              plot_tree_clusters= False, plot_contacts = True, global_plots = False):
     print("Plot for foldpair_id: " + foldpair_id)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
