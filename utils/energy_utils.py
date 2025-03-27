@@ -164,6 +164,7 @@ def compute_deltaG_and_residue_energies(
         else:
             print(f"Processing file: {pdb_path}")
 
+        print(f"Processing file for ΔG pyrosseta: {pdb_path}")
         pose = pyrosetta.pose_from_file(pdb_path)
         scorefxn = pyrosetta.get_fa_scorefxn()
 

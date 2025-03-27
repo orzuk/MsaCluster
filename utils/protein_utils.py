@@ -4,6 +4,9 @@
 # import pandas as pd
 # import esm
 import string
+import shutil
+
+from config import *
 
 # import pcmap
 import torch
@@ -19,6 +22,7 @@ import Bio
 import Bio.PDB
 import Bio.SeqRecord
 from Bio import SeqIO, PDB, AlignIO
+
 from Bio.PDB.Polypeptide import is_aa
 from Bio.PDB import PDBParser
 
@@ -32,11 +36,16 @@ from Bio.PDB.Polypeptide import protein_letters_3to1
 # import biotite.structure as bs
 # from biotite.structure.io.pdbx import get_structure
 
+from Bio.PDB import MMCIFParser, Selection
+
+
 from biotite.structure.io.pdb import PDBFile
 from biotite.database import rcsb
 from biotite.structure.io.pdbx import get_structure
 from biotite.structure import filter_amino_acids, distance, AtomArray
 from biotite.structure.residues import get_residues
+from Bio.PDB.MMCIFParser import MMCIFParser
+
 # Biotite provides a mapping of residue codes to single-letter amino acid codes
 # from biotite.sequence.residues import RESIDUE_CODES_3TO1
 # from biotite.sequence import ProteinSequence
@@ -60,6 +69,7 @@ from tmtools import tm_align
 # import tempfile
 
 from Bio.PDB.MMCIFParser import MMCIFParser
+from types import SimpleNamespace
 
 
 # from TreeConstruction import DistanceTreeConstructor
@@ -223,7 +233,6 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=None, chain2=None):
     else:
         s2 = PDBFile.read(pdb_file2).get_structure(model=1)
 
-
     # Process chains and sequences
     pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
         read_seq_coord_contacts_from_pdb(s1, chain=chain1)
@@ -238,6 +247,37 @@ def compute_tmscore(pdb_file1, pdb_file2, chain1=None, chain2=None):
     print("Normalized TM-score (chain1):", round(res.tm_norm_chain1, 3))
 
     return res.tm_norm_chain1
+
+
+def convert_atomarray_to_recarray(atom_array):
+    """
+    Convert a Biotite AtomArray (which may not be a recarray with a dtype)
+    into a proper NumPy recarray with the following fields:
+      - chain_id: Unicode string (length 1)
+      - res_id: 32-bit integer
+      - res_name: Unicode string (length 3)
+      - atom_name: Unicode string (length 4)
+      - ins_code: Unicode string (length 1)
+      - coord: 3-element float32 array
+    """
+    n = len(atom_array)
+    rec_dtype = np.dtype([
+        ("chain_id", "U1"),
+        ("res_id", "i4"),
+        ("res_name", "U3"),
+        ("atom_name", "U4"),
+        ("ins_code", "U1"),
+        ("coord", "f4", (3,))
+    ])
+    rec = np.empty(n, dtype=rec_dtype)
+    rec["chain_id"] = atom_array.chain_id
+    rec["res_id"] = atom_array.res_id
+    rec["res_name"] = atom_array.res_name
+    rec["atom_name"] = atom_array.atom_name
+    rec["ins_code"] = atom_array.ins_code
+    rec["coord"] = atom_array.coord
+    # Convert to a recarray so fields can be accessed as attributes:
+    return np.rec.array(rec)
 
 
 def compute_tmscore_old(pdb_file1, pdb_file2, chain1=[], chain2=[]):
@@ -326,12 +366,11 @@ def extend(a, b, c, L, A, D):
     return c + sum([m * d for m, d in zip(m, d)])
 
 
-def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
+def load_seq_and_struct(cur_family_dir, pdbids, pdbchains):
     """
     Load sequence and structure for given PDB IDs and chains using Biopython.
      Parameters:
     - cur_family_dir: directory
-    - foldpair_id: ID of pair (not used)
     - pdbids: PDB IDs
     - pdbchains: Chain IDs
 
@@ -345,18 +384,67 @@ def load_seq_and_struct(cur_family_dir, foldpair_id, pdbids, pdbchains):
             os.mkdir(cur_family_dir)
 
         print(f"Get seq + struct for {pdbids[fold]}, out of {len(pdbids)}")
-        cif_file_path = rcsb.fetch(pdbids[fold], "cif")  # Fetch CIF file path
+        cif_file_path = rcsb.fetch(pdbids[fold], "pdb")  # Fetch CIF file path
+        print("Fetched pdbid=", pdbids[fold], " into file=", cif_file_path)
 
-        # Parse CIF file using Biopython
-        parser = MMCIFParser(QUIET=True)
-#        parser = PDBParser()  #
-        structure = parser.get_structure(pdbids[fold], cif_file_path)
+        # Fetch the CIF and PDB file and save it locally
+        fetch_and_save_pdb_file(pdbids[fold], "pdb", cur_family_dir + "/" + pdbids[fold] + ".pdb")
+        fetch_and_save_pdb_file(pdbids[fold], "cif", cur_family_dir + "/" + pdbids[fold] + "_cif.pdb")
 
-#        structure = get_structure(rcsb.fetch(pdbids[fold], "cif"), model=1)
+        # Load the structure and convert it to a biotite-like AtomArray
+        atom_array = load_structure_to_atom_array(cur_family_dir + "/" + pdbids[fold] + ".pdb")
+
+#        struct = PDBFile.read(cur_family_dir + "/" + pdbids[fold] + ".pdb").get_structure(model=1)
+
+        struct = PDBFile.read(cur_family_dir + "/" + pdbids[fold] + ".pdb").get_structure(model=1)
+        print("Type of struct:", type(struct))
+        try:
+            print("struct.dtype:", struct.dtype)
+            print("struct.dtype.names:", struct.dtype.names)
+        except AttributeError as e:
+            print("No dtype or dtype.names attribute:", e)
+        print("Length/shape of struct:", len(struct))
+        print("First record in struct:", struct[0])
+        print("All keys in first record (if any):", getattr(struct[0], "dtype", "No dtype available"))
+
+        struct = convert_atomarray_to_recarray(struct)
+        print("Converted to recarray with fields:", struct.dtype.names)
+
+        # Ensure that the structure is a recarray with named fields
+        try:
+            _ = struct.dtype.names
+        except AttributeError:
+            print("struct has no dtype attribute; converting to a recarray")
+            # Convert to a numpy array and then view as recarray
+            struct = np.array(struct).view(np.recarray)
+
+        struct = np.rec.array(struct)
+
+        # Now, if the recarray has named fields, sort by "chain_id", "res_id", and "ins_code"
+        if struct.dtype.names is not None:
+            sort_order = np.argsort(struct, order=["chain_id", "res_id", "ins_code"])
+            struct = struct[sort_order]
+        else:
+            print("Warning: struct still has no named fields; skipping sort.")
+
+        # Get residues and residue start indices using Biotite's get_residues
+        residue_starts, residues  = get_residues(struct)
+        print("Extracted residues outside loop:", residues, residue_starts)
+
+        # If the extracted residues are numeric (i.e. not the expected three-letter codes),
+        # then patch them using the res_name field.
+        if residues.dtype.kind in "iuf":
+            residue_starts = np.array(residue_starts, dtype=int)
+            residues = struct.res_name[residue_starts]
+            print("Patched residues (from res_name):", residues)
+
+        # Now call your function that maps residues to one-letter codes
+        pdb_seq = "".join(aa_long_short.get(res, "X") for res in residues)
+        print("Extracted sequence:", pdb_seq, "len=", len(pdb_seq))
 
         # Process structure
         pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = \
-            read_seq_coord_contacts_from_pdb(structure, chain=pdbchains[fold])
+            read_seq_coord_contacts_from_pdb(struct, chain=pdbchains[fold])  # structure
         print("pdb_seq=", pdb_seq, " len=", len(pdb_seq))
 
         # Save sequence to FASTA file
@@ -398,16 +486,25 @@ def read_seq_coord_contacts_from_pdb(
     - CA_coords (np.ndarray): Coordinates of Cα atoms.
     """
 
+    residue_starts, residues  = get_residues(structure)
+    print("Extracted residues:", residues)
+
     # Filter by chain ID if specified
+    print("BEFORE IF CHAIN IS", chain)
     if chain is not None:
         structure = structure[structure.chain_id == chain]
+    print("Unique chain IDs before filtering:", np.unique(structure.chain_id))
+    print("Number of atoms before filtering:", len(structure))
 
     # Filter amino acids only
     amino_acid_filter = filter_amino_acids(structure)
     structure = structure[amino_acid_filter]
 
+    print("Unique chain IDs:", np.unique(structure.chain_id))
+    print("Number of atoms after filtering:", len(structure))
+
     # Get residues and their starting indices
-    residues, residue_starts = get_residues(structure)
+    residue_starts, residues  = get_residues(structure)
 
     # Map residues to single-letter codes (fallback to "X" for unknown residues)
     pdb_seq = "".join(aa_long_short.get(res, "X") for res in residues)
@@ -429,6 +526,138 @@ def read_seq_coord_contacts_from_pdb(
     contacts = (dist < distance_threshold).astype(int)
 
     return dist, contacts, pdb_seq, good_res_ids, CA_coords
+
+
+class AtomArray:
+    def __init__(self, chain_id, atom_name, coord, res_id, res_name, ins_code):
+        self.chain_id = chain_id  # numpy array of chain IDs (strings)
+        self.atom_name = atom_name  # numpy array of atom names (strings)
+        self.coord = coord  # numpy array of coordinates (n_atoms x 3)
+        self.res_id = res_id  # numpy array of residue IDs
+        self.res_name = res_name  # numpy array of residue names (strings)
+        self.ins_code = ins_code  # numpy array of insertion codes (strings)
+
+    def __getitem__(self, key):
+        # Enable boolean indexing/filtering, e.g.:
+        # filtered_array = atom_array[atom_array.chain_id == chain]
+        return AtomArray(
+            chain_id=self.chain_id[key],
+            atom_name=self.atom_name[key],
+            coord=self.coord[key],
+            res_id=self.res_id[key],
+            res_name=self.res_name[key],
+            ins_code=self.ins_code[key]
+        )
+
+    def __len__(self):
+        return len(self.coord)
+
+
+###############################################################
+# Function to convert a Biopython Structure to an AtomArray    #
+###############################################################
+
+# --- Function to fetch and save a file from RCSB ---
+def fetch_and_save_pdb_file(pdb_id, file_format, local_filename):
+    """
+    Fetch the file for the given PDB ID and format ('pdb' or 'cif')
+    using Biotite's fetch, and save it locally.
+
+    This function handles both cases where the returned object is a
+    StringIO (for cif) or a file path (for pdb).
+    """
+    file_obj = rcsb.fetch(pdb_id, file_format)
+    try:
+        # Try to get the content if file_obj is a StringIO-like object
+        content = file_obj.getvalue()
+    except AttributeError:
+        # Otherwise assume it's a file path and read from it
+        with open(file_obj, "r") as f:
+            content = f.read()
+    with open(local_filename, "w") as f:
+        f.write(content)
+    return local_filename
+
+
+def load_structure_to_atom_array(local_pdb_file):
+    # Use Biopython’s PDBParser (which usually retains the residue names correctly)
+    parser = PDBParser(QUIET=True)
+    bio_structure = parser.get_structure("structure", local_pdb_file)
+    # Convert the Biopython structure into a Biotite AtomArray (structured NumPy array)
+    atom_array = biopython_to_biotite_atom_array(bio_structure)
+    return atom_array.view(np.recarray)
+
+
+#def load_structure_to_atom_array(local_cif_file):
+#    from Bio.PDB import MMCIFParser
+#    parser = MMCIFParser(QUIET=True)
+#    bio_structure = parser.get_structure("structure", local_cif_file)
+#    atom_array = biopython_to_biotite_atom_array(bio_structure)
+#    return atom_array
+
+def biopython_to_biotite_atom_array(bio_structure):
+    """
+    Convert a Biopython Structure object to a proper Biotite AtomArray (a structured NumPy array)
+    with the fields required by Biotite's functions, including get_residues.
+
+    The returned AtomArray will have the following fields:
+      - chain_id : a Unicode string of length 1 (e.g. "A")
+      - res_id   : a 32-bit integer (residue sequence number)
+      - res_name : a Unicode string of length 3 (three-letter residue code, e.g. "GLY")
+      - atom_name: a Unicode string of length 4 (e.g. "CA")
+      - ins_code : a Unicode string of length 1 (insertion code)
+      - coord    : a 3-element float32 array (coordinates)
+    """
+    chain_ids = []
+    atom_names = []
+    coords = []
+    res_ids = []
+    res_names = []
+    ins_codes = []
+
+    for atom in bio_structure.get_atoms():
+        # Get chain id: go from atom -> residue -> chain
+        chain_ids.append(atom.get_parent().get_parent().get_id())
+        # Get atom name (e.g. "CA", "CB", etc.)
+        atom_names.append(atom.get_name())
+        # Get coordinates (3-element vector)
+        coords.append(atom.get_coord())
+        # Get residue information
+        res_id_tuple = atom.get_parent().get_id()  # typically (hetfield, resseq, icode)
+        res_ids.append(res_id_tuple[1])
+        # Normalize the residue name: strip whitespace and convert to uppercase
+        res_names.append(atom.get_parent().get_resname().strip().upper())
+        ins_codes.append(res_id_tuple[2])
+
+    # Convert lists to numpy arrays with proper types
+    chain_ids = np.array(chain_ids, dtype="U1")
+    atom_names = np.array(atom_names, dtype="U4")
+    coords = np.array(coords, dtype="f4")
+    res_ids = np.array(res_ids, dtype="i4")
+    res_names = np.array(res_names, dtype="U3")
+    ins_codes = np.array(ins_codes, dtype="U1")
+
+    # Define the structured dtype for a Biotite AtomArray
+    atom_dtype = np.dtype([
+        ("chain_id", "U1"),
+        ("res_id", "i4"),
+        ("res_name", "U3"),
+        ("atom_name", "U4"),
+        ("ins_code", "U1"),
+        ("coord", "f4", (3,))
+    ])
+
+    n_atoms = len(chain_ids)
+    atom_array = np.empty(n_atoms, dtype=atom_dtype)
+    atom_array["chain_id"] = chain_ids
+    atom_array["atom_name"] = atom_names
+    atom_array["coord"] = coords
+    atom_array["res_id"] = res_ids
+    atom_array["res_name"] = res_names
+    atom_array["ins_code"] = ins_codes
+
+    return atom_array
+
 
 
 def read_seq_coord_contacts_from_pdb_old(

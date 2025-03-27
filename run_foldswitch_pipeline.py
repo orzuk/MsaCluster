@@ -2,8 +2,10 @@
 from utils.protein_plot_utils import *
 from utils.energy_utils import *
 from utils.utils import *
+from TableResults.gen_html_table import *
 import platform
 import argparse
+from config import *
 
 import requests
 # from biotite.structure.io.pdbx import get_structure
@@ -39,7 +41,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
         print("- Analysis: Perform custom analyses.")
         return
 
-    print("START RunFoldSwitch PIPELINE!!")
+#    print("START RunFoldSwitch PIPELINE!!")
     # Parse other options
 
     if type(pdbids_file) == str:                       # input as file
@@ -88,7 +90,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
             i = foldpair_ids.index(foldpair_id)
             # create_chain_pdb_files(pdbids[i][0]+pdbchains[i][0], pdbids[i][1]+pdbchains[i][1], './pdb_files', f'./{output_pair_dir}/chain_pdb_files')
             print("Search chain: ", f'./{output_pair_dir}/{pdbids[i][0]}.pdb')
-            get_fasta_chain_seq(f'./{output_pair_dir}/{pdbids[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0], output_pair_dir)  # Why only first fold here?
+            if run_mode != "load":  # convert to fasta after loading
+                get_fasta_chain_seq(f'./{output_pair_dir}/{pdbids[i][0]}.pdb', pdbids[i][0] + pdbchains[i][0], output_pair_dir)  # Why only first fold here?
             fasta_file_name = output_dir + "/" + foldpair_id + "/fasta_chain_files/" + pdbids[i][0]+pdbchains[i][0] + '.fasta'  # First file of two folds
             cur_family_dir = output_dir + "/" + foldpair_id
             print("Run: " + run_mode + " : " + foldpair_id + " : " + str(i) + " out of : " + str(len(foldpair_ids_to_run)))
@@ -101,7 +104,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                     run_str = ''  # no pipeline in this mode !!!!
                     print("Enter load function:::")
                     print(i, cur_family_dir, foldpair_id, pdbids[i])
-                    load_seq_and_struct(cur_family_dir, foldpair_id, pdbids[i], pdbchains[i])
+                    load_seq_and_struct(cur_family_dir, pdbids[i], pdbchains[i])
                     print("Finished load function")
                 if run_mode == "get_msa":
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/get_msa_for_" + foldpair_id + ".out' ./Pipeline/get_msa_params.sh " + fasta_file_name + " " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
@@ -161,7 +164,12 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                 if run_mode == "tree":  # here do analysis of the results
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
                 if run_mode == 'Analysis':
-                    run_str = f"sbatch  /sci/labs/orzuk/steveabecassis/MsaCluster/Pipeline/Analysis.sh  {foldpair_id}"
+                    run_str = "sbatch " + DATA_DIR + "/Analysis.sh " + foldpair_id
+
+                if run_mode == "html": # make html tables
+                    run_str = ''  # no need for external scripts
+                    generate_html_table_from_parquet(SUMMARY_RESULTS_TABLE, SIMILARITY_RESULTS_TABLE, MAIN_DIR + "/protein_comparison_table.html")
+
                 if run_str != '':
                     print("Send job for " + run_mode + ":\n" + run_str)
                     os.system(run_str)
@@ -189,9 +197,10 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
     run_str = ''
     cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec = [None]*3
     cur_family_dir = output_dir + "/" + foldpair_id
-    if run_mode == "load_seq_struct":  #      if load_seq_and_struct or run_pipeline:  # also for entire pipeline
+    if run_mode in ["load", "load_seq_struct"]:  #      if load_seq_and_struct or run_pipeline:  # also for entire pipeline
         run_str = ''  # no pipeline in this mode !!!!
-        load_seq_and_struct(cur_family_dir, foldpair_id)
+        print("Loading inline, cur_family_dir: ", cur_family_dir, " foldpair_id: ", foldpair_id)
+        load_seq_and_struct(cur_family_dir, pdbids, pdbchains)
     if run_mode == "get_msa":
         run_str = "python3. / get_msa.py " + fasta_file_name + " ./Pipeline/" + foldpair_id + "/output_get_msa - name 'DeepMsa'"
     if run_mode == "cluster_msa":
@@ -200,19 +209,14 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
     if run_mode == "run_cmap_esm":  # msa-transformer ??
         run_str = 'python3  ./runESM.py  --input_msas ./Pipeline/' + foldpair_id + \
                   '/output_msa_cluster -o ./Pipeline/' + foldpair_id + '/output_cmap_esm'
-        print(run_str)
-        os.system(run_str) # Run the runESM function
 
     if run_mode == "run_AF":  # run alpha-fold to predict structures
         run_str = "python3 runAF.py -input ./Pipeline/" + foldpair_id + ' -o ./Pipeline/' + foldpair_id + '/output_AF'  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-        print(run_str)
-        os.system(run_str) # Run the runESM function
 
     if run_mode == "run_esmfold":
-        run_str = 'python3  ./ESMFoldHF.py  -input ./Pipeline/' + foldpair_id + \
-                  '/output_msa_cluster -o ./Pipeline/' + foldpair_id + '/output_esm_fold'
-        print(run_str)
-        os.system(run_str) # Run the runESM function
+        run_str = 'python3  ./ESMFoldHF.py  -input ' + foldpair_id
+#        run_str = 'python3  ./ESMFoldHF.py  -input ./Pipeline/' + foldpair_id + \
+#                  '/output_msa_cluster -o ./Pipeline/' + foldpair_id + '/output_esm_fold'
 
     if run_mode == "tree":
         msa_file = 'Pipeline/' + foldpair_id + '/output_get_msa/DeepMsa.a3m'
@@ -252,6 +256,10 @@ def run_fold_switch_pipeline_one_family(run_mode, foldpair_id, pdbids, pdbchains
         run_str = ''  # no pipeline in this mode !!!!
 
     print("Run command line for " + run_mode + ":\n" + run_str)
+
+    if run_str != '':
+        os.system(run_str)  # Run the runESM function
+
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec
 #    os.system(run_str)
 
@@ -330,23 +338,25 @@ if __name__ == "__main__": # Main program:
     if run_mode == "load":
         load_seq_struct = True  # just get from pdb the sequence and 3D structure for each protein
         print("Load pdb files, contact maps and fasta sequences for all families")
-    if run_mode == "get_msa":  # here do analysis of the results
-        get_msa = True
-    if run_mode == "cluster_msa":  # here do analysis of the results
-        cluster_msa = True
+#    if run_mode == "get_msa":  # here do analysis of the results
+#        get_msa = True
+#    if run_mode == "cluster_msa":  # here do analysis of the results
+#        cluster_msa = True
     if run_mode == "run_cmap_esm":
-        run_cmap_esm = True  # run esm
+#        run_cmap_esm = True  # run esm
         print("Run ESM transformer for all families")
     if run_mode == "run_esmfold":
-        run_esmfold = True  # run esm-fold
+#        run_esmfold = True  # run esm-fold
         print("Run ESM transformer Fold for all families")
     if run_mode == "run_pipeline":
-        run_pipeline = True  # run entire pipeline
+#        run_pipeline = True  # run entire pipeline
         print("Run Entire pipeline for all families")
-    if run_mode == "plot":  # here do analysis of the results
-        plot_results = True
-    if run_mode == "tree":  # here do analysis of the results
-        tree_reconstruct = True
+#    if run_mode == "plot":  # here do analysis of the results
+#        plot_results = True
+#    if run_mode == "tree":  # here do analysis of the results
+#        tree_reconstruct = True
+#    if run_mode == "html": # New: generate html tables
+#        html_tables = True
 
     # pdb_datadir = "Pipeline/pdb_files"  # where to store all PDB files
     output_dir = "Pipeline"

@@ -1,13 +1,14 @@
 import os
 import pandas as pd
 from tqdm import tqdm
+from config import *
 import re
 
 
 folder = '/Users/steveabecassis/Desktop/Pipeline'
 df_cmap_analysis = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline/cmap_exact_analysis_tol0_2510.parq')
 df_esmfold_analysis = pd.read_csv(f'/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv')
-pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
+# pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
 res = []
 df_af_all = pd.DataFrame()
 fold_pairs = os.listdir('/Users/steveabecassis/Desktop/Pipeline')

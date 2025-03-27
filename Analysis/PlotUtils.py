@@ -7,6 +7,7 @@ import mdtraj as md
 from contact_map import ContactFrequency, ContactDifference
 import warnings
 
+
 warnings.filterwarnings("ignore")
 import mdtraj as md
 import numpy as np
@@ -27,10 +28,14 @@ from Bio import pairwise2
 import py3Dmol
 from Bio import PDB, Align
 from Bio.PDB import PDBParser, PDBIO
-from Bio.PDB.Polypeptide import three_to_one
+from Bio.PDB.Polypeptide import protein_letters_3to1
 from io import StringIO
 import numpy as np
 
+
+def three_to_one(residue):
+    """Convert three-letter amino acid code to one-letter code."""
+    return protein_letters_3to1.get(residue.upper(), "X")  # Default to "X" if not found
 
 # Function to read PDB file
 def read_pdb_file(file_path):
@@ -39,7 +44,7 @@ def read_pdb_file(file_path):
 
 
 def get_seq_from_structure(structure):
-    return ''.join([PDB.Polypeptide.three_to_one(res.resname)
+    return ''.join([three_to_one(res.resname)
                     for res in structure.get_residues()
                     if PDB.Polypeptide.is_aa(res)])
 
@@ -146,7 +151,7 @@ def extract_protein_sequence(pdb_file):
             flag += 1
             for residue in chain:
                 if PDB.is_aa(residue):
-                    residue_sequence += PDB.Polypeptide.three_to_one(residue.get_resname())
+                    residue_sequence += three_to_one(residue.get_resname())
     return residue_sequence
 
 

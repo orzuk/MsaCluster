@@ -21,7 +21,6 @@ fold_pairs      = os.listdir(pipeline_folder)
 # fold2     = fold_pair.split('_')[1]
 
 
-
 if __name__=='__main__':
 
     for fold_pair in tqdm(fold_pairs):
@@ -43,7 +42,9 @@ if __name__=='__main__':
             print(e)
             continue
 
+    print("final_res: ", final_res)
     df                         = pd.DataFrame(final_res)
+    print("df columns: " , df.columns)
     df['cluster_num']          = df.fold.apply(lambda x: x.split('_')[1] if 'Shallow' in x else x.split('_')[0])
     df['TM_mean_cluster_pdb1'] = df.groupby(['fold_pair','cluster_num'])['TMscore_fold1'].transform('mean')
     df['TM_mean_cluster_pdb2'] = df.groupby(['fold_pair','cluster_num'])['TMscore_fold2'].transform('mean')

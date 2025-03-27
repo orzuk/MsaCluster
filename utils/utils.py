@@ -35,9 +35,12 @@ def create_chain_pdb_files(fold_1,fold_2,pdb_file_path,chain_pdb_file_path):
 
 
 # Extract the protein sequence from a pdb file
+# Write the sequence into a fasta file
 def get_fasta_chain_seq(pdb_file, fold_name, output_dir):
     # Create a PDB parser
     parser = PDBParser()
+
+    print("Load parser for pdb file:", pdb_file)
     # Parse the structure
     structure = parser.get_structure('PDB_structure', pdb_file)
     # Extract the sequence

@@ -33,6 +33,7 @@ import pandas as pd
 # 3. Two folds aligned
 def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
                               plot_tree_clusters= False, plot_contacts = True, global_plots = False):
+
     print("Plot for foldpair_id: " + foldpair_id)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
@@ -69,11 +70,12 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
 #    print("msa_pred_files: ", msa_pred_files)
     try:
         print("Current dir: ", os.getcwd())
-        print("Try to extract true cmap from: ",
-              fasta_dir + "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy")
+#        print("Try to extract true cmap from: ",
+#              fasta_dir + "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy")
         true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !! # genfromtxt
                     "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy").astype(int)
                      for fold in range(2)}
+        print("Got true cmap!!!")
     except:
         print("Couldn't extract true cmap !!! ")
         true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !!
@@ -169,14 +171,25 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
                 print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file, " fold-pair id=", foldpair_id)
                 print("pdb_file1: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb', 
                       " ; pdb_file2: ", cur_AF_file)
-                tmscores_df.iloc[c, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-                    cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
+#                tmscores_df.iloc[c, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
+#                    cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
 
                 if not 'eep' in cur_AF_file:
+                    # Update AF Fold values
+                    filtered_af_df = af_df[(af_df['fold_pair'] == foldpair_id) &
+                                        (af_df['cluster_num'] == tmscores_df.index[c][4:])] #  &
+#                                        ('unrelaxed_rank' in af_df['pdb_file'])]
+#                    good_inds = 'unrelaxed_rank_001' in af_df['pdb_file']
+#                    print("good inds:", good_inds)
+#                    print("Head of filtered_af_df: ", filtered_af_df.head())
+#                    tmscores_df.iloc[c, fold] = float(filtered_af_df['score_pdb' + str(fold+1)].iloc[0])
+                    tmscores_df.iloc[c, fold]  = float(filtered_af_df.loc[filtered_af_df['pdb_file'].str.contains(
+                        'unrelaxed_rank_00' + str(AF2_MODEL)), 'score_pdb' + str(fold+1)].values[0])
+#                    print("tm-score=", tmscores_df.iloc[c, fold])
                     # Update ESM Fold values
-                    filtered_df = esmf_df[(esmf_df['fold_pair'] == foldpair_id) &
+                    filtered_esm_df = esmf_df[(esmf_df['fold_pair'] == foldpair_id) &
                                           (esmf_df['cluster_num'] == tmscores_df.index[c][4:])]
-                    tmscores_df.iloc[c, fold+2] = float(filtered_df['TM_mean_cluster_pdb' + str(fold+1)].iloc[0])
+                    tmscores_df.iloc[c, fold+2] = float(filtered_esm_df['TM_mean_cluster_pdb' + str(fold+1)].iloc[0])
 
 
         # Get induced subtree

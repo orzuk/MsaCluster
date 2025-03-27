@@ -1,7 +1,9 @@
 from tqdm import tqdm
-from olds.Analysis import *
-from PlotUtils import *
+# from olds.Analysis import *
+from Analysis.PlotUtils import *
 from config import *
+import pandas as pd
+import re
 
 def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
     """
@@ -57,10 +59,8 @@ def get_only_cmaps(cmap1,cmap2):
     return only_fold1,only_fold2
 
 
-
 if __name__ == '__main__':
-
-    folder    = DATA_DIR
+    folder  = DATA_DIR
     files = os.listdir(folder)
     pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
     fold_pairs = [i for i in files if re.match(pattern, i)]
@@ -108,8 +108,9 @@ if __name__ == '__main__':
             continue
 
     final_df = pd.DataFrame(res)
+    print("final_df is ", final_df)
     success_cmap_score = final_df.fold_pair.unique()
     final_df['cluster_num'] = final_df.File.apply(lambda x:x[-7:-4])
 
-    final_df.to_csv(f'./data/df_cmap_all.csv',index=False)
+    final_df.to_csv(f'./data/df_cmap_all.csv',index=False)  # maybe save this also to parq?
 
