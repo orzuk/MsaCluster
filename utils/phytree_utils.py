@@ -191,10 +191,6 @@ def extract_induced_subtree(tree, leaf_names):
     return subtree
 
 
-
-
-
-
 # Updated visualize_tree_with_heatmap function with vertical colorbars
 def visualize_tree_with_heatmap(phylo_tree, node_values_matrix, output_file=None):
     if output_file is not None:

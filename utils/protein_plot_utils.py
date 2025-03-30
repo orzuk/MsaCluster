@@ -87,7 +87,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
         get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, msa_transformer_pred)
 
     if plot_contacts:
-        print("Plot Array")
+        print("Plot Array Contact Map")
         plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap,
                                     fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id + '_all_clusters_cmap')
 
@@ -130,7 +130,9 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
 #    print(type(ete_leaves_node_values))
 #    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
 #        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
+    print("plot tree cluster flag = ", plot_tree_clusters)
     if plot_tree_clusters:  # plot only clusters
+        print("Plot Tree Clusters:")
 ##        cluster_node_values.pop('p')  # remove nodes without cluster
         cluster_node_values = pd.DataFrame(cluster_node_values).T  # convert to 3*[#clusters] pandas data-frame
         representative_cluster_leaves = unique_values_dict({n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'} )
@@ -139,7 +141,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
 #        print("cluster_node_values", cluster_node_values, " Index: ", cluster_node_values.index)
 
         new_indices = [match.group() for s in cluster_node_values.index for match in re.finditer(r'M[sS][aA][a-zA-Z0-9_].*', s)]
-        print("Parsed shortenede indices: ", new_indices)
+        print("Parsed shortened indices: ", new_indices)
 
         tmscores_df = pd.DataFrame(index=new_indices,
                                    columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])  # modify index to exclude directory
@@ -207,6 +209,8 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
                              fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster",
                              tmscores_df, phytree_file, representative_cluster_leaves,
                              ete_leaves_node_values, ete_leaves_cluster_ids], f) #  true_cmap, msa_transformer_pred], f)
+        print("Call tree visialization !!!! foldpair_id=",
+              foldpair_id, " output dir: ", fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
         visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
     else:  # plot entire tree
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")

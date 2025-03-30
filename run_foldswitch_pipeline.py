@@ -69,7 +69,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
         print("Running plot after pymol launch!!")
     # idx_test = 0
     # pred_vec = [0] * n_fam     # loop on MSAs
-    for foldpair_id in foldpair_ids_to_run:
+    for foldpair_id in foldpair_ids_to_run:  # loop over all families
         print("Run on fold pairs ", foldpair_id)
         if 1 < 2: #
         # try: # Change to try catch !!!

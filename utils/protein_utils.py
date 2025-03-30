@@ -187,18 +187,19 @@ def clean_sequence(residue_energies):
     Clean residue energies to extract a valid amino acid sequence.
 
     Parameters:
-    - residue_energies (list of tuples): Residue data [(residue_name, residue_index, energy), ...]
+    - residue_energies (list of dict): Residue data [{'residue_name': ..., 'residue_index': ..., 'energy': ...}, ...]
 
     Returns:
     - str: Cleaned amino acid sequence.
     """
     cleaned_sequence = [
-        res[0].split(":")[0]  # Remove metadata after ":"
+        res["residue_name"].split(":")[0]  # Remove metadata after ":" (e.g. ":CtermProteinFull")
         for res in residue_energies
-        if res[0].split(":")[0] in aa_long_short.keys()  # Keep only valid residues
+        if res["residue_name"].split(":")[0] in aa_long_short.keys()  # Keep only valid residues
     ]
 
-    cleaned_sequence = [  aa_long_short[x] for x in cleaned_sequence]
+    # Map three-letter codes to one-letter codes using your dictionary
+    cleaned_sequence = [aa_long_short[x] for x in cleaned_sequence]
     return "".join(cleaned_sequence)
 
 

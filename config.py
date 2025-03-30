@@ -81,6 +81,9 @@ if user in ['zuk_laptop', 'orzuk']:
     TABLES_RES = MAIN_DIR + '/Pipeline_res'
     SUMMARY_RESULTS_TABLE = TABLES_RES + '/final_res_df_2510.parq'
     SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
+    ENERGY_DIR = DATA_DIR + '/output_deltaG'
+    ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
+
 
     LOCAL_RUN = False
 
