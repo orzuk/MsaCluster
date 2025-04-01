@@ -43,7 +43,9 @@ from biotite.structure.io.pdb import PDBFile
 from biotite.database import rcsb
 from biotite.structure.io.pdbx import get_structure
 from biotite.structure import filter_amino_acids, distance, AtomArray
-from biotite.structure.residues import get_residues
+# from biotite.structure.residues import get_residues
+from biotite.structure import get_residues
+
 from Bio.PDB.MMCIFParser import MMCIFParser
 
 # Biotite provides a mapping of residue codes to single-letter amino acid codes
@@ -339,28 +341,41 @@ def load_seq_and_struct(cur_family_dir, pdbids, pdbchains):
         print("First record in struct:", struct[0])
         print("All keys in first record (if any):", getattr(struct[0], "dtype", "No dtype available"))
 
-        struct = convert_atomarray_to_recarray(struct)
-        print("Converted to recarray with fields:", struct.dtype.names)
+#        struct = convert_atomarray_to_recarray(struct)
+#        print("Converted to recarray with fields:", struct.dtype.names)
 
         # Ensure that the structure is a recarray with named fields
-        try:
-            _ = struct.dtype.names
-        except AttributeError:
-            print("struct has no dtype attribute; converting to a recarray")
-            # Convert to a numpy array and then view as recarray
-            struct = np.array(struct).view(np.recarray)
+        # If Biotite AtomArray, use directly
+        # Check if Biotite AtomArray (modern version)
+        # --- Determine if this is already an AtomArray ---
+        print("==== DEBUG: Type of struct:", type(struct))
 
-        struct = np.rec.array(struct)
-
-        # Now, if the recarray has named fields, sort by "chain_id", "res_id", and "ins_code"
-        if struct.dtype.names is not None:
-            sort_order = np.argsort(struct, order=["chain_id", "res_id", "ins_code"])
-            struct = struct[sort_order]
+        if isinstance(struct, AtomArray):
+            print("==== DEBUG: struct is a Biotite AtomArray")
+            print("Length of AtomArray:", struct.array_length())
+            print("First atom:", struct[0])
+            print("Calling get_residues on AtomArray...")
+            residue_starts, residues = get_residues(struct)
         else:
-            print("Warning: struct still has no named fields; skipping sort.")
+            print("==== DEBUG: struct is NOT an AtomArray")
+            print("Falling back to legacy path")
+            try:
+                struct = np.array(struct).view(np.recarray)
+                print("Successfully viewed as recarray")
+                print("Struct dtype names:", struct.dtype.names)
+                if struct.dtype.names is not None and all(
+                        k in struct.dtype.names for k in ["chain_id", "res_id", "ins_code"]):
+                    print("Sorting using lexsort")
+                    sort_order = np.lexsort((struct.ins_code, struct.res_id, struct.chain_id))
+                    struct = struct[sort_order]
+                else:
+                    print("Struct missing fields for sorting, skipping sort")
+            except Exception as e:
+                print("Failed to convert to recarray:", e)
+                raise
 
-        # Get residues and residue start indices using Biotite's get_residues
-        residue_starts, residues  = get_residues(struct)
+            print("Calling get_residues on recarray")
+            residue_starts, residues = get_residues(struct)
         print("Extracted residues outside loop:", residues, residue_starts)
 
         # If the extracted residues are numeric (i.e. not the expected three-letter codes),
@@ -460,7 +475,7 @@ def read_seq_coord_contacts_from_pdb(
     return dist, contacts, pdb_seq, good_res_ids, CA_coords
 
 
-class AtomArray:
+class CustomAtomArray:
     def __init__(self, chain_id, atom_name, coord, res_id, res_name, ins_code):
         self.chain_id = chain_id  # numpy array of chain IDs (strings)
         self.atom_name = atom_name  # numpy array of atom names (strings)
