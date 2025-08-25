@@ -1,6 +1,12 @@
-from olds.Analysis import *
+#from Analysis import *
+from argparse import ArgumentParser
 from tqdm import tqdm
 from config import *
+from utils.protein_utils import *
+from utils.align_utils import *
+import os
+import pandas as pd
+import gzip
 
 if __name__ == '__main__':
 
@@ -24,21 +30,25 @@ if __name__ == '__main__':
     folds = pair_output_path.split("_")
     fold1 = folds[0]
     fold2 = folds[1]
+    chain1 = fold1[-1]
+    chain2 = fold2[-1]
 
-    unzip_files(folder_path=f'{path}/AF_preds')
+#    unzip_files(folder_path=f'{path}/AF_preds')
 
     pdb_files = os.listdir(f'{path}/AF_preds')
     res = []
     pdb_files = [i for i in pdb_files if 'pdb' in str(i)]
-    pdb_fold1_path = f'{path}/chain_pdb_files/{fold1}.pdb'
-    pdb_fold2_path = f'{path}/chain_pdb_files/{fold2}.pdb'
+#    pdb_fold1_path = f'{path}/chain_pdb_files/{fold1}.pdb'
+#    pdb_fold2_path = f'{path}/chain_pdb_files/{fold2}.pdb'
+    pdb_fold1_path = f'{path}/{fold1[:-1]}.pdb'  # exclude chain name
+    pdb_fold2_path = f'{path}/{fold2[:-1]}.pdb'  # exclude chain name
     for pdb_file in tqdm(pdb_files):
         if ('pdb' in str(pdb_file)) & ('gz' not in str(pdb_file)):
             # score_pdb1 = tmscoring.get_tm(f'{path}/AF_preds/{pdb_file}', pdb_fold1_path)
             # score_pdb2 = tmscoring.get_tm(f'{path}/AF_preds/{pdb_file}', pdb_fold2_path)
 
-            score_pdb1 = get_tmscore_align(f'{path}/AF_preds/{pdb_file}', pdb_fold1_path)
-            score_pdb2 = get_tmscore_align(f'{path}/AF_preds/{pdb_file}', pdb_fold2_path)
+            score_pdb1 = compute_tmscore_align(f'{path}/AF_preds/{pdb_file}', pdb_fold1_path, chain2=chain1)
+            score_pdb2 = compute_tmscore_align(f'{path}/AF_preds/{pdb_file}', pdb_fold2_path, chain2=chain2)
 
             temp = {'pdb_file':pdb_file,'score_pdb1':score_pdb1,'score_pdb2':score_pdb2}
             res.append(temp)

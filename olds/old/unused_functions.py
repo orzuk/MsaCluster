@@ -534,3 +534,102 @@ def visualize_structure_alignment(pdb_file1, pdb_file2, chain1='A', chain2='A'):
                   {'position': {'x': -20, 'y': -40}, 'backgroundColor': 'white', 'fontColor': 'black'})
 
     return view
+
+
+def get_tmscore_align(path_fold1,path_fold2):
+    command = f"/Users/steveabecassis/Desktop/TMalign {path_fold1} {path_fold2}"  # should change path
+    output = subprocess.check_output(command, shell=True)
+    match = re.search(r"TM-score=\s+(\d+\.\d+)", str(output))
+    if match:
+        result = match.group(1)
+        return float(result)
+    else:
+        return None
+
+
+# Compute tmscores of two structures, interface to tmscore module
+# Input:
+# pdb_file1, pdb_file2 - names of two input pdb files (without chain name)
+# chain1, chain2 - names of two chains
+# Output:
+# res - tmscore of 1 to 2
+def compute_tmscore(pdb_file1, pdb_file2, chain1=None, chain2=None):
+    print("Compute tmscore: File 1:", pdb_file1, ", File 2:", pdb_file2, " ; Chains:", chain1, chain2)
+
+    # Fetch or read structures
+    if len(pdb_file1) == 4:  # PDB ID
+        s1 = get_structure(rcsb.fetch(pdb_file1, "cif"), model=1)
+    else:
+        s1 = PDBFile.read(pdb_file1).get_structure(model=1)
+
+    if len(pdb_file2) == 4:  # PDB ID
+        s2 = get_structure(rcsb.fetch(pdb_file2, "cif"), model=1)
+    else:
+        s2 = PDBFile.read(pdb_file2).get_structure(model=1)
+
+    # Process chains and sequences
+    pdb_dists1, pdb_contacts1, pdb_seq1, pdb_good_res_inds1, coords1 = \
+        read_seq_coord_contacts_from_pdb(s1, chain=chain1)
+    pdb_dists2, pdb_contacts2, pdb_seq2, pdb_good_res_inds2, coords2 = \
+        read_seq_coord_contacts_from_pdb(s2, chain=chain2)
+
+#    print("Sequences processed.")
+
+    # Perform alignment
+    res = tm_align(coords1, coords2, pdb_seq1, pdb_seq2)
+
+    print("Normalized TM-score (chain1):", round(res.tm_norm_chain1, 3))
+
+    return res.tm_norm_chain1
+
+
+def Alpha_Carbon_Indices(pdb: str) -> List:
+    """
+    take in a pdb file and identify the index of every alpha carbon
+    """
+    structure = PDB.PDBParser(QUIET=True).get_structure('protein', pdb)
+
+    alpha_carbons = []
+
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                if 'CA' in residue:
+                    resid = residue.resname
+                    alpha_carbons.append([resid, residue['CA'].get_serial_number() - 1])
+    return alpha_carbons
+
+
+def Match_Alpha_Carbons(pdb_1: str, pdb_2: str) -> List[int]:
+    """
+    Take in two pdb structure files and search through them for matching alpha carbons
+    This should identify positions correctly even if sequences are not identical
+    """
+    alpha_c_1 = Alpha_Carbon_Indices(pdb_1)
+    alpha_c_2 = Alpha_Carbon_Indices(pdb_2)
+
+    matching_alpha_carbons1 = []
+    matching_alpha_carbons2 = []
+
+    for i, (resname_1, ca_index1) in enumerate(alpha_c_1):
+        for j, (resname_2, ca_index2) in enumerate(alpha_c_2):
+            if resname_2 == resname_1 and ca_index1 not in [_[1] for _ in matching_alpha_carbons1] and ca_index2 not in [_[1] for _ in matching_alpha_carbons2]:
+                #prevent erroneous match at NTD
+                if i > 0 and j > 0:
+                    if alpha_c_1[i-1][0] != alpha_c_2[j-1][0]: #check previous matches
+                        continue
+                # prevent erroneous backtracking
+                if len(matching_alpha_carbons1) > 2 and len(matching_alpha_carbons2) > 2:
+                    if ca_index2 < matching_alpha_carbons2[-1][-1]:
+                        continue
+                #prevent erroneous match at CTD
+                if i < len(alpha_c_1) - 1 and j < len(alpha_c_2) - 1:
+                    if alpha_c_1[i+1][0] != alpha_c_2[j+1][0]: #check next matches
+                        continue
+
+                matching_alpha_carbons1.append([resname_1, ca_index1])
+                matching_alpha_carbons2.append([resname_2, ca_index2])
+                break
+    #skip first residue to avoid erroneous glycine match
+    return matching_alpha_carbons1[1:], matching_alpha_carbons2[1:]
+

@@ -6,7 +6,14 @@ import colabfold
 print("colab dir: " , colabfold.__file__)
 
 
-# compute_tmscore('Pipeline/1dzlA_5keqF/1dzl.pdb', 'Pipeline/1dzlA_5keqF/AF_preds/ShallowMsa_000_unrelaxed_rank_005_alphafold2_ptm_model_1_seed_000.pdb', 'A', 'A')
+# compute_tmscore_align('Pipeline/1dzlA_5keqF/1dzl.pdb', 'Pipeline/1dzlA_5keqF/AF_preds/ShallowMsa_000_unrelaxed_rank_005_alphafold2_ptm_model_1_seed_000.pdb', 'A', 'A')
+
+# Load MSA:
+
+msa = download_and_parse_pfam_msa("PF00069", alignment_type="seed")
+print(msa)
+
+exit(99)
 
 
 with (open('tree_clusters.pkl', 'rb') as f):  # Python 3: open(..., 'rb')

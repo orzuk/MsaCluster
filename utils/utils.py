@@ -7,9 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from contact_map import ContactFrequency, ContactDifference
+from pathlib import Path
+from typing import List, Tuple, Union
 
 # pdb_file = f'{PDF_FILES_PATH}/1jfk.pdb'
-
 
 class ChainSelect(Select):
     def __init__(self, chain_letter):
@@ -19,7 +20,7 @@ class ChainSelect(Select):
         return chain.id == self.chain_letter
 
 
-def create_chain_pdb_files(fold_1,fold_2,pdb_file_path,chain_pdb_file_path):
+def create_chain_pdb_files(fold_1,fold_2, pdb_file_path, chain_pdb_file_path):
     chain_fold_1 = fold_1[-1]
     chain_fold_2 = fold_2[-1]
     # Load the original PDB file
@@ -93,3 +94,41 @@ def find_max_keys(input_dict):
         result[subkey] = (max_key, max_value)
 
     return result
+
+
+def list_protein_pairs(parsed: bool = True, sort_result: bool = True) -> (
+        List)[Union[str, Tuple[str, str]]]:
+    """
+    Return all pair directories under `root`.
+    A valid pair dir looks like: '4rmbB_4rmbA' (PDBid+chain)_(PDBid+chain).
+
+    Parameters
+    ----------
+    parsed : bool
+        If True -> return [('4rmbB','4rmbA'), ...]
+        If False -> return ['4rmbB_4rmbA', ...]
+    sort_result : bool
+        If True, sort lexicographically by folder name.
+
+    Returns
+    -------
+    list
+        List of pairs (tuples or strings).
+    """
+    root = Path(DATA_DIR)
+    pairs = []
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        m = PAIR_DIR_RE.match(child.name)
+        if not m:
+            continue
+        if parsed:
+            pairs.append((m.group(1), m.group(2)))
+        else:
+            pairs.append(child.name)
+
+    if sort_result:
+        pairs.sort(key=lambda x: "_".join(x) if isinstance(x, tuple) else x)
+    return pairs
+

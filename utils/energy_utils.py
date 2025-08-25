@@ -344,15 +344,23 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
     for res1, res2 in zip(aligned_seq1, aligned_seq2):
         if res1 == "-" and res2 != "-":
             aligned_energies_1.append(None)
-            aligned_energies_2.append(residue_energies_2[index_2]["energy"])
+#            aligned_energies_2.append(residue_energies_2[index_2]["energy"])
+            aligned_energies_2.append(residue_energies_2[index_2][2])
             index_2 += 1
         elif res1 != "-" and res2 == "-":
-            aligned_energies_1.append(residue_energies_1[index_1]["energy"])
+#            aligned_energies_1.append(residue_energies_1[index_1]["energy"])
+            aligned_energies_1.append(residue_energies_1[index_1][2])
+
             aligned_energies_2.append(None)
             index_1 += 1
         elif res1 != "-" and res2 != "-":
-            aligned_energies_1.append(residue_energies_1[index_1]["energy"])
-            aligned_energies_2.append(residue_energies_2[index_2]["energy"])
+#            aligned_energies_1.append(residue_energies_1[index_1]["energy"])
+            aligned_energies_1.append(residue_energies_1[index_1][2])
+
+#            aligned_energies_2.append(residue_energies_2[index_2]["energy"])
+            aligned_energies_2.append(residue_energies_2[index_2][2])
+
+
             index_1 += 1
             index_2 += 1
 

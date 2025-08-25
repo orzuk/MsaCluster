@@ -119,7 +119,7 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
                     run_str = "sbatch -o './Pipeline/" + foldpair_id + "/run_AF_for_" + foldpair_id + ".out' ./Pipeline/RunAF_params.sh  " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
                 if run_mode == "compute_deltaG":  # Compute free energy !!! NEW !!
                     if run_os == "Windows":
-                        print("Can't run pyrosetta in windows. Re-run in linux. Abortting")
+                        print("Can't run pyrosetta in windows. Re-run in linux. Aborting")
                         exit(99)
                     run_str = ''
                     pdb_pair_files = [("Pipeline/" + p + "/" + p[:4] + ".pdb" ,  "Pipeline/" + p + "/" + p[-5:-1] + ".pdb") for p in foldpair_ids_to_run]
@@ -168,6 +168,8 @@ def run_fold_switch_pipeline(run_mode, foldpair_ids_to_run='ALL',output_dir ="Pi
 
                 if run_mode == "html": # make html tables
                     run_str = ''  # no need for external scripts
+                    # Generate Parquet file first
+
                     generate_html_table_from_parquet(SUMMARY_RESULTS_TABLE, SIMILARITY_RESULTS_TABLE, MAIN_DIR + "/protein_comparison_table.html")
 
                 if run_str != '':

@@ -173,7 +173,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
                 print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file, " fold-pair id=", foldpair_id)
                 print("pdb_file1: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb', 
                       " ; pdb_file2: ", cur_AF_file)
-#                tmscores_df.iloc[c, fold] = compute_tmscore('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
+#                tmscores_df.iloc[c, fold] = compute_tmscore_align('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
 #                    cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
 
                 if not 'eep' in cur_AF_file:

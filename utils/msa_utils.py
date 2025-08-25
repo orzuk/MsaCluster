@@ -44,3 +44,40 @@ def get_align_indexes(seqA, seqB):
         if (seqA[aa] != '-') & (seqB[aa] == '-'):
             cursA += 1
     return seqA_idxs, seqB_idxs
+
+
+import requests
+
+import requests
+import gzip
+import shutil
+import os
+from Bio import AlignIO
+import requests
+from io import StringIO
+
+def download_and_parse_pfam_msa(pfam_id, alignment_type="seed"):
+    """
+    Downloads and parses a Pfam MSA using the REST API (SEED only).
+
+    Parameters:
+        pfam_id (str): Pfam family ID (e.g., 'PF00069')
+        alignment_type (str): Only 'seed' is supported currently
+
+    Returns:
+        MultipleSeqAlignment: Parsed MSA object from Biopython
+    """
+    if alignment_type != "seed":
+        raise NotImplementedError("Only 'seed' alignment is available via the Pfam REST API")
+
+    url = f"https://www.ebi.ac.uk/interpro/api/pfam/entry/pfam/{pfam_id}/alignment/seed/stockholm/"
+
+    response = requests.get(url)
+    if response.status_code != 200:
+        raise Exception(f"Download failed with status code {response.status_code}: {url}")
+
+    sto_text = response.text
+    msa_io = StringIO(sto_text)
+    alignment = AlignIO.read(msa_io, "stockholm")
+
+    return alignment

@@ -1,46 +1,43 @@
 import pandas as pd
-import os
-import subprocess
-import re
-from tqdm import tqdm
-from utils.protein_utils import *
+import os, sys
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+
+from utils.align_utils import *
+from utils.utils import list_protein_pairs
 from config import *
+from tqdm import tqdm
 
 '''
 To run this script on your local computer you have to specify where the TM align software is installed on your computer and adapt the function
-get_tmscore_align changing your path.
+compute_tmscore_align changing your path.
 And to set in pipeline_folder your path where the results are on your machine
 '''
 
-final_res       = []
-pipeline_folder = DATA_DIR
-fold_pairs      = os.listdir(pipeline_folder)
+# Compute TMscores of AF predictions for all clusters in a fold pair
+def compute_esmfold_pred_tmscores(fold_pair):
+    final_res       = []
+    print(f'Fold_pair: {fold_pair}')
+    path = f'{DATA_DIR}/{fold_pair}'
+    print(f'Path: {path}')
+    if not os.path.exists(f'{path}/Analysis'):
+        print("Mkdir: " + f'{path}/Analysis')
+        os.mkdir(f'{path}/Analysis')
 
-# fold_pair = '1eboE_5fhcJ'
-# fold1     = fold_pair.split('_')[0]
-# fold2     = fold_pair.split('_')[1]
+    folds = fold_pair.split("_")
+    chains = [folds[0][-1],folds[1][-1]]
+
+    esm_pdb_files =  tqdm(os.listdir(f'{DATA_DIR}/{fold_pair}/output_esm_fold'))
 
 
-if __name__=='__main__':
-
-    for fold_pair in tqdm(fold_pairs):
-        print(fold_pair)
-        try:
-            if 'sh' in fold_pair:
-                continue
-            for fold_pred in tqdm(os.listdir(f'{pipeline_folder}/{fold_pair}/output_esm_fold')):
-                if len(os.listdir(f'{pipeline_folder}/{fold_pair}/output_esm_fold')) == 0:
-                    continue
-                fold1     = fold_pair.split('_')[0]
-                fold2     = fold_pair.split('_')[1]
-                path_fold_1   = f'{pipeline_folder}/{fold_pair}/chain_pdb_files/{fold1}.pdb'
-                path_fold_2   = f'{pipeline_folder}/{fold_pair}/chain_pdb_files/{fold2}.pdb'
-                TMscore_fold1 = get_tmscore_align(path_fold_1, f'{pipeline_folder}/{fold_pair}/output_esm_fold/{fold_pred}')
-                TMscore_fold2 = get_tmscore_align(path_fold_2, f'{pipeline_folder}/{fold_pair}/output_esm_fold/{fold_pred}')
-                final_res.append({'fold_pair':fold_pair,'fold':fold_pred,'TMscore_fold1':TMscore_fold1,'TMscore_fold2':TMscore_fold2})
-        except Exception as e:
-            print(e)
-            continue
+    for fold_pred in esm_pdb_files:
+        TMscore_fold1 = compute_tmscore_align(f'{DATA_DIR}/{fold_pair}/chain_pdb_files/{folds[0]}.pdb',
+                                              f'{DATA_DIR}/{fold_pair}/output_esm_fold/{fold_pred}')
+        TMscore_fold2 = compute_tmscore_align(f'{DATA_DIR}/{fold_pair}/chain_pdb_files/{folds[1]}.pdb',
+                                              f'{DATA_DIR}/{fold_pair}/output_esm_fold/{fold_pred}')
+        final_res.append({'fold_pair': fold_pair, 'fold': fold_pred,
+                          'TMscore_fold1': TMscore_fold1, 'TMscore_fold2': TMscore_fold2})
 
     print("final_res: ", final_res)
     df                         = pd.DataFrame(final_res)
@@ -54,10 +51,22 @@ if __name__=='__main__':
     df['cluster_fold_1']       = df.groupby(['fold_pair','cluster_num'])['is_fold_1'].transform('mean')
     df['cluster_fold_2']       = df.groupby(['fold_pair','cluster_num'])['is_fold_2'].transform('mean')
     df.sort_values(by=['fold_pair','cluster_num'],inplace=True)
-    df_summary                 = df[['fold_pair','TM_mean_cluster_pdb1', 'TM_mean_cluster_pdb2', 'cluster_num','is_fold_1', 'is_fold_2', 'cluster_fold_1', 'cluster_fold_2','sample_count']].drop_duplicates(subset=['fold_pair','cluster_num','TM_mean_cluster_pdb1', 'TM_mean_cluster_pdb2'])
+#    df.to_csv('./data/df_esmfold_analysis.csv',index=False)
+    df.to_csv(f'{path}/Analysis/df_af.csv')
 
-    df.to_csv('./data/df_esmfold_analysis.csv',index=False)
 
-    # df_esmfold_analysis = pd.read_csv('/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv')
+if __name__=='__main__':
+    fold_pairs = list_protein_pairs()
+    print("All pairs to compute ESMFold TMscores: ", fold_pairs)
+
+    for fold_pair in fold_pairs:
+        fold_pair_subdir = fold_pair[0] + "_" + fold_pair[1]
+        if 'sh' in fold_pair_subdir:
+            continue
+        if len(os.listdir(f'{DATA_DIR}/{fold_pair_subdir}/output_esm_fold')) == 0:
+            continue
+        compute_esmfold_pred_tmscores(fold_pair_subdir)
+
+    print("Finish all ESMFold TMscores computations!")
 
 
