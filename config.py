@@ -1,6 +1,14 @@
 import os, re
 import platform
 
+"""
+Configuration file for the project.
+
+This file contains all paths and constants required for the project,
+specific to different users ('zuk_laptop' and 'steve_moriah').
+
+To add a new user, extend the logic below with the appropriate paths.
+"""
 
 
 def linux_to_windows_path(linux_path: str) -> str:
@@ -24,18 +32,14 @@ def windows_to_linux_path(windows_path: str) -> str:
     return windows_path.replace('\\', '/')
 
 
-"""
-Configuration file for the project.
+def is_pycharm() -> bool:
+    # PyCharm typically sets one of these
+    return os.environ.get("PYCHARM_HOSTED") == "1" or "PYCHARM_DISPLAY_PORT" in os.environ
 
-This file contains all paths and constants required for the project,
-specific to different users ('zuk_laptop' and 'steve_moriah').
-
-To add a new user, extend the logic below with the appropriate paths.
-"""
 
 # Define the user: change this to match the current user's environment
 user =  os.getenv('USER') #  "zuk_laptop"  # Options: "steve_moriah", "zuk_laptop"
-
+moriah = os.path.isdir('/sci/labs/orzuk')  # Check if running locally or in moriah cluster
 
 if user is None: # for local run
     print("Current directory: ", os.getcwd())
@@ -48,7 +52,10 @@ if user is None: # for local run
 print("RUNNING FOLD-SWITCH PIEPLINE WITH USER: " +  user + "  ENVIRONMENT: " +  platform.system())
 
 if user == 'steveabecassis':
-    MAIN_DIR = '/Users/steveabecassis/Desktop'
+    if moriah:
+        MAIN_DIR = '/sci/labs/orzuk/steveabecassis/MsaCluster'
+    else:
+        MAIN_DIR = '/Users/steveabecassis/Desktop'
     DATA_DIR = MAIN_DIR + '/Pipeline'
     CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
     LOCAL_RUN = True
@@ -59,15 +66,18 @@ if user == 'steveabecassis':
     CMAP_ANALYSIS_FILE = DATA_DIR + '/cmap_exact_analysis_tol0_2510.parq'
     # File create by the script esmfold_analysis.py (in the analysis folder)
 
-    # Set directories for each part of the pipeline
-    PAIR_DIRS = {"AF":"AF_Preds", "ESMFold":"esm_fold_output", "Cmap":"Cmap_Preds", "MSA":"MSA_Preds", "Cluster":"Cluster" }
+    # Set subdirectories for each part of the pipeline
+    PAIR_DIRS = {"AF":"AF_Preds", "ESMFold":"output_esm_fold", "Cmap":"Cmap_Preds", "MSA":"MSA_Preds", "Cluster":"Cluster" }
 
 
 if user in ['zuk_laptop', 'orzuk']:
     if user == 'zuk_laptop':  # WINDOWS PC
         MAIN_DIR = 'C://Code//Github//MsaCluster'
     else:
-        MAIN_DIR = '/mnt/c/Code/Github/MsaCluster'
+        if moriah:
+            MAIN_DIR = '/sci/labs/orzuk/orzuk/github/MsaCluster'
+        else:
+            MAIN_DIR = '/mnt/c/Code/Github/MsaCluster'
     DATA_DIR = MAIN_DIR + '/Pipeline'
     TABLES_DIR = MAIN_DIR + '/data'
     OUTPUT_PATH_NOTEBOOKS = DATA_DIR + '/HTMLs_new_3001'

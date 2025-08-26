@@ -3,14 +3,55 @@ from Bio.SeqUtils import seq1
 from Bio.PDB import PDBParser, PDBIO, Select
 from Bio import SeqIO
 import mdtraj as md
-import numpy as np
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from contact_map import ContactFrequency, ContactDifference
 from pathlib import Path
 from typing import List, Tuple, Union
 
-# pdb_file = f'{PDF_FILES_PATH}/1jfk.pdb'
+import numpy as np
+
+
+def pdb_to_contact_map(
+    pdb_file: str,
+    chain: str | None = None,
+    cutoff_A: float = 5.0,   # keep your current ~5 Å (0.5 nm) default
+    include_diag: bool = True) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Return (binary_contact_map, distance_matrix) using Cα coordinates.
+
+    - pdb_file : path to a PDB file
+    - chain    : if given, use only this chain (e.g., 'A'); else use all chains in model 0
+    - cutoff_A : threshold in Å for the binary contact map
+    - include_diag : if True, distance[i,i]=0 and CM diagonal = 1
+
+    Shapes: (N_res, N_res), dtype: CM=uint8, D=float64
+    """
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure("x", pdb_file)
+
+    # collect Cα coords (Å)
+    coords = []
+    model0 = next(iter(structure))  # first model
+    for ch in model0:
+        if chain is not None and ch.id != chain:
+            continue
+        for res in ch:
+            if res.id[0] == ' ' and 'CA' in res:  # protein residue, has CA
+                coords.append(res['CA'].coord)
+
+    coords = np.asarray(coords, dtype=float)
+    if coords.size == 0:
+        raise ValueError(f"No Cα atoms found (file={pdb_file}, chain={chain!r}).")
+
+    # pairwise distances (Å); vectorized
+    diffs = coords[:, None, :] - coords[None, :, :]
+    dist_mat = np.sqrt(np.einsum("ijk,ijk->ij", diffs, diffs, optimize=True), dtype=float)
+    if include_diag:
+        np.fill_diagonal(dist_mat, 0.0)
+    cmap = (dist_mat <= float(cutoff_A)).astype(np.uint8)
+    return cmap, dist_mat
+
 
 class ChainSelect(Select):
     def __init__(self, chain_letter):
@@ -94,6 +135,17 @@ def find_max_keys(input_dict):
         result[subkey] = (max_key, max_value)
 
     return result
+
+
+def pair_str_to_tuple(s: str) -> tuple[str, str]:
+    """
+    '1dzlA_5keqF' -> ('1dzlA','5keqF')
+    """
+    s = s.strip()
+    if "_" not in s:
+        raise ValueError(f"Pair must look like PDBidChain_PDBidChain, got: {s}")
+    a, b = s.split("_", 1)
+    return a.strip(), b.strip()
 
 
 def list_protein_pairs(parsed: bool = True, sort_result: bool = True) -> (

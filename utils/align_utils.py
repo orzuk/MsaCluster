@@ -1,10 +1,12 @@
 # Utilities for aligning two structures,contact maps and sequences
 # utils/align_utils.py
 from __future__ import annotations
+from Bio import pairwise2
+from Bio.Align import substitution_matrices
 
 from tmtools import tm_align
 from tmtools.io import get_structure, get_residue_data
-
+from utils.msa_utils import *
 from utils.protein_utils import *
 import os, re, shutil, subprocess, tempfile, pathlib
 from typing import Optional, Dict, Any
@@ -94,7 +96,6 @@ def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
 
 
 def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
-
     def _coords_seq_from_any(local_pdb: str, chain: str | None):
         """
         Get (CA_coords, seq) robustly:
@@ -185,4 +186,31 @@ def compute_tmscore_align(
         vals = [v for k, v in res.items() if k in ("tm_by_1", "tm_by_2") and v is not None]
         return float(max(vals)) if vals else float(res["tm_by_1"])
     raise ValueError("norm must be one of: 'by_1', 'by_2', 'max'")
+
+
+
+def align_cmaps_by_sequence(
+    cmap1: np.ndarray, seq1: str,
+    cmap2: np.ndarray, seq2: str,
+    mode: str = "blosum",       # choose "blosum" by default; or "standard"
+    gap_open: int = 11,
+    gap_extend: int = 1) -> Tuple[np.ndarray, np.ndarray, Tuple[List[int], List[int]]]:
+    """
+    Build residue mapping from sequences, then slice both contact maps to matched positions.
+    Returns (aligned_cmap1, aligned_cmap2, (idx1, idx2)).
+    """
+    idx1, idx2 = get_align_indexes(seq1, seq2, mode=mode, gap_open=gap_open, gap_extend=gap_extend)
+    if not idx1:
+        raise ValueError("No matched residues found from sequence alignment.")
+    print("Finished pairwise-sequence alignment with " + mode + " mode; Now to cmaps")
+
+    n1, n2 = cmap1.shape[0], cmap2.shape[0]
+    paired = [(i, j) for i, j in zip(idx1, idx2) if i < n1 and j < n2]
+    if not paired:
+        raise ValueError("Matched indices exceed cmap sizes; ensure sequences match how maps were built (e.g., CA-only).")
+    i_sel, j_sel = map(np.array, zip(*paired))
+
+    cm1 = cmap1[np.ix_(i_sel, i_sel)]
+    cm2 = cmap2[np.ix_(j_sel, j_sel)]
+    return cm1, cm2, (i_sel.tolist(), j_sel.tolist())
 

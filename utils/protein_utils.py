@@ -1,7 +1,4 @@
 # Some utilities for proteins and their mutations
-# import copy
-#
-# import pandas as pd
 # import esm
 import string
 import shutil
@@ -11,20 +8,14 @@ from config import *
 # import pcmap
 import torch
 import torch.nn.functional as F  # for padding
-
 from scipy.spatial.distance import squareform, pdist, cdist
 
-# import numpy as np
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
-# import matplotlib as mpl
 # import matplotlib.pyplot as plt
 import Bio
 import Bio.PDB
 import Bio.SeqRecord
 from Bio import SeqIO, PDB, AlignIO
-
-from Bio.PDB.Polypeptide import is_aa
-from Bio.PDB import PDBParser
 
 import pickle
 import os
@@ -32,16 +23,11 @@ import sys
 # import urllib
 import mdtraj as md
 from Bio.PDB import *
-from Bio.PDB.Polypeptide import protein_letters_3to1
 # import biotite.structure as bs
-# from biotite.structure.io.pdbx import get_structure
-
-from Bio.PDB import MMCIFParser, Selection
-
 
 from biotite.structure.io.pdb import PDBFile
 from biotite.database import rcsb
-from biotite.structure.io.pdbx import get_structure
+# from biotite.structure.io.pdbx import get_structure
 from biotite.structure import filter_amino_acids, distance, AtomArray
 # from biotite.structure.residues import get_residues
 from biotite.structure import get_residues
@@ -56,24 +42,13 @@ import subprocess
 import re
 
 #from biotite.structure.io.pdbx import PDBxFile, get_structure
-#from biotite.structure import filter_amino_acids
-#import os
-#import tempfile
 
-
-# from tmtools.io import get_residue_data  # can't have get_structure here too !!!
-# from tmtools.io import get_structure as tmtool_get_structure  # can't have get_structure here too !!!
 
 # import iminuit
-# import tmscoring  # for comparing structures
 # Helper function for loading
-# import tempfile
 
 from Bio.PDB.MMCIFParser import MMCIFParser
 from types import SimpleNamespace
-
-
-# from TreeConstruction import DistanceTreeConstructor
 
 
 # This is an efficient way to delete lowercase characters and insertion characters from a string
@@ -121,9 +96,13 @@ aa_long_short = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
                  'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
                  'ALA': 'A', 'VAL': 'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M',
                  'ASX': 'B', 'XLE': 'J', 'PYL': 'O', 'SEC': 'U', 'UNK': 'X', 'GLX': 'Z'}
-
-
 aa_short_long = {y: x for x, y in aa_long_short.items()}
+
+# Normalize common non-standard residue names to standard 3-letter codes
+NONSTD_TO_STD = {"MSE":"MET","SEP":"SER","TPO":"THR","PTR":"TYR",
+                 "HSD":"HIS","HSE":"HIS","HSP":"HIS",
+                 "MLE":"LEU","MLY":"LYS","M3L":"LYS"}
+
 
 
 # Get all the possible amino acids that we get with a single point mutation
@@ -163,35 +142,67 @@ def process_sequence(seq):
     return seq
 
 
-def extract_protein_sequence(pdb_file):
-    parser = PDBParser()
-    structure = parser.get_structure('protein', pdb_file)
-    residue_sequence = ''
+def extract_protein_sequence(
+    pdb_file: str,
+    chain: Optional[str] = None,
+    ca_only: bool = False) -> str:
+    """
+    Return a one-letter AA sequence from a PDB file.
 
-    for model in structure:
-        for chain in model:
-            for residue in chain:
-                if is_aa(residue):  # Only process amino acid residues
-                    try:
-                        residue_sequence += protein_letters_3to1[residue.get_resname()]
-                    except KeyError:
-                        # Handle non-standard amino acids
-                        residue_sequence += '-'
-    residue_sequence = process_sequence(residue_sequence)
+    - If `chain` is given (e.g., 'A'), only that chain is used.
+    - If `ca_only=True`, include only residues that have a Cα atom.
+      (This makes the sequence length match a CA-based contact map built
+       with the same chain and residue filtering.)
 
-    return residue_sequence
+    Notes:
+      * Non-standard AA names are normalized via NONSTD_TO_STD, then mapped
+        with your `aa_long_short` dict; anything unknown becomes 'X'.
+      * Only polymer residues are included (res.id[0] == ' ').
+      * First model only (common for crystal/NMR single-model files).
+    """
+    structure = PDBParser(QUIET=True).get_structure("x", pdb_file)
+    seq_chars = []
+    try:
+        model0 = next(iter(structure))
+    except StopIteration:
+        raise ValueError(f"No models found in PDB: {pdb_file}")
+
+    for ch in model0:
+        if chain is not None and ch.id != chain:
+            continue
+        for res in ch:
+            # skip waters/hetero
+            if res.id[0] != " ":
+                continue
+            # keep amino-acid residues (include nonstandard names too)
+            if not is_aa(res, standard=False):
+                continue
+            # if CA-only, require a CA atom
+            if ca_only and "CA" not in res:
+                continue
+
+            res3 = res.get_resname().upper()
+            res3 = NONSTD_TO_STD.get(res3, res3)
+            seq_chars.append(aa_long_short.get(res3, "X"))
+
+        # if a specific chain was requested, stop after it
+        if chain is not None:
+            break
+
+    seq = "".join(seq_chars)
+    if not seq:
+        raise ValueError(f"No amino-acid residues found for "
+            f"{'chain '+chain if chain else 'protein'} in {pdb_file} "
+            f"(ca_only={ca_only}).")
+
+    # If you have a post-processor, use it; otherwise return as-is
+    try:
+        return process_sequence(seq)
+    except Exception:
+        return seq
 
 
 def clean_sequence(residue_energies):
-    seq = ""
-    for res in residue_energies:
-        resname = res[0]  # res = ('ALA', 3, 2.5)
-        if resname in aa_long_short:
-            seq += aa_long_short[resname]
-    return seq
-
-
-def clean_sequence_old(residue_energies):
     """
     Clean residue energies to extract a valid amino acid sequence.
 
@@ -201,15 +212,12 @@ def clean_sequence_old(residue_energies):
     Returns:
     - str: Cleaned amino acid sequence.
     """
-    cleaned_sequence = [
-        res["residue_name"].split(":")[0]  # Remove metadata after ":" (e.g. ":CtermProteinFull")
-        for res in residue_energies
-        if res["residue_name"].split(":")[0] in aa_long_short.keys()  # Keep only valid residues
-    ]
-
-    # Map three-letter codes to one-letter codes using your dictionary
-    cleaned_sequence = [aa_long_short[x] for x in cleaned_sequence]
-    return "".join(cleaned_sequence)
+    seq = ""
+    for res in residue_energies:
+        resname = res[0]  # res = ('ALA', 3, 2.5)
+        if resname in aa_long_short:
+            seq += aa_long_short[resname]
+    return seq
 
 
 def convert_atomarray_to_recarray(atom_array):

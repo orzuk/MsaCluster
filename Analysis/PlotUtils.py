@@ -1,41 +1,33 @@
 import prody as pr
-import py3Dmol
 import tempfile
 from contact_map import OverrideTopologyContactDifference
-import matplotlib.pyplot as plt
-import mdtraj as md
 from contact_map import ContactFrequency, ContactDifference
 import warnings
 
+from utils.protein_utils import aa_long_short
 
 warnings.filterwarnings("ignore")
 import mdtraj as md
-import numpy as np
 from matplotlib.pyplot import *
 import matplotlib.pyplot as plt
-import prody
 import os
 from scipy.ndimage import binary_dilation
 import matplotlib.patches as mpatches
 from IPython.display import display, HTML
-from Bio import PDB
-from Bio import pairwise2
 from Bio.PDB import Superimposer
-import py3Dmol
 import ipywidgets as widgets
-from Bio.PDB import PDBParser
 from Bio import pairwise2
 import py3Dmol
 from Bio import PDB, Align
 from Bio.PDB import PDBParser, PDBIO
-from Bio.PDB.Polypeptide import protein_letters_3to1
+# from Bio.PDB.Polypeptide import protein_letters_3to1
 from io import StringIO
 import numpy as np
 
 
-def three_to_one(residue):
-    """Convert three-letter amino acid code to one-letter code."""
-    return protein_letters_3to1.get(residue.upper(), "X")  # Default to "X" if not found
+#def three_to_one(residue):
+#    """Convert three-letter amino acid code to one-letter code."""
+#    return protein_letters_3to1.get(residue.upper(), "X")  # Default to "X" if not found
 
 # Function to read PDB file
 def read_pdb_file(file_path):
@@ -44,7 +36,7 @@ def read_pdb_file(file_path):
 
 
 def get_seq_from_structure(structure):
-    return ''.join([three_to_one(res.resname)
+    return ''.join([aa_long_short[res.resname]
                     for res in structure.get_residues()
                     if PDB.Polypeptide.is_aa(res)])
 
@@ -151,7 +143,7 @@ def extract_protein_sequence(pdb_file):
             flag += 1
             for residue in chain:
                 if PDB.is_aa(residue):
-                    residue_sequence += three_to_one(residue.get_resname())
+                    residue_sequence += aa_long_short[residue.get_resname()]
     return residue_sequence
 
 
@@ -196,8 +188,8 @@ def visualize_structure_alignment(pdb_file1, pdb_file2, chain1='A', chain2='A'):
     structure2 = parser.get_structure("protein2", pdb_file2)
 
     # Extract sequences
-    seq1 = "".join([three_to_one(res.resname) for res in structure1[0][chain1] if res.id[0] == ' '])
-    seq2 = "".join([three_to_one(res.resname) for res in structure2[0][chain2] if res.id[0] == ' '])
+    seq1 = "".join([aa_long_short[res.resname] for res in structure1[0][chain1] if res.id[0] == ' '])
+    seq2 = "".join([aa_long_short[res.resname] for res in structure2[0][chain2] if res.id[0] == ' '])
 
     # Perform sequence alignment
     aligner = Align.PairwiseAligner()
@@ -260,8 +252,12 @@ class PlotTool:
         self.fold_pair = fold_pair
         self.fold1 = fold_pair.split('_')[0]
         self.fold2 = fold_pair.split('_')[1]
-        self.structure1 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/chain_pdb_files/{self.fold1}.pdb')
-        self.structure2 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/chain_pdb_files/{self.fold2}.pdb')
+        try:
+            self.structure1 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/chain_pdb_files/{self.fold1}.pdb')
+            self.structure2 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/chain_pdb_files/{self.fold2}.pdb')
+        except:
+            self.structure1 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/{self.fold1[:-1]}.pdb')
+            self.structure2 = pr.parsePDB(f'{self.folder}/{self.fold_pair}/{self.fold2[:-1]}.pdb')
 
     def read_pdb_file(self, file_path):
         with open(file_path, 'r') as file:
@@ -344,68 +340,6 @@ class PlotTool:
         viewer.setBackgroundColor('white')
         viewer.show()
 
-    def plot_fold_alignment_1(self, path_pdb1, path_pdb2):
-        try:
-            # Select CA atoms for alignment
-            structure1 = pr.parsePDB(path_pdb1)
-            structure2 = pr.parsePDB(path_pdb2)
-            ca_atoms1 = structure1.select('name CA')
-            ca_atoms2 = structure2.select('name CA')
-
-            # Ensure CA atoms are found
-            if ca_atoms1 is None or ca_atoms2 is None:
-                raise ValueError("CA atoms not found in one or both structures")
-
-            # Get common residues
-            common_residues = set(ca_atoms1.getResnums()).intersection(ca_atoms2.getResnums())
-            if not common_residues:
-                raise ValueError("No common residues found for alignment")
-
-            matched_ca1 = ca_atoms1.select('resnum ' + ' '.join(map(str, common_residues)))
-            matched_ca2 = ca_atoms2.select('resnum ' + ' '.join(map(str, common_residues)))
-
-            # Ensure matched CA atoms are found
-            if matched_ca1 is None or matched_ca2 is None:
-                raise ValueError("Matched CA atoms not found in one or both structures")
-
-            # Calculate transformation and apply to structure2
-            transformation = pr.calcTransformation(matched_ca2, matched_ca1)
-            structure2_aligned = transformation.apply(structure2)
-
-            pref = path_pdb2.split('/')[-1][:-4] + '_TEMP'
-            print(pref)
-            # Write the aligned structure2 to a temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdb', prefix=pref) as temp_file:
-                pr.writePDB(temp_file.name, structure2_aligned)
-                aligned_pdb2_path = temp_file.name
-
-            # Read the aligned PDB files
-            pdb1 = self.read_pdb_file(path_pdb1)
-            pdb2 = self.read_pdb_file(aligned_pdb2_path)
-
-            # Create a py3Dmol viewer
-            viewer = py3Dmol.view(width=800, height=600)
-
-            # Add the first structure with cartoon style
-            viewer.addModel(pdb1, 'pdb')
-            print(f"Blue: {path_pdb1.split('/')[-1][:-4]}")
-            viewer.setStyle({'model': 0}, {'cartoon': {'color': 'blue'}})
-
-            # Add the aligned second structure with cartoon style
-            viewer.addModel(pdb2, 'pdb')
-            print(f"Red: {path_pdb2.split('/')[-1][:-4]}")
-            viewer.setStyle({'model': 1}, {'cartoon': {'color': 'red'}})
-
-            # Align the second model to the first
-            viewer.zoomTo()
-            viewer.zoom(1.2)
-            viewer.setBackgroundColor('white')
-            viewer.show()
-
-            # Delete the temporary file
-            os.remove(aligned_pdb2_path)
-        except Exception as e:
-            print(f"An error occurred: {e}")
 
     def align_and_visualize_pdb(self, pdb_file1, pdb_file2, score=None):
         # Load the PDB files using ProDy

@@ -1,9 +1,16 @@
-import os
+import os, sys
 import pandas as pd
 from tqdm import tqdm
 import re
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+
 from config import *
 
+
+# Function to create the summary table
+# Input: output_file - path to save the summary table
 def make_summary_table(output_file):
     files = os.listdir(DATA_DIR)
     pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
@@ -94,7 +101,3 @@ if __name__=='__main__':
     print("Run make summary table")
     make_summary_table(SUMMARY_RESULTS_TABLE)
 
-
-CMAP_ANALYSIS_FILE = '/Users/steveabecassis/Desktop/Pipeline/cmap_exact_analysis_tol0_2510.parq'
-# File create by the script esmfold_analysis.py (in the analysis folder)
-ESMFOLD_ANALYSIS_FILE = '/Users/steveabecassis/Desktop/Pipeline_res/df_esmfold_analysis.csv'

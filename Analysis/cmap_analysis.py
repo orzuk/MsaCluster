@@ -1,9 +1,15 @@
+import os, sys
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+
 from tqdm import tqdm
-# from olds.Analysis import *
 from Analysis.PlotUtils import *
 from config import *
 import pandas as pd
-import re
+from utils.utils import *
+from utils.align_utils import *
+import argparse
+
 
 def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
     """
@@ -59,58 +65,110 @@ def get_only_cmaps(cmap1,cmap2):
     return only_fold1,only_fold2
 
 
-if __name__ == '__main__':
-    folder  = DATA_DIR
-    files = os.listdir(folder)
-    pattern = r'^[0-9a-zA-Z]{5}_[0-9a-zA-Z]{5}$'
-    fold_pairs = [i for i in files if re.match(pattern, i)]
-    fold_pair_errors  = []
-    res = []
-    for fold_pair in fold_pairs:
-        if '.sh' in fold_pair:
-            continue
-        try:
-            fold1     = fold_pair.split('_')[0]
-            fold2     = fold_pair.split('_')[-1]
-            plot_tool = PlotTool(folder=folder, fold_pair=fold_pair)
-            cmap_pdb1 = plot_tool.get_contact_map_from_pdb(f'{plot_tool.folder}/{plot_tool.fold_pair}/chain_pdb_files/{plot_tool.fold1}.pdb')
-            cmap_pdb2 = plot_tool.get_contact_map_from_pdb(f'{plot_tool.folder}/{plot_tool.fold_pair}/chain_pdb_files/{plot_tool.fold2}.pdb')
-            cmap_aligned_pdb1, cmap_aligned_pdb2 = align_and_resize_contact_maps(cmap_pdb1, cmap_pdb2, window_size=1, step_size=1)
-            cmap_only_pdb1,cmap_only_pdb2 = get_only_cmaps(cmap_aligned_pdb1,cmap_aligned_pdb2)
-            cmaps_path = f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm'
-            cmaps = os.listdir(cmaps_path)
-            path_viz_maps = f'{folder}/{fold_pair}/output_cmap_esm/VizCmaps'
 
+# --- replace your existing main with this ---
+if __name__ == "__main__":
+    # Parse optional CLI pair
+    parser = argparse.ArgumentParser(description="CMAP analysis for one pair or all pairs")
+    parser.add_argument("pair", nargs="?", help="Optional pair like 1dzlA_5keqF")
+    args = parser.parse_args()
+
+    DEFAULT_PYCHARM_PAIR = "1dzlA_5keqF"
+
+    if args.pair:  # explicit CLI pair
+        fold_pairs = [pair_str_to_tuple(args.pair)]
+        mode = "single-arg"
+    elif is_pycharm():  # running from PyCharm, no CLI arg
+        fold_pairs = [pair_str_to_tuple(DEFAULT_PYCHARM_PAIR)]
+        mode = "pycharm-default"
+    else:  # no arg, non-PyCharm → run all pairs
+        fold_pairs = list_protein_pairs()
+        mode = "all"
+
+    print(f"[cmap_analysis] Mode={mode} | total pairs={len(fold_pairs)}")
+
+    fold_pair_errors = []
+    for fold_pair in fold_pairs:
+        chains = (fold_pair[0][-1], fold_pair[1][-1])
+        # ensure tuple form like ('1dzlA','5keqF')
+        if isinstance(fold_pair, str):
+            fold_pair = pair_str_to_tuple(fold_pair)
+
+        fold_pair_subdir = f"{fold_pair[0]}_{fold_pair[1]}"
+        res = []
+        try:
+            print("Set plot_tool for: ", fold_pair_subdir)
+            plot_tool = PlotTool(folder=DATA_DIR, fold_pair=fold_pair_subdir)
+
+            print("Extract sequences for: ", fold_pair_subdir)
+            seq1 = extract_protein_sequence(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[0][:-1]}.pdb",
+                                            chain=chains[0], ca_only=True)
+            seq2 = extract_protein_sequence(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[1][:-1]}.pdb",
+                                            chain=chains[1], ca_only=True)  # Add chain!
+
+            print("Compute contact maps: ", fold_pair_subdir)
+            cmap_pdb1, _ = pdb_to_contact_map(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[0][:-1]}.pdb",
+                                              chain=chains[0])
+            cmap_pdb2, _ = pdb_to_contact_map(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[1][:-1]}.pdb",
+                                              chain=chains[1])
+
+            print(f"[debug] cmap sizes: n1={cmap_pdb1.shape[0]}, n2={cmap_pdb2.shape[0]}")
+            print(f"[debug] seq lengths: L1={len(seq1)}, L2={len(seq2)}")
+
+            print("NEW!!! Align cmaps for: ", fold_pair_subdir)
+#            cmap_aligned_pdb1, cmap_aligned_pdb2 = align_and_resize_contact_maps(
+#                cmap_pdb1, cmap_pdb2, window_size=1, step_size=1)  # OLD!!!
+            cmap_aligned_pdb1, cmap_aligned_pdb2, (idx1, idx2) = align_cmaps_by_sequence(
+                cmap_pdb1, seq1, cmap_pdb2, seq2, mode="standard") #"standard") # 'blosum')
+
+            print("Get only cmaps for: ", fold_pair_subdir)
+            cmap_only_pdb1, cmap_only_pdb2 = get_only_cmaps(cmap_aligned_pdb1, cmap_aligned_pdb2)
+
+            cmaps = os.listdir(f"{DATA_DIR}/{fold_pair_subdir}/output_cmap_esm")
+            path_viz_maps = f"{DATA_DIR}/{fold_pair_subdir}/output_cmap_esm/VizCmaps"
+
+            print("Loop on cmaps for: ", fold_pair_subdir)
             for cmap in tqdm(cmaps):
                 try:
-                    if (cmap == 'VizCmaps') or 'deep' in cmap:
+                    if (cmap == "VizCmaps") or "deep" in cmap:
                         continue
-                    if 'Shallow' in cmap:
-                        cmap_pred = load_pred_cmap(f'{cmap[:-4]}')
+                    if "Shallow" in cmap:
+                        cmap_pred = load_pred_cmap(f"{cmap[:-4]}")
                         cluster = cmap[-7:-4]
                     else:
                         continue
-                    visualization_map_1_tol = load_cmap(f'{path_viz_maps}/msa_t__ShallowMsa_{cluster}_visualization_map_1_tol_0.npy')
-                    visualization_map_2_tol = load_cmap(f'{path_viz_maps}/msa_t__ShallowMsa_{cluster}_visualization_map_2_tol_0.npy')
-                    recall_only_fold1 = round(np.count_nonzero(visualization_map_1_tol == 1.75) / np.count_nonzero(cmap_only_pdb1 == 1),2)
-                    recall_only_fold2 = round(np.count_nonzero(visualization_map_2_tol == 1.75) / np.count_nonzero(cmap_only_pdb2 == 1), 2)
-                    # np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_1_tol_0.npy', visualization_map_1_tol)
-                    # np.save(f'{cmaps_path}/VizCmaps/{cmap[:-4]}_visualization_map_2_tol_0.npy', visualization_map_2_tol)
 
-                    res.append({'fold_pair':fold_pair,'File':cmap,'recall_only_fold1':recall_only_fold1,'recall_only_fold2':recall_only_fold2})
+                    visualization_map_1_tol = load_cmap(
+                        f"{path_viz_maps}/msa_t__ShallowMsa_{cluster}_visualization_map_1_tol_0.npy")
+                    visualization_map_2_tol = load_cmap(
+                        f"{path_viz_maps}/msa_t__ShallowMsa_{cluster}_visualization_map_2_tol_0.npy")
+                    recall_only_fold1 = round(
+                        np.count_nonzero(visualization_map_1_tol == 1.75)
+                        / np.count_nonzero(cmap_only_pdb1 == 1), 2)
+                    recall_only_fold2 = round(
+                        np.count_nonzero(visualization_map_2_tol == 1.75)
+                        / np.count_nonzero(cmap_only_pdb2 == 1), 2)
+
+                    res.append(
+                        {
+                            "fold_pair": fold_pair,
+                            "File": cmap,
+                            "recall_only_fold1": recall_only_fold1,
+                            "recall_only_fold2": recall_only_fold2,
+                        }
+                    )
                 except Exception as e:
                     print(e)
                     continue
 
         except Exception as e:
             fold_pair_errors.append(fold_pair)
-            print(f'Error for {fold_pair}: {e}')
+            print(f"Error for {fold_pair}: {e}")
             continue
 
-    final_df = pd.DataFrame(res)
-    print("final_df is ", final_df)
-    success_cmap_score = final_df.fold_pair.unique()
-    final_df['cluster_num'] = final_df.File.apply(lambda x:x[-7:-4])
+        # Save data-frame for each protein pair
+        df_cmap = pd.DataFrame(res)
+        df_cmap.to_csv(f"{DATA_DIR}/{fold_pair_subdir}/Analysis/df_cmap.csv")
 
-    final_df.to_csv(f'./data/df_cmap_all.csv',index=False)  # maybe save this also to parq?
+    print("Finish all MSA-Transformer CMAP Similarity computations!")
 
