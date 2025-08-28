@@ -16,65 +16,113 @@ _BLOSUM62   = parasail.blosum62
 _CIGAR_RE   = re.compile(r"(\d+)([=XMDI])")
 _BLOSUM_ALPHABET = set("ARNDCQEGHILKMFPSTWYVBZX")  # no J/U/O in common blosum tables
 
+
 def _sanitize_blosum(seq: str) -> str:
-    # map unsupported letters to reasonable substitutes; other unknowns -> X
-    s = (seq or "").upper().translate(str.maketrans({"U":"C","O":"K","J":"L"}))
+    # U->C, O->K, J->L ; others outside table -> X
+    s = (seq or "").upper().translate(str.maketrans({"U": "C", "O": "K", "J": "L"}))
     return "".join(ch if ch in _BLOSUM_ALPHABET else "X" for ch in s)
 
-def _aligned_strings_from_cigar(res, sA: str, sB: str) -> Tuple[str, str, str, Dict[str,int]]:
+_CIGAR_RE = re.compile(r"(\d+)([=XMDISH])")  # include S/H just in case
+
+def _aligned_strings_from_parasail(res, sA: str, sB: str) -> Tuple[str, str, str, Dict[str,int]]:
+    """
+    Robustly reconstruct (aligned_A, aligned_B) by using traceback if available,
+    else parse the CIGAR string. Returns (a, b, cigar_str, op_counts).
+    """
     cig = getattr(res, "cigar", None)
-    if cig is None:
-        tb = getattr(res, "traceback", None)
-        if tb is None:
-            raise RuntimeError("parasail result has neither cigar nor traceback")
+    tb  = getattr(res, "traceback", None)
+
+    if tb is not None:
         a, b = tb.query, tb.ref
-        return a, b, "<no-cigar>", {}
+        return a, b, "<traceback>", {}
+
+    if cig is None:
+        raise RuntimeError("parasail result has neither cigar nor traceback")
+
     cigar_str = str(cig)
     i = getattr(cig, "beg_query", 0)
     j = getattr(cig, "beg_ref", 0)
-    a_parts, b_parts = [], []
-    counts = {"=":0,"X":0,"M":0,"I":0,"D":0}
+    a_parts: List[str] = []
+    b_parts: List[str] = []
+    counts: Dict[str, int] = {"=":0,"X":0,"M":0,"I":0,"D":0,"S":0,"H":0}
+
     for length, op in _CIGAR_RE.findall(cigar_str):
-        n = int(length); counts[op] = counts.get(op,0) + n
-        if op in ("=","X","M"):
+        n = int(length)
+        counts[op] = counts.get(op, 0) + n
+        if op in ("=", "X", "M"):
             a_parts.append(sA[i:i+n]); b_parts.append(sB[j:j+n]); i += n; j += n
-        elif op == "I":  # insertion in A (gap in B)
-            a_parts.append(sA[i:i+n]); b_parts.append("-"*n); i += n
-        elif op == "D":  # deletion from A (gap in A)
-            a_parts.append("-"*n); b_parts.append(sB[j:j+n]); j += n
+        elif op == "I" or op == "S":    # insertion in A (gap in B) ; treat 'S' like 'I' for query soft-clip
+            a_parts.append(sA[i:i+n]); b_parts.append("-" * n); i += n
+        elif op == "D" or op == "H":    # deletion from A (gap in A) ; treat 'H' like 'D' for ref-clip
+            a_parts.append("-" * n); b_parts.append(sB[j:j+n]); j += n
+
     return "".join(a_parts), "".join(b_parts), cigar_str, counts
+
+
+def _biopython_align(seqA: str, seqB: str, mode: str) -> Tuple[str, str]:
+    from Bio import pairwise2
+    if mode == "standard":
+        aln = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)[0]
+    else:
+        from Bio.Align import substitution_matrices
+        blosum = substitution_matrices.load("BLOSUM62")
+        aln = pairwise2.align.globalds(seqA, seqB, blosum, -11, -1, one_alignment_only=True)[0]
+    return aln.seqA, aln.seqB
+
 
 def get_align_indexes(
     seqA: str,
     seqB: str,
     mode: str = "blosum",     # "blosum" or "standard"
-    gap_open: int = 11,       # POSITIVE costs (parasail requirement)
+    gap_open: int = 11,       # POSITIVE for parasail
     gap_extend: int = 1,
     debug: bool = False,
+    debug_print_alignment: bool = True,
+    debug_max_chars: int = 240,   # max chars to print from aligned strings (head/tail shown)
 ) -> Tuple[List[int], List[int]]:
     """
-    Global alignment via parasail; returns index lists (i,j) where both sequences are aligned (non-gaps).
-    Robust across Windows builds (parses CIGAR), with helpful debug output.
+    Global alignment (Needleman–Wunsch). Returns lists of indices (i,j) where both seqs have residues (non-gaps).
+    Prints detailed debug info if debug=True, including aligned strings (with gaps) and first/last index pairs.
     """
-    if mode not in ("blosum","standard"):
+    if mode not in ("blosum", "standard"):
         raise ValueError("mode must be 'standard' or 'blosum'")
 
-    # Prep sequences
+    # --- prep sequences
     if mode == "blosum":
-        sA = _sanitize_blosum(seqA); sB = _sanitize_blosum(seqB)
-        mat = _BLOSUM62
-        go, ge = int(abs(gap_open)), int(abs(gap_extend))
+        sA = _sanitize_blosum(seqA)
+        sB = _sanitize_blosum(seqB)
     else:
-        sA = (seqA or "").upper(); sB = (seqB or "").upper()
-        mat = _ID_MATRIX
-        # IMPORTANT: use POSITIVE gap costs to avoid all-gap alignments
-        go, ge = 5, 1  # conservative defaults for "standard"
+        sA = (seqA or "").upper()
+        sB = (seqB or "").upper()
 
-    # Align (trace-enabled, SIMD)
-    res = parasail.nw_trace_striped_16(sA, sB, go, ge, mat)
-    a, b, cigar_str, op_counts = _aligned_strings_from_cigar(res, sA, sB)
+    # --- attempt parasail first
+    a = b = ""
+    cigar_str = ""
+    op_counts: Dict[str, int] = {}
+    used = "parasail"
+    try:
+        if not _HAS_PARASAIL:
+            raise RuntimeError("parasail not available")
 
-    # Build index mapping (both non-gaps)
+        # choose scoring
+        if mode == "blosum":
+            matrix = parasail.blosum62
+            go, ge = int(abs(gap_open)), int(abs(gap_extend))
+        else:
+            # identity-like, but with mismatch penalty to avoid all-gap oddities
+            matrix = parasail.matrix_create(_ID_ALPHABET, 2, -1)  # match=2, mismatch=-1
+            go, ge = 5, 1
+
+        res = parasail.nw_trace_striped_16(sA, sB, go, ge, matrix)
+        a, b, cigar_str, op_counts = _aligned_strings_from_parasail(res, sA, sB)
+
+    except Exception as e:
+        used = f"biopython (fallback due to: {e})"
+        a, b = _biopython_align(sA, sB, mode=mode)
+        cigar_str = "<pairwise2>"
+        op_counts = {}
+
+    # --- build indices
     i = j = 0
     idxA: List[int] = []
     idxB: List[int] = []
@@ -84,37 +132,46 @@ def get_align_indexes(
         if ca != "-": i += 1
         if cb != "-": j += 1
 
+    # --- debug prints
     if debug:
         aligned_len = len(a)
         both_non_gap = len(idxA)
-        matches = sum(1 for x,y in zip(a,b) if x != "-" and y != "-" and x == y)
+        matches = sum(1 for x, y in zip(a, b) if x != "-" and y != "-" and x == y)
         mism    = both_non_gap - matches
-        print(f"[align] mode={mode} | aligned_len={aligned_len} both_non_gap={both_non_gap} "
-              f"matches={matches} mismatches={mism} gapsA={a.count('-')} gapsB={b.count('-')}")
-        if cigar_str != "<no-cigar>":
-            print(f"[align] cigar(head): {cigar_str[:80]} ...")
-            print(f"[align] ops: {op_counts}")
+        gapsA   = a.count("-")
+        gapsB   = b.count("-")
+        print(f"[align] engine={used}  mode={mode}  aligned_len={aligned_len}  "
+              f"both_non_gap={both_non_gap}  matches={matches}  mismatches={mism}  "
+              f"gapsA={gapsA}  gapsB={gapsB}")
 
-    # Safety fallback: if something went wrong (shouldn’t, with positive gaps), try a stricter identity scoring
-    if not idxA:
-        if debug:
-            print("[align][warn] zero aligned columns; retrying with stricter identity scoring")
-        # Stricter: identity match=2, mismatch=-1 (forces aligned pairs)
-        mat2 = parasail.matrix_create(_ID_ALPHABET, 2, -1)
-        res2 = parasail.nw_trace_striped_16(sA, sB, 5, 1, mat2)
-        a2, b2, *_ = _aligned_strings_from_cigar(res2, sA, sB)
-        i = j = 0; idxA=[]; idxB=[]
-        for ca, cb in zip(a2, b2):
-            if ca != "-" and cb != "-":
-                idxA.append(i); idxB.append(j)
-            if ca != "-": i += 1
-            if cb != "-": j += 1
+        if cigar_str:
+            show = cigar_str if len(cigar_str) <= 200 else cigar_str[:200] + " ..."
+            print(f"[align] CIGAR: {show}")
+            if op_counts:
+                print(f"[align] op_counts: {op_counts}")
 
-    # Final guard
+        if debug_print_alignment:
+            def _clip(s: str) -> str:
+                if len(s) <= debug_max_chars:
+                    return s
+                half = debug_max_chars // 2
+                return s[:half] + " ... " + s[-half:]
+            print(f"[align] A_aln: {_clip(a)}")
+            print(f"[align] B_aln: {_clip(b)}")
+
+        if both_non_gap:
+            head = list(zip(idxA, idxB))[:20]
+            tail = list(zip(idxA, idxB))[-10:]
+            print(f"[align] first idx pairs (i,j): {head}")
+            print(f"[align] last  idx pairs (i,j): {tail}")
+
+    # final guard
     if not idxA:
         raise ValueError("No matched residues found from sequence alignment.")
 
     return idxA, idxB
+
+
 
 
 def lprint(string, f):

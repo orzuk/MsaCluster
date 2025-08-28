@@ -289,7 +289,7 @@ def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
 
     Parameters:
     predictions: Contact map predictions
-    contacts: True Contact MAps (pair)
+    contacts: True Contact Maps (pair)
     save_file (str): Path to save the output image.
     """
     n_pred = len(predictions)
@@ -539,7 +539,6 @@ def plot_foldswitch_contacts_and_predictions(
         norm = plt.Normalize(vmin=combined_vector.min(), vmax=combined_vector.max())
 
         # Plot x_vector heatmap
-
         ax_xvec.imshow(x_vector[np.newaxis, :], aspect="auto", cmap=vector_cmap, norm=norm)
 #        original_aspect_x = ax_xvec.get_data_ratio()  # Get the current aspect ratio
 #        ax_xvec.imshow(x_vector[np.newaxis, :], aspect=original_aspect_x *0.7, cmap=vector_cmap, norm=norm)  # Reduce width by 30%
@@ -575,8 +574,7 @@ def plot_foldswitch_contacts_and_predictions(
             fontsize=7,  # Smaller font size
             columnspacing=0.9,  # Reduce spacing between columns
             handletextpad=0.5,  # Reduce spacing between handles and text
-            borderaxespad=0.2,  # Adjust padding between the legend and axes
-        )
+            borderaxespad=0.2)  # Adjust padding between the legend and axes
 
     ax.axis("square")
 #    print("Recall is: ", {k:round(recall[k], 4) for k in recall}, " fold ids is: ", fold_ids)
@@ -596,7 +594,7 @@ def plot_foldswitch_contacts_and_predictions(
     return recall
 
 
-# MAke global plots for all families
+# Make global plots for all families
 def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter_plot.png"):
     """
     Reads a CSV file and creates a scatter plot with specific values.
@@ -689,7 +687,6 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
         mean_x = group['TM_mean_cluster_pdb1'].mean()
         mean_y = grouped_af.get_group(fold_pair)['score_pdb1'].mean()
 
-
         plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
 
     plt.xlabel("TMScore ESMF")
@@ -737,6 +734,5 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
     # Save the plot to the specified file
     plt.savefig(output_file[:-4] + "_msa_trans.png")
     plt.close()
-
 
 

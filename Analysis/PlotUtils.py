@@ -3,14 +3,16 @@ import tempfile
 from contact_map import OverrideTopologyContactDifference
 from contact_map import ContactFrequency, ContactDifference
 import warnings
-
+import os, sys
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+from config import *
 from utils.protein_utils import aa_long_short
 
 warnings.filterwarnings("ignore")
 import mdtraj as md
 from matplotlib.pyplot import *
 import matplotlib.pyplot as plt
-import os
 from scipy.ndimage import binary_dilation
 import matplotlib.patches as mpatches
 from IPython.display import display, HTML
@@ -174,12 +176,16 @@ def dilate_with_tolerance(array, tolerance):
     return binary_dilation(array, structure=structure).astype(int)
 
 
-def load_pred_cmap(fileName):
-    cmap = np.load(f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm/{fileName}.npy')
-    cmap[cmap > 0.4] = 1
-    cmap[cmap <= 0.4] = 0
-    return cmap
+#def load_pred_cmap(fileName):
+#    cmap = np.load(f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm/{fileName}.npy')
+#    cmap[cmap > 0.4] = 1
+#    cmap[cmap <= 0.4] = 0
+#    return cmap
 
+def load_pred_cmap(file_name, base_dir, pair_dir, thresh=0.4):
+    path = f'{base_dir}/{pair_dir}/output_cmap_esm/{file_name}.npy'
+    cmap = np.load(path)
+    return (cmap > thresh).astype(np.uint8)
 
 def visualize_structure_alignment(pdb_file1, pdb_file2, chain1='A', chain2='A'):
     # Parse PDB files
@@ -247,7 +253,7 @@ def visualize_structure_alignment(pdb_file1, pdb_file2, chain1='A', chain2='A'):
 
 
 class PlotTool:
-    def __init__(self, folder='/Users/steveabecassis/Desktop/Pipeline', fold_pair='3hdfA_3hdeA'):
+    def __init__(self, folder=DATA_DIR, fold_pair='3hdfA_3hdeA'):
         self.folder = folder
         self.fold_pair = fold_pair
         self.fold1 = fold_pair.split('_')[0]
