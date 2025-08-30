@@ -1,8 +1,3 @@
-#
-# '/Users/steveabecassis/Desktop/Pipeline_res/Pipeline/1eboE_5fhcJ/chain_pdb_files/1eboE.pdb')
-# '/Users/steveabecassis/Desktop/Pipeline_res/Pipeline/1eboE_5fhcJ/chain_pdb_files/5fhcJ.pdb')
-
-
 import pymol
 from pymol import cmd
 

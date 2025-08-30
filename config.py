@@ -94,18 +94,14 @@ USE_TMALIGN_BINARY = (os.path.isfile(TMALIGN_EXE) and os.access(TMALIGN_EXE, os.
 # Relative paths common to all users
 TABLES_RES = MAIN_DIR + '/Pipeline_res'
 OUTPUT_PATH_NOTEBOOKS = TABLES_RES + 'HTMLs_new_3001'
-SUMMARY_RESULTS_TABLE = TABLES_RES + '/final_res_df_2510.parq'
+SUMMARY_RESULTS_TABLE = TABLES_RES + '/summary_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
+DETAILED_RESULTS_TABLE = TABLES_RES + '/detailed_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
 SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
 ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
 ENERGY_DIR = DATA_DIR + '/output_deltaG'
 ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
 
-
-
-
 LOCAL_RUN = False
-
-
 
 PAIR_DIR_RE = re.compile(r'^([0-9A-Za-z]{4}[A-Za-z0-9])_([0-9A-Za-z]{4}[A-Za-z0-9])$')
 

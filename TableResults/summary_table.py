@@ -249,6 +249,9 @@ def collect_summary_tables(
 
 
 if __name__=='__main__':
+    print("List all pairs:")
+    all_pairs = list_protein_pairs(DATA_DIR)
+    print("all protein pairs: ", all_pairs)
     print("Run make summary table")
     collect_summary_tables(DATA_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE)
 
