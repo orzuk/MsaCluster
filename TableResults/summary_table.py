@@ -1,6 +1,7 @@
-import os, sys, re
+import os, sys
 import pandas as pd
 from typing import Optional, Tuple, List
+from utils.utils import list_protein_pairs
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)

@@ -1,195 +1,186 @@
+# File: TableResults/gen_html_table.py
+import os, sys, re
+import html
 import pandas as pd
-import os
-import sys
-from tqdm import tqdm
 
-#sys.path.append("..") # Adds higher directory to python modules path.
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
-from config import *
+# >>> Use your config — no ad-hoc path strings
+from config import SUMMARY_RESULTS_TABLE, TABLES_RES  # , OUTPUT_PATH_NOTEBOOKS, DATA_DIR, MAIN_DIR
 
-def generate_html_table(df, output_file='output.html'):
+def gen_html_from_summary_table(
+    summary_csv: str | None = None,
+    output_html: str | None = None,
+    title: str = "Interactive Protein Comparison Table",
+    # Keep the website link pattern you’re already using
+    base_pair_url: str | None = "https://steveabecassis.github.io/MsaCluster/HTML/{pair_id}.html",
+    preferred_column_order: list[str] | None = None,
+) -> str:
     """
-    Generate an interactive HTML table from a pandas DataFrame
-    Input: df - dataframe containing the values for all families
+    Build a sortable HTML table from the *new* summary CSV (best-per-pair table).
+
+    - If summary_csv/output_html are not provided, they default to config:
+        summary_csv  -> config.SUMMARY_RESULTS_TABLE
+        output_html  -> os.path.join(config.TABLES_RES, 'table.html')
+    - First column links to per-pair page (base_pair_url).
+    - Sorts numerically using the numeric part of "0.53 (6)".
+
+    Returns:
+        The path of the written HTML file.
     """
-    # Print DataFrame for debugging
-    print("Generating HTML table from DataFrame contents:")
-    print(df)
-    print("\nDataFrame columns:")
-    print(df.columns)
+    # Resolve inputs from config if omitted
+    if summary_csv is None:
+        summary_csv = SUMMARY_RESULTS_TABLE
+    if output_html is None:
+        output_html = os.path.join(TABLES_RES, "table.html")
 
-    # Generate table headers first
-    headers = ""
-    for i, col in enumerate(df.columns):
-        headers += f'<th onclick="sortTable({i})">{col}</th>\n'
+    if not os.path.exists(summary_csv):
+        raise FileNotFoundError(f"Summary CSV not found: {summary_csv}")
 
-    # Generate table rows
-    rows = ""
-    for index, row in df.iterrows():
-        row_html = "<tr>"
+    df = pd.read_csv(summary_csv)
 
-        # First column (fold pair) with link
-        fold_pair = str(row.iloc[0])
-        row_html += f'<td><a href="https://steveabecassis.github.io/MsaCluster/HTML/{fold_pair}.html" target="_blank">{fold_pair}</a></td>'
+    # Minimal empty-page fallback
+    if df.empty:
+        os.makedirs(os.path.dirname(output_html), exist_ok=True)
+        with open(output_html, "w", encoding="utf-8") as f:
+            f.write(f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title></head>"
+                    f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
+        return output_html
 
-        # Remaining columns
-        for value in row.iloc[1:]:
-            try:
-                # Try to convert to float and check if it's a number
-                float_val = float(value)
-                if pd.notna(float_val):
-                    cell_value = f"{float_val:.2f}"
-                else:
-                    cell_value = "-"
-            except (ValueError, TypeError):
-                # If conversion fails, check if it's a string or other non-null value
-                if pd.notna(value):
-                    cell_value = str(value)
-                else:
-                    cell_value = "-"
-            row_html += f"<td>{cell_value}</td>"
+    # Column ordering
+    pair_col = "pair_id" if "pair_id" in df.columns else "fold_pair"
+    if pair_col not in df.columns:
+        raise KeyError("Expected a 'pair_id' (or 'fold_pair') column in the summary CSV.")
 
-        row_html += "</tr>\n"
-        rows += row_html
+    cols = list(df.columns)
+    if preferred_column_order is None:
+        best_cols = [c for c in cols if c.startswith("BEST_")]
+        other_cols = [c for c in cols if c not in best_cols + [pair_col]]
+        ordered_cols = [pair_col] + sorted(best_cols) + other_cols
+    else:
+        wanted = [c for c in preferred_column_order if c in cols]
+        rest = [c for c in cols if c not in wanted]
+        ordered_cols = wanted + rest
 
-    # Create the complete HTML content (rest of the HTML template remains the same)
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <title>Interactive Protein Comparison Table</title>
-        <style>
-            body {{
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background-color: #121212;
-                color: #E0E0E0;
-                margin: 20px;
-            }}
-            table {{
-                width: 80%;
-                margin: auto;
-                border-collapse: collapse;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-            }}
-            th, td {{
-                border: 1px solid #333333;
-                padding: 12px 16px;
-                text-align: left;
-            }}
-            th {{
-                background-color: #004d40;
-                color: #ffffff;
-                font-size: 16px;
-                cursor: pointer;
-            }}
-            tr:nth-child(even) {{
-                background-color: #424242;
-            }}
-            tr:hover {{
-                background-color: #616161;
-            }}
-            a {{
-                color: #BB86FC;
-                text-decoration: none;
-            }}
-            a:hover {{
-                text-decoration: underline;
-            }}
-            h2 {{
-                text-align: center;
-                color: #E0E0E0;
-                margin-top: 0;
-            }}
-        </style>
-    </head>
-    <body>
-        <h2>Results Table</h2>
-        <table id="myTable">
-            <thead>
-                <tr>
-                    {headers}
-                </tr>
-            </thead>
-            <tbody>
-                {rows}
-            </tbody>
-        </table>
+    df = df[ordered_cols]
 
-        <script>
-            var sortDirection = [];
+    # Build header
+    thead = "<tr>" + "".join(
+        f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
+        for i, col in enumerate(df.columns)
+    ) + "</tr>"
 
-            function sortTable(column) {{
-                var table, rows, switching, i, x, y, xValue, yValue, shouldSwitch;
-                table = document.getElementById("myTable");
-                switching = true;
-                sortDirection[column] = !sortDirection[column];
+    # Helper: numeric part from "0.53 (6)"
+    num_re = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
+    def numeric_part(cell) -> str:
+        if pd.isna(cell):
+            return ""
+        s = str(cell).strip()
+        if s == "-":
+            return ""
+        m = num_re.match(s)
+        return m.group(1) if m else s
 
-                while (switching) {{
-                    switching = false;
-                    rows = table.getElementsByTagName("TR");
-                    for (i = 1; i < rows.length - 1; i++) {{
-                        shouldSwitch = false;
-                        x = rows[i].getElementsByTagName("TD")[column];
-                        y = rows[i + 1].getElementsByTagName("TD")[column];
-                        xValue = x.innerHTML === '-' ? -Infinity : (isNaN(parseFloat(x.innerHTML)) ? x.innerHTML.toLowerCase() : parseFloat(x.innerHTML));
-                        yValue = y.innerHTML === '-' ? -Infinity : (isNaN(parseFloat(y.innerHTML)) ? y.innerHTML.toLowerCase() : parseFloat(y.innerHTML));
+    # Build rows (first col = link to pair page)
+    rows = []
+    for _, r in df.iterrows():
+        pair = str(r[pair_col])
+        link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
+        tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
+        for col in df.columns[1:]:
+            val = r[col]
+            disp = "-" if pd.isna(val) else str(val)
+            tds.append(
+                f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>'
+            )
+        rows.append("<tr>" + "".join(tds) + "</tr>")
 
-                        if (sortDirection[column]) {{
-                            if (xValue > yValue) {{
-                                shouldSwitch = true;
-                                break;
-                            }}
-                        }} else {{
-                            if (xValue < yValue) {{
-                                shouldSwitch = true;
-                                break;
-                            }}
-                        }}
-                    }}
-                    if (shouldSwitch) {{
-                        rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                        switching = true;
-                    }}
-                }}
-            }}
-        </script>
-    </body>
-    </html>
-    """
+    html_doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{html.escape(title)}</title>
+<style>
+  body {{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #121212; color: #E0E0E0; margin: 20px;
+  }}
+  table {{
+    width: 90%; margin: auto; border-collapse: collapse;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+  }}
+  th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; }}
+  th {{ background-color: #004d40; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
+  tr:nth-child(even) {{ background-color: #2b2b2b; }}
+  tr:hover {{ background-color: #3a3a3a; }}
+  a {{ color: #BB86FC; text-decoration: none; }}
+  a:hover {{ text-decoration: underline; }}
+  h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
+</style>
+</head>
+<body>
+<h2>{html.escape(title)}</h2>
+<table id="tbl">
+  <thead>{thead}</thead>
+  <tbody>
+    {"".join(rows)}
+  </tbody>
+</table>
+<script>
+let sortAsc = [];
+function getCellSortValue(td) {{
+  return td.getAttribute('data-sort-value') ?? td.textContent.trim();
+}}
+function sortTable(colIdx) {{
+  const table = document.getElementById('tbl');
+  const tbody = table.tBodies[0];
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  sortAsc[colIdx] = !sortAsc[colIdx];
+  rows.sort((r1, r2) => {{
+    const t1 = getCellSortValue(r1.cells[colIdx]);
+    const t2 = getCellSortValue(r2.cells[colIdx]);
+    const n1 = parseFloat(t1), n2 = parseFloat(t2);
+    const bothNumeric = !isNaN(n1) && !isNaN(n2);
+    if (bothNumeric) return sortAsc[colIdx] ? (n1 - n2) : (n2 - n1);
+    const s1 = t1.toLowerCase(), s2 = t2.toLowerCase();
+    if (s1 < s2) return sortAsc[colIdx] ? -1 : 1;
+    if (s1 > s2) return sortAsc[colIdx] ? 1 : -1;
+    return 0;
+  }});
+  rows.forEach(r => tbody.appendChild(r));
+}}
+</script>
+</body>
+</html>"""
 
-    # Write to file
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(html_content)
+    os.makedirs(os.path.dirname(output_html), exist_ok=True)
+    with open(output_html, "w", encoding="utf-8") as f:
+        f.write(html_doc)
+    print(f"[html] wrote: {output_html}")
+    return output_html
 
-
-# Read the summary table and the similarity table and generate the HTML file
-def generate_html_table_from_parquet(summary_table_file, similarity_table_file, output_file):
-    df = pd.read_parquet(summary_table_file)
-    # Add the column of similarity between the two fold of the fold pair (score calculated with the script get_tm_align_score.py)
-    fold1_fold2_sim = pd.read_parquet(similarity_table_file)
-    df_all = pd.merge(df, fold1_fold2_sim, on='fold_pair')
-    # Generate the HTML file
-    generate_html_table(df_all, output_file)
-
-
-# Generate the two Parquet files with summaries and similarities
-def generate_parquet_tables(summary_table_file, similarity_table_file):
-    fold_pairs = os.listdir(DATA_DIR)
-    for fold_pair in tqdm(fold_pairs):
-        print(fold_pair)
-        # TBD - FILL!!
 
 
 if __name__ == "__main__":
     # Dataframe summary results generated by the script summary_table.py
     # Set output file
-    output_file = MAIN_DIR + "/protein_comparison_table.html"
+    output_summary_html_file = TABLES_RES + "/protein_comparison_table.html"
 
     print(f"Reading parquet file and generating")
-    generate_html_table_from_parquet(SUMMARY_RESULTS_TABLE, SIMILARITY_RESULTS_TABLE, output_file)
-    print("HTML file " + output_file + " generated successfully!")
+    gen_html_from_summary_table(
+        preferred_column_order=[
+            "pair_id",
+            "BEST_AF_TM_FOLD1",
+            "BEST_CMAP_T1_F1",
+            "BEST_CMAP_T1_PRECISION",
+            "BEST_CMAP_T1_RECALL",
+            "BEST_CMAP_T1_JACCARD",
+            "BEST_CMAP_T1_MCC",
+        ], output_html=output_summary_html_file)
+
+    print("HTML file " + output_summary_html_file + " generated successfully!")
 
 
 
