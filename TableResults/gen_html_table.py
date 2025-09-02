@@ -7,6 +7,8 @@ import pandas as pd
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
+from config import *
+
 # >>> Use your config — no ad-hoc path strings
 from config import SUMMARY_RESULTS_TABLE, TABLES_RES  # , OUTPUT_PATH_NOTEBOOKS, DATA_DIR, MAIN_DIR
 
@@ -15,7 +17,7 @@ def gen_html_from_summary_table(
     output_html: str | None = None,
     title: str = "Interactive Protein Comparison Table",
     # Keep the website link pattern you’re already using
-    base_pair_url: str | None = "https://steveabecassis.github.io/MsaCluster/HTML/{pair_id}.html",
+    base_pair_url: str | None = GITHUB_URL_HTML + "/{pair_id}.html",
     preferred_column_order: list[str] | None = None,
 ) -> str:
     """

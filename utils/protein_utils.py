@@ -104,6 +104,26 @@ NONSTD_TO_STD = {"MSE":"MET","SEP":"SER","TPO":"THR","PTR":"TYR",
                  "MLE":"LEU","MLY":"LYS","M3L":"LYS"}
 
 
+def aa3_to_1(resname: str) -> str:
+    """
+    Convert a 3-letter residue name to 1-letter using our tables.
+    Handles common non-standard names via NONSTD_TO_STD.
+    Returns 'X' if unknown.
+    """
+    if not resname:
+        return "X"
+    r = resname.upper().strip()
+    r = NONSTD_TO_STD.get(r, r)            # normalize non-standard (e.g., MSE->MET)
+    return aa_long_short.get(r, "X")       # MET -> M, etc.
+
+def seq3_to_1(resnames):
+    """
+    Convert an iterable of 3-letter residue names to a string of 1-letter codes.
+    """
+    return "".join(aa3_to_1(r) for r in resnames)
+
+
+
 
 # Get all the possible amino acids that we get with a single point mutation
 # for a specific codon

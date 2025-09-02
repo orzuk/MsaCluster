@@ -1,56 +1,62 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+
 import os
 import sys
 import argparse
 import subprocess
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional, Tuple, Union, Iterable
 
-# ---------- repo imports ----------
+# --- repo imports (top-level only) ---
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from config import *
+from config import *            # expects MAIN_DIR, etc.
 from utils.utils import list_protein_pairs
+
+
+# ---------- helpers ----------
+def normalize_pair(pair: Union[Tuple[str, str], str]) -> Tuple[str, str, str]:
+    """
+    Accept ('A','B') or 'A_B' and return (A, B, 'A_B').
+    """
+    if isinstance(pair, tuple):
+        a, b = pair
+    else:
+        s = str(pair)
+        if "_" not in s:
+            raise ValueError(f"Pair string must look like 'A_B', got: {s}")
+        a, b = s.split("_", 1)
+    pair_a = str(a)
+    pair_b = str(b)
+    pair_id = f"{pair_a}_{pair_b}"
+    return pair_a, pair_b, pair_id
 
 
 # ---------- worker: one pair -> one HTML ----------
 def generate_html_for_pair(
-    pair: str,
+    pair: Union[Tuple[str, str], str],
     output_html: Path,
     template_notebook: Path,
     kernel_name: Optional[str] = None,
     timeout_seconds: int = 1800,
 ) -> int:
     """
-    Execute a template notebook for a given protein pair and export to a single HTML.
-
-    Parameters
-    ----------
-    pair : str
-        Pair identifier, e.g. "4n9wA_4nc9C".
-    output_html : Path
-        Full output path ending with .html (directory is created if needed).
-    template_notebook : Path
-        Path to the template .ipynb to execute.
-    kernel_name : Optional[str]
-        Jupyter kernel name to use. If None, uses the notebook's recorded kernel.
-    timeout_seconds : int
-        Execution timeout passed to nbconvert ExecutePreprocessor.
-
-    Returns
-    -------
-    int
-        Return code from the nbconvert process (0 = success).
+    Execute a template notebook for a given protein pair and export a single HTML.
     """
+    pair_a, pair_b, pair_id = normalize_pair(pair)
+
     output_html = Path(output_html)
     output_html.parent.mkdir(parents=True, exist_ok=True)
 
+    # Env must be strings on Windows
     env = os.environ.copy()
-    env["PAIR_ID"] = pair
+    env["PAIR_ID"] = pair_id
+    env["PAIR_A"] = pair_a
+    env["PAIR_B"] = pair_b
 
     cmd = [
         sys.executable, "-m", "jupyter", "nbconvert",
@@ -63,20 +69,19 @@ def generate_html_for_pair(
     if kernel_name:
         cmd.append(f"--ExecutePreprocessor.kernel_name={kernel_name}")
 
-    print(f"Executing {template_notebook.name} for pair '{pair}' -> {output_html.name}")
+    print(f"Executing {template_notebook.name} for '{pair_id}' -> {output_html.name}")
     return subprocess.run(cmd, env=env, text=True).returncode
 
 
 # ---------- CLI / main ----------
-def _resolve_pairs(args_pairs: Iterable[str]) -> list[str]:
-    DEFAULT_PAIRS = ["4n9wA_4nc9C", "1nrjB_2gedB"]
+def _resolve_pairs(args_pairs: Iterable[Union[str, Tuple[str, str]]]) -> list[Union[str, Tuple[str, str]]]:
     pairs = list(args_pairs)
-    if len(pairs) == 1 and pairs[0].upper() == "ALL":
+    if len(pairs) == 1 and isinstance(pairs[0], str) and pairs[0].upper() == "ALL":
         return list_protein_pairs()
     if not pairs:
-        # default: take from DEFAULT_PAIRS if provided; else all pairs
-        default_pairs = getattr(DEFAULT_PAIRS)
-        return list(default_pairs) if default_pairs else list_protein_pairs()
+        # DEFAULT: run ONE pair (the first returned by utils.list_protein_pairs())
+        all_pairs = list_protein_pairs()
+        return [all_pairs[0]] if all_pairs else []
     return pairs
 
 
@@ -87,49 +92,57 @@ def main() -> None:
     parser.add_argument(
         "pairs",
         nargs="*",
-        help="Protein pairs (e.g., 4n9wA_4nc9C 1nrjB_2gedB) or 'ALL' to run all.",
+        help="Pairs like 4n9wA_4nc9C (or 'ALL' to run all pairs). If no args: run ONE default pair.",
+    )
+    parser.add_argument(
+        "--kernel",
+        default=os.environ.get("JUPYTER_KERNEL_NAME", "python3"),
+        help="Jupyter kernel name to use (default: 'python3').",
     )
     args = parser.parse_args()
 
-    # Paths & settings from config.py
-    TEMPLATE_NOTEBOOK = Path(NOTEBOOK_TEMPLATE)   # e.g., MAIN_DIR / 'TemplateNotebook.ipynb'
-    HTML_DIR = Path(HTML_OUTPUT_DIR)              # e.g., MAIN_DIR / 'HTML'
-    KERNEL_NAME = NOTEBOOK_KERNEL_NAME
+    main_dir = Path(MAIN_DIR)
+    template_notebook = main_dir / "TemplateNotebook.ipynb"
+    html_dir = main_dir / "HTML"
+    html_dir.mkdir(parents=True, exist_ok=True)
 
     pairs = _resolve_pairs(args.pairs)
 
+    user = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
+    env_name = "Windows" if os.name == "nt" else "Unix"
+    print("Current directory: ", Path(__file__).parent)
+    print("RUNNING FOLD-SWITCH PIEPLINE WITH USER:", user, " ENVIRONMENT:", env_name)
     print("Current directory:", Path.cwd())
     print("Start generate Notebook!!!")
     print("Pairs:", pairs)
-    print("Template:", TEMPLATE_NOTEBOOK)
-    print("HTML out dir:", HTML_DIR)
-    if KERNEL_NAME:
-        print("Kernel:", KERNEL_NAME)
+    print("Template:", template_notebook)
+    print("HTML out dir:", html_dir)
+    print("Kernel:", args.kernel)
 
     failures: list[str] = []
     for pair in pairs:
+        _, _, pair_id = normalize_pair(pair)
         print("#" * 74)
-        print(pair)
+        print(pair_id)
         print("#" * 74)
-        out_html = HTML_DIR / f"{pair}.html"
+        out_html = html_dir / f"{pair_id}.html"
+
         rc = generate_html_for_pair(
             pair=pair,
             output_html=out_html,
-            template_notebook=TEMPLATE_NOTEBOOK,
-            kernel_name=KERNEL_NAME,
+            template_notebook=template_notebook,
+            kernel_name=args.kernel,
         )
         if rc == 0:
             print(f"OK: {out_html}")
         else:
-            print(f"FAILED (rc={rc}): {pair}")
-            failures.append(pair)
+            print(f"FAILED (rc={rc}): {pair_id}")
+            failures.append(pair_id)
 
     print("Finish to run !")
     if failures:
-        # Non-zero exit to surface failures in CI/IDE run panel
         sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
-
