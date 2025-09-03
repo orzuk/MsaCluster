@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
-import os
 import sys
 import argparse
 import subprocess
@@ -16,24 +14,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from config import *            # expects MAIN_DIR, etc.
 from utils.utils import list_protein_pairs
+from utils.protein_utils import normalize_pair
 
-
-# ---------- helpers ----------
-def normalize_pair(pair: Union[Tuple[str, str], str]) -> Tuple[str, str, str]:
-    """
-    Accept ('A','B') or 'A_B' and return (A, B, 'A_B').
-    """
-    if isinstance(pair, tuple):
-        a, b = pair
-    else:
-        s = str(pair)
-        if "_" not in s:
-            raise ValueError(f"Pair string must look like 'A_B', got: {s}")
-        a, b = s.split("_", 1)
-    pair_a = str(a)
-    pair_b = str(b)
-    pair_id = f"{pair_a}_{pair_b}"
-    return pair_a, pair_b, pair_id
 
 
 # ---------- worker: one pair -> one HTML ----------
@@ -108,10 +90,10 @@ def main() -> None:
 
     pairs = _resolve_pairs(args.pairs)
 
-    user = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
-    env_name = "Windows" if os.name == "nt" else "Unix"
+#    user = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
+#    env_name = "Windows" if os.name == "nt" else "Unix"
     print("Current directory: ", Path(__file__).parent)
-    print("RUNNING FOLD-SWITCH PIEPLINE WITH USER:", user, " ENVIRONMENT:", env_name)
+    print("RUNNING FOLD-SWITCH GENERATE NOTEBOOK WITH USER:", user, " ENVIRONMENT:", platform.system())
     print("Current directory:", Path.cwd())
     print("Start generate Notebook!!!")
     print("Pairs:", pairs)
@@ -131,8 +113,7 @@ def main() -> None:
             pair=pair,
             output_html=out_html,
             template_notebook=template_notebook,
-            kernel_name=args.kernel,
-        )
+            kernel_name=args.kernel)
         if rc == 0:
             print(f"OK: {out_html}")
         else:

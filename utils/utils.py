@@ -10,7 +10,20 @@ from pathlib import Path
 from typing import List, Tuple, Union
 
 import numpy as np
+import pandas as pd
 
+def load_csv_or_none(path, **kwargs):
+    p = Path(path)
+    if not p.exists() or p.stat().st_size == 0:
+        print(f"[skip] missing CSV: {p}", flush=True)
+        return None
+    try:
+        df = pd.read_csv(p, **kwargs)
+        print(f"[ok] loaded: {p}  rows={len(df)}", flush=True)
+        return df
+    except Exception as e:
+        print(f"[skip] failed to read {p}: {e}", flush=True)
+        return None
 
 def pdb_to_contact_map(
     pdb_file: str,

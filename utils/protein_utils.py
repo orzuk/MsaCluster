@@ -889,3 +889,20 @@ if run_example:
     # Methods for phylogentic reconstruction
     # constructor = DistanceTreeConstructor()
     # tree = constructor.nj(dm)
+
+# ---------- helpers ----------
+def normalize_pair(pair: Union[Tuple[str, str], str]) -> Tuple[str, str, str]:
+    """
+    Accept ('A','B') or 'A_B' and return (A, B, 'A_B').
+    """
+    if isinstance(pair, tuple):
+        a, b = pair
+    else:
+        s = str(pair)
+        if "_" not in s:
+            raise ValueError(f"Pair string must look like 'A_B', got: {s}")
+        a, b = s.split("_", 1)
+    pair_a = str(a)
+    pair_b = str(b)
+    pair_id = f"{pair_a}_{pair_b}"
+    return pair_a, pair_b, pair_id

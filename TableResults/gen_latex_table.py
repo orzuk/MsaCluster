@@ -1,4 +1,13 @@
+import sys
+from pathlib import Path
 import pandas as pd
+
+# --- repo imports (top-level only) ---
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from config import *            # expects MAIN_DIR, etc.
 
 
 def dataframe_to_latex_longtable(df):
@@ -24,7 +33,7 @@ def dataframe_to_latex_longtable(df):
     return latex_str
 
 if __name__ == '__main__':
-    df = pd.read_parquet('/Users/steveabecassis/Desktop/Pipeline_res/final_res_df_2510.parq')
+    df = pd.read_parquet(TABLES_RES + '/final_res_df_2510.parq')
     df = df[['fold_pair','BEST_AF1','BEST_AF2','BEST_RECALL_FOLD1','BEST_RECALL_FOLD2','BEST_ESM1_AF','BEST_ESM2_AF']]
     df.columns = [ 'fold_pair', 'AF\_F1', 'AF\_F2', 'MSAT\_F1','MSAT\_F2','ESM\_AF1', 'ESM\_AF2']
     df.sort_values(by='fold_pair',inplace=True)

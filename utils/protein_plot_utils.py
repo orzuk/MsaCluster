@@ -13,7 +13,9 @@ from utils.phytree_utils import *
 from scripts.MSA_Clust import *
 from utils.utils import *
 from utils.energy_utils import *
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, BoundaryNorm
+from matplotlib.patches import Patch
+
 import math
 import pandas as pd
 
@@ -736,3 +738,99 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
     plt.close()
 
 
+
+# Used in making notebooks
+def plot_viz_cmap(file, legend_plot):
+    if not file or not os.path.isfile(file):
+        print(f"[skip] viz cmap (missing): {file}")
+        return
+    try:
+        visualization_map = np.load(file)
+    except Exception as e:
+        print(f"[skip] np.load failed: {e}")
+        return
+
+    size = visualization_map.shape[0]
+
+#    data = np.random.choice([0, 1, 1.25, 1.5, 1.75], size=(size, size))
+
+    # Create a custom colormap
+    colors = ['grey', 'lightblue', 'purple', 'blue', 'magenta']
+#    values = [0, 1, 1.25, 1.5, 1.75]
+    bounds = [0, 0.99, 1.24, 1.49, 1.74, 2]
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(bounds, cmap.N)
+
+    # Create the plot
+    plt.figure(figsize=(10, 8))
+    im = plt.imshow(visualization_map, cmap=cmap, norm=norm, interpolation='nearest',origin='lower')
+
+    # Create legend elements
+    legend_elements = [
+        Patch(facecolor='lightblue', edgecolor='black', label='Experiment contact'),
+        Patch(facecolor='purple', edgecolor='black', label='Unique State Experiment contact'),
+        Patch(facecolor='blue', edgecolor='black', label='Experiment contact predicted'),
+        Patch(facecolor='magenta', edgecolor='black', label='Unique State Experiment contact predicted')
+    ]
+
+    # Add the legend
+    plt.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, 0.5))
+
+    # Set title and labels
+    plt.title(legend_plot)
+    plt.xlabel('Residue Index')
+    plt.ylabel('Residue Index')
+
+    # Adjust layout to make room for the legend
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
+
+
+
+# Temp: why two versions??
+def plot_viz_cmap2(file1, file2, legend_plot):
+
+    print("Input to plot_viz_cmap2: ", file1, file2, legend_plot, flush=True)
+    # Load the two 2D numpy arrays
+    visualization_map1 = np.load(file1)
+    visualization_map2 = np.load(file2)
+
+    # Ensure both arrays have the same shape
+    assert visualization_map1.shape == visualization_map2.shape, "Both input arrays must have the same shape"
+
+    # Create a combined array
+    combined_map = np.tril(visualization_map1) + np.triu(visualization_map2, k=1)
+
+    # Create a custom colormap
+    colors = ['grey', 'blue', 'lightblue', 'purple', 'blue', 'magenta']
+    bounds = [0, 0.49, 0.99, 1.24, 1.49, 1.74, 2]
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(bounds, cmap.N)
+
+    # Create the plot
+    plt.figure(figsize=(10, 8))
+    im = plt.imshow(combined_map, cmap=cmap, norm=norm, interpolation='nearest', origin='lower')
+
+    # Create legend elements
+    legend_elements = [
+        Patch(facecolor='lightblue', edgecolor='black', label='Experiment contact'),
+        Patch(facecolor='purple', edgecolor='black', label='Unique State Experiment contact'),
+        Patch(facecolor='blue', edgecolor='black', label='Predicted contacts'),
+        Patch(facecolor='magenta', edgecolor='black', label='Unique State Experiment contact predicted')
+    ]
+
+    # Add the legend
+    plt.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, 0.5))
+
+    # Set title and labels
+    plt.title(legend_plot)
+    plt.xlabel('Residue Index')
+    plt.ylabel('Residue Index')
+
+    # Adjust layout to make room for the legend
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
