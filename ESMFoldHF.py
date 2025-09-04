@@ -51,7 +51,6 @@ def save_string_as_pdb(pdb_string, file_path):
         pdb_file.write(pdb_string)
 
 
-
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -149,6 +148,4 @@ if __name__ == '__main__':
                 print(f'Finish to write pdb output {i} !')
             except:
                 continue
-
-
 

@@ -63,8 +63,11 @@ if __name__=='__main__':
         fold_pair_subdir = fold_pair[0] + "_" + fold_pair[1]
         if 'sh' in fold_pair_subdir:
             continue
-        if len(os.listdir(f'{DATA_DIR}/{fold_pair_subdir}/output_esm_fold')) == 0:
+        out_dir = f"{DATA_DIR}/{fold_pair_subdir}/output_esm_fold"
+        if not os.path.isdir(out_dir) or len(os.listdir(out_dir)) == 0:
+            print(f"[skip] No ESMFold outputs for {fold_pair_subdir} at {out_dir}")
             continue
+
         compute_esmfold_pred_tmscores(fold_pair_subdir)
 
     print("Finish all ESMFold TMscores computations!")
