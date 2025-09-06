@@ -45,11 +45,11 @@ from config import *  # assume present
 try:
     from config import ESM3_INFER_SCRIPT  # optional for esm3
 except Exception:
-    ESM3_INFER_SCRIPT = os.environ.get("ESM3_INFER_SCRIPT", "scripts/infer_esm3.py")
+    ESM3_INFER_SCRIPT = Path(MAIN_DIR) / "scripts/infer_esm3.py"
 
 # Your utils — rely ONLY on these for I/O
 from utils.msa_utils import load_fasta
-from utils.protein_utils import load_pdb_structure, extract_protein_sequence
+from utils.protein_utils import extract_protein_sequence
 
 # Core deps
 import torch
