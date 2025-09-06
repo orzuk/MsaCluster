@@ -1,5 +1,4 @@
 # import itertools
-# import os
 # from pathlib import Path
 import time
 from utils.protein_utils import *
@@ -36,13 +35,6 @@ if __name__=='__main__':
 
     args = p.parse_args()
 
-    # class args:
-    #     input_msas = '/Users/steveabecassis/Desktop/cluster_files/colabfold_new/output_pipeline_1ebo/cluster_msa_output'
-    #     o = '/Users/steveabecassis/Desktop/cluster_files/colabfold_new/output_pipeline_1ebo'
-    #     model = 'msa_t'
-    #     keyword = 'test'
-    #     test = False
-    #     parallel = False
 
     os.makedirs(args.o, exist_ok=True)
     args.test = True

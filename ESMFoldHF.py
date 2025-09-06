@@ -335,7 +335,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"Running ESM on device: {dev_str}")
 
     t0 = time.time()
-    pair_path = pair_dir(args.pair_id)
+    pair_path = DATA_DIR + "/" + args.pair_id
     if not pair_path.exists():
         raise FileNotFoundError(f"Pair directory not found: {pair_path}")
     sequences = get_sequences_for_pair(args.pair_id)

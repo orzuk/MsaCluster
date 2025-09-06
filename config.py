@@ -55,7 +55,7 @@ if user == 'steveabecassis':
     if moriah:
         MAIN_DIR = '/sci/labs/orzuk/steveabecassis/MsaCluster'
     else:
-        MAIN_DIR = '/Users/steveabecassis/Desktop'
+        MAIN_DIR = '/Users/MICHAEL_JORDAN/Desktop' # '/Users/steveabecassis/Desktop'
     DATA_DIR = MAIN_DIR + '/Pipeline'
     CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
     LOCAL_RUN = True
@@ -73,11 +73,16 @@ if user == 'steveabecassis':
 if user in ['zuk_laptop', 'orzuk']:
     if user == 'zuk_laptop':  # WINDOWS PC
         MAIN_DIR = 'C://Code//Github//MsaCluster'
+        ESM_PATH = 'C://Code//Github//esm'
     else:
         if moriah:
             MAIN_DIR = '/sci/labs/orzuk/orzuk/github/MsaCluster'
+            ESM_PATH = '/sci/labs/orzuk/orzuk/github/esm'
         else:
             MAIN_DIR = '/mnt/c/Code/Github/MsaCluster'
+            # Scripts for running different tools
+            ESM_PATH = "/mnt/c/Code/Github/esm"
+
     DATA_DIR = MAIN_DIR + '/Pipeline'
     TABLES_DIR = MAIN_DIR + '/data'
     OUTPUT_PATH_NOTEBOOKS = DATA_DIR + '/HTMLs_new_3001'
@@ -100,6 +105,11 @@ SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
 ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
 ENERGY_DIR = DATA_DIR + '/output_deltaG'
 ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
+
+
+
+
+GITHUB_URL_HTML = "https://steveabecassis.github.io/MsaCluster/HTML/"
 
 LOCAL_RUN = False
 
