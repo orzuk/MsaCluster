@@ -6,7 +6,7 @@
 
 OUTPUT_NAME_DIR="$1"
 
-source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
+. "$(dirname "$0")/colabfold_env.sh"
 
 python3 ./Analysis_params.py -input $OUTPUT_NAME_DIR
 

@@ -15,8 +15,8 @@ module load cudnn/8.0.5
 
 source /sci/labs/dina/dina/collabFold_phoenix/bin/activate.csh
 # Run full alignment and also each cluster separately!!! 
-/sci/labs/dina/dina/localcolabfold/colabfold-conda/bin/colabfold_batch  $OUTPUT_NAME_DIR/output_get_msa  $OUTPUT_NAME_DIR/AF_preds/  --data=/cs/labs/dina/seanco/colabfold/weights/
-/sci/labs/dina/dina/localcolabfold/colabfold-conda/bin/colabfold_batch  $OUTPUT_NAME_DIR/output_msa_cluster $OUTPUT_NAME_DIR/AF_preds/  --data=/cs/labs/dina/seanco/colabfold/weights/
+"$COLABFOLD_BIN"  $OUTPUT_NAME_DIR/output_get_msa  $OUTPUT_NAME_DIR/AF_preds/  ${CF_DATA_FLAGS[@]}
+"$COLABFOLD_BIN"  $OUTPUT_NAME_DIR/output_msa_cluster $OUTPUT_NAME_DIR/AF_preds/  ${CF_DATA_FLAGS[@]}
 
 # Zip output json+pdb files to save space, also convert png to jpg 
 gzip $OUTPUT_NAME_DIR/AF_preds/*.json
