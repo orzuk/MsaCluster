@@ -6,6 +6,7 @@ from io import StringIO
 # from __future__ import annotations
 from typing import List, Tuple, Dict
 import re
+import os
 
 
 
@@ -242,3 +243,5 @@ def download_and_parse_pfam_msa(pfam_id, alignment_type="seed"):
     alignment = AlignIO.read(msa_io, "stockholm")
 
     return alignment
+
+
