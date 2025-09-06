@@ -193,9 +193,6 @@ def MSA_transformer(MSAs, MSAs_names, true_contacts = {}):
 
     return msa_transformer_predictions, msa_transformer_results  # return compact and detailed results
 
-# load numpy array:
-# np.loadtxt('/Users/steveabecassis/Desktop/PipelineTest/output_pipeline_1jfk/esm_cmap_output/msa_t__cluster_000.npy')
-
 
 # Compute the true vs. predicted contact map. Determine for each contact if it is:
 # 1. Present in both

@@ -1,6 +1,14 @@
 import pymol
 from pymol import cmd
+import sys
+from pathlib import Path
 
+# --- repo imports (top-level only) ---
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from config import *            # expects MAIN_DIR, etc.
 
 # pymol.cmd.set("quiet", 1)
 pymol.finish_launching(['pymol', '-cq'])  # '-c' for command line (no GUI)
@@ -8,8 +16,8 @@ pymol.finish_launching(['pymol', '-cq'])  # '-c' for command line (no GUI)
 # Delete existing objects
 cmd.delete('all')
 
-pdb_file1 = '/Users/steveabecassis/Desktop/Pipeline_res/Pipeline/1eboE_5fhcJ/chain_pdb_files/1eboE.pdb'
-pdb_file2 = '/Users/steveabecassis/Desktop/Pipeline_res/Pipeline/1eboE_5fhcJ/chain_pdb_files/5fhcJ.pdb'
+pdb_file1 = TABLES_RES + '/Pipeline/1eboE_5fhcJ/chain_pdb_files/1eboE.pdb'
+pdb_file2 = TABLES_RES + '/Pipeline/1eboE_5fhcJ/chain_pdb_files/5fhcJ.pdb'
 
 # Load the PDB files
 cmd.load(pdb_file1, 'protein1')
@@ -34,5 +42,5 @@ cmd.orient()
 
 
 # Save the image
-cmd.png('/Users/steveabecassis/Desktop/Pipeline_res/test.png', width=1920, height=1080, dpi=300, ray=1)
+cmd.png(TABLES_RES + '/test.png', width=1920, height=1080, dpi=300, ray=1)
 
