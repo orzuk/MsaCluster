@@ -32,6 +32,7 @@ import argparse
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from transformers import EsmForProteinFolding, AutoTokenizer
 
 # Quiet TensorFlow chatter if present
 os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
@@ -127,62 +128,11 @@ def sequences_from_pdbs(pdir: Path, pair_id: str) -> List[Tuple[str, str]]:
             if not hits:
                 raise FileNotFoundError(f"Expected PDB file not found: {pdb_path}")
             pdb_path = hits[0]
-
         sequence = extract_protein_sequence(str(pdb_path), chain=chain)
         if not sequence:
             raise RuntimeError(f"Empty sequence for {name} extracted from {pdb_path}")
         seqs.append((name, str(sequence)))
     return seqs
-
-    seqs: List[Tuple[str, str]] = []
-    for name, chain, pdb_path in zip(names, chains, pdb_paths):
-        if not pdb_path.exists():
-            hits = list(pdir.glob(f"{pdb_path.stem}*.pdb"))
-            if not hits:
-                raise FileNotFoundError(f"Expected PDB file not found: {pdb_path}")
-            pdb_path = hits[0]
-
-        # Try the common variants without re-implementing logic
-        sequence = None
-        try:
-            # Variant A: pass a loaded structure and chain_id kw
-            structure = load_pdb_structure(str(pdb_path))
-            sequence = extract_protein_sequence(structure, chain_id=chain)
-        except Exception as e_a:
-            try:
-                # Variant B: pass file path + positional chain
-                sequence = extract_protein_sequence(str(pdb_path), chain)
-            except Exception as e_b:
-                try:
-                    # Variant C: pass file path + keyword chain
-                    sequence = extract_protein_sequence(str(pdb_path), chain=chain)
-                except Exception as e_c:
-                    raise RuntimeError(
-                        f"extract_protein_sequence() failed for {name} from {pdb_path}. "
-                        f"Tried signatures: (structure, chain_id), (pdb_file, chain), (pdb_file, chain=). "
-                        f"Errors: A={e_a}; B={e_b}; C={e_c}"
-                    )
-
-        if not sequence:
-            raise RuntimeError(f"Empty sequence for {name} extracted from {pdb_path}")
-        seqs.append((name, str(sequence)))
-    return seqs
-
-    seqs: List[Tuple[str, str]] = []
-    for name, chain, pdb_path in zip(names, chains, pdb_paths):
-        if not pdb_path.exists():
-            # try any file with that pdbid prefix
-            hits = list(pdir.glob(f"{pdb_path.stem}*.pdb"))
-            if not hits:
-                raise FileNotFoundError(f"Expected PDB file not found: {pdb_path}")
-            pdb_path = hits[0]
-        structure = load_pdb_structure(str(pdb_path))
-        seq = extract_protein_sequence(structure, chain_id=chain)
-        if not seq:
-            raise RuntimeError(f"Failed to extract sequence for {name} from {pdb_path}")
-        seqs.append((name, str(seq)))
-    return seqs
-
 
 
 def load_esmfold(device="cuda"):
@@ -192,7 +142,6 @@ def load_esmfold(device="cuda"):
         return ("meta-esmfold", esm.pretrained.esmfold_v1().eval())
     except Exception as e_meta:
         # Fallback to HF port (no system OpenFold install required)
-        from transformers import EsmForProteinFolding
         model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").to(device).eval()
         return ("hf-esmfold", model)
 
@@ -218,38 +167,50 @@ def _detect_esm2_checkpoint() -> str | None:
 
 
 
-
-def run_esm2_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
+def run_esm2_fold(seqs, device):
     """
-    Run structure prediction using fair-esm's ESMFold (ESM2-backed).
-    Returns {"backend":"fair-esm", "chains":[{"name","pdb","plddt","pae","residue_index"}, ...]}
+    Run structure prediction using ESMFold.
+    Uses Meta+OpenFold if available; otherwise falls back to HF port.
+    Returns {"backend": "...", "chains": [...]}
     """
-    load_esmfold(device)
-
-    try:
-        import esm  # fair-esm package
-    except Exception as e:
-        raise RuntimeError("ESM2 run requires fair-esm. Install with `pip install fair-esm` (CPU works). Details: " + str(e))
-
-    model = esm.pretrained.esmfold_v1().eval()
+    backend, model = load_esmfold(device)  # <-- use it!
     if device != "cpu":
         model = model.to(device)
 
     outputs = []
     for name, seq in seqs:
-        print(f"[esm2] predicting {name} (len={len(seq)}) on {device} …")
+        print(f"[{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
         t0 = time.time()
-        pdb_str = model.infer_pdb(seq)
+
+        # Both Meta ESMFold and the HF port expose infer_pdb; use it if present.
+        if hasattr(model, "infer_pdb"):
+            pdb_str = model.infer_pdb(seq)
+        else:
+            # Very rare: fallback path if a future HF build renames the API.
+            tok = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+            batch = tok([seq], return_tensors="pt", add_special_tokens=False).to(device)
+            with torch.no_grad():
+                out = model(**batch)
+            # Try common helpers; raise if none exist (so we notice)
+            if hasattr(model, "to_pdb"):
+                pdb_str = model.to_pdb(out)
+            elif hasattr(model, "output_to_pdb"):
+                pdb_str = model.output_to_pdb(out)
+            else:
+                raise RuntimeError("ESMFold model has no infer_pdb/to_pdb/output_to_pdb methods.")
+
         dt = time.time() - t0
-        print(f"[esm2] done in {dt:.1f}s")
+        print(f"[{backend}] done in {dt:.1f}s")
         outputs.append({
             "name": name,
             "pdb": pdb_str,
-            "plddt": None,                  # keep placeholders; fair-esm exposes helpers if needed
+            "plddt": None,
             "pae": None,
             "residue_index": list(range(1, len(seq) + 1)),
         })
-    return {"backend": "fair-esm", "chains": outputs}
+    return {"backend": backend, "chains": outputs}
+
+
 
 # --------------------------------------------------------------------------------------
 # ESM3 runner (subprocess to your local ESM repo script)
@@ -269,7 +230,7 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
 
     outputs = []
     for name, seq in seqs:
-        print(f"[esm3] predicting {name} (len={len(seq)}) via {script} …")
+        print(f"[esm3] predicting {name} (len={len(seq)}) via {script} …", flush=True)
         cmd = [sys.executable, str(script), "--sequence", seq, "--device", device]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
