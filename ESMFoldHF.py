@@ -24,10 +24,8 @@ Run examples
 
 """
 from __future__ import annotations
-import os
-import sys
-import json
-import time
+import os, sys
+import json, time
 import argparse
 import subprocess
 from pathlib import Path
@@ -253,40 +251,70 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
 # Normalization to ESM2-style layout
 # --------------------------------------------------------------------------------------
 
-def write_normalized_outputs(result: Dict, outdir: Path, pair_id: str, model_tag: str,
-                             sequences: List[Tuple[str, str]], device: str) -> None:
+# --- replace your current writer with this ---
+def write_normalized_outputs(
+    result,                 # {"backend": "...", "chains": [{"name": str, "pdb": str, ...}, ...]}
+    outdir: Path,           # e.g., .../Pipeline/<pair>/output_esm_fold/esm3
+    pair_id: str,           # e.g., "1fzpD_2frhA"
+    model_tag: str,         # e.g., "esm3" or "esm2"
+    sequences,              # list[(name, seq)] in the order folded
+    device: str
+) -> None:
+    """
+    Emit:
+      - per-chain PDBs: <chain>_<model>.pdb (e.g., 1fzpD_esm3.pdb)
+      - combined multi-MODEL PDB: <pair>__<model>_combined.pdb
+      - metadata JSON: pair_prediction_metadata.json
+      - log: pair_prediction.log
+    """
     outdir.mkdir(parents=True, exist_ok=True)
-    pdb_path = outdir / "structure.pdb"
-    json_path = outdir / "prediction.json"
-    log_path = outdir / "logs.txt"
 
-    # Concatenate chains into a multi-MODEL PDB (simple, robust)
-    pdb_blocks = []
-    for i, ch in enumerate(result.get("chains", [])):
+    # 1) One file per chain with its name and model
+    per_chain_files = []
+    for ch in result.get("chains", []):
+        name = ch.get("name", "unknown")
         pdb_txt = (ch.get("pdb") or "").strip()
         if not pdb_txt:
             continue
-        pdb_blocks.append(f"MODEL     {i+1}{pdb_txt}ENDMDL")
-    with open(pdb_path, "w") as f:
-        f.write("".join(pdb_blocks))
+        pdb_path = outdir / f"{name}_{model_tag}.pdb"
+        with open(pdb_path, "w") as f:
+            f.write(pdb_txt if pdb_txt.endswith("\n") else pdb_txt + "\n")
+        per_chain_files.append(str(pdb_path))
 
-    payload = {
-        "model": model_tag,
+    # 2) Combined multi-MODEL PDB that includes the pair id AND model in the filename
+    combo_path = outdir / f"{pair_id}__{model_tag}_combined.pdb"
+    with open(combo_path, "w") as f:
+        for i, ch in enumerate(result.get("chains", []), start=1):
+            pdb_txt = (ch.get("pdb") or "").strip()
+            if pdb_txt:
+                f.write(f"MODEL     {i}\n{pdb_txt}\nENDMDL\n")
+
+    # 3) Metadata JSON with a clearer name
+    meta_path = outdir / "pair_prediction_metadata.json"
+    meta = {
         "pair_id": pair_id,
+        "model": model_tag,
         "backend": result.get("backend"),
-        "sequences": [{"name": n, "length": len(s)} for (n, s) in sequences],
-        "residue_index": result.get("chains", [{}])[0].get("residue_index"),
-        "plddt": result.get("chains", [{}])[0].get("plddt"),
-        "pae": result.get("chains", [{}])[0].get("pae"),
-        "timestamps": {"written": time.strftime("%Y-%m-%d %H:%M:%S")},
-        "files": {"pdb": str(pdb_path), "json": str(json_path)},
         "device": device,
+        "sequences": [{"name": n, "length": len(s)} for (n, s) in sequences],
+        # keep placeholders in case you later add pLDDT/PAE from the backends
+        "outputs": {
+            "per_chain": per_chain_files,
+            "combined": str(combo_path),
+        },
+        "timestamps": {"written": time.strftime("%Y-%m-%d %H:%M:%S")},
     }
-    with open(json_path, "w") as jf:
-        json.dump(payload, jf, indent=2)
+    with open(meta_path, "w") as jf:
+        json.dump(meta, jf, indent=2)
 
+    # 4) Compact log with a clearer name
+    log_path = outdir / "pair_prediction.log"
     with open(log_path, "a") as lf:
-        lf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] pair={pair_id} model={model_tag} device={device}")
+        lf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] pair={pair_id} model={model_tag} "
+                 f"backend={result.get('backend')} device={device} "
+                 f"chains={[c.get('name') for c in result.get('chains', [])]}\n")
+
+
 
 # --------------------------------------------------------------------------------------
 # CLI
