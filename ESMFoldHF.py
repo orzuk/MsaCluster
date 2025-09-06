@@ -71,13 +71,9 @@ def pick_device() -> str:
 # Paths & sequence loading (using existing utils only)
 # --------------------------------------------------------------------------------------
 
-def pair_dir(pair_id: str) -> Path:
-    root = Path(DATA_DIR) if (Path(DATA_DIR) / "Pipeline").exists() else Path(MAIN_DIR)
-    return (root / "Pipeline" / pair_id).resolve()
-
 
 def ensure_outdir(pair_id: str, model_tag: str) -> Path:
-    out = pair_dir(pair_id) / "output_esm_fold" / model_tag
+    out = DATA_DIR + "/" + pair_id + "/output_esm_fold/" + model_tag
     out.mkdir(parents=True, exist_ok=True)
     return out
 
@@ -180,7 +176,7 @@ def sequences_from_pdbs(pdir: Path, pair_id: str) -> List[Tuple[str, str]]:
 
 
 def get_sequences_for_pair(pair_id: str) -> List[Tuple[str, str]]:
-    pdir = pair_dir(pair_id)
+    pdir = DATA_DIR + "/" + pair_id
     if not pdir.exists():
         raise FileNotFoundError(f"Pair directory not found: {pdir}")
 
