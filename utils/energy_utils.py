@@ -59,6 +59,9 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
     - pdb_pairs (list of tuples): List of PDB file pairs [(pdb1, chain1), (pdb2, chain2)].
     - output_dir (str): Directory to save results.
     """
+    if not PYROSETTA_AVAILABLE:
+        raise RuntimeError("PyRosetta is not installed in this environment. "
+                           "Install it or run this step on the Linux cluster.")
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
@@ -427,6 +430,9 @@ def compute_deltaG_with_pyrosetta(pdb_path: str, log_file_path: str = None):
     Returns:
     - tuple: (PDB file path, ΔG, additional_info_dict)
     """
+    if not PYROSETTA_AVAILABLE:
+        raise RuntimeError("PyRosetta is not installed in this environment. "
+                           "Install it or run this step on the Linux cluster.")
     if log_file_path:
         with open(log_file_path, "w") as log_file:
             with RedirectStdStreams(stdout=log_file, stderr=log_file):
