@@ -5,8 +5,15 @@ import re
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
 #if not platform.system() == "Linux":  # Plotting doesn't work on unix
-import pymol
-from pymol import cmd  # , stored
+
+PYMOL_AVAILABLE = False
+try:
+    import pymol
+    from pymol import cmd
+    PYMOL_AVAILABLE = True
+except Exception:
+    # Keep plotting utils importable on machines without PyMOL
+    PYMOL_AVAILABLE = False
 
 from Bio import Align
 from utils.phytree_utils import *
@@ -39,7 +46,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
     print("Plot for foldpair_id: " + foldpair_id)
     fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
                         pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
-    msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmap_esm/*.npy")
+    msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmaps/msa_transformer/*.npy")
     n_cmaps = len(msa_pred_files)
     msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
     msa_clusters = {file.split("\\")[-1][:-4]: read_msa(file) for file in msa_files}
@@ -120,7 +127,7 @@ def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
                                                      [n.name for n in ete_tree])
     print("Converted seq ids to cluster ids:")
 
-    ete_leaves_node_values = {n.name: cluster_node_values[foldpair_id + '/output_cmap_esm/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]]
+    ete_leaves_node_values = {n.name: cluster_node_values[foldpair_id + '/output_cmaps/msa_transformer/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]]
                               for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
     ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
@@ -251,6 +258,9 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
     pdb_file2 (str): Path to the second PDB file.
     output_file (str): Path to save the output image.
     """
+
+    if not PYMOL_AVAILABLE:
+        raise RuntimeError("PyMOL is not installed/available. Install it or run this on a machine with PyMOL.")
 
     if open_environment:  # Initialize PyMOL
 #        pymol.cmd.set("quiet", 1)

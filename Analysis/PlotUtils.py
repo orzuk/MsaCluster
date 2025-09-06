@@ -160,14 +160,8 @@ def dilate_with_tolerance(array, tolerance):
     return binary_dilation(array, structure=structure).astype(int)
 
 
-#def load_pred_cmap(fileName):
-#    cmap = np.load(f'{plot_tool.folder}/{plot_tool.fold_pair}/output_cmap_esm/{fileName}.npy')
-#    cmap[cmap > 0.4] = 1
-#    cmap[cmap <= 0.4] = 0
-#    return cmap
-
 def load_pred_cmap(file_name, base_dir, pair_dir, thresh=0.4):
-    path = f'{base_dir}/{pair_dir}/output_cmap_esm/{file_name}.npy'
+    path = f'{base_dir}/{pair_dir}/output_cmaps/msa_transformer/{file_name}.npy'
     cmap = np.load(path)
     return (cmap > thresh).astype(np.uint8)
 

@@ -228,7 +228,7 @@ if __name__ == "__main__":
             cmap_only_pdb1, cmap_only_pdb2 = get_only_cmaps(cmap_aligned_pdb1, cmap_aligned_pdb2)
 
             # === NEW: metrics only, no visualization files ===
-            pred_dir = f"{DATA_DIR}/{fold_pair_subdir}/output_cmap_esm"
+            pred_dir = f"{DATA_DIR}/{fold_pair_subdir}/output_cmaps/msa_transformer"
             cmaps = sorted(os.listdir(pred_dir))
             print("Loop on cmaps for: ", fold_pair_subdir)
             print("List of cmaps: ", cmaps)

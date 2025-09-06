@@ -52,7 +52,7 @@ r = []
 cmap_err_fold_pair = []
 for fold_pair in fold_pairs:
     try:
-        L=len(os.listdir(f'/Users/steveabecassis/Desktop/Pipeline/{fold_pair}/output_cmap_esm'))
+        L=len(os.listdir(f'/Users/steveabecassis/Desktop/Pipeline/{fold_pair}/output_cmaps/msa_transformer'))
         if L<3:
             cmap_err_fold_pair.append({'fold_pair':fold_pair,'esm_fold_len_pred':L})
     except:

@@ -51,31 +51,4 @@ visualize_tree_with_heatmap(clusters_subtree, concat_scores, 'temp_local_tree.pn
 # print("MSA-Trans DF: ", msa_trans_df)
 
 
-# node_names = ['1dzlA_5keqF/output_cmap_esm/msa_t__MSA_deep',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_000',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_001',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_002',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_003',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_004',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_005',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_006',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_007',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_008',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_009',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_010',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_011',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_012',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_013',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_014',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_015',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_016',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_017',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_018',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_019',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_020',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_021',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_022',
-#       '1dzlA_5keqF/output_cmap_esm/msa_t__ShallowMsa_023']
-
-# print("Parsed names: ", [match.group() for s in node_names for match in re.finditer(r'M[sS][aA][a-zA-Z0-9_].*', s)])
 
