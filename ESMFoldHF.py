@@ -70,12 +70,21 @@ def pick_device() -> str:
 # --------------------------------------------------------------------------------------
 # Paths & sequence loading (using existing utils only)
 # --------------------------------------------------------------------------------------
-
-
 def ensure_outdir(pair_id: str, model_tag: str) -> Path:
-    out = DATA_DIR + "/" + pair_id + "/output_esm_fold/" + model_tag
+    out = Path(DATA_DIR) / pair_id / "output_esm_fold" / model_tag
     out.mkdir(parents=True, exist_ok=True)
     return out
+
+
+def get_sequences_for_pair(pair_id: str) -> list[tuple[str, str]]:
+    pdir = Path(DATA_DIR) / pair_id
+    if not pdir.exists():
+        raise FileNotFoundError(f"Pair directory not found: {pdir}")
+
+    seqs = maybe_read_pair_fasta(pdir)
+    if seqs:
+        return seqs
+    return sequences_from_pdbs(pdir, pair_id)
 
 
 def parse_pair_id(pair_id: str) -> Tuple[Tuple[str, str], Tuple[str, str]]:
@@ -175,18 +184,6 @@ def sequences_from_pdbs(pdir: Path, pair_id: str) -> List[Tuple[str, str]]:
     return seqs
 
 
-def get_sequences_for_pair(pair_id: str) -> List[Tuple[str, str]]:
-    pdir = DATA_DIR + "/" + pair_id
-    if not pdir.exists():
-        raise FileNotFoundError(f"Pair directory not found: {pdir}")
-
-    # 1) Prefer FASTA if present (uses utils.msa_utils.load_fasta)
-    seqs = maybe_read_pair_fasta(pdir)
-    if seqs:
-        return seqs
-
-    # 2) Derive from PDBs using your protein_utils
-    return sequences_from_pdbs(pdir, pair_id)
 
 # --------------------------------------------------------------------------------------
 # ESM2 runner (ESMFold)
@@ -340,7 +337,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"Running ESM on device: {dev_str}", flush=True)
 
     t0 = time.time()
-    pair_path = DATA_DIR + "/" + args.pair_id
+    pair_path = Path(DATA_DIR) / args.pair_id
     if not pair_path.exists():
         raise FileNotFoundError(f"Pair directory not found: {pair_path}")
     sequences = get_sequences_for_pair(args.pair_id)
@@ -363,3 +360,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"[done] Outputs: {outdir}")
     return 0
 
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise SystemExit(1)
