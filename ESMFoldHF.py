@@ -1,151 +1,341 @@
-# from ESMFold import convert_outputs_to_pdb, save_string_as_pdb
-# from transformers import AutoTokenizer, EsmForProteinFolding
-# from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
-# from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
-from argparse import  ArgumentParser
-# import torch
-from random import sample
-import random
-random.seed(10)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+ESMFoldHF.py — unified runner for ESMFold (ESM2-backed) and ESM3
 
-from transformers import AutoTokenizer, EsmForProteinFolding
-from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
-from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
-import argparse
-from Bio import PDB, SeqIO
-from Bio.PDB import PDBParser
+What this does
+- `--model {esm2, esm3}` (default: esm2)
+- Auto-detects device (CUDA/MPS/CPU); override with env `FORCE_CPU=1` or `--device`
+- **Uses ONLY your existing utils** to get sequences (no new FASTA/PDB readers):
+    * utils.msa_utils.load_fasta
+    * utils.protein_utils.load_pdb_structure
+    * utils.protein_utils.extract_protein_sequence
+- Writes normalized outputs to: Pipeline/<pair>/output_esm_fold/<model>/
+    structure.pdb, prediction.json, logs.txt
+- Compatible with your repo layout (uses config.py MAIN_DIR/DATA_DIR and utils/*)
+
+Add to config.py if you plan to run ESM3 via a local repo script:
+    ESM_PATH = "/mnt/c/Code/Github/esm"         # path where you cloned Meta's ESM repo
+    ESM3_INFER_SCRIPT = "scripts/infer_esm3.py"   # script (relative to ESM_PATH) that prints PDB to stdout
+
+Run examples
+    python3 ESMFoldHF.py -input 1fzpD_2frhA                 # esm2 by default
+    python3 ESMFoldHF.py -input 1fzpD_2frhA --model esm3    # run esm3 via subprocess
+
+"""
+from __future__ import annotations
 import os
-from utils.protein_utils import *
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
-#iminuit==1.5.4
-#tmscoring
+import sys
+import json
+import time
+import argparse
+import subprocess
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+
+# Quiet TensorFlow chatter if present
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+
+# --------------------------------------------------------------------------------------
+# Project config & utils (DO NOT reinvent)
+# --------------------------------------------------------------------------------------
+from config import *  # assume present
+try:
+    from config import ESM3_INFER_SCRIPT  # optional for esm3
+except Exception:
+    ESM3_INFER_SCRIPT = os.environ.get("ESM3_INFER_SCRIPT", "scripts/infer_esm3.py")
+
+# Your utils — rely ONLY on these for I/O
+from utils.msa_utils import load_fasta
+from utils.protein_utils import load_pdb_structure, extract_protein_sequence
+
+# Core deps
+import torch
+import numpy as np  # noqa: F401
+
+# --------------------------------------------------------------------------------------
+# Device selection
+# --------------------------------------------------------------------------------------
+
+def pick_device() -> str:
+    if os.environ.get("FORCE_CPU", "0") == "1":
+        return "cpu"
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+# --------------------------------------------------------------------------------------
+# Paths & sequence loading (using existing utils only)
+# --------------------------------------------------------------------------------------
+
+def pair_dir(pair_id: str) -> Path:
+    root = Path(DATA_DIR) if (Path(DATA_DIR) / "Pipeline").exists() else Path(MAIN_DIR)
+    return (root / "Pipeline" / pair_id).resolve()
 
 
-# Specific conversion for atoms
-def convert_outputs_to_pdb(outputs):
-    final_atom_positions = atom14_to_atom37(outputs["positions"][-1], outputs)
-    outputs = {k: v.detach().to("cpu").numpy() for k, v in outputs.items()}
-    final_atom_positions = final_atom_positions.detach().cpu().numpy()
-    final_atom_mask = outputs["atom37_atom_exists"]
-    pdbs = []
-    for i in range(outputs["aatype"].shape[0]):
-        aa = outputs["aatype"][i]
-        pred_pos = final_atom_positions[i]
-        mask = final_atom_mask[i]
-        resid = outputs["residue_index"][i] + 1
-        pred = OFProtein(
-            aatype=aa,
-            atom_positions=pred_pos,
-            atom_mask=mask,
-            residue_index=resid,
-            b_factors=outputs["plddt"][i],
-            chain_index=outputs["chain_index"][i] if "chain_index" in outputs else None,
-        )
-        pdbs.append(to_pdb(pred))
-    return pdbs
+def ensure_outdir(pair_id: str, model_tag: str) -> Path:
+    out = pair_dir(pair_id) / "output_esm_fold" / model_tag
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
 
-# Save string to pdb
-def save_string_as_pdb(pdb_string, file_path):
-    with open(file_path, 'w') as pdb_file:
-        pdb_file.write(pdb_string)
+def parse_pair_id(pair_id: str) -> Tuple[Tuple[str, str], Tuple[str, str]]:
+    """Split like 1fzpD_2frhA -> (("1fzp","D"),("2frh","A"))"""
+    left, right = pair_id.split("_", 1)
+    def split(pc: str) -> Tuple[str, str]:
+        pdbid, chain = pc[:-1], pc[-1]
+        return pdbid.lower(), chain
+    return split(left), split(right)
 
 
-if __name__ == '__main__':
-
-    parser = ArgumentParser()
-    parser.add_argument("-input",help="Should be a path")
-    parser.add_argument("-name", help="msa name")
-
-    args = parser.parse_args()
-
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    # device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("Running ESM-Fold on device: " + device)
-
-    input_ = args.input
-    print('input:',input_)
-    fold_pair = input_.replace("Pipeline/", "",1)  # The '1' indicates to replace the first occurrence only
-    input_path = f'./Pipeline/{fold_pair}/output_msa_cluster'
-
-    msas_files = os.listdir(f'./Pipeline/{fold_pair}/output_msa_cluster')
-    print('Load model...!')
-    model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1", low_cpu_mem_usage=True)
-    model = model.cuda()
-    model.esm = model.esm.half()
-    torch.backends.cuda.matmul.allow_tf32 = True
-    model.trunk.set_chunk_size(64)
-    model.esm.float()
-    model = model.to(device)
-    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1",low_cpu_mem_usage=True)
-    print('Finish to load model !')
+def maybe_read_pair_fasta(pdir: Path) -> Optional[List[Tuple[str, str]]]:
+    """Try typical FASTA names via existing utils.msa_utils.load_fasta.
+    load_fasta returns (IDs, seqs) -> convert to List[(id, seq)].
+    """
+    for rel in ("seqs.fasta", "sequences.fasta", "input.fasta", "fasta/seqs.fasta"):
+        fp = pdir / rel
+        if fp.exists():
+            ids, seqs = load_fasta(str(fp))
+            records = list(zip(ids, seqs))
+            if records:
+                print(f"[info] Using FASTA: {fp}")
+                return records
+    return None
 
 
-    folds = fold_pair.split("_")
-    fold1 = folds[0]
-    fold2 = folds[1]
-    path = f'./Pipeline/{fold_pair}'
-    print(f'seq fold1:{path}/chain_pdb_files/{fold1}.pdb')
-    seq_fold1 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold1}.pdb')
-    seq_fold2 = extract_protein_sequence(f'{path}/chain_pdb_files/{fold2}.pdb')
+def sequences_from_pdbs(pdir: Path, pair_id: str) -> List[Tuple[str, str]]:
+    """Use existing utils.protein_utils helpers to load PDBs and extract sequences.
+    extract_protein_sequence(pdb_file: str, chain: Optional[str], ca_only: bool=False) -> str
+    """
+    (pdb1, ch1), (pdb2, ch2) = parse_pair_id(pair_id)
+    pdb_paths = [pdir / f"{pdb1}.pdb", pdir / f"{pdb2}.pdb"]
+    names = [f"{pdb1}{ch1}", f"{pdb2}{ch2}"]
+    chains = [ch1, ch2]
 
-    print('################################seq_fold1############################################')
-    print(seq_fold1)
-    print('############################################################################')
-    print('###################################seq_fold2#########################################')
-    print(seq_fold2)
-    print('############################################################################')
+    seqs: List[Tuple[str, str]] = []
+    for name, chain, pdb_path in zip(names, chains, pdb_paths):
+        if not pdb_path.exists():
+            hits = list(pdir.glob(f"{pdb_path.stem}*.pdb"))
+            if not hits:
+                raise FileNotFoundError(f"Expected PDB file not found: {pdb_path}")
+            pdb_path = hits[0]
 
+        sequence = extract_protein_sequence(str(pdb_path), chain=chain)
+        if not sequence:
+            raise RuntimeError(f"Empty sequence for {name} extracted from {pdb_path}")
+        seqs.append((name, str(sequence)))
+    return seqs
 
+    seqs: List[Tuple[str, str]] = []
+    for name, chain, pdb_path in zip(names, chains, pdb_paths):
+        if not pdb_path.exists():
+            hits = list(pdir.glob(f"{pdb_path.stem}*.pdb"))
+            if not hits:
+                raise FileNotFoundError(f"Expected PDB file not found: {pdb_path}")
+            pdb_path = hits[0]
 
-    inputs = tokenizer([seq_fold1],return_tensors="pt",add_special_tokens=False,padding=True,truncation=True,max_length=1024)['input_ids']
-
-    inputs = inputs.cuda()
-    with torch.no_grad():
-        outputs = model(inputs)
-    folded_positions = outputs.positions
-    pdb = convert_outputs_to_pdb(outputs)
-    print(f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
-    save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold1}_esm.pdb')
-    print(f'Success to save {fold1} pdb file !')
-
-
-    # if len(seq_fold2)
-    inputs = tokenizer([seq_fold2],return_tensors="pt",add_special_tokens=False,padding=True,truncation=True,max_length=1024)['input_ids']
-    inputs = inputs.cuda()
-    with torch.no_grad():
-        outputs = model(inputs)
-    folded_positions = outputs.positions
-    pdb = convert_outputs_to_pdb(outputs)
-    save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{fold2}_esm.pdb')
-    print(f'Success to save {fold2} pdb file !')
-
-    for msa in msas_files:
-        with open(f'{input_path}/{msa}', 'r') as msa_fil:
-            seq = msa_fil.read().splitlines()
-        msa_name = msa[:-4]
-        seqs = [process_sequence(i) for i in seq if '>' not in i]
-        if len(seqs) > 10:
-            seqs = sample(seqs,10)
-
-
-
-        for i in range(len(seqs)):
+        # Try the common variants without re-implementing logic
+        sequence = None
+        try:
+            # Variant A: pass a loaded structure and chain_id kw
+            structure = load_pdb_structure(str(pdb_path))
+            sequence = extract_protein_sequence(structure, chain_id=chain)
+        except Exception as e_a:
             try:
-                print(f'Get ESM prediction {i}...')
-                inputs = tokenizer([seqs[i]], return_tensors="pt", add_special_tokens=False,padding=True,max_length=1024)['input_ids']
-                inputs = inputs.cuda()
-                with torch.no_grad():
-                    outputs = model(inputs)
-                folded_positions = outputs.positions
-                print(f'Finish ESM prediction {i}!')
+                # Variant B: pass file path + positional chain
+                sequence = extract_protein_sequence(str(pdb_path), chain)
+            except Exception as e_b:
+                try:
+                    # Variant C: pass file path + keyword chain
+                    sequence = extract_protein_sequence(str(pdb_path), chain=chain)
+                except Exception as e_c:
+                    raise RuntimeError(
+                        f"extract_protein_sequence() failed for {name} from {pdb_path}. "
+                        f"Tried signatures: (structure, chain_id), (pdb_file, chain), (pdb_file, chain=). "
+                        f"Errors: A={e_a}; B={e_b}; C={e_c}"
+                    )
 
-                print(f'Write pdb output {i}...!')
-                pdb = convert_outputs_to_pdb(outputs)
-                print(f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
-                print(pdb[0])
-                save_string_as_pdb(pdb[0], f'./Pipeline/{fold_pair}/output_esm_fold/{msa_name}_{i}.pdb')
-                print(f'Finish to write pdb output {i} !')
-            except:
-                continue
+        if not sequence:
+            raise RuntimeError(f"Empty sequence for {name} extracted from {pdb_path}")
+        seqs.append((name, str(sequence)))
+    return seqs
 
+    seqs: List[Tuple[str, str]] = []
+    for name, chain, pdb_path in zip(names, chains, pdb_paths):
+        if not pdb_path.exists():
+            # try any file with that pdbid prefix
+            hits = list(pdir.glob(f"{pdb_path.stem}*.pdb"))
+            if not hits:
+                raise FileNotFoundError(f"Expected PDB file not found: {pdb_path}")
+            pdb_path = hits[0]
+        structure = load_pdb_structure(str(pdb_path))
+        seq = extract_protein_sequence(structure, chain_id=chain)
+        if not seq:
+            raise RuntimeError(f"Failed to extract sequence for {name} from {pdb_path}")
+        seqs.append((name, str(seq)))
+    return seqs
+
+
+def get_sequences_for_pair(pair_id: str) -> List[Tuple[str, str]]:
+    pdir = pair_dir(pair_id)
+    if not pdir.exists():
+        raise FileNotFoundError(f"Pair directory not found: {pdir}")
+
+    # 1) Prefer FASTA if present (uses utils.msa_utils.load_fasta)
+    seqs = maybe_read_pair_fasta(pdir)
+    if seqs:
+        return seqs
+
+    # 2) Derive from PDBs using your protein_utils
+    return sequences_from_pdbs(pdir, pair_id)
+
+# --------------------------------------------------------------------------------------
+# ESM2 runner (ESMFold)
+# --------------------------------------------------------------------------------------
+
+def run_esm2_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
+    """
+    Run structure prediction using fair-esm's ESMFold (ESM2-backed).
+    Returns {"backend":"fair-esm", "chains":[{"name","pdb","plddt","pae","residue_index"}, ...]}
+    """
+    try:
+        import esm  # fair-esm package
+    except Exception as e:
+        raise RuntimeError("ESM2 run requires fair-esm. Install with `pip install fair-esm` (CPU works). Details: " + str(e))
+
+    model = esm.pretrained.esmfold_v1().eval()
+    if device != "cpu":
+        model = model.to(device)
+
+    outputs = []
+    for name, seq in seqs:
+        print(f"[esm2] predicting {name} (len={len(seq)}) on {device} …")
+        t0 = time.time()
+        pdb_str = model.infer_pdb(seq)
+        dt = time.time() - t0
+        print(f"[esm2] done in {dt:.1f}s")
+        outputs.append({
+            "name": name,
+            "pdb": pdb_str,
+            "plddt": None,                  # keep placeholders; fair-esm exposes helpers if needed
+            "pae": None,
+            "residue_index": list(range(1, len(seq) + 1)),
+        })
+    return {"backend": "fair-esm", "chains": outputs}
+
+# --------------------------------------------------------------------------------------
+# ESM3 runner (subprocess to your local ESM repo script)
+# --------------------------------------------------------------------------------------
+
+def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
+    """
+    Call a local ESM3 inference script that prints PDB to stdout.
+    Expected CLI (adjust your script accordingly):
+        python <ESM_PATH>/<ESM3_INFER_SCRIPT> --sequence "ACDE..." --device <cpu|cuda|mps>
+    """
+    if not ESM_PATH:
+        raise RuntimeError("ESM_PATH is not set in config.py or environment.")
+    script = Path(ESM_PATH) / ESM3_INFER_SCRIPT
+    if not script.exists():
+        raise FileNotFoundError(f"ESM3 inference script not found: {script}")
+
+    outputs = []
+    for name, seq in seqs:
+        print(f"[esm3] predicting {name} (len={len(seq)}) via {script} …")
+        cmd = [sys.executable, str(script), "--sequence", seq, "--device", device]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
+        pdb_str = res.stdout
+        outputs.append({
+            "name": name,
+            "pdb": pdb_str,
+            "plddt": None,                  # leave normalization step to fill when available
+            "pae": None,
+            "residue_index": list(range(1, len(seq) + 1)),
+        })
+    return {"backend": "esm3-subprocess", "chains": outputs}
+
+# --------------------------------------------------------------------------------------
+# Normalization to ESM2-style layout
+# --------------------------------------------------------------------------------------
+
+def write_normalized_outputs(result: Dict, outdir: Path, pair_id: str, model_tag: str,
+                             sequences: List[Tuple[str, str]], device: str) -> None:
+    outdir.mkdir(parents=True, exist_ok=True)
+    pdb_path = outdir / "structure.pdb"
+    json_path = outdir / "prediction.json"
+    log_path = outdir / "logs.txt"
+
+    # Concatenate chains into a multi-MODEL PDB (simple, robust)
+    pdb_blocks = []
+    for i, ch in enumerate(result.get("chains", [])):
+        pdb_txt = (ch.get("pdb") or "").strip()
+        if not pdb_txt:
+            continue
+        pdb_blocks.append(f"MODEL     {i+1}{pdb_txt}ENDMDL")
+    with open(pdb_path, "w") as f:
+        f.write("".join(pdb_blocks))
+
+    payload = {
+        "model": model_tag,
+        "pair_id": pair_id,
+        "backend": result.get("backend"),
+        "sequences": [{"name": n, "length": len(s)} for (n, s) in sequences],
+        "residue_index": result.get("chains", [{}])[0].get("residue_index"),
+        "plddt": result.get("chains", [{}])[0].get("plddt"),
+        "pae": result.get("chains", [{}])[0].get("pae"),
+        "timestamps": {"written": time.strftime("%Y-%m-%d %H:%M:%S")},
+        "files": {"pdb": str(pdb_path), "json": str(json_path)},
+        "device": device,
+    }
+    with open(json_path, "w") as jf:
+        json.dump(payload, jf, indent=2)
+
+    with open(log_path, "a") as lf:
+        lf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] pair={pair_id} model={model_tag} device={device}")
+
+# --------------------------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------------------------
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="Run ESMFold (ESM2) or ESM3 and normalize outputs.")
+    parser.add_argument("-input", dest="pair_id", required=True, help="Fold pair id, e.g., 1fzpD_2frhA")
+    parser.add_argument("--model", choices=["esm2", "esm3"], default="esm2",
+                        help="Which model to run (default: esm2)")
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto",
+                        help="Device selection (default: auto)")
+
+    args = parser.parse_args(argv)
+
+    device = pick_device() if args.device == "auto" else args.device
+    print(f"Running ESM on device: {device}")
+
+    pair_id = args.pair_id
+    sequences = get_sequences_for_pair(pair_id)
+    if not sequences:
+        raise RuntimeError("No sequences found for input pair.")
+
+    model_tag = args.model
+    outdir = ensure_outdir(pair_id, model_tag)
+
+    if model_tag == "esm2":
+        result = run_esm2_fold(sequences, device)
+    else:
+        result = run_esm3_fold(sequences, device)
+
+    write_normalized_outputs(result, outdir, pair_id, model_tag, sequences, device)
+    print(f"[done] Outputs: {outdir}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as e:
+        print(f"[error] {e}")
+        sys.exit(1)
