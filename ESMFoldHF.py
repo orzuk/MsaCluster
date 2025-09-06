@@ -185,6 +185,17 @@ def sequences_from_pdbs(pdir: Path, pair_id: str) -> List[Tuple[str, str]]:
 
 
 
+def load_esmfold(device="cuda"):
+    # Try Meta fair-esm path (needs OpenFold)
+    try:
+        import esm
+        return ("meta-esmfold", esm.pretrained.esmfold_v1().eval())
+    except Exception as e_meta:
+        # Fallback to HF port (no system OpenFold install required)
+        from transformers import EsmForProteinFolding
+        model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").to(device).eval()
+        return ("hf-esmfold", model)
+
 # --------------------------------------------------------------------------------------
 # ESM2 runner (ESMFold)
 # --------------------------------------------------------------------------------------
@@ -207,11 +218,14 @@ def _detect_esm2_checkpoint() -> str | None:
 
 
 
+
 def run_esm2_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
     """
     Run structure prediction using fair-esm's ESMFold (ESM2-backed).
     Returns {"backend":"fair-esm", "chains":[{"name","pdb","plddt","pae","residue_index"}, ...]}
     """
+    load_esmfold(device)
+
     try:
         import esm  # fair-esm package
     except Exception as e:
