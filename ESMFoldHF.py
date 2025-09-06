@@ -232,7 +232,11 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
     for name, seq in seqs:
         print(f"[esm3] predicting {name} (len={len(seq)}) via {script} …", flush=True)
         cmd = [sys.executable, str(script), "--sequence", seq, "--device", device]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        repo_root = Path(__file__).resolve().parent  # the repo root (folder containing ESMFoldHF.py)
+        env = os.environ.copy()
+        env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
+        res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(repo_root), env=env) # ensure working dir is repo root, # ensure utils/ is on sys.path
+ #       res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
             raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
         pdb_str = res.stdout

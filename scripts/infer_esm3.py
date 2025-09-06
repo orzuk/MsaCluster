@@ -16,6 +16,13 @@ Usage:
 Env:
   ESM3_MODEL (optional), HF_HOME / HF_HUB_OFFLINE (optional for huggingface cache/offline)
 """
+from pathlib import Path
+import sys
+# repo root = parent of scripts/
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from __future__ import annotations
 import os, sys, argparse, traceback
 from typing import Optional, List, Tuple
