@@ -106,9 +106,6 @@ ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
 ENERGY_DIR = DATA_DIR + '/output_deltaG'
 ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
 
-
-
-
 GITHUB_URL_HTML = "https://steveabecassis.github.io/MsaCluster/HTML/"
 
 LOCAL_RUN = False
@@ -117,3 +114,5 @@ PAIR_DIR_RE = re.compile(r'^([0-9A-Za-z]{4}[A-Za-z0-9])_([0-9A-Za-z]{4}[A-Za-z0-
 
 # Which of the five AF models to use for prediction
 AF2_MODEL = 2
+
+print("FINISHED LOADING CONFIG. RUNNING FOLD-SWITCH PIEPLINE WITH USER: " +  user + "  ENVIRONMENT: " +  platform.system())

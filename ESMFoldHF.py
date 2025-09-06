@@ -318,11 +318,16 @@ def write_normalized_outputs(result: Dict, outdir: Path, pair_id: str, model_tag
 
 # --- in main(), add timing around each stage and print a summary: ---
 def main(argv: Optional[List[str]] = None) -> int:
+    print(f"Running ESM, going to read parameters!", flush=True)
+
     parser = argparse.ArgumentParser(description="Run ESMFold (ESM2) or ESM3 and normalize outputs.")
     parser.add_argument("-input", dest="pair_id", required=True, help="Pair id (e.g., 1fzpD_2frhA) OR an existing directory path")
     parser.add_argument("--model", choices=["esm2", "esm3"], default="esm2")
     parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto")
     args = parser.parse_args(argv)
+
+    print(f"Running ESM, finished reading args parameters!", flush=True)
+
 
     t_start = time.time()
     device = pick_device() if args.device == "auto" else args.device
@@ -332,7 +337,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             dev_str += f" ({torch.cuda.get_device_name(0)})"
         except Exception:
             pass
-    print(f"Running ESM on device: {dev_str}")
+    print(f"Running ESM on device: {dev_str}", flush=True)
 
     t0 = time.time()
     pair_path = DATA_DIR + "/" + args.pair_id
@@ -354,7 +359,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     write_normalized_outputs(result, outdir, args.pair_id, model_tag, sequences, device)
     t4 = time.time()
 
-    print(f"[timing] load_seqs: {t1-t0:.1f}s | predict: {t3-t2:.1f}s | write: {t4-t3:.1f}s | total: {t4-t_start:.1f}s")
+    print(f"[timing] load_seqs: {t1-t0:.1f}s | predict: {t3-t2:.1f}s | write: {t4-t3:.1f}s | total: {t4-t_start:.1f}s", flush=True)
     print(f"[done] Outputs: {outdir}")
     return 0
 
