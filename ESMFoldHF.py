@@ -191,6 +191,24 @@ def get_sequences_for_pair(pair_id: str) -> List[Tuple[str, str]]:
 # --------------------------------------------------------------------------------------
 # ESM2 runner (ESMFold)
 # --------------------------------------------------------------------------------------
+# --- add this helper anywhere near your ESM2 runner (top-level, not inside a function): ---
+def _detect_esm2_checkpoint() -> str | None:
+    """
+    Try to point to where ESMFold weights live. fair-esm uses torch.hub cache.
+    """
+    try:
+        import torch, os
+        hub = Path(os.environ.get("TORCH_HOME", Path.home() / ".cache" / "torch"))
+        for d in [hub / "hub" / "checkpoints", hub / "checkpoints"]:
+            if d.exists():
+                hits = sorted(d.glob("*esm*fold*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+                if hits:
+                    return str(hits[0])
+    except Exception:
+        pass
+    return None
+
+
 
 def run_esm2_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
     """
@@ -298,40 +316,45 @@ def write_normalized_outputs(result: Dict, outdir: Path, pair_id: str, model_tag
 # CLI
 # --------------------------------------------------------------------------------------
 
+# --- in main(), add timing around each stage and print a summary: ---
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Run ESMFold (ESM2) or ESM3 and normalize outputs.")
-    parser.add_argument("-input", dest="pair_id", required=True, help="Fold pair id, e.g., 1fzpD_2frhA")
-    parser.add_argument("--model", choices=["esm2", "esm3"], default="esm2",
-                        help="Which model to run (default: esm2)")
-    parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto",
-                        help="Device selection (default: auto)")
-
+    parser.add_argument("-input", dest="pair_id", required=True, help="Pair id (e.g., 1fzpD_2frhA) OR an existing directory path")
+    parser.add_argument("--model", choices=["esm2", "esm3"], default="esm2")
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto")
     args = parser.parse_args(argv)
 
+    t_start = time.time()
     device = pick_device() if args.device == "auto" else args.device
-    print(f"Running ESM on device: {device}")
+    dev_str = device
+    if device == "cuda":
+        try:
+            dev_str += f" ({torch.cuda.get_device_name(0)})"
+        except Exception:
+            pass
+    print(f"Running ESM on device: {dev_str}")
 
-    pair_id = args.pair_id
-    sequences = get_sequences_for_pair(pair_id)
-    if not sequences:
-        raise RuntimeError("No sequences found for input pair.")
+    t0 = time.time()
+    pair_path = pair_dir(args.pair_id)
+    if not pair_path.exists():
+        raise FileNotFoundError(f"Pair directory not found: {pair_path}")
+    sequences = get_sequences_for_pair(args.pair_id)
+    t1 = time.time()
 
     model_tag = args.model
-    outdir = ensure_outdir(pair_id, model_tag)
+    outdir = ensure_outdir(args.pair_id, model_tag)
 
+    t2 = time.time()
     if model_tag == "esm2":
         result = run_esm2_fold(sequences, device)
     else:
         result = run_esm3_fold(sequences, device)
+    t3 = time.time()
 
-    write_normalized_outputs(result, outdir, pair_id, model_tag, sequences, device)
+    write_normalized_outputs(result, outdir, args.pair_id, model_tag, sequences, device)
+    t4 = time.time()
+
+    print(f"[timing] load_seqs: {t1-t0:.1f}s | predict: {t3-t2:.1f}s | write: {t4-t3:.1f}s | total: {t4-t_start:.1f}s")
     print(f"[done] Outputs: {outdir}")
     return 0
 
-
-if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception as e:
-        print(f"[error] {e}")
-        sys.exit(1)
