@@ -1,33 +1,64 @@
 #!/bin/bash
+#SBATCH --job-name=af2_pair
+#SBATCH --time=02:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --gres=gpu:a100:1
+# (Optional, site-specific — uncomment if your cluster requires it)
+# #SBATCH --partition=a100
+# #SBATCH --constraint=a100
 
-#SBATCH --time=24:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=10G
-#SBATCH --gres=gpu:a100-1-10
+set -euo pipefail
 
-OUTPUT_NAME_DIR="$1"
+# ------------------ args & paths ------------------
+PAIR_ID="${1:?Usage: RunAF_params.sh <PAIR_ID> [BASE_DIR] }"
+BASE_DIR="${2:-Pipeline}"
+PAIR_DIR="${BASE_DIR}/${PAIR_ID}"
 
+MSA_DEEP="${PAIR_DIR}/output_get_msa"
+MSA_CLUST="${PAIR_DIR}/output_msa_cluster"
+OUT_DIR="${PAIR_DIR}/output_AF/AF2"
+mkdir -p "${OUT_DIR}"
 
-module load torch/1.3
-module load cuda/11.1
-module load cudnn/8.0.5
+echo "[AF2] Pair:           ${PAIR_ID}"
+echo "[AF2] Deep MSA dir:   ${MSA_DEEP}"
+echo "[AF2] Cluster MSA dir:${MSA_CLUST}"
+echo "[AF2] Output dir:     ${OUT_DIR}"
 
+# ------------------ environment -------------------
+# If you have a venv/conda to activate, set this env var before sbatch:
+#   export COLABFOLD_ENV_ACTIVATE=/path/to/your/env/bin/activate
+if [[ -n "${COLABFOLD_ENV_ACTIVATE:-}" && -f "${COLABFOLD_ENV_ACTIVATE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${COLABFOLD_ENV_ACTIVATE}"
+fi
 
-source /sci/labs/dina/dina/collabFold_phoenix/bin/activate.csh
-# Run full alignment and also each cluster separately!!! 
-"$COLABFOLD_BIN"  $OUTPUT_NAME_DIR/output_get_msa  $OUTPUT_NAME_DIR/AF_preds/  ${CF_DATA_FLAGS[@]}
-"$COLABFOLD_BIN"  $OUTPUT_NAME_DIR/output_msa_cluster $OUTPUT_NAME_DIR/AF_preds/  ${CF_DATA_FLAGS[@]}
+# Or use site modules instead of a venv (example):
+# module load cuda/12.1
+# module load python/3.11
 
-# Zip output json+pdb files to save space, also convert png to jpg 
-gzip $OUTPUT_NAME_DIR/AF_preds/*.json
-gzip $OUTPUT_NAME_DIR/AF_preds/*.pdb
+COLABFOLD_BIN="${COLABFOLD_BIN:-colabfold_batch}"
+CF_FLAGS=${CF_FLAGS:-}
 
-ls -1 $OUTPUT_NAME_DIR/AF_preds/*.png | xargs -n 1 bash -c 'convert "$0" "${0%.*}.jpg"'
-rm  $OUTPUT_NAME_DIR/AF_preds/*.png
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-${SLURM_CPUS_PER_TASK:-4}}"
 
+# ------------------ run AF2 -----------------------
+# Run once on the Deep MSA (full alignment) and once on the clustered MSAs.
+# Adjust these two lines if your AF frontend expects different inputs.
+"${COLABFOLD_BIN}" "${MSA_DEEP}"  "${OUT_DIR}" ${CF_FLAGS}
+"${COLABFOLD_BIN}" "${MSA_CLUST}" "${OUT_DIR}" ${CF_FLAGS}
 
+# ------------------ post-process (optional) -------
+shopt -s nullglob
+if compgen -G "${OUT_DIR}/*.json" > /dev/null; then gzip -f "${OUT_DIR}"/*.json; fi
+if compgen -G "${OUT_DIR}/*.pdb"  > /dev/null; then gzip -f "${OUT_DIR}"/*.pdb;  fi
 
+# Convert PNG to JPG if ImageMagick is available (optional)
+if command -v convert >/dev/null 2>&1; then
+  for p in "${OUT_DIR}"/*.png; do
+    [[ -e "$p" ]] || continue
+    convert "$p" "${p%.*}.jpg" && rm -f "$p"
+  done
+fi
 
-
-
-
+echo "[AF2] Done for ${PAIR_ID}"
