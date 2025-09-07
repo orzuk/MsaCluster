@@ -11,7 +11,7 @@ from typing import List, Tuple
 from config import *
 from utils.utils import pair_str_to_tuple
 from utils.protein_utils import read_msa, greedy_select
-from msa_utils import write_fasta  # your existing writer
+from utils.msa_utils import write_fasta  # your existing writer
 
 
 # ------------------------- helpers -------------------------
