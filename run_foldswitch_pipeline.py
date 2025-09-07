@@ -10,11 +10,41 @@ from typing import List, Tuple
 
 from config import *
 from utils.utils import pair_str_to_tuple
-from utils.protein_utils import read_msa, greedy_select
-from utils.msa_utils import write_fasta  # your existing writer
+from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence
+from utils.msa_utils import write_fasta, load_fasta  # your existing writer
 
 
 # ------------------------- helpers -------------------------
+
+def ensure_chain_fastas(pair_dir: str, pdbids: list[str], pdbchains: list[str]) -> None:
+    """
+    Make ./Pipeline/<pair>/fasta_chain_files/<pdb><chain>.fasta for each chain.
+    If a single-record root FASTA (<pdb>.fasta) exists, reuse it; otherwise
+    extract the chain sequence from the PDB.
+    """
+    fasta_dir = os.path.join(pair_dir, "fasta_chain_files")
+    os.makedirs(fasta_dir, exist_ok=True)
+
+    for pdb, ch in zip(pdbids, pdbchains):
+        tag = f"{pdb}{ch}"
+        out_fa = os.path.join(fasta_dir, f"{tag}.fasta")
+        if os.path.isfile(out_fa) and os.path.getsize(out_fa) > 0:
+            continue
+
+        # Try to reuse the root FASTA if it's single-record
+        root_fa = os.path.join(pair_dir, f"{pdb}.fasta")
+        seq = None
+        if os.path.isfile(root_fa):
+            ids, seqs = load_fasta(root_fa)
+            if len(seqs) == 1:
+                seq = seqs[0]
+
+        # Otherwise extract chain from the PDB (sequence-based folding anyway)
+        if not seq:
+            pdb_path = os.path.join(pair_dir, f"{pdb}.pdb")
+            seq = extract_protein_sequence(pdb_path, chain=ch)
+
+        write_fasta([tag], [seq], out_fa)
 
 def _is_windows() -> bool:
     return platform.system().lower().startswith("win")
@@ -134,23 +164,36 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     cmd = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device {device}"
     _run(cmd, args.run_job_mode)
 
+
 def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     """
-    Scaffolding:
-      - Build per-cluster/per-fold jobs
-      - Ensure output root: Pipeline/<pair>/output_AF/AF2/
-      - Delegate to your AF runner / sbatch script
+    Submit AF2 for this pair via Slurm, after ensuring the two chain FASTAs exist:
+      Pipeline/<pair>/fasta_chain_files/<pdb><chain>.fasta
+    The sbatch script is your existing: ./Pipeline/RunAF_params.sh
     """
     if _is_windows():
-        raise SystemExit("AlphaFold2 can’t run on Windows. Run on Moriah/Linux.")
+        raise SystemExit("AlphaFold2 must run on the Linux cluster. Use --run_job_mode sbatch.")
 
-    out_root = f"Pipeline/{pair_id}/output_AF/AF2"
+    if args.run_job_mode != "sbatch":
+        raise SystemExit("AlphaFold2 must be submitted via Slurm. Re-run with: --run_job_mode sbatch")
+
+    # ensure chain FASTAs (reuses root FASTAs if single-record; else extracts from PDB)
+    foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1fzpD','2frhA'
+    pdbids     = [foldA[:-1], foldB[:-1]]            # ['1fzp','2frh']
+    pdbchains  = [foldA[-1],  foldB[-1]]             # ['D','A']
+    pair_dir   = f"Pipeline/{pair_id}"
+    _ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
+    ensure_chain_fastas(pair_dir, pdbids, pdbchains)
+
+    # output root (AF2 predictions live here)
+    out_root = f"{pair_dir}/output_AF/AF2"
     _ensure_dir(out_root)
 
-    # If your runAF.py already knows how to iterate clusters & models,
-    # calling it once per pair is enough:
-    cmd = f"python3 ./runAF.py -input Pipeline/{pair_id} -o {out_root}"
-    _run(cmd, args.run_job_mode)
+    # submit your existing AF2 params script
+    log_path = f"{pair_dir}/run_AF_for_{pair_id}.out"
+    cmd = f"sbatch -o '{log_path}' ./Pipeline/RunAF_params.sh {pair_id}"
+    _run(cmd, "sbatch")
+
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:
     from utils.phytree_utils import phytree_from_msa
