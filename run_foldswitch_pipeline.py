@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 import argparse
-import os
-import sys
 import subprocess
+import shlex
 import platform
 from glob import glob
 from pathlib import Path
 from typing import List, Tuple
+from copy import deepcopy
+
 
 from config import *
 from utils.utils import pair_str_to_tuple
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence
-from utils.msa_utils import write_fasta, load_fasta  # your existing writer
+from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 
 
 # ------------------------- helpers -------------------------
@@ -45,6 +46,11 @@ def ensure_chain_fastas(pair_dir: str, pdbids: list[str], pdbchains: list[str]) 
             seq = extract_protein_sequence(pdb_path, chain=ch)
 
         write_fasta([tag], [seq], out_fa)
+
+def _in_slurm_session() -> bool:
+    # true inside srun/salloc/sbatch job contexts
+    env = os.environ
+    return bool(env.get("SLURM_JOB_ID") or env.get("SLURM_STEP_ID") or env.get("SLURM_NODEID"))
 
 def _is_windows() -> bool:
     return platform.system().lower().startswith("win")
@@ -113,6 +119,36 @@ def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = Fals
 
 
 # ------------------------- tasks -------------------------
+def task_clean(pair_id: str, _args) -> None:
+    base = f"Pipeline/{pair_id}"
+    to_rm_dirs = [
+        "output_get_msa",
+        "output_msa_cluster",
+        "output_cmaps",
+        "output_cmap_esm",   # legacy
+        "output_esm_fold",
+        "output_AF",
+        "output_phytree",
+        "fasta_chain_files",
+        "AF_preds",          # legacy
+    ]
+    to_rm_files = [
+        "_seed_both.a3m",
+        "run_AF_for_{p}.out".format(p=pair_id),
+        "get_msa_for_{p}.out".format(p=pair_id),
+        "cluster_msa_for_{p}.out".format(p=pair_id),
+        "_tmp_ShallowMsa_*.fasta",
+    ]
+    for d in to_rm_dirs:
+        path = os.path.join(base, d)
+        if os.path.exists(path):
+            print(f"[clean] rm -rf {path}")
+            subprocess.run(f"rm -rf {shlex.quote(path)}", shell=True, check=False)
+    for pattern in to_rm_files:
+        for f in glob(os.path.join(base, pattern)):
+            print(f"[clean] rm -f {f}")
+            os.remove(f)
+
 
 def task_load(pair_id: str, run_job_mode: str) -> None:
     # Keep your existing loader through protein_utils; left as-is
@@ -121,6 +157,34 @@ def task_load(pair_id: str, run_job_mode: str) -> None:
     cur_family_dir = f"Pipeline/{pair_id}"
     _ensure_dir(cur_family_dir)
     load_seq_and_struct(cur_family_dir, [foldA[:-1], foldB[:-1]], [foldA[-1], foldB[-1]])
+
+def task_get_msa(pair_id: str, run_job_mode: str) -> None:
+    """
+    Build a 2-sequence seed A3M from BOTH chains of the pair, then run get_msa to
+    produce Pipeline/<pair>/output_get_msa/DeepMsa.a3m.
+    """
+    # Ensure the two chain FASTAs exist (reuses root FASTAs or extracts from PDBs)
+    pair_dir = f"Pipeline/{pair_id}"
+    foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1dzlA', '5keqF'
+    pdbids     = [foldA[:-1], foldB[:-1]]            # ['1dzl','5keq']
+    pdbchains  = [foldA[-1],  foldB[-1]]             # ['A','F']
+    _ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
+    ensure_chain_fastas(pair_dir, pdbids, pdbchains)
+
+    # Build BOTH-chains seed alignment once
+    seed_a3m = build_pair_seed_a3m_from_pair(pair_id, data_dir="Pipeline")
+    out_dir  = f"{pair_dir}/output_get_msa"
+    _ensure_dir(out_dir)
+
+    # Prefer sbatch wrapper if it exists; else run python inline
+    sbatch_script = "./Pipeline/get_msa_params.sh"
+    if run_job_mode == "sbatch" and os.path.exists(sbatch_script):
+        log = f"{pair_dir}/get_msa_for_{pair_id}.out"
+        cmd = f"sbatch -o '{log}' {sbatch_script} '{seed_a3m}' {pair_id}"
+        _run(cmd, "sbatch")
+    else:
+        cmd = f"python3 ./get_msa.py -i '{seed_a3m}' -o '{out_dir}' -name 'DeepMsa'"
+        _run(cmd, "inline")
 
 def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     # Your existing script; unchanged except paths
@@ -167,32 +231,37 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
 
 def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     """
-    Submit AF2 for this pair via Slurm, after ensuring the two chain FASTAs exist:
-      Pipeline/<pair>/fasta_chain_files/<pdb><chain>.fasta
-    The sbatch script is your existing: ./Pipeline/RunAF_params.sh
+    Run AF2 for this pair.
+    - If inside a Slurm session (e.g., srun with GPUs): run inline via bash.
+    - Else: submit via sbatch (default).
+    Ensures chain FASTAs exist under Pipeline/<pair>/fasta_chain_files before running.
     """
     if _is_windows():
-        raise SystemExit("AlphaFold2 must run on the Linux cluster. Use --run_job_mode sbatch.")
+        raise SystemExit("AlphaFold2 must run on Linux.")
 
-    if args.run_job_mode != "sbatch":
-        raise SystemExit("AlphaFold2 must be submitted via Slurm. Re-run with: --run_job_mode sbatch")
-
-    # ensure chain FASTAs (reuses root FASTAs if single-record; else extracts from PDB)
-    foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1fzpD','2frhA'
-    pdbids     = [foldA[:-1], foldB[:-1]]            # ['1fzp','2frh']
-    pdbchains  = [foldA[-1],  foldB[-1]]             # ['D','A']
     pair_dir   = f"Pipeline/{pair_id}"
-    _ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
-    ensure_chain_fastas(pair_dir, pdbids, pdbchains)
-
-    # output root (AF2 predictions live here)
-    out_root = f"{pair_dir}/output_AF/AF2"
+    out_root   = f"{pair_dir}/output_AF/AF2"
     _ensure_dir(out_root)
 
-    # submit your existing AF2 params script
-    log_path = f"{pair_dir}/run_AF_for_{pair_id}.out"
-    cmd = f"sbatch -o '{log_path}' ./Pipeline/RunAF_params.sh {pair_id}"
-    _run(cmd, "sbatch")
+    # Make sure chain FASTAs exist (reuses pair-root FASTAs if single-record; else extracts from PDB)
+    foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1dzlA', '5keqF'
+    pdbids     = [foldA[:-1], foldB[:-1]]            # ['1dzl','5keq']
+    pdbchains  = [foldA[-1],  foldB[-1]]             # ['A','F']
+    _ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
+    ensure_chain_fastas(pair_dir, pdbids, pdbchains)  # you already have this helper in the file
+
+    # Choose run mode
+    inside_slurm = _in_slurm_session()
+    if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
+        # Submit a job (your existing params script)
+        log_path = f"{pair_dir}/run_AF_for_{pair_id}.out"
+        cmd = f"sbatch -o '{log_path}' ./Pipeline/RunAF_params.sh {pair_id}"
+        _run(cmd, "sbatch")
+    else:
+        # Already on an allocated node (e.g., srun with GPU); run the same script body inline.
+        # NOTE: #SBATCH lines are comments to bash, so this will just execute the payload.
+        cmd = f"bash ./Pipeline/RunAF_params.sh {pair_id}"
+        _run(cmd, "inline")
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:
@@ -225,18 +294,77 @@ def task_deltaG(pair_id: str) -> None:
     compute_global_and_residue_energies(pdb_pair, [pair_id], out_dir)
 
 
+# All Pipeline
+from copy import deepcopy
+
+def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
+    """
+    Full per-pair pipeline:
+      load -> get_msa (both-chains seeded) -> cluster_msa ->
+      AF2 (clusters + full) -> cmap_esm (clusters + full) ->
+      ESMFold (esm2 & esm3) -> pair-specific plots
+    """
+
+    # 1) Load sequences (safe to re-run)
+    task_load(pair_id, args.run_job_mode)
+
+    # 2) Build deep MSA seeded by BOTH chains (creates output_get_msa/DeepMsa.a3m)
+    task_get_msa(pair_id, args.run_job_mode)
+
+    # 3) Cluster the MSA (creates output_msa_cluster/ShallowMsa_*.a3m)
+    task_cluster_msa(pair_id, args.run_job_mode)
+
+    # 4) AF2 on clusters + full MSA
+    #    (task_af2 already runs deep + each cluster, for both sequences)
+    task_af2(pair_id, args)
+
+    # 5) MSA-Transformer contact maps (clusters + deep)
+    task_cmap_esm(pair_id, args.run_job_mode)
+
+    # 6) ESMFold per cluster, both esm2 and esm3
+    #    We call the same task twice, overriding the model each time.
+    #    We don't mutate args in place; clone and set model.
+    for model in ("esm2", "esm3"):
+        a2 = deepcopy(args)
+        # support either field name depending on your parser
+        if hasattr(a2, "esm_model"):
+            a2.esm_model = model
+        elif hasattr(a2, "esm_version"):
+            a2.esm_version = model
+        else:
+            # if neither exists, create esm_model for task_esmfold
+            a2.esm_model = model
+        task_esmfold(pair_id, a2)
+
+    # 7) Pair-specific plots (skip quietly if PyMOL isn't available)
+    try:
+        a3 = deepcopy(args)
+        a3.global_plots = False  # pair-only
+        if hasattr(a3, "plot_trees"):
+            a3.plot_trees = False
+        task_plot(pair_id, a3)
+    except Exception as e:
+        print(f"[plot] skipped: {e}")
+
+
+
 # ------------------------- CLI / main -------------------------
 
 def main():
     p = argparse.ArgumentParser("FoldSwitch pipeline (clean)")
     p.add_argument("--run_mode",
                    required=True,
-                   choices=["load", "get_msa", "cluster_msa",
-                            "run_cmap_esm", "run_esmfold",
-                            "run_AF", "tree", "plot", "compute_deltaG"])
+                   choices=["load", "get_msa", "cluster_msa", "run_cmap_esm",
+                            "run_esmfold", "run_AF", "tree", "plot", "compute_deltaG",
+                            "msaclust_pipeline"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", default=["ALL"],
                    help="e.g. 1dzlA_5keqF (default: ALL in data list)")
     p.add_argument("--run_job_mode", default="inline", choices=["inline", "sbatch"])
+
+    # AlphaFold options
+    p.add_argument("--allow_inline_af", action="store_true",
+                   help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
+
 
     # ESMFold options
     p.add_argument("--cluster_sample_n", type=int, default=10)
@@ -270,6 +398,9 @@ def main():
         if args.run_mode == "load":
             task_load(pair_id, args.run_job_mode)
 
+        elif args.run_mode == "get_msa":
+            task_get_msa(pair_id, args.run_job_mode)
+
         elif args.run_mode == "cluster_msa":
             task_cluster_msa(pair_id, args.run_job_mode)
 
@@ -291,8 +422,15 @@ def main():
         elif args.run_mode == "compute_deltaG":
             task_deltaG(pair_id)
 
+        elif args.run_mode == "clean":  # Remove existing files to run the pipeline clean
+            task_clean(pair_id, args)
+
+        elif args.run_mode == "msaclust_pipeline":
+            task_msaclust_pipeline(pair_id, args)
+
         else:
             raise ValueError(args.run_mode)
+
 
     print("[done]", flush=True)
 

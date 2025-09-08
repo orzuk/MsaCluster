@@ -5,10 +5,9 @@ import requests
 from io import StringIO
 # from __future__ import annotations
 from typing import List, Tuple, Dict
-import re
-import os
+import re, os
 
-
+_HAS_PARASAIL = True # Assume import parasail will work
 
 # Identity matrix for "standard" (globalxx-like but with positive gap costs)
 _ID_ALPHABET = "ARNDCQEGHILKMFPSTWYVBZXUO"
@@ -245,3 +244,68 @@ def download_and_parse_pfam_msa(pfam_id, alignment_type="seed"):
     return alignment
 
 
+# --- NEW: write a simple A3M and build a 2-seq seed alignment from a pair ---
+
+def write_a3m(names, aligned_seqs, outfile='seed.a3m'):
+    """
+    Write a minimal A3M (FASTA-compatible) with gaps as '-'.
+    Uppercase = match states (fine for a seed). No inserts needed.
+    """
+    os.makedirs(os.path.dirname(outfile), exist_ok=True)
+    with open(outfile, 'w') as f:
+        for nm, seq in zip(names, aligned_seqs):
+            f.write(f">{nm}\n{seq}\n")
+
+
+def build_pair_seed_a3m_from_pair(
+    pair_id: str,
+    data_dir: str = "Pipeline",
+    prefer_chain_files: bool = True,
+    out_name: str = "_seed_both.a3m",
+    align_mode: str = "blosum"  # "blosum" or "standard"
+) -> str:
+    """
+    Build a 2-sequence aligned seed (A3M) for the given pair using the two chains.
+
+    We look for the sequences in this order:
+    1) Pipeline/<pair>/fasta_chain_files/<pdbid><chain>.fasta  (if prefer_chain_files=True)
+    2) Pipeline/<pair>/<pdbid>.fasta                           (your existing 'main' FASTA)
+
+    Returns the path to the created A3M file.
+    """
+    pair_dir = os.path.join(data_dir, pair_id)
+    pA, pB = pair_id.split("_", 1)  # e.g. "1fzpD", "2frhA"
+
+    def _pick_fasta(p_with_chain: str) -> Tuple[str, str]:
+        """Return (name, seq) from the best available fasta for this PDB+chain."""
+        base = p_with_chain[:-1]  # "1fzpD" -> "1fzp"
+        candidates = []
+        if prefer_chain_files:
+            candidates.append(os.path.join(pair_dir, "fasta_chain_files", f"{p_with_chain}.fasta"))
+            candidates.append(os.path.join(pair_dir, f"{p_with_chain}.fasta"))
+        candidates.append(os.path.join(pair_dir, f"{base}.fasta"))
+
+        for c in candidates:
+            if os.path.exists(c):
+                ids, seqs = load_fasta(c)
+                if len(seqs) >= 1 and len(seqs[0]) > 0:
+                    return ids[0], seqs[0]
+
+        raise FileNotFoundError(
+            f"Missing FASTA for {p_with_chain}. Tried: {', '.join(candidates)}"
+        )
+
+    nameA, seqA = _pick_fasta(pA)
+    nameB, seqB = _pick_fasta(pB)
+
+    # Align the two chains once (we keep it simple and robust)
+    if align_mode == "blosum":
+        blosum = substitution_matrices.load("BLOSUM62")
+        aln = pairwise2.align.globalds(seqA, seqB, blosum, -11, -1, one_alignment_only=True)[0]
+    else:
+        aln = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)[0]
+
+    alignedA, alignedB = aln.seqA, aln.seqB
+    out_a3m = os.path.join(pair_dir, out_name)
+    write_a3m([nameA, nameB], [alignedA, alignedB], out_a3m)
+    return out_a3m
