@@ -355,7 +355,7 @@ def main():
     p.add_argument("--run_mode",
                    required=True,
                    choices=["load", "get_msa", "cluster_msa", "run_cmap_esm",
-                            "run_esmfold", "run_AF", "tree", "plot", "compute_deltaG",
+                            "run_esmfold", "run_AF", "tree", "plot", "compute_deltaG", "clean",
                             "msaclust_pipeline"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", default=["ALL"],
                    help="e.g. 1dzlA_5keqF (default: ALL in data list)")
