@@ -235,6 +235,8 @@ def write_pair_pipeline_script(pair_id: str, args: argparse.Namespace) -> str:
 #SBATCH -o {log_path}
 
 set -euo pipefail
+export QT_QPA_PLATFORM=offscreen
+
 
 # --- absolute locations (filled in by Python) ---
 REPO_DIR="{repo_dir}"
