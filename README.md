@@ -2,270 +2,119 @@
 
 You can find the full results table in this [link](https://steveabecassis.github.io/MsaCluster/table.html).
 
-## Running from python: 
-The file "run_foldswitch_pipeline.py" enables to run the entire pipeline or parts of it from python. This program can send jobs as needed. Usage (from command line): 
-
-python3 run_foldswitch_pipeline [operation] [foldpair_id]
-
-For example: 
-
-python3 run_foldswitch_pipeline cluster_msa 1jfkA_2nxqB
-
-will cluster the MSAs of the family that have sequences folding according to pdbids 1fjk (chain A) and 2nxq (chain B). 
-
-The second argument (foldpair_id) is optional. If not given, the program will loop over all pairs of ids
-
-
-## Entire Pipeline - Example: <br>
-The file 'pipeline.sh' implements an entire pipeline of computing cluster-specific contact maps and structures for a protein family <br>
-**Input:** A fasta sequence representing a protein chain (1st argument) <br>
-Directory name for outputs (2nd argument) <br>
-**Output:** Predicted structures and attention maps for each cluster <br>
-**Running example:**
-sbatch -out "run_pipeline.out" ./pipeline_with_params.sh  ./input/2qke.fasta 2qke <br>
-
-The output will be in the directory according to the second argument. In this case: <br>
-Pipeline/2qke
-
-
-**Steps:**
-1. Genreate a Multiple Sequence Alignment (MSA) for the query sequence
-2. Cluster the MSA into different sub-MSAs
-3. Run AlphaFold and make prediction for the query sequence with each sub-MSAs
-4. Run ESMfold on sampled sequences from each cluster
-5. Compute attention maps (predicted contact map) for each cluster based on ESM's MSA-transformer model.
-6. Plot predictedattention maps va. true ones
-
-The specific steps can be run individually, as shown in the following commands: 
-
-## Get msa (alignement)
-To get the full msa run 
+## Running from python
+The main entry point is `run_foldswitch_pipeline.py`. It lets you run the entire pipeline or individual tasks.  
+Usage (from command line):
 
 ```
-python3 ./get_msa.py ./FASTA_FILE.fasta ./OUTPUT_DIR -name BIG_MSA
-```
-where 
-
-- _FASTA_FILE_ is a fasta file in format .fasta and contain the sequence query
-- _BIG_MSA_ is the msa output name (.a3m file)
-- _OUTPUT_DIR_ is the output directory 
-
-
-## Run ClusterMSA
-
-To run ClusterMSA 
-```
-python3 ./ClusterMSA_moriah.py --keyword MSA -i ./output_dir/BIG_MSA.a3m -o ./results/cluster_msa_output 
-```
-where 
-- _MSA_  is the perfix name of each msa cluster (.a3m file)
-- _cluster_msa_output_ is your output foler that will contains all the msa cluster (.a3m file)
-
-
-## Run AlphaFold 
-
-To run AlphaFold with each msa cluster as feature run 
-```
-python3 ./RunAF_colabfold.py ./results/cluster_msa_output  af_cmsa_output
-```
-where 
-- _cluster_msa_output_  is the folder where you have all your msas (.a3m files)
-- _af_cmsa_output_ is your output foler that will contains all the alphafold predictions (.pdb files)
-
-
-## Run sample Alphafold  
-
-To get Alphafold predictions on sequences sampled from each msa cluster run
- 
-```
-python3 ./get_sample_msa_algn.py ./results/cluster_msa_output 
-```
-where 
-
-- _./results/cluster_msa_output _ is your folder where you have all your msas clusters (.a3m files)
-- _output_ is your output foler that will contains all the msas (.a3m files)
-
-
-## Run ESM 
-
-To run ESM for contact map predition 
-```
-python3  ./runESM.py ./msa_file.a3m ./output
-``` 
-
-- _msa_file_ is your msa in .a3m format
-- _output_ is your output foler that will contains all the msas (.a3m files)
-
-## Pipeline
-To run the full pipeline you need a sequence as input in .fasta format and run 
-```
-mkdir output_pipeline/output_get_msa 
-python3 ./get_msa.py ./fasta_files/rcsb_pdb_1EBO.fasta  ./output_pipeline/output_get_msa  -name '1ebo'
-mkdir output_pipeline_1ebo/cluster_msa_output 
-python3  ./ClusterMSA_moriah.py --keyword cluster -i ./output_pipeline/output_get_msa/1ebo.a3m -o ./output_pipeline/cluster_msa_output
-mkdir output_pipeline/sample_msa 
-python3 ./get_sample_msa_algn.py ./output_pipeline/cluster_msa_output  ./output_pipeline/sample_msa
-``` 
-
-## HURCS cluster
-
-(Note: All the .sh files are in the folder _/sci/home/steveabecassis/colabfold_new_ )
-
-Activate the virtual environement :
-```
-source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
+python3 run_foldswitch_pipeline.py --run_mode {operation} --foldpair_ids <PAIR_ID> [options...]
 ```
 
-or (depending on shell) 
+If `--foldpair_ids` is not given, the program will loop over all pairs defined in `data/foldswitch_PDB_IDs_full.txt`.
+
+### Example runs
+
+```bash
+# Cluster MSAs for a specific pair
+python3 run_foldswitch_pipeline.py --run_mode cluster_msa --foldpair_ids 1dzlA_5keqF
+
+# Run full pipeline for one pair (inline)
+python3 run_foldswitch_pipeline.py --run_mode msaclust_pipeline --foldpair_ids 1dzlA_5keqF
+
+# Run full pipeline for one pair, submitting AF2/MSA jobs via SLURM
+python3 run_foldswitch_pipeline.py --run_mode msaclust_pipeline --foldpair_ids 1dzlA_5keqF --run_job_mode sbatch
+
+# Run ESMFold on 3 sampled sequences per cluster with esm3 model on GPU
+python3 run_foldswitch_pipeline.py --run_mode run_esmfold --foldpair_ids 1dzlA_5keqF --cluster_sample_n 3 --esm_model esm3 --esm_device cuda
+
+# Run AF2 predictions for one pair (submit job)
+python3 run_foldswitch_pipeline.py --run_mode run_AF --foldpair_ids 1dzlA_5keqF --run_job_mode sbatch
+
+# Process all pairs listed in data/foldswitch_PDB_IDs_full.txt
+python3 run_foldswitch_pipeline.py --run_mode get_msa
 ```
-. /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate
-```
-
-
-### Get msa (alignement)
-
-This is the get_msa.sh file
-```
-#!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=10G
-
-
-python3 /sci/home/steveabecassis/colabfold_new/get_msa.py PATH_TO_YOUR_SEQUENCE_FILE OUTPUT_PATH  -name 'PREFIX_MSA_NAME'
-```
-
-After you replace _PATH_TO_YOUR_SEQUENCE_FILE_ by the path of your sequence file (.a3m or .fasta file),_PREFIX_MSA_NAME_ by the prefix you want for the msa and _OUTPUT_PATH_ by the path you want your msa output send the job with: 
-```
-sbatch get_msa.sh
-```
-
-### ClusterMSA
-
-This is the ClusterMsa.sh file
-```
-#!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=10G
-
-
-source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
-python3  /sci/home/steveabecassis/colabfold_new/ClusterMSA_moriah.py --keyword PREFIX_MSAS -i BIG_MSA_INPUT -o OUTPUT_PATH
-```
-
-After you replace _PREFIX_MSAS_ ,_BIG_MSA_INPUT_ (.a3m or .fasta file),_PREFIX_MSAS_ and _OUTPUT_PATH_ send the job with: 
-```
-sbatch ClusterMsa.sh
-```
-
-### Run Alphafold
-
-This is the colabfold_dina_gpu.sh file
-```
-#!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=10G
-#SBATCH --gres=gpu:a100-1-10
-
-module load cuda/11.1
-module load cudnn/8.0.5
-
-source /sci/labs/dina/dina/collabFold_phoenix/bin/activate.csh
-
-/sci/labs/dina/dina/localcolabfold/colabfold-conda/bin/colabfold_batch  INPUT_MSA_SEQUENCE  OUTPUT_PATH --data=/cs/labs/dina/seanco/colabfold/weights/ 
-```
-
-After you replace _INPUT_MSA_SEQUENCE_ ,_OUTPUT_PATH_ send the job with: 
-```
-sbatch colabfold_dina_gpu.sh
-```
-Note:
-You can give to alphafold as input a sequence (.fasta file) or a msa (.a3m)
-
-### Run sample MSA 
-
-This is the sample_msa.sh file
-```
-#!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=10G
-
-
-python3 /sci/home/steveabecassis/colabfold_new/get_sample_msa_algn.py MSAS_FOLDER  OUTPUT_PATH
-```
-
-After you replace _MSAS_FOLDER_ , _OUTPUT_PATH_ send the job with: 
-```
-sbatch sample_msa.sh
-```
-Note:
-For each msa in MSAS_FOLDER:
-  1. sample sequence
-  2. get large msa for this sequence
-  3. filter the sequence of the large msa and keep only the sequence that were in the original msa
-
-The original msas are msas output of ClusterMsa.
-
-
-### PIPELINE
-
-This is the pipeline_msas.sh file:
-```
-#!/bin/bash
-
-#SBATCH --time=05:00:00
-#SBATCH --ntasks=8
-#SBATCH --mem=10G
-
-echo $(curl ifconfig.me)
-source /sci/labs/orzuk/steveabecassis/colabfold_new/bin/activate.csh
-
-mkdir output_pipeline_1ebo/output_get_msa 
-python3 ./get_msa.py ./fasta_files/rcsb_pdb_1EBO.fasta  ./output_pipeline_1ebo/output_get_msa  -name '1ebo'
-mkdir output_pipeline_1ebo/cluster_msa_output 
-python3  ./ClusterMSA_moriah.py --keyword cluster -i ./output_pipeline_1ebo/output_get_msa/1ebo.a3m -o ./output_pipeline_1ebo/cluster_msa_output
-mkdir output_pipeline_1ebo/sample_msa 
-python3 ./get_sample_msa_algn.py ./output_pipeline_1ebo/cluster_msa_output  ./output_pipeline_1ebo/sample_msa
-```
-The pipeline input is a sequence.
-1. Get the msa
-2. Cluster the msa into severall msas
-3. For each msa cluster sample a sequence and get the alignement
-
-
-## Other Scripts
-
-The repository includes additional scripts for analysis and table generation, organized as follows:
-
-### Analysis Folder
-
-- **`cmap_analysis.py`**: Generates the analysis of contact maps created by MSA Transformers for each fold pair.
-- **`cmap_viz.py`**: Creates the contact maps that appear in the visualization notebook.
-- **`esmfold_analysis.py`**: Analyzes the outputs generated by ESMFold.
-- **`generate_notebooks.py`**: A script to generate Jupyter notebooks in html format for result visualization and exploration.
-
-### TableResults Folder
-
-- **`gen_html_table.py`**: Generates the HTML table displayed in the GitHub repository.
-- **`gen_latex_table.py`**: Generates the LaTeX table used in Overleaf.
-- **`get_raw_data.py`**: Retrieves raw data at the cluster level without aggregations.
-- **`get_tm_align_score.py`**: Calculates the TM score between each fold pair (e.g., to add to the results in the repository).
-- **`summary_table.py`**: Generates a summary table used by other scripts to create tables in formats like LaTeX and HTML.
-
-### Pipeline Folder
-
-Contains `.sh` files for running scripts on the HURCS cluster. These include pipeline and task-specific scripts to facilitate parallelized or automated execution.
 
 ---
 
+## Pipeline steps
 
+Each `run_mode` corresponds to a stage in the pipeline:
 
+- **`load`**: prepare sequences and structures (writes chain FASTAs).  
+- **`get_msa`**: build a deep MSA seeded by both chains.  
+- **`cluster_msa`**: cluster the deep MSA into shallow sub-MSAs.  
+- **`run_AF`**: run AlphaFold2 for both sequences, on full MSA and per cluster.  
+- **`run_cmap_esm`**: run MSA Transformer to generate attention/contact maps.  
+- **`run_esmfold`**: sample sequences from clusters and run ESMFold (esm2/esm3).  
+- **`tree`**: build a phylogenetic tree from the deep MSA.  
+- **`plot`**: generate pair-specific plots (requires PyMOL).  
+- **`compute_deltaG`**: compute ΔG metrics (requires PyRosetta).  
+- **`clean`**: remove previous outputs for a pair.  
+- **`msaclust_pipeline`**: run the full sequence (load → MSA → cluster → AF2 → cmap → esmfold → plots).  
 
+---
 
+## Typical workflows
+
+**Fresh run for one pair**
+```bash
+python3 run_foldswitch_pipeline.py --run_mode clean --foldpair_ids 1dzlA_5keqF
+python3 run_foldswitch_pipeline.py --run_mode msaclust_pipeline --foldpair_ids 1dzlA_5keqF
+```
+
+**Update only AF2 predictions**
+```bash
+python3 run_foldswitch_pipeline.py --run_mode run_AF --foldpair_ids 1dzlA_5keqF --run_job_mode sbatch
+```
+
+**Generate plots for one pair**
+```bash
+python3 run_foldswitch_pipeline.py --run_mode plot --foldpair_ids 1dzlA_5keqF --global_plots
+```
+
+**Batch over all pairs**
+```bash
+python3 run_foldswitch_pipeline.py --run_mode get_msa
+python3 run_foldswitch_pipeline.py --run_mode cluster_msa
+python3 run_foldswitch_pipeline.py --run_mode run_AF --run_job_mode sbatch
+python3 run_foldswitch_pipeline.py --run_mode run_cmap_esm
+python3 run_foldswitch_pipeline.py --run_mode run_esmfold --cluster_sample_n 2
+python3 run_foldswitch_pipeline.py --run_mode plot
+```
+
+---
+
+## HURCS cluster
+
+On HPC systems (e.g., SLURM-based clusters), add `--run_job_mode sbatch`.  
+- `get_msa` submits via `Pipeline/get_msa_params.sh` if present.  
+- `run_AF` submits via `Pipeline/RunAF_params.sh`.  
+Edit these scripts to match your site’s environment and modules.
+
+**Example:**  
+```bash
+python3 run_foldswitch_pipeline.py --run_mode msaclust_pipeline --foldpair_ids 1dzlA_5keqF --run_job_mode sbatch
+```
+
+---
+
+## Other Scripts
+
+The repository includes additional scripts for analysis and table generation.
+
+### Analysis Folder
+- `cmap_analysis.py` – analyze contact maps from MSA Transformer.  
+- `cmap_viz.py` – produce visualization plots.  
+- `esmfold_analysis.py` – analyze ESMFold outputs.  
+- `generate_notebooks.py` – create HTML notebooks for exploration.  
+
+### TableResults Folder
+- `gen_html_table.py` – generate HTML summary table.  
+- `gen_latex_table.py` – generate LaTeX tables.  
+- `get_raw_data.py` – extract raw data at cluster level.  
+- `get_tm_align_score.py` – compute TM-scores.  
+- `summary_table.py` – produce summary tables for reporting.  
+
+### Pipeline Folder
+Contains `.sh` wrappers for cluster jobs (`RunAF_params.sh`, `get_msa_params.sh`, etc.).  
+Adapt them to your environment when using `--run_job_mode sbatch`.
