@@ -8,9 +8,8 @@ from pathlib import Path
 from typing import List, Tuple
 from copy import deepcopy
 
-
 from config import *
-from utils.utils import pair_str_to_tuple
+from utils.utils import pair_str_to_tuple, ensure_dir, write_pair_pipeline_script
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 
@@ -55,8 +54,6 @@ def _in_slurm_session() -> bool:
 def _is_windows() -> bool:
     return platform.system().lower().startswith("win")
 
-def _ensure_dir(p: str) -> None:
-    Path(p).mkdir(parents=True, exist_ok=True)
 
 def _run_inline(cmd: str) -> None:
     print(f"[inline] {cmd}", flush=True)
@@ -92,7 +89,7 @@ def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = Fals
     created = []
     deep, clusters = _cluster_files(pair_id)
     outdir = f"Pipeline/{pair_id}"
-    _ensure_dir(outdir)
+    ensure_dir(outdir)
 
     def _write_sample(src_a3m: str, dst_fa: str) -> None:
         entries = read_msa(src_a3m)  # [(id, seq), ...]
@@ -155,7 +152,7 @@ def task_load(pair_id: str, run_job_mode: str) -> None:
     from utils.protein_utils import load_seq_and_struct
     foldA, foldB = pair_str_to_tuple(pair_id)
     cur_family_dir = f"Pipeline/{pair_id}"
-    _ensure_dir(cur_family_dir)
+    ensure_dir(cur_family_dir)
     load_seq_and_struct(cur_family_dir, [foldA[:-1], foldB[:-1]], [foldA[-1], foldB[-1]])
 
 def task_get_msa(pair_id: str, run_job_mode: str) -> None:
@@ -168,13 +165,13 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1dzlA', '5keqF'
     pdbids     = [foldA[:-1], foldB[:-1]]            # ['1dzl','5keq']
     pdbchains  = [foldA[-1],  foldB[-1]]             # ['A','F']
-    _ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
+    ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
     ensure_chain_fastas(pair_dir, pdbids, pdbchains)
 
     # Build BOTH-chains seed alignment once
     seed_a3m = build_pair_seed_a3m_from_pair(pair_id, data_dir="Pipeline")
     out_dir  = f"{pair_dir}/output_get_msa"
-    _ensure_dir(out_dir)
+    ensure_dir(out_dir)
 
     # Prefer sbatch wrapper if it exists; else run python inline
     sbatch_script = "./Pipeline/get_msa_params.sh"
@@ -198,7 +195,7 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
 
 def task_cmap_esm(pair_id: str, run_job_mode: str) -> None:
     outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
-    _ensure_dir(outdir)
+    ensure_dir(outdir)
     cmd = (
         f"python3 ./runMSATrans.py "
         f"--input_msas Pipeline/{pair_id}/output_msa_cluster "
@@ -221,7 +218,7 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
 
     # Ensure output dir exists (the HF script will place files under the model subdir)
     model_dir = f"Pipeline/{pair_id}/output_esm_fold/{args.esm_model}"
-    _ensure_dir(model_dir)
+    ensure_dir(model_dir)
 
     # Correct CLI: no -i/-o, no --esm_version
     device = args.esm_device or "auto"
@@ -241,13 +238,13 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
 
     pair_dir   = f"Pipeline/{pair_id}"
     out_root   = f"{pair_dir}/output_AF/AF2"
-    _ensure_dir(out_root)
+    ensure_dir(out_root)
 
     # Make sure chain FASTAs exist (reuses pair-root FASTAs if single-record; else extracts from PDB)
     foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1dzlA', '5keqF'
     pdbids     = [foldA[:-1], foldB[:-1]]            # ['1dzl','5keq']
     pdbchains  = [foldA[-1],  foldB[-1]]             # ['A','F']
-    _ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
+    ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
     ensure_chain_fastas(pair_dir, pdbids, pdbchains)  # you already have this helper in the file
 
     # Choose run mode
@@ -268,7 +265,7 @@ def task_tree(pair_id: str, run_job_mode: str) -> None:
     from utils.phytree_utils import phytree_from_msa
     msa_file = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
     out = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
-    _ensure_dir(os.path.dirname(out))
+    ensure_dir(os.path.dirname(out))
     phytree_from_msa(msa_file, output_tree_file=out)
 
 def task_plot(pair_id: str, args: argparse.Namespace) -> None:
@@ -288,63 +285,49 @@ def task_deltaG(pair_id: str) -> None:
     except ImportError:
         raise SystemExit("PyRosetta utilities are unavailable in this env.")
     out_dir = "Pipeline/output_deltaG"
-    _ensure_dir(out_dir)
+    ensure_dir(out_dir)
     pA, pB = pair_str_to_tuple(pair_id)
     pdb_pair = [(f"Pipeline/{pair_id}/{pA[:-1]}.pdb", f"Pipeline/{pair_id}/{pB[:-1]}.pdb")]
     compute_global_and_residue_energies(pdb_pair, [pair_id], out_dir)
 
 
 # All Pipeline
-from copy import deepcopy
-
 def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     """
-    Full per-pair pipeline:
-      load -> get_msa (both-chains seeded) -> cluster_msa ->
-      AF2 (clusters + full) -> cmap_esm (clusters + full) ->
-      ESMFold (esm2 & esm3) -> pair-specific plots
+    If --run_job_mode inline: run steps sequentially in-process.
+    If --run_job_mode sbatch: create a single SBATCH job that runs all steps sequentially.
     """
+    if args.run_job_mode == "inline":
+        # run sequentially here
+        task_load(pair_id, "inline")
+        task_get_msa(pair_id, "inline")
+        task_cluster_msa(pair_id, "inline")
+        task_af2(pair_id, args)  # this will run inline inside current shell
+        task_cmap_esm(pair_id, "inline")
+        for model in ("esm2", "esm3"):
+            a2 = deepcopy(args)
+            if hasattr(a2, "esm_model"):
+                a2.esm_model = model
+            elif hasattr(a2, "esm_version"):
+                a2.esm_version = model
+            else:
+                a2.esm_model = model
+            task_esmfold(pair_id, a2)  # inline
+        try:
+            ap = deepcopy(args)
+            ap.global_plots = False
+            if hasattr(ap, "plot_trees"): ap.plot_trees = False
+            task_plot(pair_id, ap)
+        except Exception as e:
+            print(f"[plot] skipped: {e}")
+        return
 
-    # 1) Load sequences (safe to re-run)
-    task_load(pair_id, args.run_job_mode)
-
-    # 2) Build deep MSA seeded by BOTH chains (creates output_get_msa/DeepMsa.a3m)
-    task_get_msa(pair_id, args.run_job_mode)
-
-    # 3) Cluster the MSA (creates output_msa_cluster/ShallowMsa_*.a3m)
-    task_cluster_msa(pair_id, args.run_job_mode)
-
-    # 4) AF2 on clusters + full MSA
-    #    (task_af2 already runs deep + each cluster, for both sequences)
-    task_af2(pair_id, args)
-
-    # 5) MSA-Transformer contact maps (clusters + deep)
-    task_cmap_esm(pair_id, args.run_job_mode)
-
-    # 6) ESMFold per cluster, both esm2 and esm3
-    #    We call the same task twice, overriding the model each time.
-    #    We don't mutate args in place; clone and set model.
-    for model in ("esm2", "esm3"):
-        a2 = deepcopy(args)
-        # support either field name depending on your parser
-        if hasattr(a2, "esm_model"):
-            a2.esm_model = model
-        elif hasattr(a2, "esm_version"):
-            a2.esm_version = model
-        else:
-            # if neither exists, create esm_model for task_esmfold
-            a2.esm_model = model
-        task_esmfold(pair_id, a2)
-
-    # 7) Pair-specific plots (skip quietly if PyMOL isn't available)
-    try:
-        a3 = deepcopy(args)
-        a3.global_plots = False  # pair-only
-        if hasattr(a3, "plot_trees"):
-            a3.plot_trees = False
-        task_plot(pair_id, a3)
-    except Exception as e:
-        print(f"[plot] skipped: {e}")
+    # === sbatch: one big job per pair ===
+    script_path = _write_pair_pipeline_script(pair_id, args)
+    # submit it; we rely on SBATCH header inside the script; we only pass -o already embedded
+    cmd = f"sbatch {shlex.quote(script_path)}"
+    print(f"[sbatch] {cmd}", flush=True)
+    subprocess.run(cmd, shell=True, check=True)
 
 
 
