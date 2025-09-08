@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 from contact_map import ContactFrequency, ContactDifference
 from pathlib import Path
 from typing import List, Tuple, Union
+import sys
 
 import numpy as np
 import pandas as pd
@@ -205,7 +206,12 @@ def write_pair_pipeline_script(pair_id: str, args: argparse.Namespace) -> str:
     """
     Create Pipeline/<pair>/jobs/msaclust_pipeline_<pair>.sh that runs
     all steps sequentially in one Slurm job, logging stages.
+    Uses absolute repo & python paths so Slurm CWD never matters.
     """
+    # Absolute paths (no guessing inside the SBATCH job)
+    repo_dir = os.path.abspath(os.path.dirname(__file__))     # repo root (dir of this file)
+    py_exec  = sys.executable                                 # same python as caller
+
     pair_dir = f"Pipeline/{pair_id}"
     jobs_dir = os.path.join(pair_dir, "jobs")
     logs_dir = os.path.join(pair_dir, "logs")
@@ -215,11 +221,9 @@ def write_pair_pipeline_script(pair_id: str, args: argparse.Namespace) -> str:
     log_path    = os.path.join(logs_dir, f"msaclust_pipeline_{pair_id}.out")
     status_path = os.path.join(logs_dir, f"msaclust_pipeline_{pair_id}.status")
 
-    # parameters we want to carry into the job
     cluster_sample_n = getattr(args, "cluster_sample_n", 10) or 10
     esm_device       = getattr(args, "esm_device", "auto") or "auto"
 
-    # single job resource profile (tweak as you wish)
     sb = f"""#!/bin/bash
 #SBATCH --job-name=pipe_{pair_id}
 #SBATCH --time=24:00:00
@@ -232,9 +236,10 @@ def write_pair_pipeline_script(pair_id: str, args: argparse.Namespace) -> str:
 
 set -euo pipefail
 
-# --- REPO & IO ---
-SCRIPT_DIR="$(cd "$(dirname "{{BASH_SOURCE[0]}}")" && pwd)"
-REPO_DIR="$(cd "${{SCRIPT_DIR}}/../.." && pwd)"
+# --- absolute locations (filled in by Python) ---
+REPO_DIR="{repo_dir}"
+PY="{py_exec}"
+
 cd "${{REPO_DIR}}"
 
 PAIR_ID="{pair_id}"
@@ -243,19 +248,19 @@ LOG="{log_path}"
 STATUS="{status_path}"
 
 mkdir -p "$(dirname "${{LOG}}")"
-mkdir -p "${{PAIR_DIR}}/output_get_msa" "${{PAIR_DIR}}/output_msa_cluster" \
-         "${{PAIR_DIR}}/output_cmaps/msa_transformer" "${{PAIR_DIR}}/output_AF/AF2" \
-         "${{PAIR_DIR}}/output_esm_fold/esm2" "${{PAIR_DIR}}/output_esm_fold/esm3" \
+mkdir -p "${{PAIR_DIR}}/output_get_msa" "${{PAIR_DIR}}/output_msa_cluster" \\
+         "${{PAIR_DIR}}/output_cmaps/msa_transformer" "${{PAIR_DIR}}/output_AF/AF2" \\
+         "${{PAIR_DIR}}/output_esm_fold/esm2" "${{PAIR_DIR}}/output_esm_fold/esm3" \\
          "${{PAIR_DIR}}/fasta_chain_files"
 
-# optional: activate env (set this in your shell before sbatch if you want)
+# optional: activate env (export this before sbatch if you need it)
 #   export COLABFOLD_ENV_ACTIVATE=/path/to/colabfold_env/bin/activate
 if [[ -n "${{COLABFOLD_ENV_ACTIVATE:-}}" && -f "${{COLABFOLD_ENV_ACTIVATE}}" ]]; then
   # shellcheck disable=SC1090
   source "${{COLABFOLD_ENV_ACTIVATE}}"
 fi
 
-# ensure logs capture everything
+# capture all output to the log as well
 exec > >(stdbuf -oL tee -a "${{LOG}}") 2>&1
 
 # --- status helpers ---
@@ -272,49 +277,41 @@ fail()  {{ mark "$STAGE" "FAIL"; }}
 
 trap 'fail; exit 1' ERR
 
-# parameters for ESMFold sampling & device
 CLUSTER_SAMPLE_N="{cluster_sample_n}"
 ESM_DEVICE="{esm_device}"
 
 # ----------------- STAGES -----------------
 
-# 1) LOAD (safe to run inline)
 start load
-python3 run_foldswitch_pipeline.py --run_mode load --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
+"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode load --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
 ok
 
-# 2) GET_MSA (both-chain seeded)
 start get_msa
-python3 run_foldswitch_pipeline.py --run_mode get_msa --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
+"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode get_msa --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
 ok
 
-# 3) CLUSTER_MSA
 start cluster_msa
-python3 run_foldswitch_pipeline.py --run_mode cluster_msa --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
+"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode cluster_msa --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
 ok
 
-# 4) AF2 on clusters + full (inside this job; script ignores #SBATCH lines)
 start run_AF
-python3 run_foldswitch_pipeline.py --run_mode run_AF --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
+"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_AF --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
 ok
 
-# 5) MSA-Transformer contact maps
 start run_cmap_esm
-python3 run_foldswitch_pipeline.py --run_mode run_cmap_esm --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
+"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_cmap_esm --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
 ok
 
-# 6) ESMFold (esm2 then esm3) with per-cluster sampling
 start run_esmfold_esm2
-python3 run_foldswitch_pipeline.py --run_mode run_esmfold --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline --esm_model esm2 --cluster_sample_n "${{CLUSTER_SAMPLE_N}}" --esm_device "${{ESM_DEVICE}}"
+"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_esmfold --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline --esm_model esm2 --cluster_sample_n "${{CLUSTER_SAMPLE_N}}" --esm_device "${{ESM_DEVICE}}"
 ok
 
 start run_esmfold_esm3
-python3 run_foldswitch_pipeline.py --run_mode run_esmfold --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline --esm_model esm3 --cluster_sample_n "${{CLUSTER_SAMPLE_N}}" --esm_device "${{ESM_DEVICE}}"
+"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_esmfold --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline --esm_model esm3 --cluster_sample_n "${{CLUSTER_SAMPLE_N}}" --esm_device "${{ESM_DEVICE}}"
 ok
 
-# 7) Pair-specific plots (non-fatal if PyMOL missing)
 start plot_pair
-if python3 run_foldswitch_pipeline.py --run_mode plot --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline; then
+if "$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode plot --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline; then
   ok
 else
   echo "[plot] skipped or failed (PyMOL not available?)"
@@ -328,3 +325,4 @@ echo "ALL DONE for {pair_id}"
         f.write(sb)
     os.chmod(script_path, 0o755)
     return script_path
+

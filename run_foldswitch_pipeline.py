@@ -2,7 +2,7 @@
 import argparse
 import subprocess
 import shlex
-import platform
+import sys
 from glob import glob
 from pathlib import Path
 from typing import List, Tuple
@@ -10,8 +10,9 @@ from copy import deepcopy
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, write_pair_pipeline_script
-from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence
+from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
+from utils.phytree_utils import phytree_from_msa
 
 
 # ------------------------- helpers -------------------------
@@ -149,7 +150,6 @@ def task_clean(pair_id: str, _args) -> None:
 
 def task_load(pair_id: str, run_job_mode: str) -> None:
     # Keep your existing loader through protein_utils; left as-is
-    from utils.protein_utils import load_seq_and_struct
     foldA, foldB = pair_str_to_tuple(pair_id)
     cur_family_dir = f"Pipeline/{pair_id}"
     ensure_dir(cur_family_dir)
@@ -262,7 +262,6 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:
-    from utils.phytree_utils import phytree_from_msa
     msa_file = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
     out = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
     ensure_dir(os.path.dirname(out))
