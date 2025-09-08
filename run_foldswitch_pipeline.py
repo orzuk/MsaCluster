@@ -323,7 +323,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         return
 
     # === sbatch: one big job per pair ===
-    script_path = _write_pair_pipeline_script(pair_id, args)
+    script_path = write_pair_pipeline_script(pair_id, args)
     # submit it; we rely on SBATCH header inside the script; we only pass -o already embedded
     cmd = f"sbatch {shlex.quote(script_path)}"
     print(f"[sbatch] {cmd}", flush=True)
