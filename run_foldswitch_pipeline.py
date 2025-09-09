@@ -228,10 +228,10 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
 
 def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     """
-    Run AF2 for this pair.
-    - If inside a Slurm session (e.g., srun with GPUs): run inline via bash.
-    - Else: submit via sbatch (default).
-    Ensures chain FASTAs exist under Pipeline/<pair>/fasta_chain_files before running.
+    Run AF2 (colabfold_batch) for:
+      (i) both chains' FASTAs, and
+      (ii) sampled sequences from each cluster, and optionally DeepMsa sample.
+    We call a bash wrapper that activates the AF2 venv so we never mix envs in Python.
     """
     if _is_windows():
         raise SystemExit("AlphaFold2 must run on Linux.")
@@ -240,25 +240,55 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     out_root   = f"{pair_dir}/output_AF/AF2"
     ensure_dir(out_root)
 
-    # Make sure chain FASTAs exist (reuses pair-root FASTAs if single-record; else extracts from PDB)
-    foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1dzlA', '5keqF'
-    pdbids     = [foldA[:-1], foldB[:-1]]            # ['1dzl','5keq']
-    pdbchains  = [foldA[-1],  foldB[-1]]             # ['A','F']
+    # Ensure per-chain FASTAs exist
+    foldA, foldB = pair_str_to_tuple(pair_id)
+    pdbids     = [foldA[:-1], foldB[:-1]]
+    pdbchains  = [foldA[-1],  foldB[-1]]
     ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
-    ensure_chain_fastas(pair_dir, pdbids, pdbchains)  # you already have this helper in the file
+    ensure_chain_fastas(pair_dir, pdbids, pdbchains)
 
-    # Choose run mode
+    chain_fastas = [
+        os.path.join(pair_dir, "fasta_chain_files", f"{pdbids[0]}{pdbchains[0]}.fasta"),
+        os.path.join(pair_dir, "fasta_chain_files", f"{pdbids[1]}{pdbchains[1]}.fasta"),
+    ]
+
+    # Sample sequences from each cluster (and optionally deep)
+    sampled_fastas = _sample_to_tmp_fastas(
+        pair_id,
+        args.cluster_sample_n,
+        include_deep=True   # include DeepMsa sample as requested
+    )
+
+    # Build run list
+    inputs = chain_fastas + sampled_fastas
+    if not inputs:
+        print(f"[warn] No AF2 inputs found for {pair_id}", flush=True)
+        return
+
+    # Common AF2 args (tweak to your taste)
+    # Notes:
+    # - colabfold_batch accepts FASTA files or a directory of FASTAs.
+    # - We set a per-input output dir to keep things tidy.
+    # - You can add flags like: --num-recycle 1, --num-models 1, --use-gpu-relax, etc.
+    def _cmd_for(inp_fa: str) -> str:
+        inp_tag = Path(inp_fa).stem
+        out_dir = os.path.join(out_root, inp_tag)
+        ensure_dir(out_dir)
+        return (
+            f"bash ./Pipeline/RunAF2_Colabfold.sh "
+            f"--num-models 1 --num-recycle 1 "
+            f"{shlex.quote(inp_fa)} {shlex.quote(out_dir)}"
+        )
+
+    # Dispatch (inline or sbatch)
     inside_slurm = _in_slurm_session()
-    if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
-        # Submit a job (your existing params script)
-        log_path = f"{pair_dir}/run_AF_for_{pair_id}.out"
-        cmd = f"sbatch -o '{log_path}' ./Pipeline/RunAF_params.sh {pair_id}"
-        _run(cmd, "sbatch")
-    else:
-        # Already on an allocated node (e.g., srun with GPU); run the same script body inline.
-        # NOTE: #SBATCH lines are comments to bash, so this will just execute the payload.
-        cmd = f"bash ./Pipeline/RunAF_params.sh {pair_id}"
-        _run(cmd, "inline")
+    for fa in inputs:
+        cmd = _cmd_for(fa)
+        if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
+            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{Path(fa).stem}.out")
+            _run(f"sbatch -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
+        else:
+            _run(cmd, "inline")
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:
