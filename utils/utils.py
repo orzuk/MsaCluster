@@ -209,7 +209,7 @@ def write_pair_pipeline_script(pair_id: str, args: argparse.Namespace) -> str:
     Uses absolute repo & python paths so Slurm CWD never matters.
     """
     # Absolute paths (no guessing inside the SBATCH job)
-    repo_dir = os.path.abspath(os.path.dirname(__file__))     # repo root (dir of this file)
+    repo_dir = MAIN_DIR  # os.path.abspath(os.path.dirname(__file__))     # repo root (dir of this file)
     py_exec  = sys.executable                                 # same python as caller
 
     pair_dir = f"Pipeline/{pair_id}"
