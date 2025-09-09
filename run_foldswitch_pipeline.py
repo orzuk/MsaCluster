@@ -228,19 +228,19 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
 
 def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     """
-    Run AF2 (colabfold_batch) for:
-      (i) both chains' FASTAs, and
-      (ii) sampled sequences from each cluster, and optionally DeepMsa sample.
-    We call a bash wrapper that activates the AF2 venv so we never mix envs in Python.
+    Run AF2 (colabfold_batch via wrapper) on:
+      - the two chain FASTAs, and
+      - EVERY MSA: DeepMsa.a3m + all ShallowMsa_*.a3m
+    No sampling; MSAs are used as-is.
     """
     if _is_windows():
         raise SystemExit("AlphaFold2 must run on Linux.")
 
-    pair_dir   = f"Pipeline/{pair_id}"
-    out_root   = f"{pair_dir}/output_AF/AF2"
+    pair_dir = f"Pipeline/{pair_id}"
+    out_root = f"{pair_dir}/output_AF/AF2"
     ensure_dir(out_root)
 
-    # Ensure per-chain FASTAs exist
+    # (1) Make sure chain FASTAs exist
     foldA, foldB = pair_str_to_tuple(pair_id)
     pdbids     = [foldA[:-1], foldB[:-1]]
     pdbchains  = [foldA[-1],  foldB[-1]]
@@ -252,40 +252,40 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
         os.path.join(pair_dir, "fasta_chain_files", f"{pdbids[1]}{pdbchains[1]}.fasta"),
     ]
 
-    # Sample sequences from each cluster (and optionally deep)
-    sampled_fastas = _sample_to_tmp_fastas(
-        pair_id,
-        args.cluster_sample_n,
-        include_deep=True   # include DeepMsa sample as requested
-    )
+    # (2) Collect ALL MSAs: Deep + clusters
+    deep, clusters = _cluster_files(pair_id)  # DeepMsa.a3m, list of ShallowMsa_*.a3m
+    a3ms = []
+    if os.path.isfile(deep):
+        a3ms.append(deep)
+    a3ms.extend([c for c in clusters if os.path.isfile(c)])
 
-    # Build run list
-    inputs = chain_fastas + sampled_fastas
-    if not inputs:
-        print(f"[warn] No AF2 inputs found for {pair_id}", flush=True)
-        return
+    # (3) Build commands: one run per input; clean output structure
+    def _out_dir_for(inp_path: str) -> str:
+        stem = Path(inp_path).stem  # e.g., "1fzpA", "DeepMsa", "ShallowMsa_003"
+        d = os.path.join(out_root, stem)
+        ensure_dir(d)
+        return d
 
-    # Common AF2 args (tweak to your taste)
-    # Notes:
-    # - colabfold_batch accepts FASTA files or a directory of FASTAs.
-    # - We set a per-input output dir to keep things tidy.
-    # - You can add flags like: --num-recycle 1, --num-models 1, --use-gpu-relax, etc.
-    def _cmd_for(inp_fa: str) -> str:
-        inp_tag = Path(inp_fa).stem
-        out_dir = os.path.join(out_root, inp_tag)
-        ensure_dir(out_dir)
+    def _cmd_for(inp_path: str) -> str:
+        out_dir = _out_dir_for(inp_path)
+        # Wrapper activates af2-venv and runs colabfold_batch
+        # You can add/tune flags (models/recycles/seeds) as needed.
         return (
             f"bash ./Pipeline/RunAF2_Colabfold.sh "
             f"--num-models 1 --num-recycle 1 "
-            f"{shlex.quote(inp_fa)} {shlex.quote(out_dir)}"
+            f"{shlex.quote(inp_path)} {shlex.quote(out_dir)}"
         )
 
-    # Dispatch (inline or sbatch)
+    inputs = chain_fastas + a3ms
+    if not inputs:
+        print(f"[warn] No AF2 inputs for {pair_id}", flush=True)
+        return
+
     inside_slurm = _in_slurm_session()
-    for fa in inputs:
-        cmd = _cmd_for(fa)
+    for ip in inputs:
+        cmd = _cmd_for(ip)
         if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
-            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{Path(fa).stem}.out")
+            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{Path(ip).stem}.out")
             _run(f"sbatch -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
         else:
             _run(cmd, "inline")
