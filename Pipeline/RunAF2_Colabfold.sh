@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Activate your Python venv
+source /sci/labs/orzuk/orzuk/af2-venv/bin/activate
+
+# CUDA toolchain & libdevice location (from system CUDA)
+CUDA_DIR="$(dirname "$(dirname "$(readlink -f "$(which ptxas)")")")"
+export PATH="$CUDA_DIR/bin:$PATH"
+export XLA_FLAGS="--xla_gpu_cuda_data_dir=$CUDA_DIR"
+
+# JAX memory knobs + wheel libs (safe defaults)
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
+export XLA_PYTHON_CLIENT_MEM_FRACTION=.80
+export LD_LIBRARY_PATH="/sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packages/nvidia/cudnn/lib:\
+/sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib:\
+/sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:\
+/sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH:-}"
+
+# Pass through your usual colabfold_batch args
+colabfold_batch "$@"
