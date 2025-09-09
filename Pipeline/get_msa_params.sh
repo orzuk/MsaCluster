@@ -12,4 +12,5 @@ OUTPUT_NAME_DIR="$2"
 
 mkdir -p $OUTPUT_NAME_DIR/output_get_msa
 rm -r $OUTPUT_NAME_DIR/output_get_msa/DeepMsa_env
-python3 ./get_msa.py $FASTA_FILE_INPUT $OUTPUT_NAME_DIR/output_get_msa  -name 'DeepMsa'
+python3 ./get_msa.py "Pipeline/<pair>/_seed_both.a3m" "Pipeline/<pair>/output_get_msa" --name DeepMsa
+
