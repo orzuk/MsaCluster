@@ -183,8 +183,17 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     elif key in deep_idx:
         _, q_aln = deep_idx[key][0]
     else:
-        print(f"[warn] Chain sequence for {chain_tag} not found in base/deep A3Ms; skip {out_path}")
-        return False
+        # Fallback: run AF2 with a single-sequence A3M (no MSA) so the job still proceeds.
+        ids, seqs = load_fasta(chain_fa)
+        if not seqs or not seqs[0]:
+            print(f"[warn] Fallback failed: no sequence in {chain_fa} for {chain_tag}")
+            return False
+        seq = "".join(ch for ch in seqs[0].strip() if ch.isalpha())  # ungap
+        ensure_dir(os.path.dirname(out_path))
+        with open(out_path, "w") as fh:
+            fh.write(f">{chain_tag}\n{seq}\n")
+        print(f"[info] Fallback: wrote single-seq A3M for {chain_tag} to {out_path}")
+        return True
 
     new_entries = [(chain_tag, q_aln)]
     for nm, aln in base_entries:

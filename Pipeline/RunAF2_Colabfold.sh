@@ -18,10 +18,23 @@ if [[ $# -ge 2 && -e "$1" ]]; then
 fi
 
 
-# CUDA toolchain & libdevice location (from system CUDA)
-CUDA_DIR="$(dirname "$(dirname "$(readlink -f "$(which ptxas)")")")"
-export PATH="$CUDA_DIR/bin:$PATH"
-export XLA_FLAGS="--xla_gpu_cuda_data_dir=$CUDA_DIR"
+# --- CUDA toolchain discovery (robust) ---
+if [[ -n "${CUDA_DIR_OVERRIDE:-}" && -x "${CUDA_DIR_OVERRIDE}/bin/ptxas" ]]; then
+  CUDA_DIR="${CUDA_DIR_OVERRIDE}"
+elif command -v ptxas >/dev/null 2>&1; then
+  CUDA_DIR="$(dirname "$(dirname "$(readlink -f "$(command -v ptxas)")")")"
+elif [[ -x "/usr/local/APP/nvidia/cuda/12.4.1/bin/ptxas" ]]; then
+  CUDA_DIR="/usr/local/APP/nvidia/cuda/12.4.1"
+elif [[ -n "${CUDA_HOME:-}" && -x "${CUDA_HOME}/bin/ptxas" ]]; then
+  CUDA_DIR="${CUDA_HOME}"
+else
+  echo "[fatal] Couldn't locate ptxas. Set CUDA_DIR_OVERRIDE=/path/to/cuda" >&2
+  exit 2
+fi
+export PATH="${CUDA_DIR}/bin:${PATH}"
+export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_DIR}"
+
+
 
 # --- if no GPU is visible and we're not already inside a SLURM job, relaunch under srun
 if [[ "${USE_SRUN:-1}" == "1" && -z "${CUDA_VISIBLE_DEVICES:-}" && -z "${SLURM_JOB_ID:-}" ]]; then
@@ -42,6 +55,12 @@ export LD_LIBRARY_PATH="/sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packa
 /sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH:-}"
 
 
+echo "[diag] nvidia-smi:"
+nvidia-smi || true
+echo "[diag] which ptxas: $(command -v ptxas || echo 'not found')"
+echo "[diag] ptxas --version:"; (ptxas --version || true)
+echo "[diag] CUDA_DIR=${CUDA_DIR}"
+
 # If asked to run Python (for get_msa.py), do that; otherwise default to colabfold_batch.
 if [[ "${1:-}" == "--python" ]]; then
   shift
@@ -51,6 +70,7 @@ elif [[ "${1:-}" == "python3" || "${1:-}" == "python" || "${1:-}" =~ \.py$ ]]; t
 else
   # If user passed INP+OUT, feed them explicitly; otherwise fall back to raw args
   if [[ -n "$INP" && -n "$OUT" ]]; then
+    echo "[run] colabfold_batch $INP $OUT ${@:3}"
     colabfold_batch "$INP" "$OUT" "${@:3}"
   else
     colabfold_batch "$@"
