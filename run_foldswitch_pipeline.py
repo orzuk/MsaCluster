@@ -4,6 +4,7 @@ import subprocess
 import shlex
 import sys
 from glob import glob
+import json
 from pathlib import Path
 from typing import List, Tuple
 from copy import deepcopy
@@ -70,12 +71,12 @@ def _run(cmd: str, mode: str) -> None:
     else:
         raise ValueError(f"Unknown run_job_mode: {mode}")
 
-def _cluster_files(pair_id: str) -> Tuple[str, List[str]]:
-    """Return (deep_msa, list_of_cluster_msas) for a pair."""
-    base = f"Pipeline/{pair_id}/output_msa_cluster"
-    deep = f"{base}/DeepMsa.a3m"
-    clusters = sorted(glob(f"{base}/ShallowMsa_*.a3m"))
+
+def _cluster_files(pair_id: str) -> tuple[str, list[str]]:
+    deep = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"   # <-- FIXED
+    clusters = sorted(glob(f"Pipeline/{pair_id}/output_msa_cluster/ShallowMsa_*.a3m"))
     return deep, clusters
+
 
 def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = False) -> List[str]:
     """
@@ -89,8 +90,9 @@ def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = Fals
     """
     created = []
     deep, clusters = _cluster_files(pair_id)
-    outdir = f"Pipeline/{pair_id}"
+    outdir = f"Pipeline/{pair_id}/tmp_esmfold"
     ensure_dir(outdir)
+
 
     def _write_sample(src_a3m: str, dst_fa: str) -> None:
         entries = read_msa(src_a3m)  # [(id, seq), ...]
@@ -115,6 +117,28 @@ def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = Fals
         print(f"[ok] wrote {len(created)} sampled FASTAs for {pair_id}", flush=True)
     return created
 
+
+def _postprocess_af2_run(out_dir: str):
+    # link best model
+    rj = os.path.join(out_dir, "ranking_debug.json")
+    if os.path.isfile(rj):
+        try:
+            with open(rj) as f: ranking = json.load(f)
+            top = (ranking.get("order") or [None])[0]
+            if top:
+                candidates = glob(os.path.join(out_dir, f"*{top}*.pdb"))
+                if candidates:
+                    best = sorted(candidates)[0]
+                    link = os.path.join(out_dir, "best_model.pdb")
+                    if os.path.islink(link) or os.path.exists(link):
+                        os.remove(link)
+                    os.symlink(os.path.basename(best), link)
+        except Exception:
+            pass
+
+    # drop mmseqs env folder
+    for d in glob(os.path.join(out_dir, "*_env")):
+        subprocess.run(f"rm -rf {shlex.quote(d)}", shell=True, check=False)
 
 # ------------------------- tasks -------------------------
 def task_clean(pair_id: str, _args) -> None:
@@ -186,14 +210,15 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
 
 
 def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
-    # Your existing script; unchanged except paths
     cmd = (
-        f"python3 ./ClusterMSA_moriah.py "
+        f"bash -lc 'cd Pipeline/{pair_id} && "
+        f"python3 ../../ClusterMSA_moriah.py "
         f"--keyword ShallowMsa "
-        f"-i Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m "
-        f"-o Pipeline/{pair_id}/output_msa_cluster"
+        f"-i output_get_msa/DeepMsa.a3m "
+        f"-o output_msa_cluster'"
     )
     _run(cmd, run_job_mode)
+
 
 def task_cmap_esm(pair_id: str, run_job_mode: str) -> None:
     outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
@@ -226,6 +251,10 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     device = args.esm_device or "auto"
     cmd = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device {device}"
     _run(cmd, args.run_job_mode)
+
+    # cleanup
+    tmpdir = f"Pipeline/{pair_id}/tmp_esmfold"
+    subprocess.run(f"rm -rf {shlex.quote(tmpdir)}", shell=True, check=False)
 
 
 def task_af2(pair_id: str, args: argparse.Namespace) -> None:
@@ -268,14 +297,20 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
         ensure_dir(d)
         return d
 
+    # inside task_af2(...) in run_foldswitch_pipeline.py
     def _cmd_for(inp_path: str) -> str:
-        out_dir = _out_dir_for(inp_path)
-        # Wrapper activates af2-venv and runs colabfold_batch
-        # You can add/tune flags (models/recycles/seeds) as needed.
+        stem = Path(inp_path).stem
+        out_dir = os.path.join(out_root, stem)
+        ensure_dir(out_dir)
+
+        args = ["--num-models", "1", "--num-recycle", "1"]
+        if inp_path.endswith(".a3m"):
+            args += ["--msa-mode", "input"]  # <-- add this
+
+        arg_str = " ".join(args)
         return (
             f"bash ./Pipeline/RunAF2_Colabfold.sh "
-            f"--num-models 1 --num-recycle 1 "
-            f"{shlex.quote(inp_path)} {shlex.quote(out_dir)}"
+            f"{arg_str} {shlex.quote(inp_path)} {shlex.quote(out_dir)}"
         )
 
     inputs = chain_fastas + a3ms
@@ -284,13 +319,15 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
         return
 
     inside_slurm = _in_slurm_session()
-    for ip in inputs:
-        cmd = _cmd_for(ip)
+    for fa in inputs:
+        cmd = _cmd_for(fa)
         if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
-            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{Path(ip).stem}.out")
+            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{Path(fa).stem}.out")
             _run(f"sbatch -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
+            # can't postprocess here; job is async
         else:
             _run(cmd, "inline")
+            _postprocess_af2_run(os.path.join(out_root, Path(fa).stem))  # <-- here
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:

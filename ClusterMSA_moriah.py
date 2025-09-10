@@ -1,6 +1,5 @@
 import argparse
 import pandas as pd
-import os
 from polyleven import levenshtein
 from hdbscan import HDBSCAN
 import numpy as np
