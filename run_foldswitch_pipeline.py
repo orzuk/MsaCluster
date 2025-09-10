@@ -140,6 +140,45 @@ def _postprocess_af2_run(out_dir: str):
     for d in glob(os.path.join(out_dir, "*_env")):
         subprocess.run(f"rm -rf {shlex.quote(d)}", shell=True, check=False)
 
+
+def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
+    """
+    Create an A3M that uses the SAME alignment (columns) as cluster_a3m (or deep_a3m),
+    with the requested chain's row placed FIRST (so it's the query for ColabFold).
+    If the chain row is missing in the cluster A3M, we pull it from DeepMsa (same columns).
+    """
+    # read cluster alignment
+    cl_entries = read_msa(cluster_a3m) if cluster_a3m else []
+    cl_dict = {name: seq for (name, seq) in cl_entries}
+
+    # read deep alignment (used both as DeepMsa input and for backfilling missing chain rows)
+    dp_entries = read_msa(deep_a3m)
+    dp_dict = {name: seq for (name, seq) in dp_entries}
+
+    # choose the alignment base: if cluster_a3m is None -> use deep only
+    base_entries = cl_entries if cluster_a3m else dp_entries
+    base_dict    = cl_dict   if cluster_a3m else dp_dict
+
+    # find the chain row from base; if missing, backfill from deep
+    if chain_tag in base_dict:
+        query_row = (chain_tag, base_dict[chain_tag])
+    elif chain_tag in dp_dict:
+        query_row = (chain_tag, dp_dict[chain_tag])  # same column space
+    else:
+        print(f"[warn] Chain {chain_tag} not found in DeepMsa; skip {out_path}")
+        return False
+
+    # build: query first, then all base entries except duplicate of query
+    new_entries = [query_row] + [(n, s) for (n, s) in base_entries if n != chain_tag]
+
+    # write simple A3M
+    ensure_dir(os.path.dirname(out_path))
+    with open(out_path, "w") as fh:
+        for name, seq in new_entries:
+            fh.write(f">{name}\n{seq}\n")
+    return True
+
+
 # ------------------------- tasks -------------------------
 def task_clean(pair_id: str, _args) -> None:
     base = f"Pipeline/{pair_id}"
@@ -204,8 +243,10 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
         cmd = f"sbatch -o '{log}' {sbatch_script} '{seed_a3m}' {pair_id}"
         _run(cmd, "sbatch")
     else:
-        cmd = (f"bash ./Pipeline/RunAF2_Colabfold.sh --python "
-            f"./get_msa.py '{seed_a3m}' '{out_dir}' --name DeepMsa")
+        cmd = (
+            f"bash ./Pipeline/RunAF2_Colabfold.sh --python "
+            f"./get_msa.py '{seed_a3m}' '{out_dir}' --pair {pair_id}"
+        )
         _run(cmd, "inline")
 
 
@@ -257,13 +298,8 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     subprocess.run(f"rm -rf {shlex.quote(tmpdir)}", shell=True, check=False)
 
 
+
 def task_af2(pair_id: str, args: argparse.Namespace) -> None:
-    """
-    Run AF2 (colabfold_batch via wrapper) on:
-      - the two chain FASTAs, and
-      - EVERY MSA: DeepMsa.a3m + all ShallowMsa_*.a3m
-    No sampling; MSAs are used as-is.
-    """
     if _is_windows():
         raise SystemExit("AlphaFold2 must run on Linux.")
 
@@ -271,63 +307,68 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     out_root = f"{pair_dir}/output_AF/AF2"
     ensure_dir(out_root)
 
-    # (1) Make sure chain FASTAs exist
-    foldA, foldB = pair_str_to_tuple(pair_id)
-    pdbids     = [foldA[:-1], foldB[:-1]]
-    pdbchains  = [foldA[-1],  foldB[-1]]
-    ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
-    ensure_chain_fastas(pair_dir, pdbids, pdbchains)
-
-    chain_fastas = [
-        os.path.join(pair_dir, "fasta_chain_files", f"{pdbids[0]}{pdbchains[0]}.fasta"),
-        os.path.join(pair_dir, "fasta_chain_files", f"{pdbids[1]}{pdbchains[1]}.fasta"),
-    ]
-
-    # (2) Collect ALL MSAs: Deep + clusters
-    deep, clusters = _cluster_files(pair_id)  # DeepMsa.a3m, list of ShallowMsa_*.a3m
-    a3ms = []
-    if os.path.isfile(deep):
-        a3ms.append(deep)
-    a3ms.extend([c for c in clusters if os.path.isfile(c)])
-
-    # (3) Build commands: one run per input; clean output structure
-    def _out_dir_for(inp_path: str) -> str:
-        stem = Path(inp_path).stem  # e.g., "1fzpA", "DeepMsa", "ShallowMsa_003"
-        d = os.path.join(out_root, stem)
-        ensure_dir(d)
-        return d
-
-    # inside task_af2(...) in run_foldswitch_pipeline.py
-    def _cmd_for(inp_path: str) -> str:
-        stem = Path(inp_path).stem
-        out_dir = os.path.join(out_root, stem)
-        ensure_dir(out_dir)
-
-        args = ["--num-models", "1", "--num-recycle", "1"]
-        if inp_path.endswith(".a3m"):
-            args += ["--msa-mode", "input"]  # <-- add this
-
-        arg_str = " ".join(args)
-        return (
-            f"bash ./Pipeline/RunAF2_Colabfold.sh "
-            f"{arg_str} {shlex.quote(inp_path)} {shlex.quote(out_dir)}"
-        )
-
-    inputs = chain_fastas + a3ms
-    if not inputs:
-        print(f"[warn] No AF2 inputs for {pair_id}", flush=True)
+    deep_a3m = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
+    if not os.path.isfile(deep_a3m):
+        print(f"[err] Missing DeepMsa: {deep_a3m}")
         return
 
+    # The SAME clusters for both chains:
+    cluster_dir = os.path.join(pair_dir, "output_msa_cluster")
+    cluster_a3ms = sorted(glob(os.path.join(cluster_dir, "ShallowMsa_*.a3m")))
+
+    # Chains (tags) to fold:
+    foldA, foldB = pair_str_to_tuple(pair_id)   # e.g. '1fzpD','2frhA'
+    chains = [foldA, foldB]
+
+    # Where we write pair-specific A3Ms (safe to keep until jobs finish)
+    tmp_pairs_dir = os.path.join(pair_dir, "tmp_af2_pairs")
+    ensure_dir(tmp_pairs_dir)
+
+    jobs = []  # list of (pair_a3m_path, out_dir)
+
+    # DeepMsa for both chains
+    for ch in chains:
+        pair_a3m = os.path.join(tmp_pairs_dir, f"DeepMsa__{ch}.a3m")
+        if _write_pair_a3m_for_chain(cluster_a3m=None, deep_a3m=deep_a3m, chain_tag=ch, out_path=pair_a3m):
+            # Group outputs by cluster, then chain (so SAME clusters show both chains side by side)
+            out_dir = os.path.join(out_root, "DeepMsa", ch)
+            jobs.append((pair_a3m, out_dir))
+
+    # Each cluster for both chains
+    for a3m in cluster_a3ms:
+        cl_stem = Path(a3m).stem  # e.g. ShallowMsa_007
+        for ch in chains:
+            pair_a3m = os.path.join(tmp_pairs_dir, f"{cl_stem}__{ch}.a3m")
+            if _write_pair_a3m_for_chain(cluster_a3m=a3m, deep_a3m=deep_a3m, chain_tag=ch, out_path=pair_a3m):
+                out_dir = os.path.join(out_root, cl_stem, ch)
+                jobs.append((pair_a3m, out_dir))
+
+    if not jobs:
+        print(f"[warn] No AF2 jobs to run for {pair_id}")
+        return
+
+    # Build colabfold command (your AF2 venv wrapper)
+    def _cmd_for(a3m_path: str, out_dir: str) -> str:
+        ensure_dir(out_dir)
+        return (
+            f"bash ./Pipeline/RunAF2_Colabfold.sh "
+            f"--num-models 1 --num-recycle 1 "
+            f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)}"
+        )
+
     inside_slurm = _in_slurm_session()
-    for fa in inputs:
-        cmd = _cmd_for(fa)
+    sbatch_opts = "--gres=gpu:a100:1 --cpus-per-task=8 --mem=40G --time=24:00:00"
+
+    for a3m_path, out_dir in jobs:
+        cmd = _cmd_for(a3m_path, out_dir)
         if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
-            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{Path(fa).stem}.out")
-            _run(f"sbatch -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
-            # can't postprocess here; job is async
+            stem = f"{Path(a3m_path).stem}"
+            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{stem}.out")
+            _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
         else:
             _run(cmd, "inline")
-            _postprocess_af2_run(os.path.join(out_root, Path(fa).stem))  # <-- here
+            # optional: postprocess here (link best, prune *_env)
+            # _postprocess_af2_run(out_dir)
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:

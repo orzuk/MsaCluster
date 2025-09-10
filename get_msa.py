@@ -1,68 +1,79 @@
-from pathlib import Path
+#!/usr/bin/env python3
 import os
+from pathlib import Path
 from argparse import ArgumentParser
 
-from colabfold.batch import get_msa_and_templates, msa_to_str, get_queries
-
-print("Get MSA, Current dir: ", os.getcwd())
+from colabfold.batch import get_msa_and_templates, msa_to_str
 
 def _ungap(s: str) -> str:
     return (s or "").replace("-", "").replace(".", "").strip()
 
+def _read_fasta_one(path: str) -> tuple[str, str]:
+    name, seq = None, []
+    with open(path, "r") as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if line.startswith(">"):
+                name = line[1:].strip()
+            else:
+                seq.append(line.strip())
+    return (name or Path(path).stem, _ungap("".join(seq)))
+
 def main():
-    parser = ArgumentParser()
-    parser.add_argument("input", help="Seed A3M/FASTA with the two chains aligned")
-    parser.add_argument("results", help="Directory to write the results to")
-    parser.add_argument("--name", default="DeepMsa", help="MSA base name (default: DeepMsa)")
-    args = parser.parse_args()
+    p = ArgumentParser()
+    p.add_argument("input", help="Seed A3M path (e.g., Pipeline/<pair>/_seed_both.a3m)")
+    p.add_argument("results", help="Output dir (e.g., Pipeline/<pair>/output_get_msa)")
+    p.add_argument("--pair", required=True, help="Pair id, e.g. 1fzpD_2frhA")
+    args = p.parse_args()
 
+    seed_a3m   = Path(args.input)
     result_dir = Path(args.results)
+    pair_id    = args.pair
+
     result_dir.mkdir(parents=True, exist_ok=True)
+    pair_dir   = seed_a3m.parent
 
-    # Parse queries (works for A3M/FASTA); use first sequence as query
-    queries, is_complex = get_queries(args.input, 'random')
-    print("queries:"); print(queries)
-    sequence = _ungap(queries[0][1])
-    print("sequence:"); print(sequence)
-    print("results dir:"); print(result_dir)
-    print("args.name="); print(args.name)
+    # figure chain tags from pair id
+    foldA, foldB = pair_id.split("_")  # e.g., 1fzpD, 2frhA
 
-    # Read raw A3M lines; some ColabFold builds require passing them explicitly
-    with open(args.input, "r") as fh:
+    # read the two chain sequences
+    faA = pair_dir / "fasta_chain_files" / f"{foldA}.fasta"
+    faB = pair_dir / "fasta_chain_files" / f"{foldB}.fasta"
+    nameA, seqA = _read_fasta_one(str(faA))
+    nameB, seqB = _read_fasta_one(str(faB))
+
+    # read seed a3m lines (some builds prefer having it)
+    with open(seed_a3m, "r") as fh:
         a3m_lines = fh.read().splitlines()
 
-    # Try signature that accepts a3m_lines; fall back if not supported
-    try:
-        tup = get_msa_and_templates(
-            query_sequences=sequence,
-            jobname=args.name,
-            result_dir=result_dir,
-            use_templates=False,
-            custom_template_path='',
-            pair_mode='',
-            msa_mode='mmseqs2_uniref_env',
-            a3m_lines=a3m_lines
-        )
-    except TypeError:
-        tup = get_msa_and_templates(
-            query_sequences=sequence,
-            jobname=args.name,
-            result_dir=result_dir,
-            use_templates=False,
-            custom_template_path='',
-            pair_mode='',
-            msa_mode='mmseqs2_uniref_env'
-        )
+    def _make_deep(jobname: str, seq: str):
+        try:
+            tup = get_msa_and_templates(
+                query_sequences=seq,
+                jobname=jobname,
+                result_dir=result_dir,
+                use_templates=False,
+                custom_template_path="",
+                pair_mode="",
+                msa_mode="mmseqs2_uniref_env",
+                a3m_lines=a3m_lines,  # works on builds that accept it
+            )
+        except TypeError:
+            tup = get_msa_and_templates(
+                query_sequences=seq,
+                jobname=jobname,
+                result_dir=result_dir,
+                use_templates=False,
+                custom_template_path="",
+                pair_mode="",
+                msa_mode="mmseqs2_uniref_env",
+            )
+        unpaired_msa, paired_msa, quniq, qcard, _ = tup
+        msa = msa_to_str(unpaired_msa, paired_msa, quniq, qcard)
+        (result_dir / f"{jobname}.a3m").write_text(msa)
 
-    (unpaired_msa, paired_msa, query_seqs_unique,
-     query_seqs_cardinality, template_features) = tup
-
-    print("unpaired msa:"); print(unpaired_msa)
-    print("paired msa:"); print(paired_msa)
-    print("query seqs unique:"); print(query_seqs_unique)
-
-    msa = msa_to_str(unpaired_msa, paired_msa, query_seqs_unique, query_seqs_cardinality)
-    result_dir.joinpath(f"{args.name}.a3m").write_text(msa)
+    _make_deep(f"DeepMsa_{foldA}", seqA)
+    _make_deep(f"DeepMsa_{foldB}", seqB)
 
 if __name__ == "__main__":
     main()
