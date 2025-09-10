@@ -17,5 +17,13 @@ export LD_LIBRARY_PATH="/sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packa
 /sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:\
 /sci/labs/orzuk/orzuk/af2-venv/lib/python3.11/site-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH:-}"
 
-# Pass through your usual colabfold_batch args
-colabfold_batch "$@"
+
+# If asked to run Python (for get_msa.py), do that; otherwise default to colabfold_batch.
+if [[ "${1:-}" == "--python" ]]; then
+  shift
+  python3 "$@"
+elif [[ "${1:-}" == "python3" || "${1:-}" == "python" || "${1:-}" =~ \.py$ ]]; then
+  python3 "$@"
+else
+  colabfold_batch "$@"
+fi

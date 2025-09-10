@@ -180,8 +180,10 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
         cmd = f"sbatch -o '{log}' {sbatch_script} '{seed_a3m}' {pair_id}"
         _run(cmd, "sbatch")
     else:
-        cmd = f"python3 ./get_msa.py '{seed_a3m}' '{out_dir}' --name DeepMsa"
+        cmd = (f"bash ./Pipeline/RunAF2_Colabfold.sh --python "
+            f"./get_msa.py '{seed_a3m}' '{out_dir}' --name DeepMsa")
         _run(cmd, "inline")
+
 
 def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     # Your existing script; unchanged except paths

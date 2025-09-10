@@ -1,16 +1,17 @@
 #!/bin/bash
-
 #SBATCH --time=24:00:00
-#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=8
 #SBATCH --mem=10G
+set -euo pipefail
 
+SEED_A3M="${1:?missing seed a3m path}"
+PAIR_ID="${2:?missing pair id}"
 
-FASTA_FILE_INPUT="$1"
-OUTPUT_NAME_DIR="$2"
+REPO_DIR="/sci/labs/orzuk/orzuk/github/MsaCluster"
+cd "$REPO_DIR"
 
-. /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
+mkdir -p "Pipeline/${PAIR_ID}/output_get_msa"
 
-mkdir -p $OUTPUT_NAME_DIR/output_get_msa
-rm -r $OUTPUT_NAME_DIR/output_get_msa/DeepMsa_env
-python3 ./get_msa.py "Pipeline/<pair>/_seed_both.a3m" "Pipeline/<pair>/output_get_msa" --name DeepMsa
-
+# Run get_msa.py inside the AF2 venv via the unified wrapper
+bash ./Pipeline/RunAF2_Colabfold.sh --python ./get_msa.py \
+  "$SEED_A3M" "Pipeline/${PAIR_ID}/output_get_msa" --name DeepMsa
