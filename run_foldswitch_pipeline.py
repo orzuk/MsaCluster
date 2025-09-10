@@ -306,6 +306,8 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     pair_dir = f"Pipeline/{pair_id}"
     out_root = f"{pair_dir}/output_AF/AF2"
     ensure_dir(out_root)
+    log_dir = os.path.join(out_root, "logs")
+    ensure_dir(log_dir)
 
     deep_a3m = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
     if not os.path.isfile(deep_a3m):
@@ -350,10 +352,11 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     # Build colabfold command (your AF2 venv wrapper)
     def _cmd_for(a3m_path: str, out_dir: str) -> str:
         ensure_dir(out_dir)
+        # IMPORTANT: pass <a3m> <outdir> FIRST, then options
         return (
             f"bash ./Pipeline/RunAF2_Colabfold.sh "
-            f"--num-models 1 --num-recycle 1 "
-            f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)}"
+            f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
+            f"--num-models 1 --recycle 1 --model-type alphafold2_ptm --templates false"
         )
 
     inside_slurm = _in_slurm_session()
@@ -363,7 +366,8 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
         cmd = _cmd_for(a3m_path, out_dir)
         if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
             stem = f"{Path(a3m_path).stem}"
-            log_path = os.path.join(pair_dir, f"run_AF_for_{pair_id}_{stem}.out")
+            log_path = os.path.join(log_dir, f"run_AF2_{pair_id}__{stem}.out")
+
             _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
         else:
             _run(cmd, "inline")

@@ -4,11 +4,30 @@ set -euo pipefail
 # Activate your Python venv
 source /sci/labs/orzuk/orzuk/af2-venv/bin/activate
 
+
+# --- ensure OUTDIR exists if user passed: <input> <outdir> [extra args]
+INP=""
+OUT=""
+if [[ $# -ge 2 && -e "$1" ]]; then
+  INP="$1"
+  OUT="$2"
+  # If second arg looks like a directory, create it
+  if [[ -n "$OUT" ]]; then
+    mkdir -p "$OUT"
+  fi
+fi
+
+
 # CUDA toolchain & libdevice location (from system CUDA)
 CUDA_DIR="$(dirname "$(dirname "$(readlink -f "$(which ptxas)")")")"
 export PATH="$CUDA_DIR/bin:$PATH"
 export XLA_FLAGS="--xla_gpu_cuda_data_dir=$CUDA_DIR"
 
+# --- if no GPU is visible and we're not already inside a SLURM job, relaunch under srun
+if [[ "${USE_SRUN:-1}" == "1" && -z "${CUDA_VISIBLE_DEVICES:-}" && -z "${SLURM_JOB_ID:-}" ]]; then
+  exec srun --gres=gpu:a100:1 --time=2:00:00 --mem=16G --cpus-per-task=4 --pty bash -lc \
+    "source /sci/labs/orzuk/orzuk/af2-venv/bin/activate; CUDA_DIR=\"$(dirname "$(dirname "$(readlink -f "$(which ptxas)")")")\"; export PATH=\"\$CUDA_DIR/bin:\$PATH\"; export XLA_FLAGS=\"--xla_gpu_cuda_data_dir=\$CUDA_DIR\"; $(printf '%q ' "$0" "$@")"
+fi
 
 # Make directory for colabfold params
 export COLABFOLD_PARAMS_DIR="${COLABFOLD_PARAMS_DIR:-$HOME/.cache/colabfold}"
@@ -30,5 +49,10 @@ if [[ "${1:-}" == "--python" ]]; then
 elif [[ "${1:-}" == "python3" || "${1:-}" == "python" || "${1:-}" =~ \.py$ ]]; then
   python3 "$@"
 else
-  colabfold_batch "$@"
+  # If user passed INP+OUT, feed them explicitly; otherwise fall back to raw args
+  if [[ -n "$INP" && -n "$OUT" ]]; then
+    colabfold_batch "$INP" "$OUT" "${@:3}"
+  else
+    colabfold_batch "$@"
+  fi
 fi
