@@ -143,40 +143,66 @@ def _postprocess_af2_run(out_dir: str):
 
 def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
     """
-    Create an A3M that uses the SAME alignment (columns) as cluster_a3m (or deep_a3m),
-    with the requested chain's row placed FIRST (so it's the query for ColabFold).
-    If the chain row is missing in the cluster A3M, we pull it from DeepMsa (same columns).
+    Build a per-chain A3M using the SAME columns as the base alignment:
+      base = cluster_a3m if provided, else deep_a3m.
+    We place the requested chain FIRST (as the query).
+    We match the chain by UNGAPPED SEQUENCE (robust to header renaming).
     """
-    # read cluster alignment
+    def _ungap_upper(s: str) -> str:
+        return "".join(ch for ch in (s or "") if ch.isalpha()).upper()
+
+    # read alignments
     cl_entries = read_msa(cluster_a3m) if cluster_a3m else []
-    cl_dict = {name: seq for (name, seq) in cl_entries}
-
-    # read deep alignment (used both as DeepMsa input and for backfilling missing chain rows)
     dp_entries = read_msa(deep_a3m)
-    dp_dict = {name: seq for (name, seq) in dp_entries}
-
-    # choose the alignment base: if cluster_a3m is None -> use deep only
-    base_entries = cl_entries if cluster_a3m else dp_entries
-    base_dict    = cl_dict   if cluster_a3m else dp_dict
-
-    # find the chain row from base; if missing, backfill from deep
-    if chain_tag in base_dict:
-        query_row = (chain_tag, base_dict[chain_tag])
-    elif chain_tag in dp_dict:
-        query_row = (chain_tag, dp_dict[chain_tag])  # same column space
-    else:
-        print(f"[warn] Chain {chain_tag} not found in DeepMsa; skip {out_path}")
+    if not dp_entries:
+        print(f"[warn] DeepMsa file empty or unreadable: {deep_a3m}")
         return False
 
-    # build: query first, then all base entries except duplicate of query
-    new_entries = [query_row] + [(n, s) for (n, s) in base_entries if n != chain_tag]
+    base_entries = cl_entries if cluster_a3m else dp_entries
+    if not base_entries:
+        print(f"[warn] Base alignment empty for {out_path} (cluster_a3m={bool(cluster_a3m)})")
+        return False
 
-    # write simple A3M
+    def _make_idx(entries):
+        idx = {}
+        for nm, aln in entries:
+            idx.setdefault(_ungap_upper(aln), []).append((nm, aln))
+        return idx
+
+    base_idx = _make_idx(base_entries)
+    deep_idx = _make_idx(dp_entries)
+
+    # read the true chain sequence from fasta_chain_files/<chain>.fasta
+    pair_dir = os.path.dirname(os.path.dirname(deep_a3m))  # .../Pipeline/<pair>
+    chain_fa = os.path.join(pair_dir, "fasta_chain_files", f"{chain_tag}.fasta")
+    ids, seqs = load_fasta(chain_fa)
+    if not seqs or not seqs[0]:
+        print(f"[warn] Empty chain fasta for {chain_tag}: {chain_fa}")
+        return False
+    chain_seq_key = _ungap_upper(seqs[0])
+
+    # find aligned row: prefer base; else deep
+    if chain_seq_key in base_idx:
+        query_name, query_aln = base_idx[chain_seq_key][0]
+    elif chain_seq_key in deep_idx:
+        query_name, query_aln = deep_idx[chain_seq_key][0]
+    else:
+        print(f"[warn] Chain sequence for {chain_tag} not found in base/deep A3Ms; skip {out_path}")
+        return False
+
+    # write: force the header to be the chain tag, then rest of base excluding duplicate
+    new_entries = [(chain_tag, query_aln)]
+    for nm, aln in base_entries:
+        if _ungap_upper(aln) == chain_seq_key:
+            continue
+        new_entries.append((nm, aln))
+
     ensure_dir(os.path.dirname(out_path))
     with open(out_path, "w") as fh:
-        for name, seq in new_entries:
-            fh.write(f">{name}\n{seq}\n")
+        for nm, aln in new_entries:
+            fh.write(f">{nm}\n{aln}\n")
     return True
+
 
 
 # ------------------------- tasks -------------------------
@@ -352,7 +378,6 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     # Build colabfold command (your AF2 venv wrapper)
     def _cmd_for(a3m_path: str, out_dir: str) -> str:
         ensure_dir(out_dir)
-        # IMPORTANT: pass <a3m> <outdir> FIRST, then options
         return (
             f"bash ./Pipeline/RunAF2_Colabfold.sh "
             f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
