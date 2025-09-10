@@ -56,3 +56,16 @@ else
     colabfold_batch "$@"
   fi
 fi
+
+
+# --- cleanup: remove per-run temp A3M if it lives under tmp_af2_pairs
+# Only runs on success because 'set -euo pipefail' is enabled.
+if [[ -n "${INP:-}" ]]; then
+  case "$INP" in
+    */tmp_af2_pairs/*)
+      rm -f -- "$INP" || true
+      # Try to remove the tmp directory if now empty (safe with concurrent jobs)
+      rmdir -p "$(dirname "$INP")" 2>/dev/null || true
+      ;;
+  esac
+fi

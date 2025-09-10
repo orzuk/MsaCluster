@@ -143,15 +143,13 @@ def _postprocess_af2_run(out_dir: str):
 
 def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
     """
-    Build a per-chain A3M using the SAME columns as the base alignment:
-      base = cluster_a3m if provided, else deep_a3m.
-    We place the requested chain FIRST (as the query).
-    We match the chain by UNGAPPED SEQUENCE (robust to header renaming).
+    Build a per-chain A3M using the SAME alignment columns as base (cluster if given else deep).
+    Put the requested chain FIRST (as query). Match the chain by UNGAPPED SEQUENCE from
+    fasta_chain_files/<chain>.fasta, not by header.
     """
     def _ungap_upper(s: str) -> str:
         return "".join(ch for ch in (s or "") if ch.isalpha()).upper()
 
-    # read alignments
     cl_entries = read_msa(cluster_a3m) if cluster_a3m else []
     dp_entries = read_msa(deep_a3m)
     if not dp_entries:
@@ -163,37 +161,34 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         print(f"[warn] Base alignment empty for {out_path} (cluster_a3m={bool(cluster_a3m)})")
         return False
 
-    def _make_idx(entries):
+    def _mk_index(entries):
         idx = {}
         for nm, aln in entries:
             idx.setdefault(_ungap_upper(aln), []).append((nm, aln))
         return idx
 
-    base_idx = _make_idx(base_entries)
-    deep_idx = _make_idx(dp_entries)
+    base_idx = _mk_index(base_entries)
+    deep_idx = _mk_index(dp_entries)
 
-    # read the true chain sequence from fasta_chain_files/<chain>.fasta
     pair_dir = os.path.dirname(os.path.dirname(deep_a3m))  # .../Pipeline/<pair>
     chain_fa = os.path.join(pair_dir, "fasta_chain_files", f"{chain_tag}.fasta")
     ids, seqs = load_fasta(chain_fa)
     if not seqs or not seqs[0]:
         print(f"[warn] Empty chain fasta for {chain_tag}: {chain_fa}")
         return False
-    chain_seq_key = _ungap_upper(seqs[0])
+    key = _ungap_upper(seqs[0])
 
-    # find aligned row: prefer base; else deep
-    if chain_seq_key in base_idx:
-        query_name, query_aln = base_idx[chain_seq_key][0]
-    elif chain_seq_key in deep_idx:
-        query_name, query_aln = deep_idx[chain_seq_key][0]
+    if key in base_idx:
+        _, q_aln = base_idx[key][0]
+    elif key in deep_idx:
+        _, q_aln = deep_idx[key][0]
     else:
         print(f"[warn] Chain sequence for {chain_tag} not found in base/deep A3Ms; skip {out_path}")
         return False
 
-    # write: force the header to be the chain tag, then rest of base excluding duplicate
-    new_entries = [(chain_tag, query_aln)]
+    new_entries = [(chain_tag, q_aln)]
     for nm, aln in base_entries:
-        if _ungap_upper(aln) == chain_seq_key:
+        if _ungap_upper(aln) == key:
             continue
         new_entries.append((nm, aln))
 
@@ -202,7 +197,6 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         for nm, aln in new_entries:
             fh.write(f">{nm}\n{aln}\n")
     return True
-
 
 
 # ------------------------- tasks -------------------------
@@ -330,6 +324,13 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
         raise SystemExit("AlphaFold2 must run on Linux.")
 
     pair_dir = f"Pipeline/{pair_id}"
+    # Make sure per-chain FASTAs exist even if we jump straight to AF
+    foldA, foldB = pair_str_to_tuple(pair_id)  # e.g., '1fzpD','2frhA'
+    pdbids = [foldA[:-1], foldB[:-1]]
+    pdbchains = [foldA[-1], foldB[-1]]
+    chains = [foldA, foldB]
+    ensure_chain_fastas(pair_dir, pdbids, pdbchains)
+
     out_root = f"{pair_dir}/output_AF/AF2"
     ensure_dir(out_root)
     log_dir = os.path.join(out_root, "logs")
@@ -344,9 +345,6 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     cluster_dir = os.path.join(pair_dir, "output_msa_cluster")
     cluster_a3ms = sorted(glob(os.path.join(cluster_dir, "ShallowMsa_*.a3m")))
 
-    # Chains (tags) to fold:
-    foldA, foldB = pair_str_to_tuple(pair_id)   # e.g. '1fzpD','2frhA'
-    chains = [foldA, foldB]
 
     # Where we write pair-specific A3Ms (safe to keep until jobs finish)
     tmp_pairs_dir = os.path.join(pair_dir, "tmp_af2_pairs")
@@ -381,7 +379,7 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
         return (
             f"bash ./Pipeline/RunAF2_Colabfold.sh "
             f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
-            f"--num-models 1 --recycle 1 --model-type alphafold2_ptm --templates false"
+            f"--num-models 1 --recycle 1 --model-type alphafold2_ptm"
         )
 
     inside_slurm = _in_slurm_session()
