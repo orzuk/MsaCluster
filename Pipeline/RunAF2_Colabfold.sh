@@ -89,3 +89,14 @@ if [[ -n "${INP:-}" ]]; then
       ;;
   esac
 fi
+
+
+# --- cleanup temp A3M on success
+if [[ -n "${INP:-}" ]]; then
+  case "$INP" in
+    */tmp_af2_pairs/*|*/tmp_msa_files/*)
+      rm -f -- "$INP" || true
+      rmdir -p "$(dirname "$INP")" 2>/dev/null || true
+      ;;
+  esac
+fi

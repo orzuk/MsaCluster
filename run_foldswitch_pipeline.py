@@ -143,67 +143,103 @@ def _postprocess_af2_run(out_dir: str):
 
 def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
     """
-    Build a per-chain A3M using the SAME alignment columns as base (cluster if given else deep).
-    Put the requested chain FIRST (as query). Match the chain by UNGAPPED SEQUENCE from
-    fasta_chain_files/<chain>.fasta, not by header.
+    From a single base alignment (cluster_a3m if given else deep_a3m),
+    synthesize a per-chain A3M with the chain as FIRST row in the SAME column space.
+    If the chain isn't present in the base A3M, align it to the base query row and project.
     """
+    from Bio import Align  # PairwiseAligner (modern replacement)
+    # If your Biopython is older, you can import pairwise2 and use format_alignment instead.
+
     def _ungap_upper(s: str) -> str:
         return "".join(ch for ch in (s or "") if ch.isalpha()).upper()
 
-    cl_entries = read_msa(cluster_a3m) if cluster_a3m else []
-    dp_entries = read_msa(deep_a3m)
-    if not dp_entries:
-        print(f"[warn] DeepMsa file empty or unreadable: {deep_a3m}")
-        return False
-
-    base_entries = cl_entries if cluster_a3m else dp_entries
+    # Load base alignment entries
+    base_entries = read_msa(cluster_a3m) if cluster_a3m else read_msa(deep_a3m)
     if not base_entries:
-        print(f"[warn] Base alignment empty for {out_path} (cluster_a3m={bool(cluster_a3m)})")
+        print(f"[error] Base alignment empty for {out_path}")
         return False
 
-    def _mk_index(entries):
-        idx = {}
-        for nm, aln in entries:
-            idx.setdefault(_ungap_upper(aln), []).append((nm, aln))
-        return idx
-
-    base_idx = _mk_index(base_entries)
-    deep_idx = _mk_index(dp_entries)
-
+    # Load chain FASTA
     pair_dir = os.path.dirname(os.path.dirname(deep_a3m))  # .../Pipeline/<pair>
     chain_fa = os.path.join(pair_dir, "fasta_chain_files", f"{chain_tag}.fasta")
     ids, seqs = load_fasta(chain_fa)
     if not seqs or not seqs[0]:
-        print(f"[warn] Empty chain fasta for {chain_tag}: {chain_fa}")
+        print(f"[error] No sequence in {chain_fa} for {chain_tag}")
         return False
-    key = _ungap_upper(seqs[0])
+    chain_seq = "".join(ch for ch in seqs[0].strip() if ch.isalpha())
+    chain_key = chain_seq.upper()
 
-    if key in base_idx:
-        _, q_aln = base_idx[key][0]
-    elif key in deep_idx:
-        _, q_aln = deep_idx[key][0]
-    else:
-        # Fallback: run AF2 with a single-sequence A3M (no MSA) so the job still proceeds.
-        ids, seqs = load_fasta(chain_fa)
-        if not seqs or not seqs[0]:
-            print(f"[warn] Fallback failed: no sequence in {chain_fa} for {chain_tag}")
-            return False
-        seq = "".join(ch for ch in seqs[0].strip() if ch.isalpha())  # ungap
-        ensure_dir(os.path.dirname(out_path))
-        with open(out_path, "w") as fh:
-            fh.write(f">{chain_tag}\n{seq}\n")
-        print(f"[info] Fallback: wrote single-seq A3M for {chain_tag} to {out_path}")
-        return True
-
-    new_entries = [(chain_tag, q_aln)]
+    # Try to find an existing aligned row for this chain (by ungapped sequence)
+    idx = {}
     for nm, aln in base_entries:
-        if _ungap_upper(aln) == key:
-            continue
-        new_entries.append((nm, aln))
+        idx.setdefault(_ungap_upper(aln), []).append((nm, aln))
+    if chain_key in idx:
+        # perfect: chain already present in base A3M
+        _, chain_aln = idx[chain_key][0]
+    else:
+        # Need to synthesize an aligned row:
+        # 1) get base "query" row (row 0) from A3M
+        base_q_aln = base_entries[0][1]                # aligned with gaps
+        base_q_seq = _ungap_upper(base_q_aln)          # ungapped
+        # 2) align chain_seq <-> base_q_seq (global)
+        aligner = Align.PairwiseAligner()
+        aligner.mode = "global"
+        # Reasonable scores for protein global alignment (tweak if needed)
+        aligner.match_score = 1.0
+        aligner.mismatch_score = -1.0
+        aligner.open_gap_score = -2.0
+        aligner.extend_gap_score = -0.5
+        aln = max(aligner.align(base_q_seq, chain_seq), key=lambda a: a.score)
+        a_base, a_chain = str(aln).split("\n")[0:2]  # aligned strings without gaps marking?
+        # The PairwiseAligner string format is not fixed; safer to use aligned coordinates:
+        # Build projected chain row column-by-column against base_q_aln
+        chain_aln_list = []
+        # Map positions in base_q_aln (with gaps) to positions in base_q_seq (ungapped)
+        bpos = 0  # position in base_q_seq
+        # Prepare an iterator over (ops) from the alignment to know when chain advances
+        # We'll reconstruct a step-function over base_q_seq indices indicating gap/match
+        # Using aligned coordinates API:
+        b_blocks, c_blocks = aln.aligned  # arrays of (start, end) blocks for base and chain
+        # Create an array over base_q_seq length telling for each bpos whether chain has a residue or gap
+        import numpy as np
+        cover = np.zeros(len(base_q_seq), dtype=np.int8)  # 1 = has residue, 0 = gap in chain
+        c_map = {}  # map bpos -> chain residue index (for residue retrieval)
+        cpos = 0
+        for (bs, be), (cs, ce) in zip(b_blocks, c_blocks):
+            # gap in chain before this block:
+            # bs - bpos bases correspond to gaps
+            # now filled block:
+            for k in range(bs, be):
+                cover[k] = 1
+            # advance pointers (we'll compute c indices on the fly)
+        # Now reconstruct chain_aln by scanning base_q_aln columns:
+        # We need the chain residue sequence in order along covered positions
+        # Extract chain-aligned residues from alignment object
+        chain_aligned_residues = []
+        for (bs, be), (cs, ce) in zip(b_blocks, c_blocks):
+            chain_aligned_residues.extend(list(chain_seq[cs:ce]))
+        cair = iter(chain_aligned_residues)
 
+        for ch in base_q_aln:
+            if ch == '-':
+                chain_aln_list.append('-')
+            else:
+                # this column corresponds to base_q_seq[bpos]
+                if cover[bpos]:
+                    chain_aln_list.append(next(cair, '-'))
+                else:
+                    chain_aln_list.append('-')
+                bpos += 1
+        chain_aln = "".join(chain_aln_list)
+
+    # Write new A3M: chain first, then the base entries (skip duplicate of same ungapped seq)
     ensure_dir(os.path.dirname(out_path))
     with open(out_path, "w") as fh:
-        for nm, aln in new_entries:
+        fh.write(f">{chain_tag}\n{chain_aln}\n")
+        chain_key_up = _ungap_upper(chain_aln)
+        for nm, aln in base_entries:
+            if _ungap_upper(aln) == chain_key_up:
+                continue
             fh.write(f">{nm}\n{aln}\n")
     return True
 
@@ -327,7 +363,6 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     subprocess.run(f"rm -rf {shlex.quote(tmpdir)}", shell=True, check=False)
 
 
-
 def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     if _is_windows():
         raise SystemExit("AlphaFold2 must run on Linux.")
@@ -355,25 +390,27 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
     cluster_a3ms = sorted(glob(os.path.join(cluster_dir, "ShallowMsa_*.a3m")))
 
 
-    # Where we write pair-specific A3Ms (safe to keep until jobs finish)
-    tmp_pairs_dir = os.path.join(pair_dir, "tmp_af2_pairs")
+    # Where we write per-chain TEMP A3Ms synthesized from a single base A3M
+    # (exactly what you asked: ONE DeepMsa.a3m / ONE ShallowMsa_###.a3m
+    # -> TWO temps: tmp_*__1fzpD.a3m and tmp_*__2frhA.a3m)
+    tmp_pairs_dir = os.path.join(pair_dir, "tmp_msa_files")
     ensure_dir(tmp_pairs_dir)
 
     jobs = []  # list of (pair_a3m_path, out_dir)
 
-    # DeepMsa for both chains
+    # DeepMsa (ONE base file) -> TWO temps (one per chain)
     for ch in chains:
-        pair_a3m = os.path.join(tmp_pairs_dir, f"DeepMsa__{ch}.a3m")
+        pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_DeepMsa__{ch}.a3m")
         if _write_pair_a3m_for_chain(cluster_a3m=None, deep_a3m=deep_a3m, chain_tag=ch, out_path=pair_a3m):
             # Group outputs by cluster, then chain (so SAME clusters show both chains side by side)
             out_dir = os.path.join(out_root, "DeepMsa", ch)
             jobs.append((pair_a3m, out_dir))
 
-    # Each cluster for both chains
+    # Each cluster (ONE file) -> TWO temps (one per chain)
     for a3m in cluster_a3ms:
         cl_stem = Path(a3m).stem  # e.g. ShallowMsa_007
         for ch in chains:
-            pair_a3m = os.path.join(tmp_pairs_dir, f"{cl_stem}__{ch}.a3m")
+            pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_{cl_stem}__{ch}.a3m")
             if _write_pair_a3m_for_chain(cluster_a3m=a3m, deep_a3m=deep_a3m, chain_tag=ch, out_path=pair_a3m):
                 out_dir = os.path.join(out_root, cl_stem, ch)
                 jobs.append((pair_a3m, out_dir))
@@ -388,8 +425,8 @@ def task_af2(pair_id: str, args: argparse.Namespace) -> None:
         return (
             f"bash ./Pipeline/RunAF2_Colabfold.sh "
             f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
-            f"--num-models 1 --recycle 1 --model-type alphafold2_ptm"
-        )
+            f"--num-models 5 --recycle 1 --model-type alphafold2_ptm --save-all"
+        )  # Run all 5 AF2 models
 
     inside_slurm = _in_slurm_session()
     sbatch_opts = "--gres=gpu:a100:1 --cpus-per-task=8 --mem=40G --time=24:00:00"
