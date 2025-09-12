@@ -15,8 +15,31 @@ from utils.protein_utils import read_msa, greedy_select, extract_protein_sequenc
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.phytree_utils import phytree_from_msa
 
+from textwrap import dedent
+
+RUN_MODE_DESCRIPTIONS = {
+    "get_msa":          "Download/build deep MSAs for the pair and write DeepMsa.a3m.",
+    "cluster_msa":      "Cluster the pairwise MSA into shallow clusters (ShallowMsa_XXX.a3m).",
+    "run_AF":           "Run AlphaFold (AF2/AF3/both) per chain × cluster. Use --af_ver {2,3,both}.",
+    "run_esmfold":      "Run ESMFold on the pair. Use --esm_model {esm2,esm3,both}.",
+    "run_cmap_msa_transformer":      "Run MSA-transformer on the pair to get contact maps.",
+    "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
+    "clean":            "Remove previous outputs for the pair.",
+    "msaclust_pipeline":"Full pipeline: get_msa → cluster_msa → AF/ESM (as configured).",
+    "help":             "Print this list of run modes with one-line explanations.",
+}
+
+
 
 # ------------------------- helpers -------------------------
+
+def _modes_epilog() -> str:
+    lines = ["Run modes:"]
+    for k, v in RUN_MODE_DESCRIPTIONS.items():
+        lines.append(f"  {k:<18} {v}")
+    return "\n".join(lines)
+
+
 
 def ensure_chain_fastas(pair_dir: str, pdbids: list[str], pdbchains: list[str]) -> None:
     """
@@ -515,12 +538,16 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
 # ------------------------- CLI / main -------------------------
 
 def main():
-    p = argparse.ArgumentParser("FoldSwitch pipeline (clean)")
+    p = argparse.ArgumentParser(
+        description="Fold-switching pipeline runner",
+        formatter_class=argparse.RawTextHelpFormatter,  # keeps newlines
+        epilog=_modes_epilog(),
+    )
     p.add_argument("--run_mode",
                    required=True,
-                   choices=["load", "get_msa", "cluster_msa", "run_cmap_esm",
+                   choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer",
                             "run_esmfold", "run_AF", "tree", "plot", "compute_deltaG", "clean",
-                            "msaclust_pipeline"])  # Last one is the full pipeline for a pair
+                            "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", default=["ALL"],
                    help="e.g. 1dzlA_5keqF (default: ALL in data list)")
     p.add_argument("--run_job_mode", default="inline", choices=["inline", "sbatch"])
@@ -544,6 +571,10 @@ def main():
     p.add_argument("--plot_trees", action="store_true")
 
     args = p.parse_args()
+    # allow: python run_foldswitch_pipeline.py --run_mode help
+    if args.run_mode == "help":
+        p.print_help()
+        sys.exit(0)
     if args.esm_model is None and args.esm_version is not None:
         args.esm_model = args.esm_version
     if args.run_mode == "run_esmfold" and args.esm_model is None:
@@ -570,7 +601,7 @@ def main():
         elif args.run_mode == "cluster_msa":
             task_cluster_msa(pair_id, args.run_job_mode)
 
-        elif args.run_mode == "run_cmap_esm":
+        elif args.run_mode == "run_cmap_msa_transformer":
             task_cmap_msa_transformer(pair_id, args.run_job_mode)
 
 
