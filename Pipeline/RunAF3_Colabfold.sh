@@ -12,11 +12,9 @@ FAKE_HOME="/sci/labs/orzuk/orzuk/software/conda_tmp/home_fake"
 CONVERTER="${CONVERTER:-/sci/labs/orzuk/orzuk/github/MsaCluster/a3m_toaf3json.py}"
 
 
-
-## Pin ColabFold binaries to the known-good AF2 venv
-CF_SEARCH="${CF_SEARCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_search}"
-CF_BATCH="${CF_BATCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_batch}"
-: "${CF_SEARCH:?colabfold_search not found (set CF_SEARCH=/path/to/colabfold_search)}"
+## Use the known-good AF2 ColabFold binaries (same as AF2 script)
+AF2_VENV="/sci/labs/orzuk/orzuk/af2-venv"
+CF_BATCH="${CF_BATCH:-$AF2_VENV/bin/colabfold_batch}"
 : "${CF_BATCH:?colabfold_batch not found (set CF_BATCH=/path/to/colabfold_batch)}"
 
 
@@ -156,14 +154,13 @@ case "$INP" in
     echo "[conv] python $CONVERTER $TMPFA $INP $JSON"
     python "$CONVERTER" "$TMPFA" "$INP" "$JSON"
     ;;
-  *.fa|*.fasta)
-    echo "[mode] FASTA → MSA via colabfold_batch --msa-only → convert to AF3-JSON → AF3 inference-only"
+ *.fa|*.fasta)
+    echo "[mode] FASTA → MSA via **AF2** colabfold_batch --msa-only (same as AF2 script) → AF3"
     MSADIR="$OUT/msas"; mkdir -p "$MSADIR"
     NAME="$(basename "${INP%.*}")"
-
-    # 1) Make MSA using the web server (no local DBs) via colabfold_search (no Haiku/JAX import)
-    echo "[run] $CF_SEARCH $INP $MSADIR --use-env"
-    "$CF_SEARCH" "$INP" "$MSADIR" --use-env
+    # 1)  Use the AF2 venv's colabfold_batch exactly like your AF2 script
+    echo "[run] $CF_BATCH --msa-only --jobname-prefix ${NAME}_ $INP $MSADIR"
+    "$CF_BATCH" --msa-only --jobname-prefix "${NAME}_" "$INP" "$MSADIR"
 
     # 2) Find the produced A3M (it’ll be ${MSADIR}/${NAME}_*.a3m; pick the first)
     A3M="$(ls -1 "$MSADIR"/${NAME}_*.a3m 2>/dev/null | head -n1)"
