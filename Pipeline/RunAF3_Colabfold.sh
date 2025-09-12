@@ -13,20 +13,12 @@ CONVERTER="${CONVERTER:-/sci/labs/orzuk/orzuk/github/MsaCluster/a3m_toaf3json.py
 
 
 
-# ColabFold tools (prefer PATH, else AF2 venv fallbacks)
-CF_SEARCH="${CF_SEARCH:-$(command -v colabfold_search || true)}"
-if [[ -z "$CF_SEARCH" && -x "/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_search" ]]; then
-  CF_SEARCH="/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_search"
-fi
-: "${CF_SEARCH:?colabfold_search not found (set CF_SEARCH=/path/to/colabfold_search)}"
++## Pin ColabFold binaries to the known-good AF2 venv
++CF_SEARCH="${CF_SEARCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_search}"
++CF_BATCH="${CF_BATCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_batch}"
++: "${CF_SEARCH:?colabfold_search not found (set CF_SEARCH=/path/to/colabfold_search)}"
++: "${CF_BATCH:?colabfold_batch not found (set CF_BATCH=/path/to/colabfold_batch)}"
 
-
-# Prefer colabfold_batch; fall back to AF2 venv if needed
-CF_BATCH="${CF_BATCH:-$(command -v colabfold_batch || true)}"
-if [[ -z "$CF_BATCH" && -x "/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_batch" ]]; then
-  CF_BATCH="/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_batch"
-fi
-: "${CF_BATCH:?colabfold_batch not found (set CF_BATCH=/path/to/colabfold_batch)}"
 
 # --- Activate AF3 venv
 source "$AF3_VENV/bin/activate"
@@ -169,9 +161,9 @@ case "$INP" in
     MSADIR="$OUT/msas"; mkdir -p "$MSADIR"
     NAME="$(basename "${INP%.*}")"
 
-    # 1) Make MSA using the web server (no local DBs)
-    echo "[run] $CF_BATCH --msa-only --jobname-prefix ${NAME}_ $INP $MSADIR"
-    "$CF_BATCH" --msa-only --jobname-prefix "${NAME}_" "$INP" "$MSADIR"
+    # 1) Make MSA using the web server (no local DBs) via colabfold_search (no Haiku/JAX import)
+    echo "[run] $CF_SEARCH $INP $MSADIR --use-env"
+    "$CF_SEARCH" "$INP" "$MSADIR" --use-env
 
     # 2) Find the produced A3M (it’ll be ${MSADIR}/${NAME}_*.a3m; pick the first)
     A3M="$(ls -1 "$MSADIR"/${NAME}_*.a3m 2>/dev/null | head -n1)"
