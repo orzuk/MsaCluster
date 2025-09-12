@@ -38,6 +38,13 @@ export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_DIR}"
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export XLA_PYTHON_CLIENT_MEM_FRACTION=.80
 
+# --- Add pip CUDA/CUDNN/CUBLAS/NVRTC wheels to runtime path (+ system lib64)
+PYSP=$(python - <<'PY'
+import site; print([p for p in site.getsitepackages() if 'site-packages' in p][0])
+PY
+)
+export LD_LIBRARY_PATH="$PYSP/nvidia/cudnn/lib:$PYSP/nvidia/cuda_nvrtc/lib:$PYSP/nvidia/cuda_runtime/lib:$PYSP/nvidia/cublas/lib:${CUDA_DIR}/lib64:${LD_LIBRARY_PATH:-}"
+
 echo "[diag] nvidia-smi:"; nvidia-smi || true
 echo "[diag] which ptxas: $(command -v ptxas || echo not-found)"
 echo "[diag] CUDA_DIR=$CUDA_DIR"
