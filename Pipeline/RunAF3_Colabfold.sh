@@ -145,72 +145,21 @@ python "$RUN" \
   "$@"
 
 
+
 # --- Optional: export PDBs from mmCIFs (default: all)
 if [[ "${PDB_MODE}" != "none" ]]; then
   # job name from the json we just ran
   JOB_NAME="$(python - "$JSON" <<'PY'
-  import json, sys
-  with open(sys.argv[1]) as f:
-    j = json.load(f)
-    print(j.get("name","job"))
+import json, sys
+j = json.load(open(sys.argv[1]))
+print(j.get("name","job"))
 PY
 )"
-
   # find newest AF3 output dir for this job
   OUTDIR="$(ls -1dt "$OUT/${JOB_NAME}_"* 2>/dev/null | head -n1)"
-  if [[ ! -d "$OUTDIR" ]]; then
-    echo "[warn] cannot locate AF3 output dir for $JOB_NAME"; exit 0
-  fi
-
-  convert_cif_to_pdb() {
-    local cif="$1" pdb="$2"
-    if command -v gemmi >/dev/null 2>&1; then
-      gemmi convert "$cif" "$pdb"
-    else
-	python - "$cif" "$pdb" <<'PY' || exit 1
-from Bio.PDB.MMCIFParser import MMCIFParser
-from Bio.PDB.PDBIO import PDBIO
-import sys
-cif, pdb = sys.argv[1], sys.argv[2]
-parser = MMCIFParser(QUIET=True)
-s = parser.get_structure("model", cif)
-io = PDBIO(); io.set_structure(s); io.save(pdb)
-PY
-    fi
-  }
-
-  if [[ "$PDB_MODE" == "rank1" ]]; then
-    CSV="$OUTDIR/${JOB_NAME}_ranking_scores.csv"
-    if [[ -s "$CSV" ]]; then
-	BEST_MODEL="$(python - "$CSV" <<'PY'
-import csv, sys
-p = sys.argv[1]
-rows = list(csv.DictReader(open(p)))
-keys = ("ranking_score","mean_plddt","plddt","confidence")
-k = next((x for x in keys if x in rows[0]), list(rows[0].keys())[-1])
-best = max(rows, key=lambda r: float(r[k]))
-print(best.get("model","seed-1_sample-0"))
-PY
-)"
-      CIF="$OUTDIR/$BEST_MODEL/${JOB_NAME}_${BEST_MODEL}_model.cif"
-      PDB="$OUTDIR/$BEST_MODEL/${JOB_NAME}_${BEST_MODEL}_model.pdb"
-      if [[ -f "$CIF" ]]; then
-        convert_cif_to_pdb "$CIF" "$PDB" && echo "[ok] wrote $PDB"
-        # also drop a convenience copy at root
-        cp -f "$PDB" "$OUTDIR/${JOB_NAME}_rank1_model.pdb"
-      else
-        echo "[warn] missing CIF for best model: $CIF"
-      fi
-    else
-      echo "[warn] ranking csv not found, skipping rank1 export"
-    fi
+  if [[ -d "$OUTDIR" ]]; then
+    bash "$(dirname "$0")/cif_to_pdb.sh" "$OUTDIR" --mode "$PDB_MODE"
   else
-    # PDB_MODE=all: convert every *_model.cif we find
-    while IFS= read -r -d '' CIF; do
-      PDB="${CIF%.cif}.pdb"
-      convert_cif_to_pdb "$CIF" "$PDB" && echo "[ok] wrote $PDB"
-    done < <(find "$OUTDIR" -type f -name "*_model.cif" -print0)
+    echo "[warn] cannot locate AF3 output dir for $JOB_NAME"
   fi
 fi
-
-
