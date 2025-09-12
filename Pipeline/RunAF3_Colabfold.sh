@@ -13,11 +13,11 @@ CONVERTER="${CONVERTER:-/sci/labs/orzuk/orzuk/github/MsaCluster/a3m_toaf3json.py
 
 
 
-+## Pin ColabFold binaries to the known-good AF2 venv
-+CF_SEARCH="${CF_SEARCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_search}"
-+CF_BATCH="${CF_BATCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_batch}"
-+: "${CF_SEARCH:?colabfold_search not found (set CF_SEARCH=/path/to/colabfold_search)}"
-+: "${CF_BATCH:?colabfold_batch not found (set CF_BATCH=/path/to/colabfold_batch)}"
+## Pin ColabFold binaries to the known-good AF2 venv
+CF_SEARCH="${CF_SEARCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_search}"
+CF_BATCH="${CF_BATCH:-/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_batch}"
+: "${CF_SEARCH:?colabfold_search not found (set CF_SEARCH=/path/to/colabfold_search)}"
+: "${CF_BATCH:?colabfold_batch not found (set CF_BATCH=/path/to/colabfold_batch)}"
 
 
 # --- Activate AF3 venv
