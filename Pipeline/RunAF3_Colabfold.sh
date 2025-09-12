@@ -2,26 +2,17 @@
 set -euo pipefail
 
 # --- CONFIG
-AF3_VENV="/sci/labs/orzuk/orzuk/af3-venv"
-AF3_REPO="/sci/labs/orzuk/orzuk/github/alphafold3"
-AF3_MODELDIR="/sci/labs/orzuk/orzuk/trained_models/alphafold3"
-SCR_BASE="/sci/labs/orzuk/orzuk/alphafold3"               # big caches
-FAKE_HOME="/sci/labs/orzuk/orzuk/software/conda_tmp/home_fake"
+AF3_VENV="${AF3_VENV:-/sci/labs/orzuk/orzuk/af3-venv}"
+AF3_REPO="${AF3_REPO:-/sci/labs/orzuk/orzuk/github/alphafold3}"
+AF3_MODELDIR="${AF3_MODELDIR:-/sci/labs/orzuk/orzuk/trained_models/alphafold3}"
+SCR_BASE="${SCR_BASE:-/sci/labs/orzuk/orzuk/alphafold3}"    # big caches
+FAKE_HOME="${FAKE_HOME:-/sci/labs/orzuk/orzuk/software/conda_tmp/home_fake}"
 
-# Path to your A3M→AF3-JSON converter
-CONVERTER="${CONVERTER:-/sci/labs/orzuk/orzuk/github/MsaCluster/a3m_toaf3json.py}"
+CONVERTER="${CONVERTER:-/sci/labs/orzuk/orzuk/github/MsaCluster/a3m_toaf3json.py}"  # your converter
 
-
-## Use the known-good AF2 ColabFold binaries (same as AF2 script)
-AF2_VENV="/sci/labs/orzuk/orzuk/af2-venv"
-CF_BATCH="${CF_BATCH:-$AF2_VENV/bin/colabfold_batch}"
-: "${CF_BATCH:?colabfold_batch not found (set CF_BATCH=/path/to/colabfold_batch)}"
-
-
-# --- Activate AF3 venv
+# Activate AF3 env
 source "$AF3_VENV/bin/activate"
 
-# --- Args
 if [[ $# -lt 2 ]]; then
   echo "Usage: $0 <input.{fasta|fa|a3m|json}> <outdir> [extra run_alphafold.py flags...]"
   exit 2
@@ -29,7 +20,7 @@ fi
 INP="$1"; OUT="$2"; shift 2
 mkdir -p "$OUT"
 
-# --- CUDA discovery
+# CUDA (same style as your AF3 runner)
 if [[ -n "${CUDA_DIR_OVERRIDE:-}" && -x "${CUDA_DIR_OVERRIDE}/bin/ptxas" ]]; then
   CUDA_DIR="${CUDA_DIR_OVERRIDE}"
 elif command -v ptxas >/dev/null 2>&1; then
@@ -44,7 +35,7 @@ export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_DIR}"
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export XLA_PYTHON_CLIENT_MEM_FRACTION=.80
 
-# --- Big caches away from $HOME (which is small on your cluster)
+# Caches off $HOME
 export TMPDIR="$SCR_BASE/tmp"
 export TMP="$TMPDIR"; export TEMP="$TMPDIR"
 export XDG_CACHE_HOME="$SCR_BASE/cache"
@@ -57,7 +48,7 @@ echo "[diag] which ptxas: $(command -v ptxas || echo not-found)"
 echo "[diag] CUDA_DIR=$CUDA_DIR"
 echo "[diag] TMPDIR=$TMPDIR  XDG_CACHE_HOME=$XDG_CACHE_HOME"
 
-# --- Ensure CCD pickle exists; build once if missing (uses wwPDB CCD)
+# Ensure CCD pickle exists (kept from your AF3 script)
 PYSP=$(python -c "import site; print([p for p in site.getsitepackages() if 'site-packages' in p][0])")
 PICKLE="$PYSP/alphafold3/constants/converters/chemical_component_sets.pickle"
 if [[ ! -s "$PICKLE" ]]; then
@@ -70,15 +61,18 @@ if [[ ! -s "$PICKLE" ]]; then
     wget -O "${CCD}.gz"    https://files.wwpdb.org/pub/pdb/data/monomers/components.cif.gz
     gunzip -f "${CCD}.gz"
   fi
-  # try console script then module forms
   (command -v build_data >/dev/null && build_data --components-cif "$CCD") || \
   python -m alphafold3.build_data --components-cif "$CCD" || \
   python -m alphafold3.scripts.build_data --components-cif "$CCD"
 fi
 
-# --- Helper: extract first sequence from A3M
-a3m_to_first_seq() {
-  python - "$1" <<'PY'
+RUN="$AF3_REPO/run_alphafold.py"
+JSON=""
+
+# Helper: first sequence from A3M -> tmp FASTA (for converter sanity)
+a3m_to_first_fa() {
+  local a3m="$1" outfa="$2"
+  python - "$a3m" "$outfa" <<'PY'
 import sys, re, pathlib
 a3m = pathlib.Path(sys.argv[1]).read_text().splitlines()
 seq=[]; started=False
@@ -88,55 +82,12 @@ for ln in a3m:
         started=True; continue
     if not started: continue
     seq.append(re.sub(r'[a-z.]','',ln.strip()))
-print(''.join(seq))
+s=''.join(seq)
+with open(sys.argv[2],'w') as f:
+    f.write('>query\n'); f.write(s+'\n')
+print("wrote", sys.argv[2], "len", len(s))
 PY
 }
-
-# --- Helper: A3M -> AF3 JSON (unpaired MSA for chain A)
-a3m_to_af3json() {
-  local fa="$1" a3m="$2" outjson="$3"
-  python - "$fa" "$a3m" "$outjson" <<'PY'
-import sys, json, pathlib, re
-fa = pathlib.Path(sys.argv[1]).read_text().splitlines()
-seq = "".join(l.strip() for l in fa if not l.startswith(">"))
-def read_a3m(p):
-    aln=[]; seq=None
-    with open(p) as f:
-        for line in f:
-            line=line.rstrip("\n")
-            if not line: continue
-            if line.startswith(">"):
-                if seq is not None: aln.append(seq)
-                seq=""
-            else:
-                seq += re.sub(r"[a-z.]", "", line)
-        if seq is not None: aln.append(seq)
-    return aln
-msa = read_a3m(sys.argv[2])
-if not msa or msa[0] != seq:
-    msa = [seq] + [s for s in msa if s != seq]
-delmat = [[0]*len(s) for s in msa]
-payload = {
-  "name": pathlib.Path(sys.argv[1]).stem,
-  "sequences": [{"protein": {"id": ["A"], "sequence": seq}}],
-  "unpairedMSAs": [[{
-    "descriptions": ["colabfold_a3m"]*len(msa),
-    "sequences": msa,
-    "deletionMatrix": delmat
-  }]],
-  "modelSeeds": [1],
-  "dialect": "alphafold3",
-  "version": 1
-}
-out = pathlib.Path(sys.argv[3]); out.parent.mkdir(parents=True, exist_ok=True)
-out.write_text(json.dumps(payload, indent=2))
-print("Wrote", out)
-PY
-}
-
-# --- Decide mode and run AF3 (inference-only; no local DBs)
-RUN="$AF3_REPO/run_alphafold.py"
-JSON=""
 
 case "$INP" in
   *.json)
@@ -147,29 +98,23 @@ case "$INP" in
     echo "[mode] A3M provided → convert to AF3-JSON → AF3 inference-only"
     NAME="$(basename "${INP%.*}")"
     TMPFA="$OUT/${NAME}_first.fa"
-    # helper to grab the first sequence of the A3M and write a small FASTA
-    FIRSTSEQ="$(a3m_to_first_seq "$INP")"
-    printf ">query\n%s\n" "$FIRSTSEQ" > "$TMPFA"
+    a3m_to_first_fa "$INP" "$TMPFA"
     JSON="$OUT/${NAME}_af3.json"
     echo "[conv] python $CONVERTER $TMPFA $INP $JSON"
     python "$CONVERTER" "$TMPFA" "$INP" "$JSON"
     ;;
- *.fa|*.fasta)
-    echo "[mode] FASTA → MSA via **AF2** colabfold_batch --msa-only (same as AF2 script) → AF3"
+  *.fa|*.fasta)
+    echo "[mode] FASTA provided → call shared fasta2MSA_ColabFold.sh → convert → AF3 inference-only"
     MSADIR="$OUT/msas"; mkdir -p "$MSADIR"
+    bash "$(dirname "$0")/fasta2MSA_ColabFold.sh" "$INP" "$MSADIR" --jobname-prefix "$(basename "${INP%.*}")"_
+    A3M="$(ls -1 "$MSADIR"/$(basename "${INP%.*}")_*.a3m 2>/dev/null | head -n1 || true)"
+    [[ -s "${A3M:-}" ]] || { echo "[fatal] No A3M in $MSADIR"; exit 3; }
     NAME="$(basename "${INP%.*}")"
-    # 1)  Use the AF2 venv's colabfold_batch exactly like your AF2 script
-    echo "[run] $CF_BATCH --msa-only --jobname-prefix ${NAME}_ $INP $MSADIR"
-    "$CF_BATCH" --msa-only --jobname-prefix "${NAME}_" "$INP" "$MSADIR"
-
-    # 2) Find the produced A3M (it’ll be ${MSADIR}/${NAME}_*.a3m; pick the first)
-    A3M="$(ls -1 "$MSADIR"/${NAME}_*.a3m 2>/dev/null | head -n1)"
-    [[ -s "${A3M:-}" ]] || { echo "[fatal] No A3M produced in $MSADIR"; exit 2; }
-
-    # 3) Convert to AF3-JSON with your existing converter
+    TMPFA="$OUT/${NAME}_first.fa"
+    a3m_to_first_fa "$A3M" "$TMPFA"
     JSON="$OUT/${NAME}_af3.json"
-    echo "[conv] python $CONVERTER $INP $A3M $JSON"
-    python "$CONVERTER" "$INP" "$A3M" "$JSON"
+    echo "[conv] python $CONVERTER $TMPFA $A3M $JSON"
+    python "$CONVERTER" "$TMPFA" "$A3M" "$JSON"
     ;;
   *)
     echo "[fatal] Input must be .json/.a3m/.fasta/.fa"; exit 2;;
