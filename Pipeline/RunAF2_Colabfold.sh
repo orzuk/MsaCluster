@@ -46,9 +46,9 @@ case "$INP" in
     "$CF_BATCH" "$INP" "$OUT" "$@"
     ;;
   *.fa|*.fasta)
-    echo "[mode] FASTA given → first call fasta2MSA_ColabFold.sh → then run AF2 on produced A3M"
+    echo "[mode] FASTA given → first call fasta2MSA_Colabfold.sh → then run AF2 on produced A3M"
     MSADIR="$OUT/msas"; mkdir -p "$MSADIR"
-    bash "$(dirname "$0")/fasta2MSA_ColabFold.sh" "$INP" "$MSADIR" --jobname-prefix "$(basename "${INP%.*}")"_ 
+    bash "$(dirname "$0")/fasta2MSA_Colabfold.sh" "$INP" "$MSADIR" --jobname-prefix "$(basename "${INP%.*}")"_ 
     A3M="$(ls -1 "$MSADIR"/$(basename "${INP%.*}")_*.a3m 2>/dev/null | head -n1 || true)"
     [[ -s "${A3M:-}" ]] || { echo "[fatal] No A3M in $MSADIR"; exit 3; }
     echo "[run] $CF_BATCH $A3M $OUT $*"

@@ -104,9 +104,9 @@ case "$INP" in
     python "$CONVERTER" "$TMPFA" "$INP" "$JSON"
     ;;
   *.fa|*.fasta)
-    echo "[mode] FASTA provided → call shared fasta2MSA_ColabFold.sh → convert → AF3 inference-only"
+    echo "[mode] FASTA provided → call shared fasta2MSA_Colabfold.sh → convert → AF3 inference-only"
     MSADIR="$OUT/msas"; mkdir -p "$MSADIR"
-    bash "$(dirname "$0")/fasta2MSA_ColabFold.sh" "$INP" "$MSADIR" --jobname-prefix "$(basename "${INP%.*}")"_
+    bash "$(dirname "$0")/fasta2MSA_Colabfold.sh" "$INP" "$MSADIR" --jobname-prefix "$(basename "${INP%.*}")"_
     A3M="$(ls -1 "$MSADIR"/$(basename "${INP%.*}")_*.a3m 2>/dev/null | head -n1 || true)"
     [[ -s "${A3M:-}" ]] || { echo "[fatal] No A3M in $MSADIR"; exit 3; }
     NAME="$(basename "${INP%.*}")"
