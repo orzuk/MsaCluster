@@ -84,10 +84,8 @@ if [[ -x "$AF2_VENV/bin/colabfold_batch"  ]]; then CF_BATCH="$AF2_VENV/bin/colab
 case "$INP" in
   *.a3m)
     echo "[mode] A3M → AF2 using given MSA"
-    TMPFA="$(mktemp -p "$OUT" 'msa_first_XXXXXX.fa')"
-    a3m_to_first_fa "$INP" "$TMPFA"
-    echo "[run] $CF_BATCH --use-msa $INP $TMPFA $OUT $*"
-    "$CF_BATCH" --use-msa "$INP" "$TMPFA" "$OUT" "$@"
+    echo "[run] $CF_BATCH $INP $OUT $*"
+    "$CF_BATCH" "$INP" "$OUT" "$@"
     ;;
  *.fa|*.fasta)
     echo "[mode] FASTA → AF2 via colabfold_batch (does its own MSA)"
