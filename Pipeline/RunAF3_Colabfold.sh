@@ -8,6 +8,10 @@ AF3_MODELDIR="/sci/labs/orzuk/orzuk/trained_models/alphafold3"
 SCR_BASE="/sci/labs/orzuk/orzuk/alphafold3"               # big caches
 FAKE_HOME="/sci/labs/orzuk/orzuk/software/conda_tmp/home_fake"
 
+# Path to your A3M→AF3-JSON converter
+CONVERTER="${CONVERTER:-/sci/labs/orzuk/orzuk/github/MsaCluster/a3m_toaf3json.py}"
+
+
 # ColabFold tools (prefer PATH, else AF2 venv fallbacks)
 CF_SEARCH="${CF_SEARCH:-$(command -v colabfold_search || true)}"
 if [[ -z "$CF_SEARCH" && -x "/sci/labs/orzuk/orzuk/af2-venv/bin/colabfold_search" ]]; then
@@ -141,22 +145,28 @@ case "$INP" in
     JSON="$INP"
     ;;
   *.a3m)
-    echo "[mode] A3M provided → convert → AF3 inference-only"
-    TMPFA="$OUT/msa_first.fa"
+    echo "[mode] A3M provided → convert to AF3-JSON → AF3 inference-only"
+    NAME="$(basename "${INP%.*}")"
+    TMPFA="$OUT/${NAME}_first.fa"
+    # helper to grab the first sequence of the A3M and write a small FASTA
     FIRSTSEQ="$(a3m_to_first_seq "$INP")"
     printf ">query\n%s\n" "$FIRSTSEQ" > "$TMPFA"
-    JSON="$OUT/$(basename "${INP%.*}")_af3.json"
-    a3m_to_af3json "$TMPFA" "$INP" "$JSON"
+    JSON="$OUT/${NAME}_af3.json"
+    echo "[conv] python $CONVERTER $TMPFA $INP $JSON"
+    python "$CONVERTER" "$TMPFA" "$INP" "$JSON"
     ;;
   *.fa|*.fasta)
-    echo "[mode] FASTA → build MSA with colabfold_search → AF3 inference-only"
+    echo "[mode] FASTA → build MSA with colabfold_search (3-arg) → convert to AF3-JSON → AF3 inference-only"
     MSADIR="$OUT/msas"; mkdir -p "$MSADIR"
-    echo "[run] $CF_SEARCH $INP $MSADIR"
-    "$CF_SEARCH" "$INP" "$MSADIR"
-    A3M="$(ls -1 "$MSADIR"/*.a3m | head -n1)"
-    [[ -n "${A3M:-}" ]] || { echo "[fatal] No A3M produced in $MSADIR"; exit 2; }
-    JSON="$OUT/$(basename "${INP%.*}")_af3.json"
-    a3m_to_af3json "$INP" "$A3M" "$JSON"
+    NAME="$(basename "${INP%.*}")"
+    BASE="$MSADIR/$NAME"
+    echo "[run] $CF_SEARCH $INP $MSADIR $BASE"
+    "$CF_SEARCH" "$INP" "$MSADIR" "$BASE"
+    A3M="${BASE}.a3m"
+    [[ -s "$A3M" ]] || { echo "[fatal] A3M not found at $A3M"; exit 2; }
+    JSON="$OUT/${NAME}_af3.json"
+    echo "[conv] python $CONVERTER $INP $A3M $JSON"
+    python "$CONVERTER" "$INP" "$A3M" "$JSON"
     ;;
   *)
     echo "[fatal] Input must be .json/.a3m/.fasta/.fa"; exit 2;;
