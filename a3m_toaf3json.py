@@ -1,21 +1,33 @@
 # a3m_to_af3json.py
 import sys, json, pathlib, re
 
+
 def read_a3m(p):
-    aln=[]
+    import re
+    aln = []
+    seq = None
     with open(p) as f:
-        seq=None
-        for line in f:
-            line=line.rstrip("\n")
-            if not line: continue
+        for raw in f:
+            line = raw.rstrip("\r\n")
+            if not line:
+                continue
+            # skip comment / metadata lines commonly present in ColabFold A3M
+            if line.startswith(("#", ";")):
+                continue
             if line.startswith(">"):
-                if seq is not None: aln.append(seq)
-                seq=""
-            else:
-                # remove lowercase insertions in A3M
-                seq += re.sub(r"[a-z.]", "", line)
-        if seq is not None: aln.append(seq)
+                if seq is not None:
+                    aln.append(seq)
+                seq = ""
+                continue
+            # if we haven't seen a header yet, ignore stray lines
+            if seq is None:
+                continue
+            # strip lowercase insertions and '.' gaps typical for A3M
+            seq += re.sub(r"[a-z.]", "", line)
+    if seq is not None:
+        aln.append(seq)
     return aln
+
 
 inp_fa = pathlib.Path(sys.argv[1])
 inp_a3m = pathlib.Path(sys.argv[2])
