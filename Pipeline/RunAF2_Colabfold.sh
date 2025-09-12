@@ -62,6 +62,17 @@ print("wrote", sys.argv[2], "len", len(s))
 PY
 }
 
+
+# Force binaries
+CF_SEARCH="${CF_SEARCH:-}"
+CF_BATCH="${CF_BATCH:-}"
+if [[ -x "$AF2_VENV/bin/colabfold_search" ]]; then CF_SEARCH="$AF2_VENV/bin/colabfold_search"; fi
+if [[ -x "$AF2_VENV/bin/colabfold_batch"  ]]; then CF_BATCH="$AF2_VENV/bin/colabfold_batch";  fi
+# If still empty, try PATH:
+: "${CF_BATCH:=$(command -v colabfold_batch || true)}"
+: "${CF_SEARCH:=$(command -v colabfold_search || true)}"
+: "${CF_BATCH:?colabfold_batch not found}"
+
 # --- Decide mode
 case "$INP" in
   *.a3m)
@@ -71,17 +82,10 @@ case "$INP" in
     echo "[run] $CF_BATCH --use-msa $INP $TMPFA $OUT $*"
     "$CF_BATCH" --use-msa "$INP" "$TMPFA" "$OUT" "$@"
     ;;
-  *.fa|*.fasta)
-    echo "[mode] FASTA → build MSA with colabfold_search → AF2"
-    MSADIR="$OUT/msas"
-    mkdir -p "$MSADIR"
-    echo "[run] $CF_SEARCH $INP $MSADIR"
-    "$CF_SEARCH" "$INP" "$MSADIR"
-    # pick the first .a3m produced
-    A3M="$(ls -1 "$MSADIR"/*.a3m | head -n1)"
-    [[ -n "${A3M:-}" ]] || { echo "[fatal] No A3M produced in $MSADIR"; exit 2; }
-    echo "[run] $CF_BATCH --use-msa $A3M $INP $OUT $*"
-    "$CF_BATCH" --use-msa "$A3M" "$INP" "$OUT" "$@"
+ *.fa|*.fasta)
+    echo "[mode] FASTA → AF2 via colabfold_batch (does its own MSA)"
+    echo "[run] $CF_BATCH $INP $OUT $*"
+    "$CF_BATCH" "$INP" "$OUT" "$@"
     ;;
   *)
     echo "[fatal] Input must be .fasta/.fa or .a3m"; exit 2;;
