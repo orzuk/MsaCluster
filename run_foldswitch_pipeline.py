@@ -308,10 +308,8 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
         cmd = f"sbatch -o '{log}' {sbatch_script} '{seed_a3m}' {pair_id}"
         _run(cmd, "sbatch")
     else:
-        cmd = (
-            f"bash ./Pipeline/RunAF2_Colabfold.sh --python "
-            f"./get_msa.py '{seed_a3m}' '{out_dir}' --pair {pair_id}"
-        )
+        cmd = f"python3 ./get_msa.py '{seed_a3m}' '{out_dir}' --pair {pair_id}"
+
         _run(cmd, "inline")
 
 
@@ -326,7 +324,7 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     _run(cmd, run_job_mode)
 
 
-def task_cmap_esm(pair_id: str, run_job_mode: str) -> None:
+def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
     cmd = (
@@ -363,85 +361,84 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     subprocess.run(f"rm -rf {shlex.quote(tmpdir)}", shell=True, check=False)
 
 
-def task_af2(pair_id: str, args: argparse.Namespace) -> None:
+def task_af(pair_id: str, args: argparse.Namespace) -> None:
     if _is_windows():
-        raise SystemExit("AlphaFold2 must run on Linux.")
+        raise SystemExit("AlphaFold must run on Linux.")
+
+    af_ver = str(getattr(args, "af_ver", "2")).lower()  # "2", "3", or "both"
 
     pair_dir = f"Pipeline/{pair_id}"
-    # Make sure per-chain FASTAs exist even if we jump straight to AF
-    foldA, foldB = pair_str_to_tuple(pair_id)  # e.g., '1fzpD','2frhA'
+    foldA, foldB = pair_str_to_tuple(pair_id)
     pdbids = [foldA[:-1], foldB[:-1]]
-    pdbchains = [foldA[-1], foldB[-1]]
+    pdbchains = [foldA[-1],  foldB[-1]]
     chains = [foldA, foldB]
     ensure_chain_fastas(pair_dir, pdbids, pdbchains)
-
-    out_root = f"{pair_dir}/output_AF/AF2"
-    ensure_dir(out_root)
-    log_dir = os.path.join(out_root, "logs")
-    ensure_dir(log_dir)
 
     deep_a3m = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
     if not os.path.isfile(deep_a3m):
         print(f"[err] Missing DeepMsa: {deep_a3m}")
         return
 
-    # The SAME clusters for both chains:
     cluster_dir = os.path.join(pair_dir, "output_msa_cluster")
     cluster_a3ms = sorted(glob(os.path.join(cluster_dir, "ShallowMsa_*.a3m")))
 
-
-    # Where we write per-chain TEMP A3Ms synthesized from a single base A3M
-    # (exactly what you asked: ONE DeepMsa.a3m / ONE ShallowMsa_###.a3m
-    # -> TWO temps: tmp_*__1fzpD.a3m and tmp_*__2frhA.a3m)
     tmp_pairs_dir = os.path.join(pair_dir, "tmp_msa_files")
     ensure_dir(tmp_pairs_dir)
 
-    jobs = []  # list of (pair_a3m_path, out_dir)
-
-    # DeepMsa (ONE base file) -> TWO temps (one per chain)
+    # Build pair-specific A3Ms per chain for DeepMsa + each cluster (same as before)
+    jobs = []  # (a3m_path, out_dir_base_name) — out_dir_base_name = "DeepMsa" or "ShallowMsa_XXX"
     for ch in chains:
         pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_DeepMsa__{ch}.a3m")
-        if _write_pair_a3m_for_chain(cluster_a3m=None, deep_a3m=deep_a3m, chain_tag=ch, out_path=pair_a3m):
-            # Group outputs by cluster, then chain (so SAME clusters show both chains side by side)
-            out_dir = os.path.join(out_root, "DeepMsa", ch)
-            jobs.append((pair_a3m, out_dir))
+        if _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m):
+            jobs.append((pair_a3m, f"DeepMsa/{ch}"))
 
-    # Each cluster (ONE file) -> TWO temps (one per chain)
     for a3m in cluster_a3ms:
         cl_stem = Path(a3m).stem  # e.g. ShallowMsa_007
         for ch in chains:
             pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_{cl_stem}__{ch}.a3m")
-            if _write_pair_a3m_for_chain(cluster_a3m=a3m, deep_a3m=deep_a3m, chain_tag=ch, out_path=pair_a3m):
-                out_dir = os.path.join(out_root, cl_stem, ch)
-                jobs.append((pair_a3m, out_dir))
+            if _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m):
+                jobs.append((pair_a3m, f"{cl_stem}/{ch}"))
 
     if not jobs:
-        print(f"[warn] No AF2 jobs to run for {pair_id}")
+        print(f"[warn] No AF jobs to run for {pair_id}")
         return
-
-    # Build colabfold command (your AF2 venv wrapper)
-    def _cmd_for(a3m_path: str, out_dir: str) -> str:
-        ensure_dir(out_dir)
-        return (
-            f"bash ./Pipeline/RunAF2_Colabfold.sh "
-            f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
-            f"--num-models 5 --recycle 1 --model-type alphafold2_ptm --save-all"
-        )  # Run all 5 AF2 models
 
     inside_slurm = _in_slurm_session()
     sbatch_opts = "--gres=gpu:a100:1 --cpus-per-task=8 --mem=40G --time=24:00:00"
 
-    for a3m_path, out_dir in jobs:
-        cmd = _cmd_for(a3m_path, out_dir)
-        if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
-            stem = f"{Path(a3m_path).stem}"
-            log_path = os.path.join(log_dir, f"run_AF2_{pair_id}__{stem}.out")
-
-            _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
+    def _cmd_for(ver: str, a3m_path: str, out_dir: str) -> str:
+        if ver == "2":
+            return (
+                f"bash ./Pipeline/RunAF2_Colabfold.sh "
+                f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
+                f"--num-models 5 --num-recycle 1 --model-type alphafold2_ptm --save-all"
+            )
+        elif ver == "3":
+            # AF3 runner converts A3M->JSON and runs AF3; also export top PDB
+            return (
+                f"bash ./Pipeline/RunAF3_Colabfold.sh "
+                f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
+                f"--pdb=rank1"
+            )
         else:
-            _run(cmd, "inline")
-            # optional: postprocess here (link best, prune *_env)
-            # _postprocess_af2_run(out_dir)
+            raise ValueError(ver)
+
+    # Run AF2, AF3, or both
+    versions = ["2"] if af_ver == "2" else (["3"] if af_ver == "3" else ["2", "3"])
+    for ver in versions:
+        out_root = os.path.join(pair_dir, f"output_AF/AF{ver}")
+        ensure_dir(out_root)
+        log_dir = os.path.join(out_root, "logs"); ensure_dir(log_dir)
+
+        for a3m_path, base in jobs:
+            out_dir = os.path.join(out_root, base); ensure_dir(out_dir)
+            cmd = _cmd_for(ver, a3m_path, out_dir)
+            if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
+                stem = f"{Path(a3m_path).stem}"
+                log_path = os.path.join(log_dir, f"run_AF{ver}_{pair_id}__{stem}.out")
+                _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
+            else:
+                _run(cmd, "inline")
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:
@@ -484,8 +481,10 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         task_load(pair_id, "inline")
         task_get_msa(pair_id, "inline")
         task_cluster_msa(pair_id, "inline")
-        task_af2(pair_id, args)  # this will run inline inside current shell
-        task_cmap_esm(pair_id, "inline")
+        if args.run_mode == "msaclust_pipeline" and getattr(args, "af_ver", "2") == "2":
+            args.af_ver = "both" # Run AF2 and AF3
+        task_af(pair_id, args)  # this will run inline inside current shell
+        task_cmap_msa_transformer(pair_id, "inline")
         for model in ("esm2", "esm3"):
             a2 = deepcopy(args)
             if hasattr(a2, "esm_model"):
@@ -529,11 +528,13 @@ def main():
     # AlphaFold options
     p.add_argument("--allow_inline_af", action="store_true",
                    help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
+    p.add_argument("--af_ver", default="2", choices=["2", "3", "both"],
+                   help="Which AlphaFold to run for --run_mode run_AF")
 
 
     # ESMFold options
     p.add_argument("--cluster_sample_n", type=int, default=10)
-    p.add_argument("--esm_model", default=None, choices=["esm2", "esm3"])
+    p.add_argument("--esm_model", default=None, choices=["esm2", "esm3", "both"])
     p.add_argument("--esm_version", default=None, choices=["esm2", "esm3"],  # back-compat alias
                    help="Deprecated alias of --esm_model")
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
@@ -570,13 +571,21 @@ def main():
             task_cluster_msa(pair_id, args.run_job_mode)
 
         elif args.run_mode == "run_cmap_esm":
-            task_cmap_esm(pair_id, args.run_job_mode)
+            task_cmap_msa_transformer(pair_id, args.run_job_mode)
+
 
         elif args.run_mode == "run_esmfold":
-            task_esmfold(pair_id, args)
+            if args.esm_model == "both":
+                from copy import deepcopy
+                for m in ("esm2", "esm3"):
+                    a = deepcopy(args)
+                    a.esm_model = m
+                    task_esmfold(pair_id, a)
+            else:
+                task_esmfold(pair_id, args)
 
         elif args.run_mode == "run_AF":
-            task_af2(pair_id, args)
+            task_af(pair_id, args)
 
         elif args.run_mode == "tree":
             task_tree(pair_id, args.run_job_mode)

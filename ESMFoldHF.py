@@ -40,8 +40,9 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 # Project config & utils (DO NOT reinvent)
 # --------------------------------------------------------------------------------------
 from config import *  # assume present
+ESM_PATH = globals().get("ESM_PATH", os.environ.get("ESM_PATH", ""))  # <= add this
 try:
-    from config import ESM3_INFER_SCRIPT  # optional for esm3
+    from config import ESM3_INFER_SCRIPT
 except Exception:
     ESM3_INFER_SCRIPT = Path(MAIN_DIR) / "scripts/infer_esm3.py"
 
