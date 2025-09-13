@@ -148,18 +148,22 @@ python "$RUN" \
 
 # --- Optional: export PDBs from mmCIFs (default: all)
 if [[ "${PDB_MODE}" != "none" ]]; then
-  # job name from the json we just ran
   JOB_NAME="$(python - "$JSON" <<'PY'
 import json, sys
-j = json.load(open(sys.argv[1]))
-print(j.get("name","job"))
+j=json.load(open(sys.argv[1])); print(j.get("name","job"))
 PY
 )"
-  # find newest AF3 output dir for this job
-  OUTDIR="$(ls -1dt "$OUT/${JOB_NAME}_"* 2>/dev/null | head -n1)"
-  if [[ -d "$OUTDIR" ]]; then
+  if [[ -d "$OUT/$JOB_NAME" ]]; then
+    OUTDIR="$OUT/$JOB_NAME"
+  else
+    OUTDIR="$(ls -1dt "$OUT/${JOB_NAME}_"*/ 2>/dev/null | head -n1)"
+  fi
+  if [[ -n "$OUTDIR" && -d "$OUTDIR" ]]; then
     bash "$(dirname "$0")/cif_to_pdb.sh" "$OUTDIR" --mode "$PDB_MODE"
+    # optional sentinel so Python can detect “done” fast:
+    touch "$OUT/.af3_ok" || true
   else
     echo "[warn] cannot locate AF3 output dir for $JOB_NAME"
   fi
 fi
+

@@ -15,7 +15,6 @@ from utils.protein_utils import read_msa, greedy_select, extract_protein_sequenc
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.phytree_utils import phytree_from_msa
 
-from textwrap import dedent
 
 RUN_MODE_DESCRIPTIONS = {
     "get_msa":          "Download/build deep MSAs for the pair and write DeepMsa.a3m.",
@@ -31,6 +30,44 @@ RUN_MODE_DESCRIPTIONS = {
 
 
 # ------------------------- helpers -------------------------
+
+def _bool_from_tf(s: str) -> bool:
+    return str(s).strip().upper() == "TRUE"
+
+def _af2_has_outputs(out_dir: str) -> bool:
+    p = Path(out_dir)
+    if not p.exists(): return False
+    # Typical ColabFold/AF2 artifacts:
+    if list(p.rglob("ranked_*.pdb")): return True
+    if list(p.rglob("rank_*.pdb")): return True
+    if list(p.rglob("ranking_debug.json")): return True
+    if (p / ".af2_ok").exists(): return True
+    # last resort: any pdb in out_dir
+    return bool(list(p.rglob("*.pdb")))
+
+def _af3_has_outputs(out_dir: str) -> bool:
+    p = Path(out_dir)
+    if not p.exists(): return False
+    # AF3 writes a run subdir with *_ranking_scores.csv and *_model.cif
+    if list(p.rglob("*_ranking_scores.csv")): return True
+    if list(p.rglob("*_model.cif")): return True
+    if (p / ".af3_ok").exists(): return True
+    return False
+
+def _convert_existing_af3(out_dir: str, mode: str = "all") -> None:
+    """
+    For each AF3 run directory under out_dir (directory that contains *_ranking_scores.csv),
+    run the CIF→PDB helper. Always inline; it’s quick.
+    """
+    base = Path(out_dir)
+    run_dirs = sorted({csv.parent for csv in base.rglob("*_ranking_scores.csv")})
+    if not run_dirs:
+        return
+    helper = Path("Pipeline") / "cif_to_pdb.sh"
+    for rd in run_dirs:
+        cmd = f"bash {shlex.quote(str(helper))} {shlex.quote(str(rd))} --mode {shlex.quote(mode)}"
+        subprocess.run(cmd, shell=True, check=False)
+
 
 def _modes_epilog() -> str:
     lines = ["Run modes:"]
@@ -452,14 +489,29 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
             raise ValueError(ver)
 
     # Run AF2, AF3, or both
+    force = _bool_from_tf(getattr(args, "force_rerun_AF", "FALSE"))
+
     versions = ["2"] if af_ver == "2" else (["3"] if af_ver == "3" else ["2", "3"])
     for ver in versions:
         out_root = os.path.join(pair_dir, f"output_AF/AF{ver}")
         ensure_dir(out_root)
-        log_dir = os.path.join(out_root, "logs"); ensure_dir(log_dir)
+        log_dir = os.path.join(out_root, "logs");
+        ensure_dir(log_dir)
 
         for a3m_path, base in jobs:
-            out_dir = os.path.join(out_root, base); ensure_dir(out_dir)
+            out_dir = os.path.join(out_root, base);
+            ensure_dir(out_dir)
+
+            if not force:
+                if ver == "2" and _af2_has_outputs(out_dir):
+                    print(f"[skip] AF2 exists → {out_dir}")
+                    continue
+                if ver == "3" and _af3_has_outputs(out_dir):
+                    print(f"[skip] AF3 exists → {out_dir}")
+                    # still ensure PDBs exist for existing CIFs:
+                    _convert_existing_af3(out_dir, mode="all")  # or "rank1" if you prefer
+                    continue
+
             cmd = _cmd_for(ver, a3m_path, out_dir)
             if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
                 stem = f"{Path(a3m_path).stem}"
@@ -467,6 +519,7 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
                 _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
             else:
                 _run(cmd, "inline")
+
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:
@@ -558,6 +611,11 @@ def main():
                    help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
     p.add_argument("--af_ver", default="2", choices=["2", "3", "both"],
                    help="Which AlphaFold to run for --run_mode run_AF")
+    p.add_argument(
+        "--force_rerun_AF",
+        default="FALSE",
+        choices=["TRUE", "FALSE"],
+        help="Run new AF2/AF3 predictions even if outputs exist. Default FALSE (skip if found).")
 
     # ESMFold options
     p.add_argument("--cluster_sample_n", type=int, default=10)

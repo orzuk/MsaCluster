@@ -280,22 +280,51 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
     outputs = []
     for name, seq in seqs:
         print(f"[esm3] predicting {name} (len={len(seq)}) via {script} …", flush=True)
-        cmd = [sys.executable, str(script), "--sequence", seq, "--device", device]
-        repo_root = Path(__file__).resolve().parent  # the repo root (folder containing ESMFoldHF.py)
-        env = os.environ.copy()
-        env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
-        res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(repo_root), env=env) # ensure working dir is repo root, # ensure utils/ is on sys.path
- #       res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
-        pdb_str = res.stdout
-        outputs.append({
-            "name": name,
-            "pdb": pdb_str,
-            "plddt": None,                  # leave normalization step to fill when available
-            "pae": None,
-            "residue_index": list(range(1, len(seq) + 1)),
-        })
+
+        # 1) sanitize (removes '-', whitespace, non-ACDEFGHIKLMNPQRSTVWY)
+        orig_len = len(seq)
+        seq = process_sequence(seq)
+        if not seq:
+            print(f"[esm3] skip {name}: empty after sanitization (was {orig_len} aa)")
+            continue
+        if len(seq) != orig_len:
+            print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
+
+        # 2) write a tiny temp FASTA (safer than pushing the sequence via argv)
+        import tempfile, os
+        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
+            tf.write(f">{name}\n{seq}\n")
+            fasta_path = tf.name
+
+        try:
+            # 3) run from the ESM repo folder; pass --fasta
+            env = os.environ.copy()
+            # keep your current PYTHONPATH trick (if your infer script needs MsaCluster utils)
+            repo_root = Path(__file__).resolve().parent
+            env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
+
+            cmd = [sys.executable, str(script), "--fasta", fasta_path, "--device", device]
+            res = subprocess.run(
+                cmd, capture_output=True, text=True,
+                cwd=str(Path(script).parent),  # <— run inside the ESM repo
+                env=env
+            )
+            if res.returncode != 0:
+                raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
+
+            pdb_str = res.stdout
+            outputs.append({
+                "name": name,
+                "pdb": pdb_str,
+                "plddt": None,
+                "pae": None,
+                "residue_index": list(range(1, len(seq) + 1)),
+            })
+        finally:
+            try:
+                os.unlink(fasta_path)
+            except Exception:
+                pass
     return {"backend": "esm3-subprocess", "chains": outputs}
 
 # --------------------------------------------------------------------------------------
