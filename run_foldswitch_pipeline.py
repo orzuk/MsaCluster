@@ -567,8 +567,6 @@ def main():
     if args.run_mode == "help":
         p.print_help()
         sys.exit(0)
-    if args.esm_model is None and args.esm_version is not None:
-        args.esm_model = args.esm_version
     if args.run_mode == "run_esmfold" and args.esm_model is None:
         args.esm_model = "esm2"  # sensible default
 
