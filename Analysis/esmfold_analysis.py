@@ -28,31 +28,80 @@ def compute_esmfold_pred_tmscores(fold_pair):
     folds = fold_pair.split("_")
     chains = [folds[0][-1],folds[1][-1]]
 
-    esm_pdb_files =  tqdm(os.listdir(f'{DATA_DIR}/{fold_pair}/output_esm_fold'))
+    # Prefer chain-sliced PDBs if present; else fall back to root PDBs
+    pdb1, pdb2 = folds[0][:-1], folds[1][:-1]
+    cand1 = f"{DATA_DIR}/{fold_pair}/chain_pdb_files/{folds[0]}.pdb"
+    cand2 = f"{DATA_DIR}/{fold_pair}/chain_pdb_files/{folds[1]}.pdb"
+    truth1_pdb = cand1 if os.path.isfile(cand1) else f"{DATA_DIR}/{fold_pair}/{pdb1}.pdb"
+    truth2_pdb = cand2 if os.path.isfile(cand2) else f"{DATA_DIR}/{fold_pair}/{pdb2}.pdb"
 
+    # Iterate normalized per-model outputs via samples_index.tsv (preferred)
+    for model_tag in ("esm2", "esm3"):
+        mdir = f"{DATA_DIR}/{fold_pair}/output_esm_fold/{model_tag}"
+        tsv = os.path.join(mdir, "samples_index.tsv")
 
-    for fold_pred in esm_pdb_files:
-        TMscore_fold1 = compute_tmscore_align(f'{DATA_DIR}/{fold_pair}/chain_pdb_files/{folds[0]}.pdb',
-                                              f'{DATA_DIR}/{fold_pair}/output_esm_fold/{fold_pred}')
-        TMscore_fold2 = compute_tmscore_align(f'{DATA_DIR}/{fold_pair}/chain_pdb_files/{folds[1]}.pdb',
-                                              f'{DATA_DIR}/{fold_pair}/output_esm_fold/{fold_pred}')
-        final_res.append({'fold_pair': fold_pair, 'fold': fold_pred,
-                          'TMscore_fold1': TMscore_fold1, 'TMscore_fold2': TMscore_fold2})
+        if os.path.isfile(tsv):
+            idx = pd.read_csv(tsv, sep="\t")  # columns: name, pdb_path
+            for _, r in idx.iterrows():
+                pred_name = r["name"]
+                pred_pdb  = r["pdb_path"]
+                TMscore_fold1 = compute_tmscore_align(truth1_pdb, pred_pdb)
+                TMscore_fold2 = compute_tmscore_align(truth2_pdb, pred_pdb)
+                final_res.append({
+                    "fold_pair": fold_pair,
+                    "model": model_tag,
+                    "name": pred_name,
+                    "pdb_path": pred_pdb,
+                    "TMscore_fold1": TMscore_fold1,
+                    "TMscore_fold2": TMscore_fold2,
+                })
+        else:
+            # Fallback: scan *.pdb if TSV missing
+            if not os.path.isdir(mdir):
+                continue
+            pdb_files = sorted([p for p in os.listdir(mdir) if p.endswith(".pdb")])
+            for pred_file in pdb_files:
+                pred_path = os.path.join(mdir, pred_file)
+                # infer a clean sample name (works with ShallowMsa_003__sample_007_esm2.pdb)
+                base = os.path.basename(pred_file)
+                pred_name = base.replace(f"_{model_tag}.pdb", "").replace(".pdb", "")
+                TMscore_fold1 = compute_tmscore_align(truth1_pdb, pred_path)
+                TMscore_fold2 = compute_tmscore_align(truth2_pdb, pred_path)
+                final_res.append({
+                    "fold_pair": fold_pair,
+                    "model": model_tag,
+                    "name": pred_name,
+                    "pdb_path": pred_path,
+                    "TMscore_fold1": TMscore_fold1,
+                    "TMscore_fold2": TMscore_fold2,
+                })
 
-    print("final_res: ", final_res)
-    df                         = pd.DataFrame(final_res)
-    print("df columns: " , df.columns)
-    df['cluster_num']          = df.fold.apply(lambda x: x.split('_')[1] if 'Shallow' in x else x.split('_')[0])
-    df['TM_mean_cluster_pdb1'] = df.groupby(['fold_pair','cluster_num'])['TMscore_fold1'].transform('mean')
-    df['TM_mean_cluster_pdb2'] = df.groupby(['fold_pair','cluster_num'])['TMscore_fold2'].transform('mean')
-    df['sample_count']         = df.groupby(['fold_pair','cluster_num'])['TMscore_fold1'].transform('count')
-    df['is_fold_1']            = ((df.TM_mean_cluster_pdb1) >= (df.TM_mean_cluster_pdb2)).astype(int)
-    df['is_fold_2']            = ((df.TM_mean_cluster_pdb1) < (df.TM_mean_cluster_pdb2)).astype(int)
-    df['cluster_fold_1']       = df.groupby(['fold_pair','cluster_num'])['is_fold_1'].transform('mean')
-    df['cluster_fold_2']       = df.groupby(['fold_pair','cluster_num'])['is_fold_2'].transform('mean')
-    df.sort_values(by=['fold_pair','cluster_num'],inplace=True)
-#    df.to_csv('./data/df_esmfold_analysis.csv',index=False)
-    df.to_csv(f'{path}/Analysis/df_af.csv')
+    if not final_res:
+        print("[warn] No ESM predictions found for", fold_pair)
+        return
+
+    df = pd.DataFrame(final_res)
+    print("df columns:", df.columns.tolist())
+
+    # Cluster id from the standardized sample name; DeepMsa if present
+    df["cluster_num"] = df["name"].str.extract(r"ShallowMsa_(\d+)", expand=False).fillna("DeepMsa")
+
+    # Helpful differential signal and per-model, per-cluster aggregates
+    df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
+    grp = ["fold_pair", "model", "cluster_num"]
+    df["TM_mean_cluster_pdb1"] = df.groupby(grp)["TMscore_fold1"].transform("mean")
+    df["TM_mean_cluster_pdb2"] = df.groupby(grp)["TMscore_fold2"].transform("mean")
+    df["sample_count"]         = df.groupby(grp)["TMscore_fold1"].transform("count")
+
+    # Optional: quick classification
+    tau, delta = 0.50, 0.05
+    df["class"] = "neither"
+    df.loc[(df.TMscore_fold1 >= tau) & (df.TMscore_fold1 - df.TMscore_fold2 >= delta), "class"] = "toward_fold1"
+    df.loc[(df.TMscore_fold2 >= tau) & (df.TMscore_fold2 - df.TMscore_fold1 >= delta), "class"] = "toward_fold2"
+    df.loc[(df[["TMscore_fold1","TMscore_fold2"]].min(axis=1) >= tau) & (df["TMdiff"].abs() < delta), "class"] = "both"
+
+    df.sort_values(by=["fold_pair","model","cluster_num","name"], inplace=True)
+    df.to_csv(f"{path}/Analysis/df_af.csv", index=False)
 
 
 if __name__=='__main__':

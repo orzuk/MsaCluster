@@ -49,7 +49,7 @@ except Exception:
 
 # Your utils — rely ONLY on these for I/O
 from utils.msa_utils import load_fasta
-from utils.protein_utils import extract_protein_sequence
+from utils.protein_utils import extract_protein_sequence, process_sequence
 
 # Core deps
 import torch
@@ -223,6 +223,13 @@ def run_esm2_fold(seqs, device):
     for name, seq in seqs:
         print(f"[{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
         t0 = time.time()
+        # sanitize: drop gaps/invalids to avoid HF ESMFold crash on '-'
+        try:
+            seq = process_sequence(seq)
+        except Exception:
+            # minimal fallback: strip gaps
+            seq = "".join(ch for ch in seq if ch.isalpha())
+
 
         # Both Meta ESMFold and the HF port expose infer_pdb; use it if present.
         if hasattr(model, "infer_pdb"):

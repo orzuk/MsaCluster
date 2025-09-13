@@ -11,7 +11,7 @@ from copy import deepcopy
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, write_pair_pipeline_script
-from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct
+from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.phytree_utils import phytree_from_msa
 
@@ -117,9 +117,15 @@ def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = Fals
 
 
     def _write_sample(src_a3m: str, dst_fa: str) -> None:
-        entries = read_msa(src_a3m)  # [(id, seq), ...]
+        # If we already sampled this cluster, keep those choices
+        if os.path.isfile(dst_fa) and os.path.getsize(dst_fa) > 0:
+            created.append(dst_fa)
+            return
+        entries = read_msa(src_a3m)  # [(id, seq), ...] (may still contain '-' gaps)
         picked = greedy_select(entries, min(sample_n, len(entries)))
         names, seqs = zip(*picked) if picked else ([], [])
+        # sanitize: drop '-' and any non-AA so downstream ESMFold never sees gaps
+        seqs = [process_sequence(s) for s in seqs]
         if not names:
             return
         write_fasta(names, seqs, dst_fa)
@@ -378,9 +384,9 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     cmd = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device {device}"
     _run(cmd, args.run_job_mode)
 
-    # cleanup
-    tmpdir = f"Pipeline/{pair_id}/tmp_esmfold"
-    subprocess.run(f"rm -rf {shlex.quote(tmpdir)}", shell=True, check=False)
+    # No cleanup!
+    # tmpdir = f"Pipeline/{pair_id}/tmp_esmfold"
+    # subprocess.run(f"rm -rf {shlex.quote(tmpdir)}", shell=True, check=False)
 
 
 def task_af(pair_id: str, args: argparse.Namespace) -> None:
