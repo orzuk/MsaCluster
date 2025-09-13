@@ -2,7 +2,7 @@
 import argparse
 import subprocess
 import shlex
-import sys
+import sys, warnings
 from glob import glob
 import json
 from pathlib import Path
@@ -28,7 +28,6 @@ RUN_MODE_DESCRIPTIONS = {
     "msaclust_pipeline":"Full pipeline: get_msa → cluster_msa → AF/ESM (as configured).",
     "help":             "Print this list of run modes with one-line explanations.",
 }
-
 
 
 # ------------------------- helpers -------------------------
@@ -374,7 +373,7 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     model_dir = f"Pipeline/{pair_id}/output_esm_fold/{args.esm_model}"
     ensure_dir(model_dir)
 
-    # Correct CLI: no -i/-o, no --esm_version
+    # Correct CLI: no -i/-o
     device = args.esm_device or "auto"
     cmd = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device {device}"
     _run(cmd, args.run_job_mode)
@@ -512,10 +511,6 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
             a2 = deepcopy(args)
             if hasattr(a2, "esm_model"):
                 a2.esm_model = model
-            elif hasattr(a2, "esm_version"):
-                a2.esm_version = model
-            else:
-                a2.esm_model = model
             task_esmfold(pair_id, a2)  # inline
         try:
             ap = deepcopy(args)
@@ -539,7 +534,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
 
 def main():
     p = argparse.ArgumentParser(
-        description="Fold-switching pipeline runner",
+#        description="Fold-switching pipeline runner",
         formatter_class=argparse.RawTextHelpFormatter,  # keeps newlines
         epilog=_modes_epilog(),
     )
@@ -558,12 +553,9 @@ def main():
     p.add_argument("--af_ver", default="2", choices=["2", "3", "both"],
                    help="Which AlphaFold to run for --run_mode run_AF")
 
-
     # ESMFold options
     p.add_argument("--cluster_sample_n", type=int, default=10)
     p.add_argument("--esm_model", default=None, choices=["esm2", "esm3", "both"])
-    p.add_argument("--esm_version", default=None, choices=["esm2", "esm3"],  # back-compat alias
-                   help="Deprecated alias of --esm_model")
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
 
     # plotting

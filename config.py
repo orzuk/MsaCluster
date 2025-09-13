@@ -49,7 +49,7 @@ if user is None: # for local run
         user = 'steve_laptop'
 
 
-print("RUNNING FOLD-SWITCH PIEPLINE WITH USER: " +  user + "  ENVIRONMENT: " +  platform.system())
+print("CONFIG FOLD-SWITCH PIEPLINE WITH USER: " +  user + "  ENVIRONMENT: " +  platform.system())
 
 if user == 'steveabecassis':
     if moriah:
@@ -114,5 +114,3 @@ PAIR_DIR_RE = re.compile(r'^([0-9A-Za-z]{4}[A-Za-z0-9])_([0-9A-Za-z]{4}[A-Za-z0-
 
 # Which of the five AF models to use for prediction
 AF2_MODEL = 2
-
-print("FINISHED LOADING CONFIG. RUNNING FOLD-SWITCH PIEPLINE WITH USER: " +  user + "  ENVIRONMENT: " +  platform.system())

@@ -28,9 +28,10 @@ import os, sys
 import json, time
 import argparse
 import subprocess
-from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from transformers import EsmForProteinFolding, AutoTokenizer
+from pathlib import Path
+
 
 # Quiet TensorFlow chatter if present
 os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
@@ -54,6 +55,41 @@ from utils.protein_utils import extract_protein_sequence
 import torch
 import numpy as np  # noqa: F401
 
+
+def _cluster_fastas_dir(pair_id: str) -> Path:
+    return Path(DATA_DIR) / pair_id / "tmp_esmfold"
+
+def _sequences_from_cluster_fastas(pair_id: str) -> List[Tuple[str, str]]:
+    """
+    Read sequences from Pipeline/<pair>/tmp_esmfold/_tmp_ShallowMsa_*.fasta
+    Each record becomes one folding job. Names include the cluster id and
+    a running index so you can trace back later.
+    """
+    tmp = _cluster_fastas_dir(pair_id)
+    if not tmp.exists():
+        return []
+
+    seqs: List[Tuple[str, str]] = []
+    # Shallow clusters
+    for fa in sorted(tmp.glob("_tmp_ShallowMsa_*.fasta")):
+        cl = fa.stem.split("_")[-1]  # e.g., "003"
+        ids, sseqs = load_fasta(str(fa))  # returns (names, seqs)
+        for i, (rid, s) in enumerate(zip(ids, sseqs), start=1):
+            # Compact, sortable id. Keep original id in filename via rid if you prefer.
+            name = f"ShallowMsa_{cl}__sample_{i:03d}"
+            seqs.append((name, s))
+
+    # (optional) Deep set if you ever call _sample_to_tmp_fastas(..., include_deep=True)
+    deep = tmp / "_tmp_DeepMsa.fasta"
+    if deep.exists():
+        ids, sseqs = load_fasta(str(deep))
+        for i, (rid, s) in enumerate(zip(ids, sseqs), start=1):
+            name = f"DeepMsa__sample_{i:03d}"
+            seqs.append((name, s))
+
+    return seqs
+
+
 # --------------------------------------------------------------------------------------
 # Device selection
 # --------------------------------------------------------------------------------------
@@ -75,16 +111,23 @@ def ensure_outdir(pair_id: str, model_tag: str) -> Path:
     out.mkdir(parents=True, exist_ok=True)
     return out
 
+def get_sequences_for_pair(pair_id: str) -> List[Tuple[str, str]]:
+    """
+    NEW order:
+    1) If tmp_esmfold samples exist -> fold ALL of them (this is your 10×K).
+    2) Else fall back to the original pair FASTA (if present).
+    3) Else extract the two reference chains from the PDBs.
+    """
+    sampled = _sequences_from_cluster_fastas(pair_id)
+    if sampled:
+        print(f"[info] Using {len(sampled)} cluster-sampled sequences from tmp_esmfold/")
+        return sampled
 
-def get_sequences_for_pair(pair_id: str) -> list[tuple[str, str]]:
-    pdir = Path(DATA_DIR) / pair_id
-    if not pdir.exists():
-        raise FileNotFoundError(f"Pair directory not found: {pdir}")
-
-    seqs = maybe_read_pair_fasta(pdir)
+    # --- original fallbacks ---
+    seqs = maybe_read_pair_fasta(Path(DATA_DIR) / pair_id)
     if seqs:
         return seqs
-    return sequences_from_pdbs(pdir, pair_id)
+    return sequences_from_pdbs(Path(DATA_DIR) / pair_id, pair_id)
 
 
 def parse_pair_id(pair_id: str) -> Tuple[Tuple[str, str], Tuple[str, str]]:
@@ -252,37 +295,26 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
 # Normalization to ESM2-style layout
 # --------------------------------------------------------------------------------------
 
-# --- replace your current writer with this ---
-def write_normalized_outputs(
-    result,                 # {"backend": "...", "chains": [{"name": str, "pdb": str, ...}, ...]}
-    outdir: Path,           # e.g., .../Pipeline/<pair>/output_esm_fold/esm3
-    pair_id: str,           # e.g., "1fzpD_2frhA"
-    model_tag: str,         # e.g., "esm3" or "esm2"
-    sequences,              # list[(name, seq)] in the order folded
-    device: str
-) -> None:
+# New function allowing us to normalize outputs for both ESM2 and ESM3
+def write_normalized_outputs(result, outdir: Path, pair_id: str, model_tag: str, sequences, device: str) -> None:
     """
-    Emit:
-      - per-chain PDBs: <chain>_<model>.pdb (e.g., 1fzpD_esm3.pdb)
-      - combined multi-MODEL PDB: <pair>__<model>_combined.pdb
-      - metadata JSON: pair_prediction_metadata.json
-      - log: pair_prediction.log
+    For many samples we keep it flat (single directory) but encode the cluster
+    in the filename, e.g. ShallowMsa_003__sample_007_<model>.pdb
     """
     outdir.mkdir(parents=True, exist_ok=True)
 
-    # 1) One file per chain with its name and model
-    per_chain_files = []
+    index_rows = []
     for ch in result.get("chains", []):
-        name = ch.get("name", "unknown")
+        name = (ch.get("name") or "unknown").strip()  # e.g., ShallowMsa_003__sample_007
         pdb_txt = (ch.get("pdb") or "").strip()
         if not pdb_txt:
             continue
         pdb_path = outdir / f"{name}_{model_tag}.pdb"
         with open(pdb_path, "w") as f:
             f.write(pdb_txt if pdb_txt.endswith("\n") else pdb_txt + "\n")
-        per_chain_files.append(str(pdb_path))
+        index_rows.append((name, str(pdb_path)))
 
-    # 2) Combined multi-MODEL PDB that includes the pair id AND model in the filename
+    # Optional combined multi-MODEL file (handy for quick viewing)
     combo_path = outdir / f"{pair_id}__{model_tag}_combined.pdb"
     with open(combo_path, "w") as f:
         for i, ch in enumerate(result.get("chains", []), start=1):
@@ -290,17 +322,22 @@ def write_normalized_outputs(
             if pdb_txt:
                 f.write(f"MODEL     {i}\n{pdb_txt}\nENDMDL\n")
 
-    # 3) Metadata JSON with a clearer name
+    # Index TSV
+    with open(outdir / "samples_index.tsv", "w") as tsv:
+        tsv.write("name\tpdb_path\n")
+        for name, path in index_rows:
+            tsv.write(f"{name}\t{path}\n")
+
+    # Metadata + log (unchanged)
     meta_path = outdir / "pair_prediction_metadata.json"
     meta = {
         "pair_id": pair_id,
         "model": model_tag,
         "backend": result.get("backend"),
         "device": device,
-        "sequences": [{"name": n, "length": len(s)} for (n, s) in sequences],
-        # keep placeholders in case you later add pLDDT/PAE from the backends
+        "n_predictions": len(index_rows),
         "outputs": {
-            "per_chain": per_chain_files,
+            "per_sample_index": str(meta_path.parent / "samples_index.tsv"),
             "combined": str(combo_path),
         },
         "timestamps": {"written": time.strftime("%Y-%m-%d %H:%M:%S")},
@@ -308,12 +345,10 @@ def write_normalized_outputs(
     with open(meta_path, "w") as jf:
         json.dump(meta, jf, indent=2)
 
-    # 4) Compact log with a clearer name
-    log_path = outdir / "pair_prediction.log"
-    with open(log_path, "a") as lf:
+    with open(outdir / "pair_prediction.log", "a") as lf:
         lf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] pair={pair_id} model={model_tag} "
                  f"backend={result.get('backend')} device={device} "
-                 f"chains={[c.get('name') for c in result.get('chains', [])]}\n")
+                 f"n={len(index_rows)}\n")
 
 
 
