@@ -162,7 +162,6 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             best_tm = {k: best_row[k] for k in ["model","cluster_num","name","TMscore_fold1","TMscore_fold2","TM_best_vs_truth"]}
 
         # Cmap metrics
-        df_cmap = _read_cmap(pair_id)
         best_cmap = None
         if len(df_cmap):
             # define "best" by max common_f1 (use t1_f1/t2_f1 if you prefer)
