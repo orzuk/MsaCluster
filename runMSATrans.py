@@ -37,7 +37,7 @@ if __name__=='__main__':
 
 
     os.makedirs(args.o, exist_ok=True)
-    args.test = True
+    args.test = False
     if args.test:
         args.input_msas = args.input_msas[:3]
 
