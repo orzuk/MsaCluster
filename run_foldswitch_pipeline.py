@@ -9,11 +9,14 @@ from pathlib import Path
 from typing import List, Tuple
 from copy import deepcopy
 
+
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, write_pair_pipeline_script
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.phytree_utils import phytree_from_msa
+
+from Analysis.postprocess_unified import post_processing_analysis
 
 
 RUN_MODE_DESCRIPTIONS = {
@@ -23,6 +26,8 @@ RUN_MODE_DESCRIPTIONS = {
     "run_esmfold":      "Run ESMFold on the pair. Use --esm_model {esm2,esm3,both}.",
     "run_cmap_msa_transformer":      "Run MSA-transformer on the pair to get contact maps.",
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
+    "postprocess": "Compute TM/cmap metrics and build summary/detailed tables. Use --force_rerun_postprocess TRUE to recompute." ,
+    "plot":             "Generate pair-specific plots (requires PyMOL).",
     "clean":            "Remove previous outputs for the pair.",
     "msaclust_pipeline":"Full pipeline: get_msa → cluster_msa → AF/ESM (as configured).",
     "help":             "Print this list of run modes with one-line explanations.",
@@ -551,6 +556,14 @@ def task_deltaG(pair_id: str) -> None:
     compute_global_and_residue_energies(pdb_pair, [pair_id], out_dir)
 
 
+def task_postprocess(pair_id: str | None, args) -> None:
+    pairs = None
+    if pair_id:
+        pairs = [pair_id]
+    force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
+    print(f"[postprocess] pairs={pairs or 'ALL'} | force_rerun={force}")
+    post_processing_analysis(force_rerun=force, pairs=pairs)
+
 # All Pipeline
 def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     """
@@ -622,7 +635,11 @@ def main():
     p.add_argument("--esm_model", default=None, choices=["esm2", "esm3", "both"])
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
 
-    # plotting
+    # Post-processing options, computing metrics
+    p.add_argument("--postprocess", default="FALSE", help="If TRUE, run post-processing after the selected task(s).")
+    p.add_argument("--force_rerun_postprocess", default="FALSE", help="If TRUE, recompute per-pair caches.")
+
+    # Plotting
     p.add_argument("--global_plots", action="store_true")
     p.add_argument("--plot_trees", action="store_true")
 
@@ -675,11 +692,15 @@ def main():
         elif args.run_mode == "tree":
             task_tree(pair_id, args.run_job_mode)
 
+        elif args.run_mode == "compute_deltaG":
+            task_deltaG(pair_id)
+
+        elif args.run_mode == "postprocess":
+            task_postprocess(pair_id, args)             # Allow optional single-pair positional arg the same way other modes do
+
         elif args.run_mode == "plot":
             task_plot(pair_id, args)
 
-        elif args.run_mode == "compute_deltaG":
-            task_deltaG(pair_id)
 
         elif args.run_mode == "clean":  # Remove existing files to run the pipeline clean
             task_clean(pair_id, args)

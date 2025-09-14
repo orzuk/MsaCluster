@@ -101,7 +101,7 @@ def compute_esmfold_pred_tmscores(fold_pair):
     df.loc[(df[["TMscore_fold1","TMscore_fold2"]].min(axis=1) >= tau) & (df["TMdiff"].abs() < delta), "class"] = "both"
 
     df.sort_values(by=["fold_pair","model","cluster_num","name"], inplace=True)
-    df.to_csv(f"{path}/Analysis/df_af.csv", index=False)
+    df.to_csv(f"{path}/Analysis/df_esm.csv", index=False)
 
 
 if __name__=='__main__':
