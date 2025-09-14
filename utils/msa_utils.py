@@ -3,7 +3,6 @@ from Bio.Align import substitution_matrices
 import parasail  # pip/conda package: parasail
 import requests
 from io import StringIO
-# from __future__ import annotations
 from typing import List, Tuple, Dict
 import re, os
 

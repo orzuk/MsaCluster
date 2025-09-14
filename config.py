@@ -67,7 +67,7 @@ if user == 'steveabecassis':
     # File create by the script esmfold_analysis.py (in the analysis folder)
 
     # Set subdirectories for each part of the pipeline
-    PAIR_DIRS = {"AF":"output_AF", "ESMFold":"output_esm_fold", "Cmap":"Cmap_Preds", "MSA":"MSA_Preds", "Cluster":"Cluster" }
+    PAIR_DIRS = {"AF":"output_AF", "ESMFold":"output_esm_fold", "Cmap":"output_cmaps", "MSA":"output_get_msa", "Cluster":"output_msa_cluster" }
 
 
 if user in ['zuk_laptop', 'orzuk']:

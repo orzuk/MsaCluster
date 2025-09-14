@@ -141,6 +141,30 @@ def _cluster_files(pair_id: str) -> tuple[str, list[str]]:
     clusters = sorted(glob(f"Pipeline/{pair_id}/output_msa_cluster/ShallowMsa_*.a3m"))
     return deep, clusters
 
+def _has_deep_msa(pair_id: str) -> bool:
+    f = Path(f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m")
+    return f.is_file() and f.stat().st_size > 0
+
+def _has_cluster_msas(pair_id: str) -> bool:
+    return bool(list(Path(f"Pipeline/{pair_id}/output_msa_cluster").glob("ShallowMsa_*.a3m")))
+
+def _has_cmaps(pair_id: str) -> bool:
+    return bool(list(Path(f"Pipeline/{pair_id}/output_cmaps/msa_transformer").glob("*.npy")))
+
+def _has_esm_model(pair_id: str, model: str) -> bool:
+    d = Path(f"Pipeline/{pair_id}/output_esm_fold/{model}")
+    if not d.is_dir():
+        return False
+    tsv = d / "samples_index.tsv"
+    if tsv.is_file() and tsv.stat().st_size > 0:
+        try:
+            import pandas as pd
+            return len(pd.read_csv(tsv, sep="\t")) > 0
+        except Exception:
+            pass
+    # fallback: any PDBs written by ESM
+    return bool(list(d.glob("*.pdb")))
+
 
 def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = False) -> List[str]:
     """
@@ -567,39 +591,71 @@ def task_postprocess(pair_id: str | None, args) -> None:
 # All Pipeline
 def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     """
-    If --run_job_mode inline: run steps sequentially in-process.
-    If --run_job_mode sbatch: create a single SBATCH job that runs all steps sequentially.
+    If --force_rerun TRUE: run all steps unconditionally.
+    Else: run step-by-step and only execute steps whose outputs are missing.
+    AF step is always invoked (it internally skips already-complete jobs).
     """
-    if args.run_job_mode == "inline":
-        # run sequentially here
-        task_load(pair_id, "inline")
+    force_all = _bool_from_tf(getattr(args, "force_rerun", "FALSE"))
+
+    # 1) load PDBs/FASTA (cheap: always safe)
+    task_load(pair_id, "inline")
+
+    # 2) get_msa
+    if force_all or not _has_deep_msa(pair_id):
+        print("[pipeline] get_msa → running")
         task_get_msa(pair_id, "inline")
+    else:
+        print("[pipeline] get_msa → skip (DeepMsa exists)")
+
+    # 3) cluster_msa
+    if force_all or not _has_cluster_msas(pair_id):
+        print("[pipeline] cluster_msa → running")
         task_cluster_msa(pair_id, "inline")
-        if args.run_mode == "msaclust_pipeline" and getattr(args, "af_ver", "2") == "2":
-            args.af_ver = "both" # Run AF2 and AF3
-        task_af(pair_id, args)  # this will run inline inside current shell
+    else:
+        print("[pipeline] cluster_msa → skip (clusters exist)")
+
+    # 4) AF (AF2/AF3/both): always call; the task itself skips completed out_dirs unless forced
+    if force_all:
+        # bubble a TRUE into AF-only force without changing your AF default elsewhere
+        setattr(args, "force_rerun_AF", "TRUE")
+    print("[pipeline] AF → running (task will skip per-outdir if already complete)")
+    # If user asked specifically for AF2 only inside pipeline, keep it; otherwise default to both inside pipeline
+    if getattr(args, "af_ver", "2") == "2" and not force_all:
+        pass  # respect user's choice
+    else:
+        # default to both in the full pipeline unless user overrode
+        args.af_ver = "both"
+    task_af(pair_id, args)
+
+    # 5) cmap (MSA-Transformer)
+    if force_all or not _has_cmaps(pair_id):
+        print("[pipeline] cmap_msa_transformer → running")
         task_cmap_msa_transformer(pair_id, "inline")
-        for model in ("esm2", "esm3"):
-            a2 = deepcopy(args)
-            if hasattr(a2, "esm_model"):
-                a2.esm_model = model
-            task_esmfold(pair_id, a2)  # inline
-        try:
-            ap = deepcopy(args)
-            ap.global_plots = False
-            if hasattr(ap, "plot_trees"): ap.plot_trees = False
-            task_plot(pair_id, ap)
-        except Exception as e:
-            print(f"[plot] skipped: {e}")
-        return
+    else:
+        print("[pipeline] cmap_msa_transformer → skip (cmaps exist)")
 
-    # === sbatch: one big job per pair ===
-    script_path = write_pair_pipeline_script(pair_id, args)
-    # submit it; we rely on SBATCH header inside the script; we only pass -o already embedded
-    cmd = f"sbatch {shlex.quote(script_path)}"
-    print(f"[sbatch] {cmd}", flush=True)
-    subprocess.run(cmd, shell=True, check=True)
+    # 6) ESMFold (both models if esm_model==both; otherwise the selected one)
+    wanted_models = ["esm2", "esm3"] if getattr(args, "esm_model", None) in (None, "both") else [args.esm_model]
+    for model in wanted_models:
+        a2 = deepcopy(args)
+        a2.esm_model = model
+        need = force_all or not _has_esm_model(pair_id, model)
+        if need:
+            print(f"[pipeline] esmfold({model}) → running")
+            task_esmfold(pair_id, a2)
+        else:
+            print(f"[pipeline] esmfold({model}) → skip (outputs exist)")
 
+    # 7) plots (optional to gate; keep as-is or skip if you detect finished artifacts)
+    try:
+        ap = deepcopy(args)
+        ap.global_plots = False
+        if hasattr(ap, "plot_trees"):
+            ap.plot_trees = False
+        print("[pipeline] plot → running")
+        task_plot(pair_id, ap)
+    except Exception as e:
+        print(f"[plot] skipped: {e}")
 
 
 # ------------------------- CLI / main -------------------------
@@ -642,6 +698,13 @@ def main():
     # Plotting
     p.add_argument("--global_plots", action="store_true")
     p.add_argument("--plot_trees", action="store_true")
+
+    # Pipeline-wide force flag
+    p.add_argument(
+        "--force_rerun",
+        default="FALSE",
+        choices=["TRUE", "FALSE"],
+        help="If TRUE (only for --run_mode msaclust_pipeline), run every step regardless of outputs.")
 
     args = p.parse_args()
     # allow: python run_foldswitch_pipeline.py --run_mode help
