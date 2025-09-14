@@ -47,8 +47,8 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
         cluster = m.group(1) if m else "UNK"
         model = "AF"
         # TM to both truths
-        tm1 = compute_tmscore_align(pdb1, pred, chain2=c1)
-        tm2 = compute_tmscore_align(pdb2, pred, chain2=c2)
+        tm1 = compute_tmscore_align(pdb1, pred, chain2=None)
+        tm2 = compute_tmscore_align(pdb2, pred, chain2=None)
         rows.append({"fold_pair": pair_id, "model": model, "cluster_num": cluster,
                      "name": name, "pdb_path": pred,
                      "TMscore_fold1": tm1, "TMscore_fold2": tm2})
@@ -77,8 +77,8 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
             for _, r in df_idx.iterrows():
                 pred = str(r["pdb_path"])
                 name = r["name"]
-                tm1 = compute_tmscore_align(pdb1, pred, chain2=c1)
-                tm2 = compute_tmscore_align(pdb2, pred, chain2=c2)
+                tm1 = compute_tmscore_align(pdb1, pred, chain2=None)
+                tm2 = compute_tmscore_align(pdb2, pred, chain2=None)
                 rows.append({"fold_pair": pair_id, "model": model_tag, "cluster_num":
                              (re.search(r"ShallowMsa_(\d+)", name).group(1)
                               if re.search(r"ShallowMsa_(\d+)", name) else "DeepMsa"),
@@ -88,8 +88,8 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
             for pred in sorted(mdir.glob("*.pdb")):
                 base = pred.name
                 name = base.replace(f"_{model_tag}.pdb","").replace(".pdb","")
-                tm1 = compute_tmscore_align(pdb1, str(pred), chain2=c1)
-                tm2 = compute_tmscore_align(pdb2, str(pred), chain2=c2)
+                tm1 = compute_tmscore_align(pdb1, str(pred), chain2=None)
+                tm2 = compute_tmscore_align(pdb2, str(pred), chain2=None)
                 rows.append({"fold_pair": pair_id, "model": model_tag,
                              "cluster_num": (re.search(r"ShallowMsa_(\d+)", name).group(1)
                                              if re.search(r"ShallowMsa_(\d+)", name) else "DeepMsa"),
