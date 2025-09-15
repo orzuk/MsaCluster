@@ -24,7 +24,10 @@ def compute_AF_pred_tmscores(fold_pair):
     chains = [folds[0][-1],folds[1][-1]]
     AF_OUTPUT_DIR = path + '/' + PAIR_DIRS['AF']
 #    af_pdb_files = os.listdir(AF_OUTPUT_DIR)
-    af_pdb_files = [os.path.basename(p) for p in glob.glob(f"{AF_OUTPUT_DIR}/**/*.pdb", recursive=True)]
+#    af_pdb_files = [os.path.basename(p) for p in glob.glob(f"{AF_OUTPUT_DIR}/**/*.pdb", recursive=True)]
+
+    af_pdb_files = glob(os.path.join(path, "output_AF", "AF*", "*.pdb"))
+
 
     res = []
     af_pdb_files = [i for i in af_pdb_files if 'pdb' in str(i)]

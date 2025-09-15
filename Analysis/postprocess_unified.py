@@ -10,6 +10,8 @@ from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_
 
 from utils.utils import list_protein_pairs, pair_str_to_tuple
 from utils.align_utils import compute_tmscore_align
+from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
+
 PAIR_DIR = Path(DATA_DIR)
 
 
@@ -30,8 +32,7 @@ def _read_or_compute_cmap(pair_id: str, force: bool = False) -> pd.DataFrame:
         return pd.DataFrame()
 
     # import the callable (local import avoids import cycles at module load time)
-    from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
-    return compute_cmap_metrics_for_pair(pair_id, include_deep=False, thresh=0.4, sep_min=6, index_tol=0)
+    return compute_cmap_metrics_for_pair(pair_id, include_deep=True, thresh=0.4, sep_min=6, index_tol=0)
 
 
 

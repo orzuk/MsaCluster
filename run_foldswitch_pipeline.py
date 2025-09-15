@@ -36,6 +36,72 @@ RUN_MODE_DESCRIPTIONS = {
 
 # ------------------------- helpers -------------------------
 
+import re, shutil
+
+def _find_best_af2_pdb(out_dir: str) -> str | None:
+    """
+    Heuristics for ColabFold outputs:
+    - prefer symlink best_model.pdb (we create it)
+    - then unrelaxed_rank_001
+    - then ranked_0/rank_001
+    - else pick any *.pdb deterministically
+    """
+    p = Path(out_dir)
+    cand = p / "best_model.pdb"
+    if cand.exists():
+        return str(cand.resolve())
+    # common CF patterns
+    hits = list(p.glob("*unrelaxed_rank_001_*.pdb"))
+    if hits: return str(sorted(hits)[0])
+    hits = list(p.glob("ranked_0*.pdb")) + list(p.glob("ranked_1*.pdb"))
+    if hits: return str(sorted(hits)[0])
+    hits = list(p.glob("rank_001*.pdb")) + list(p.glob("rank_000*.pdb"))
+    if hits: return str(sorted(hits)[0])
+    hits = list(p.glob("*.pdb"))
+    return str(sorted(hits)[0]) if hits else None
+
+def _find_best_af3_pdb(out_dir: str) -> str | None:
+    """
+    After cif_to_pdb.sh, AF3 run dir usually contains rank1 PDB.
+    - look for *rank1*.pdb first
+    - else any *.pdb
+    """
+    p = Path(out_dir)
+    hits = list(p.rglob("*rank1*.pdb"))
+    if hits: return str(sorted(hits)[0])
+    hits = list(p.rglob("*.pdb"))
+    return str(sorted(hits)[0]) if hits else None
+
+def _export_canonical_best_pdbs(pair_id: str, ver: str) -> None:
+    """
+    Walk .../output_AF/AF{ver}/{DeepMsa|ShallowMsa_xxx}/{chain}/
+    and copy the best PDB to .../output_AF/AF{ver}/<ClusterLabel>__<chain>.pdb
+    """
+    root = Path(f"Pipeline/{pair_id}/output_AF/AF{ver}")
+    if not root.exists():
+        return
+    for cluster_dir in sorted(root.iterdir()):
+        if not cluster_dir.is_dir():
+            continue
+        label = cluster_dir.name  # DeepMsa or ShallowMsa_###
+        for chain_dir in sorted(cluster_dir.iterdir()):
+            if not chain_dir.is_dir():
+                continue
+            chain_tag = chain_dir.name  # e.g., 1fzpD or 2frhA
+            # Resolve best PDB
+            best = _find_best_af2_pdb(chain_dir) if ver == "2" else _find_best_af3_pdb(chain_dir)
+            if not best:
+                print(f"[export] no PDB in {chain_dir}")
+                continue
+            dst = root / f"{label}__{chain_tag}.pdb"
+            try:
+                # copy; overwrite if exists
+                shutil.copy2(best, dst)
+                print(f"[export] {dst.name}  <=  {Path(best).name}")
+            except Exception as e:
+                print(f"[export] failed {dst}: {e}")
+
+
 def _bool_from_tf(s: str) -> bool:
     return str(s).strip().upper() == "TRUE"
 
@@ -480,7 +546,7 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     ensure_dir(tmp_pairs_dir)
 
     # Build pair-specific A3Ms per chain for DeepMsa + each cluster (same as before)
-    jobs = []  # (a3m_path, out_dir_base_name) — out_dir_base_name = "DeepMsa" or "ShallowMsa_XXX"
+    jobs = []  # (a3m_path, out_dir_base_name) — out_dir_base_name = "DeepMsa/<chain>" or "ShallowMsa_XXX/<chain>"
     for ch in chains:
         pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_DeepMsa__{ch}.a3m")
         if _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m):
@@ -524,31 +590,56 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     for ver in versions:
         out_root = os.path.join(pair_dir, f"output_AF/AF{ver}")
         ensure_dir(out_root)
-        log_dir = os.path.join(out_root, "logs");
+        log_dir = os.path.join(out_root, "logs")
         ensure_dir(log_dir)
 
         for a3m_path, base in jobs:
-            out_dir = os.path.join(out_root, base);
+            out_dir = os.path.join(out_root, base)
             ensure_dir(out_dir)
 
+            # ---------- SKIP PATH (already computed) ----------
             if not force:
                 if ver == "2" and _af2_has_outputs(out_dir):
                     print(f"[skip] AF2 exists → {out_dir}")
+                    # NEW: ensure best_model.pdb symlink exists so canonical export can find it
+                    try:
+                        _postprocess_af2_run(out_dir)  # creates/refreshes best_model.pdb from ranking_debug.json
+                    except Exception as e:
+                        print(f"[warn] _postprocess_af2_run failed in skip-path: {e}")
                     continue
                 if ver == "3" and _af3_has_outputs(out_dir):
                     print(f"[skip] AF3 exists → {out_dir}")
-                    # still ensure PDBs exist for existing CIFs:
-                    _convert_existing_af3(out_dir, mode="all")  # or "rank1" if you prefer
+                    # NEW: ensure there is a PDB for existing CIF results
+                    try:
+                        _convert_existing_af3(out_dir, mode="rank1")  # "all" if you want every ranked PDB
+                    except Exception as e:
+                        print(f"[warn] _convert_existing_af3 failed in skip-path: {e}")
                     continue
 
+            # ---------- RUN PATH ----------
             cmd = _cmd_for(ver, a3m_path, out_dir)
-            if args.run_job_mode == "sbatch" or (not inside_slurm and not args.allow_inline_af):
+            if args.run_job_mode == "sbatch" or (not inside_slurm and not getattr(args, "allow_inline_af", False)):
                 stem = f"{Path(a3m_path).stem}"
                 log_path = os.path.join(log_dir, f"run_AF{ver}_{pair_id}__{stem}.out")
                 _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
             else:
                 _run(cmd, "inline")
+                # NEW: after an inline run, immediately prepare artifacts needed for canonical export
+                if ver == "2":
+                    try:
+                        _postprocess_af2_run(out_dir)
+                    except Exception as e:
+                        print(f"[warn] _postprocess_af2_run failed after inline AF2: {e}")
+                elif ver == "3":
+                    try:
+                        _convert_existing_af3(out_dir, mode="rank1")
+                    except Exception as e:
+                        print(f"[warn] _convert_existing_af3 failed after inline AF3: {e}")
 
+    # ---------- CANONICAL EXPORT (flat files) ----------
+    # After running (or skipping) all jobs per version, create flat canonical copies.
+    for ver in versions:
+        _export_canonical_best_pdbs(pair_id, ver)
 
 
 def task_tree(pair_id: str, run_job_mode: str) -> None:

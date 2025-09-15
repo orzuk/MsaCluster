@@ -165,8 +165,8 @@ def evaluate_pred_cmap(
 def compute_cmap_metrics_for_pair(
     pair_id: str,
     *,
-    include_deep: bool = False,
-    thresh: float = 0.4,
+    include_deep: bool = True,   # ← default TRUE now
+    thresh: float = 0.4, # In angstrom
     sep_min: int = 6,
     index_tol: int = 0,
     symmetrize: bool = True,
@@ -208,10 +208,10 @@ def compute_cmap_metrics_for_pair(
         try:
             if not fname.endswith(".npy"):
                 continue
-            # shallow only by default; include deep if requested
-            if ("ShallowMsa" not in fname) and (not include_deep):
-                continue
+            # Skip only visualization artifacts; keep shallow and deep by default
             if ("visualization_map" in fname) or ("VizCmaps" in fname):
+                continue
+            if (not include_deep) and ("deep" in fname.lower()):
                 continue
 
             pred_path = os.path.join(pred_dir, fname)
@@ -240,8 +240,7 @@ def compute_cmap_metrics_for_pair(
                 thresh=thresh,
                 sep_min=sep_min,
                 index_tol=index_tol,
-                symmetrize=symmetrize,
-            )
+                symmetrize=symmetrize)
             metric_keys = [k for k in metrics if k.startswith(("t1_", "t2_", "common_", "uniq1_", "uniq2_"))]
             row = {"file": fname}
             row.update({k: metrics[k] for k in metric_keys})
@@ -265,6 +264,8 @@ if __name__ == "__main__":
     parser.add_argument("--thresh", type=float, default=0.4)
     parser.add_argument("--sep_min", type=int, default=6)
     parser.add_argument("--index_tol", type=int, default=0)
+    parser.add_argument("--include_deep", action="store_true", default=True,
+                        help="Score the deep map as well (default: True). Use --no-include_deep to disable.")
     args = parser.parse_args()
 
     if args.pair:
@@ -281,8 +282,7 @@ if __name__ == "__main__":
                 include_deep=args.include_deep,
                 thresh=args.thresh,
                 sep_min=args.sep_min,
-                index_tol=args.index_tol,
-            )
+                index_tol=args.index_tol)
             print("Saved metrics:", f"{DATA_DIR}/{subdir}/Analysis/df_cmap.csv")
         except Exception as err:
             print("[error pair]", subdir, "->", err)
