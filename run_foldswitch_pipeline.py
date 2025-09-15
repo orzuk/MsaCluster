@@ -17,6 +17,7 @@ from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pa
 from utils.phytree_utils import phytree_from_msa
 
 from Analysis.postprocess_unified import post_processing_analysis
+from TableResults.gen_html_table import gen_html_from_summary_table, gen_html_from_cluster_detailed_table,
 
 
 RUN_MODE_DESCRIPTIONS = {
@@ -795,11 +796,14 @@ def main():
     p.add_argument("--global_plots", action="store_true")
     p.add_argument("--plot_trees", action="store_true")
 
+    # Output html tables and pages
+    p.add_argument("--reports", default="none", choices=["none", "tables", "html", "all"],
+                   help="Post-run reporting: 'tables' builds CSV+HTML tables, 'html' builds per-pair pages, 'all' does both.")
+    p.add_argument("--html_pairs", nargs="+", default=["ALL"],
+                   help="Pairs to render per-pair HTML for (defaults to ALL).")
+
     # Pipeline-wide force flag
-    p.add_argument(
-        "--force_rerun",
-        default="FALSE",
-        choices=["TRUE", "FALSE"],
+    p.add_argument("--force_rerun", default="FALSE", choices=["TRUE", "FALSE"],
         help="If TRUE (only for --run_mode msaclust_pipeline), run every step regardless of outputs.")
 
     args = p.parse_args()
@@ -871,8 +875,26 @@ def main():
             raise ValueError(args.run_mode)
 
 
-    print("[done]", flush=True)
+    print("[done run+processing]", flush=True)
 
+    # ---- After all pairs processed, optionally build reports ----
+    if args.reports in ("tables", "all"):
+        # build global CSVs (summary + detailed)
+        # This will read existing per-pair CSVs (and only recompute if needed)
+        post_processing_analysis(force_rerun=False, pairs=None)
+
+        # turn CSVs into HTML tables
+        gen_html_from_summary_table()
+        gen_html_from_cluster_detailed_table()
+
+    if args.reports in ("html", "all"):
+        # per-pair HTML pages from the notebook
+        import subprocess, shlex
+        pairs_arg = " ".join(args.html_pairs)
+        cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
+        subprocess.run(cmd, shell=True, check=True)
+
+    print("[done html outputs]", flush=True)
 
 if __name__ == "__main__":
     main()
