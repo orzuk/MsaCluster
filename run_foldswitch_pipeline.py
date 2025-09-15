@@ -529,7 +529,7 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     if _is_windows():
         raise SystemExit("AlphaFold must run on Linux.")
 
-    af_ver = str(getattr(args, "af_ver", "2")).lower()  # "2", "3", or "both"
+    af_ver = str(getattr(args, "af_ver", "both")).lower()  # default: do both
 
     pair_dir = f"Pipeline/{pair_id}"
     foldA, foldB = pair_str_to_tuple(pair_id)
