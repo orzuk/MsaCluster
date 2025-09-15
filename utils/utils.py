@@ -1,15 +1,18 @@
 from config import *
 import argparse
+import sys, warnings
+
+if any(a in ("-h", "--help") for a in sys.argv) or ("--run_mode" in sys.argv and "help" in sys.argv):
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^Bio\.pairwise2$")
+
 from Bio.SeqUtils import seq1
 from Bio.PDB import PDBParser, PDBIO, Select
 from Bio import SeqIO
 import mdtraj as md
 import matplotlib.pyplot as plt
-from argparse import ArgumentParser
 from contact_map import ContactFrequency, ContactDifference
 from pathlib import Path
 from typing import List, Tuple, Union
-import sys
 
 import numpy as np
 import pandas as pd

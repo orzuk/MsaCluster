@@ -288,116 +288,67 @@ def extend(a, b, c, L, A, D):
     return c + sum([m * d for m, d in zip(m, d)])
 
 
-def load_seq_and_struct(cur_family_dir, pdbids, pdbchains):
+
+def load_seq_and_struct(cur_family_dir, pdbids, pdbchains, force_rerun: bool = False):
     """
-    Load sequence and structure for given PDB IDs and chains using Biopython.
-     Parameters:
-    - cur_family_dir: directory
-    - pdbids: PDB IDs
-    - pdbchains: Chain IDs
+    Load sequence and structure for given PDB IDs and chains; save:
+      - {cur_family_dir}/{pdbid}{chain}.fasta
+      - {cur_family_dir}/{pdbid}{chain}_pdb_contacts.npy
+    If both files already exist and force_rerun=False, skip recomputing.
 
-    Returns:
-    - Nothing, saves output to files
+    Args:
+        cur_family_dir (str): pair directory, e.g., Pipeline/<pair_id>
+        pdbids (list[str]): like ["1fzp","2frh"]
+        pdbchains (list[str]): like ["D","A"]
+        force_rerun (bool): if True, recompute files even if present
     """
-    print("Loading seq and struct for " + pdbids[0] + " , " + pdbids[1])
-    for fold in range(2):
-        if not os.path.exists(cur_family_dir):
-            print("Mkdir: " + cur_family_dir)
-            os.mkdir(cur_family_dir)
+    os.makedirs(cur_family_dir, exist_ok=True)
+    print(f"Loading seq and struct for {pdbids[0]} , {pdbids[1]}")
 
-        print(f"Get seq + struct for {pdbids[fold]}, out of {len(pdbids)}")
-        cif_file_path = rcsb.fetch(pdbids[fold], "pdb")  # Fetch CIF file path
-        print("Fetched pdbid=", pdbids[fold], " into file=", cif_file_path)
+    for i in range(2):
+        pdbid = pdbids[i]
+        chain = pdbchains[i]
+        fasta_file   = os.path.join(cur_family_dir, f"{pdbid}{chain}.fasta")
+        contact_file = os.path.join(cur_family_dir, f"{pdbid}{chain}_pdb_contacts.npy")
 
-        # Fetch the CIF and PDB file and save it locally
-        fetch_and_save_pdb_file(pdbids[fold], "pdb", cur_family_dir + "/" + pdbids[fold] + ".pdb")
-        fetch_and_save_pdb_file(pdbids[fold], "cif", cur_family_dir + "/" + pdbids[fold] + "_cif.pdb")
+        if (not force_rerun) and os.path.isfile(fasta_file) and os.path.isfile(contact_file):
+            print(f"[skip] load: {pdbid}{chain} → FASTA + truth contacts already exist")
+            continue
 
-        # Load the structure and convert it to a biotite-like AtomArray
-        atom_array = load_structure_to_atom_array(cur_family_dir + "/" + pdbids[fold] + ".pdb")
-
-#        struct = PDBFile.read(cur_family_dir + "/" + pdbids[fold] + ".pdb").get_structure(model=1)
-
-        struct = PDBFile.read(cur_family_dir + "/" + pdbids[fold] + ".pdb").get_structure(model=1)
-        print("Type of struct:", type(struct))
+        # Fetch PDB/CIF locally for reproducibility
         try:
-            print("struct.dtype:", struct.dtype)
-            print("struct.dtype.names:", struct.dtype.names)
-        except AttributeError as e:
-            print("No dtype or dtype.names attribute:", e)
-        print("Length/shape of struct:", len(struct))
-        print("First record in struct:", struct[0])
-        print("All keys in first record (if any):", getattr(struct[0], "dtype", "No dtype available"))
+            fetch_and_save_pdb_file(pdbid, "pdb", os.path.join(cur_family_dir, f"{pdbid}.pdb"))
+            fetch_and_save_pdb_file(pdbid, "cif", os.path.join(cur_family_dir, f"{pdbid}_cif.pdb"))
+        except Exception as e:
+            print(f"[warn] fetch failed for {pdbid}: {e}")
 
-#        struct = convert_atomarray_to_recarray(struct)
-#        print("Converted to recarray with fields:", struct.dtype.names)
+        # Read structure
+        struct = PDBFile.read(os.path.join(cur_family_dir, f"{pdbid}.pdb")).get_structure(model=1)
 
-        # Ensure that the structure is a recarray with named fields
-        # If Biotite AtomArray, use directly
-        # Check if Biotite AtomArray (modern version)
-        # --- Determine if this is already an AtomArray ---
-        print("==== DEBUG: Type of struct:", type(struct))
-
-        if isinstance(struct, AtomArray):
-            print("==== DEBUG: struct is a Biotite AtomArray")
-            print("Length of AtomArray:", struct.array_length())
-            print("First atom:", struct[0])
-            print("Calling get_residues on AtomArray...")
+        # Residue labels → 1-letter sequence (fallback to res_name if needed)
+        try:
             residue_starts, residues = get_residues(struct)
-        else:
-            print("==== DEBUG: struct is NOT an AtomArray")
-            print("Falling back to legacy path")
-            try:
-                struct = np.array(struct).view(np.recarray)
-                print("Successfully viewed as recarray")
-                print("Struct dtype names:", struct.dtype.names)
-                if struct.dtype.names is not None and all(
-                        k in struct.dtype.names for k in ["chain_id", "res_id", "ins_code"]):
-                    print("Sorting using lexsort")
-                    sort_order = np.lexsort((struct.ins_code, struct.res_id, struct.chain_id))
-                    struct = struct[sort_order]
-                else:
-                    print("Struct missing fields for sorting, skipping sort")
-            except Exception as e:
-                print("Failed to convert to recarray:", e)
-                raise
+            if getattr(residues, "dtype", None) is not None and residues.dtype.kind in "iuf":
+                residue_starts = np.asarray(residue_starts, dtype=int)
+                residues = struct.res_name[residue_starts]
+            seq_from_labels = "".join(aa_long_short.get(r, "X") for r in residues)
+        except Exception:
+            seq_from_labels = ""
 
-            print("Calling get_residues on recarray")
-            residue_starts, residues = get_residues(struct)
-        print("Extracted residues outside loop:", residues, residue_starts)
-
-        # If the extracted residues are numeric (i.e. not the expected three-letter codes),
-        # then patch them using the res_name field.
-        if residues.dtype.kind in "iuf":
-            residue_starts = np.array(residue_starts, dtype=int)
-            residues = struct.res_name[residue_starts]
-            print("Patched residues (from res_name):", residues)
-
-        # Now call your function that maps residues to one-letter codes
-        pdb_seq = "".join(aa_long_short.get(res, "X") for res in residues)
-        print("Extracted sequence:", pdb_seq, "len=", len(pdb_seq))
-
-        # Process structure
+        # Coordinates / contacts / sequence (authoritative)
         pdb_dists, pdb_contacts, pdb_seq, pdb_good_res_inds, cbeta_coord = \
-            read_seq_coord_contacts_from_pdb(struct, chain=pdbchains[fold])  # structure
-        print("pdb_seq=", pdb_seq, " len=", len(pdb_seq))
+            read_seq_coord_contacts_from_pdb(struct, chain=chain)
 
-        # Save sequence to FASTA file
-        fasta_file_name = os.path.join(
-            cur_family_dir, f"{pdbids[fold]}{pdbchains[fold]}.fasta"
-        )
-        with open(fasta_file_name, "w") as text_file:
-            text_file.writelines([
-                f"> {pdbids[fold].upper()}:{pdbchains[fold].upper()}\n",
-                pdb_seq
-            ])
+        # Prefer sequence extracted alongside the chain filter if it’s non-empty
+        seq_out = pdb_seq if pdb_seq else seq_from_labels
 
-        # Save contacts to a binary file
-        contact_file = os.path.join(
-            cur_family_dir, f"{pdbids[fold]}{pdbchains[fold]}_pdb_contacts.npy"
-        )
+        # Write FASTA
+        with open(fasta_file, "w") as fh:
+            fh.writelines([f">{pdbid.upper()}:{chain.upper()}\n", seq_out])
+        # Write contacts
         np.save(contact_file, pdb_contacts)
         print(f"Saved contacts to: {contact_file}")
+
 
 
 def read_seq_coord_contacts_from_pdb(

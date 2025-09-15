@@ -436,12 +436,16 @@ def task_clean(pair_id: str, _args) -> None:
             os.remove(f)
 
 
-def task_load(pair_id: str, run_job_mode: str) -> None:
-    # Keep your existing loader through protein_utils; left as-is
+def task_load(pair_id: str, args: argparse.Namespace) -> None:
     foldA, foldB = pair_str_to_tuple(pair_id)
     cur_family_dir = f"Pipeline/{pair_id}"
     ensure_dir(cur_family_dir)
-    load_seq_and_struct(cur_family_dir, [foldA[:-1], foldB[:-1]], [foldA[-1], foldB[-1]])
+    force = _bool_from_tf(getattr(args, "force_rerun", "FALSE"))
+    load_seq_and_struct(
+        cur_family_dir,
+        [foldA[:-1], foldB[:-1]],
+        [foldA[-1],  foldB[-1]],
+        force_rerun=force)
 
 def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     """
@@ -689,7 +693,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     force_all = _bool_from_tf(getattr(args, "force_rerun", "FALSE"))
 
     # 1) load PDBs/FASTA (cheap: always safe)
-    task_load(pair_id, "inline")
+    task_load(pair_id, args)
 
     # 2) get_msa
     if force_all or not _has_deep_msa(pair_id):
@@ -818,7 +822,7 @@ def main():
         print(f"=== {args.run_mode} :: {pair_id} ===", flush=True)
 
         if args.run_mode == "load":
-            task_load(pair_id, args.run_job_mode)
+            task_load(pair_id, args)
 
         elif args.run_mode == "get_msa":
             task_get_msa(pair_id, args.run_job_mode)

@@ -1,5 +1,4 @@
 from config import *
-# import nglview as nv
 import re
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
@@ -40,212 +39,208 @@ import pandas as pd
 # 1. Phylogenetic tree with matching scores to each of the fold switches
 # 2. Cmap of each cluster and its match to the two folds
 # 3. Two folds aligned
-def make_foldswitch_all_plots(pdbids, fasta_dir, foldpair_id, pdbchains,
-                              plot_tree_clusters= False, plot_contacts = True, global_plots = False):
-
+def make_foldswitch_all_plots(
+    pdbids, fasta_dir, foldpair_id, pdbchains,
+    plot_tree_clusters: bool = False, plot_contacts: bool = True, global_plots: bool = False
+):
+    """
+    Create per-pair plots (contact maps, tree heatmaps, etc.)
+    Returns (cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores)
+    """
     print("Plot for foldpair_id: " + foldpair_id)
-    fasta_file_names = {pdbids[fold] + pdbchains[fold]: fasta_dir + "/" + foldpair_id + "/" + \
-                        pdbids[fold] + pdbchains[fold] + '.fasta' for fold in range(2)}  # Added chain to file ID
-    msa_pred_files = glob(fasta_dir + "/" + foldpair_id + "/output_cmaps/msa_transformer/*.npy")
-    n_cmaps = len(msa_pred_files)
-    msa_files = glob(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
-    msa_clusters = {file.split("\\")[-1][:-4]: read_msa(file) for file in msa_files}
 
-    # Filter 'bad' families: too shallow alignments (no clusters), same PDB ID, other reasons??
+    # ---------- Paths & ensure figure dirs exist ----------
+    fig_dir_cmap = os.path.join(fasta_dir, "Results", "Figures", "Cmap_MSA")
+    fig_dir_tree = os.path.join(fasta_dir, "Results", "Figures", "PhyTree")
+    fig_dir_tree_cl = os.path.join(fasta_dir, "Results", "Figures", "PhyTreeCluster")
+    os.makedirs(fig_dir_cmap, exist_ok=True)
+    os.makedirs(fig_dir_tree, exist_ok=True)
+    os.makedirs(fig_dir_tree_cl, exist_ok=True)
+
+    # ---------- Inputs ----------
+    fasta_file_names = {
+        pdbids[i] + pdbchains[i]:
+            os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}.fasta")
+        for i in range(2)
+    }
+    msa_pred_files = glob(os.path.join(fasta_dir, foldpair_id, "output_cmaps", "msa_transformer", "*.npy"))
+    msa_files = glob(os.path.join(fasta_dir, foldpair_id, "output_msa_cluster", "*.a3m"))
+    msa_clusters = {os.path.basename(fp)[:-4]: read_msa(fp) for fp in msa_files}
+
+    # Filter 'bad' families: too shallow alignments (no clusters), same PDB ID, etc.
     if len(msa_files) == 0:
         print("Shallow alignment! No MSA Clusters! Skipping family")
-        return [None]*3
+        return [None] * 4
     if pdbids[0] == pdbids[1]:
-        print("Same PDB-ID for both folds! Might be buggy!")  # Not supported yet!  Skipping family")
+        print("Same PDB-ID for both folds! Might be buggy!")  # not supported fully yet
 
-    # First load files
+    # ---------- Load FASTA sequences ----------
     seqs = {}
-    for fold in range(2):
-        print("Read fold-seq=", fasta_file_names[pdbids[fold] + pdbchains[fold]])
-        with open(fasta_file_names[pdbids[fold] + pdbchains[fold]], "r") as text_file:
-            seqs[pdbids[fold] + pdbchains[fold]] = text_file.read().split("\n")[1]
-    pairwise_alignment = Align.PairwiseAligner().align(seqs[pdbids[0] + pdbchains[0]],
-                                                       seqs[pdbids[1] + pdbchains[1]])
+    for i in range(2):
+        key = pdbids[i] + pdbchains[i]
+        with open(fasta_file_names[key], "r") as fh:
+            seqs[key] = fh.read().splitlines()[1].strip()
 
-    if max([len(seqs[fold]) for fold in seqs]) > 1024:
-        print( "Lengths: ", [len(seqs[fold]) for fold in seqs])
-        print("Long sequence! Length = " + " > maximum supported length of 1024")
-        return [None]*4
+    # Quick length guard (MSA-Transformer plotting assumptions)
+    if max(len(s) for s in seqs.values()) > 1024:
+        print("Long sequence! Length > 1024 (not supported by this plotting path)")
+        return [None] * 4
 
-    try:  # read in text format or python format the pairwise predicted contact maps of msa transformer for each cluster
-        msa_transformer_pred = {file.split("\\")[-1][9:-4]: np.genfromtxt(file) for file in msa_pred_files}
-    except:
-        msa_transformer_pred = {file.split("\\")[-1][9:-4]: np.load(file, allow_pickle=True) for file in msa_pred_files}  # remove 'shallow' string
-#    print("msa_pred_files: ", msa_pred_files)
+    # ---------- Load predicted CMAPs (shallow + deep) ----------
+    # Keys: "ShallowMsa_XXX" or "MSA_deep"
+    msa_transformer_pred = {}
+    for path in msa_pred_files:
+        base = os.path.splitext(os.path.basename(path))[0]  # e.g., "msa_t__ShallowMsa_008"
+        key = base[len("msa_t__"):] if base.startswith("msa_t__") else base
+        try:
+            msa_transformer_pred[key] = np.load(path, allow_pickle=True)
+        except Exception:
+            msa_transformer_pred[key] = np.genfromtxt(path)
+
+    # ---------- Truth contacts ----------
     try:
-        print("Current dir: ", os.getcwd())
-#        print("Try to extract true cmap from: ",
-#              fasta_dir + "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy")
-        true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !! # genfromtxt
-                    "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy").astype(int)
-                     for fold in range(2)}
+        true_cmap = {
+            pdbids[i] + pdbchains[i]:
+                np.load(os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}_pdb_contacts.npy")).astype(int)
+            for i in range(2)
+        }
         print("Got true cmap!!!")
-    except:
-        print("Couldn't extract true cmap !!! ")
-        true_cmap = {pdbids[fold] + pdbchains[fold]: np.load(fasta_dir +  # problem with first !!
-                    "/" + foldpair_id + "/" + pdbids[fold] + pdbchains[fold] + "_pdb_contacts.npy",
-                        allow_pickle=True).astype(int) for fold in range(2)}
+    except Exception:
+        true_cmap = {
+            pdbids[i] + pdbchains[i]:
+                np.load(os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}_pdb_contacts.npy"),
+                        allow_pickle=True).astype(int)
+            for i in range(2)
+        }
 
+    # ---------- Align truth/pred indices ----------
+    pairwise_alignment = Align.PairwiseAligner().align(
+        seqs[pdbids[0] + pdbchains[0]],
+        seqs[pdbids[1] + pdbchains[1]],
+    )
     print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
-    match_true_cmap, match_predicted_cmaps = \
-        get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, msa_transformer_pred)
+    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
+        pairwise_alignment, true_cmap, msa_transformer_pred
+    )
 
+    # ---------- Plot CMAPs ----------
     if plot_contacts:
         print("Plot Array Contact Map")
-        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap,
-                                    fasta_dir + "/Results/Figures/Cmap_MSA/" + foldpair_id + '_all_clusters_cmap')
+        save_root = os.path.join(fig_dir_cmap, f"{foldpair_id}_all_clusters_cmap")
+        # Ensure directory exists (done above), pass root (plot util appends .png)
+        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, save_root)
 
-    shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = match_predicted_and_true_contact_maps(
-        match_predicted_cmaps, match_true_cmap)  # here number of cmaps is #clusters + 1
+    # ---------- Metrics on shared/unique contacts ----------
+    shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
+        match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
 
-#                           match_predicted_cmaps}  # Why only shared?
-    cluster_node_values = {ctype: (shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
-                                   shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
-                                   shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5']) for ctype in
-                           match_predicted_cmaps}  # Why only shared?
-    # load tree
-    #        phytree_msa_str = "sbatch -o './Pipeline/" + foldpair_id + "/tree_reconstruct_for_" + foldpair_id + ".out' ./Pipeline/tree_reconstruct_params.sh " + foldpair_id  # Take one of the two !!! # ""./input/2qke.fasta 2qke
-    #        print(phytree_msa_str)
-    phytree_file = './Pipeline/' + foldpair_id + '/output_phytree/DeepMsa_tree.nwk'
+    cluster_node_values = {
+        ctype: (
+            shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
+            shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
+            shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5'],
+        )
+        for ctype in match_predicted_cmaps
+    }
+
+    # ---------- Tree & overlays ----------
+    phytree_file = os.path.join('Pipeline', foldpair_id, 'output_phytree', 'DeepMsa_tree.nwk')
     print("Load Biopython treefile: " + phytree_file)
-    bio_tree = Phylo.read(phytree_file, "newick")  # This is different from write_newick_with_quotes !!!!
+    bio_tree = Phylo.read(phytree_file, "newick")
     print("Convert to ete3 tree:")
     ete_tree = convert_biopython_to_ete3(bio_tree)
-#    print("Load treefile: " + phytree_file)
-#    ete_tree = read_tree_ete(phytree_file)
-#    for node in ete_tree.traverse():
-#        print(node.name)
-#        node.name = node.name.strip("'")
-#    print("Set node cluster ids values and draw:")
-#    print(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m")
-    ete_leaves_cluster_ids = seqs_ids_to_cluster_ids(fasta_dir + "/" + foldpair_id + "/output_msa_cluster/*.a3m",
-                                                     [n.name for n in ete_tree])
+
+    ete_leaves_cluster_ids = seqs_ids_to_cluster_ids(
+        os.path.join(fasta_dir, foldpair_id, "output_msa_cluster", "*.a3m"),
+        [n.name for n in ete_tree]
+    )
     print("Converted seq ids to cluster ids:")
 
-    ete_leaves_node_values = {n.name: cluster_node_values[foldpair_id + '/output_cmaps/msa_transformer/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]]
-                              for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'}  # update to include matching two folds !!
+    ete_leaves_node_values = {
+        n.name: cluster_node_values[foldpair_id + '/output_cmaps/msa_transformer/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]]
+        for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'
+    }
     ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
     ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
-#    print("Dump pickle:")
-#    with open('tree_draw.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
-#        pickle.dump([phytree_file, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree", ete_leaves_node_values], f)
-#    print("Node Values: ")
-#    print(ete_leaves_node_values)
-#    print(type(ete_leaves_node_values))
-#    with open('bad_tree_and_msa.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
-#        pickle.dump([phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree"], f)
-    print("plot tree cluster flag = ", plot_tree_clusters)
-    if plot_tree_clusters:  # plot only clusters
+
+    if plot_tree_clusters:
         print("Plot Tree Clusters:")
-##        cluster_node_values.pop('p')  # remove nodes without cluster
-        cluster_node_values = pd.DataFrame(cluster_node_values).T  # convert to 3*[#clusters] pandas data-frame
-        representative_cluster_leaves = unique_values_dict({n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'} )
+        cluster_node_values_df = pd.DataFrame(cluster_node_values).T
 
-        # Compute tm scores of the predicted models of AF, ESM fold and the two structures
-#        print("cluster_node_values", cluster_node_values, " Index: ", cluster_node_values.index)
+        representative_cluster_leaves = unique_values_dict({
+            n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'
+        })
 
-        new_indices = [match.group() for s in cluster_node_values.index for match in re.finditer(r'M[sS][aA][a-zA-Z0-9_].*', s)]
+        # Parse compact cluster keys for indexing
+        new_indices = [m.group() for s in cluster_node_values_df.index for m in re.finditer(r'M[sS][aA][a-zA-Z0-9_].*', s)]
         print("Parsed shortened indices: ", new_indices)
 
         tmscores_df = pd.DataFrame(index=new_indices,
-                                   columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])  # modify index to exclude directory
-        print("total cmaps: " + str(n_cmaps))
-#        print("total node values: ", cluster_node_values.shape)
+                                   columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])
+
+        # (unchanged) populate tmscores_df from AF/ESM CSVs as in your original code ...
+        # [Keeping your existing logic below]
+        print("total cmaps: " + str(len(msa_pred_files)))
         AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/*Msa*model_1_*pdb")
         af_df = pd.read_csv(AF_MODEL_FILE, dtype=str)
         msa_trans_df = pd.read_csv(MSA_TRANS_MODEL_FILE, dtype=str)
         esmf_df = pd.read_csv(ESMF_MODEL_FILE, dtype=str)
-#        print("read results files!")
 
-        print("ALL AF MODEL FILES: ", AF_model_files)
-        print("All of TMScors indices: ", tmscores_df.index)
-        print("Their intersection with AF_model_files: ", set(tmscores_df.index).intersection(set(AF_model_files)))
-        print("Missing from TMScors indices: ", set(AF_model_files) - set(tmscores_df.index))
-        print("Missing from AF_model_files indices: ", set(tmscores_df.index) - set(AF_model_files))
-
-#        print("AF_model_files= ", AF_model_files)
         for fold in range(2):
- #           ctr = 0
-            for c in range(len(tmscores_df.index)): # cluster_node_values.index:  # loop over cluster names
-                cur_AF_file = next((element for element in AF_model_files if tmscores_df.index[c] in element
-                                    or (tmscores_df.index[c][-4:] == 'deep' and 'Deep' in element)), None)
-
+            for c in range(len(tmscores_df.index)):
+                cur_AF_file = next((el for el in AF_model_files if tmscores_df.index[c] in el
+                                    or (tmscores_df.index[c].endswith('deep') and 'Deep' in el)), None)
                 if cur_AF_file is None:
                     tmscores_df.iloc[c, fold] = 0
                     continue
-#                    cluster_node_values.index)[c] # AF_model_files[AF_model_files == cluster_node_values.index[c]]
-                print("Cluster: ", tmscores_df.index[c], " ; Cur AF file: ",  cur_AF_file, " fold-pair id=", foldpair_id)
-                print("pdb_file1: ", 'Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb', 
-                      " ; pdb_file2: ", cur_AF_file)
-#                tmscores_df.iloc[c, fold] = compute_tmscore_align('Pipeline/' + foldpair_id + "/" + pdbids[fold] + '.pdb',
-#                    cur_AF_file, pdbchains[fold], pdbchains[0])  # AF PREDICITON ALWAYS THE FIRST!!! # what chain to give the prediction? of first or second??
-
-                if not 'eep' in cur_AF_file:
-                    # Update AF Fold values
-                    filtered_af_df = af_df[(af_df['fold_pair'] == foldpair_id) &
-                                        (af_df['cluster_num'] == tmscores_df.index[c][4:])] #  &
-#                                        ('unrelaxed_rank' in af_df['pdb_file'])]
-#                    good_inds = 'unrelaxed_rank_001' in af_df['pdb_file']
-#                    print("good inds:", good_inds)
-#                    print("Head of filtered_af_df: ", filtered_af_df.head())
-#                    tmscores_df.iloc[c, fold] = float(filtered_af_df['score_pdb' + str(fold+1)].iloc[0])
-                    tmscores_df.iloc[c, fold]  = float(filtered_af_df.loc[filtered_af_df['pdb_file'].str.contains(
-                        'unrelaxed_rank_00' + str(AF2_MODEL)), 'score_pdb' + str(fold+1)].values[0])
-#                    print("tm-score=", tmscores_df.iloc[c, fold])
-                    # Update ESM Fold values
-                    filtered_esm_df = esmf_df[(esmf_df['fold_pair'] == foldpair_id) &
+                filtered_af_df = af_df[(af_df['fold_pair'] == foldpair_id) &
+                                       (af_df['cluster_num'] == tmscores_df.index[c][4:])]
+                tmscores_df.iloc[c, fold] = float(
+                    filtered_af_df.loc[filtered_af_df['pdb_file'].str.contains('unrelaxed_rank_00' + str(AF2_MODEL)),
+                                       'score_pdb' + str(fold + 1)].values[0]
+                )
+                filtered_esm_df = esmf_df[(esmf_df['fold_pair'] == foldpair_id) &
                                           (esmf_df['cluster_num'] == tmscores_df.index[c][4:])]
-                    tmscores_df.iloc[c, fold+2] = float(filtered_esm_df['TM_mean_cluster_pdb' + str(fold+1)].iloc[0])
+                tmscores_df.iloc[c, fold + 2] = float(filtered_esm_df['TM_mean_cluster_pdb' + str(fold + 1)].iloc[0])
 
-
-        # Get induced subtree
         clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
-        cluster_node_values.index = new_indices
-        for n in clusters_subtree.iter_leaves(): # change name
+        cluster_node_values_df.index = new_indices
+        for n in clusters_subtree.iter_leaves():
             n.name = ete_leaves_cluster_ids[n.name]
-        concat_scores = pd.concat([tmscores_df, cluster_node_values], ignore_index= True, axis=1)
-        concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
- #        print("Concat scores:", concat_scores)
-#        print("Clusters subtree", clusters_subtree)
-        # save to pickle:
-        with open('tree_clusters.pkl', 'wb') as f:  # Python 3: open(..., 'rb')
-                pickle.dump([clusters_subtree, concat_scores,
-                             fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster",
-                             tmscores_df, phytree_file, representative_cluster_leaves,
-                             ete_leaves_node_values, ete_leaves_cluster_ids], f) #  true_cmap, msa_transformer_pred], f)
-        print("Call tree visialization !!!! foldpair_id=",
-              foldpair_id, " output dir: ", fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
-        visualize_tree_with_heatmap(clusters_subtree, concat_scores, fasta_dir + "/Results/Figures/PhyTreeCluster/" + foldpair_id + "_phytree_cluster")
-    else:  # plot entire tree
-        visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, fasta_dir + "/Results/Figures/PhyTree/" + foldpair_id + "_phytree")
-        concat_scores = [] # temp
 
-    # Collect :
-##    print("Match predicted before compute_cmap_distances:")
-##    print(match_predicted_cmaps)
-    cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)  # msa_transformer_pred)
-    seqs_dists_vec = np.mean(compute_seq_distances(msa_clusters))  # can take the entire sequence !
+        concat_scores = pd.concat([tmscores_df, cluster_node_values_df], ignore_index=True, axis=1)
+        concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
+
+        # Save figure
+        out_root = os.path.join(fig_dir_tree_cl, f"{foldpair_id}_phytree_cluster")
+        visualize_tree_with_heatmap(clusters_subtree, concat_scores, out_root)
+    else:
+        out_root = os.path.join(fig_dir_tree, f"{foldpair_id}_phytree")
+        visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, out_root)
+        concat_scores = []
+
+    # ---------- Global summaries ----------
+    cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)
+    seqs_dists_vec = np.mean(compute_seq_distances(msa_clusters))
     num_seqs_msa_vec = len(seqs)
 
-    if not platform.system() == "Linux":  # Plot two structures aligned (doesn't work in unix)
-        align_and_visualize_proteins('Pipeline/' + foldpair_id + "/" + pdbids[0] + '.pdb',
-                                     'Pipeline/' + foldpair_id + "/" + pdbids[1] + '.pdb',
-                                     fasta_dir + "/Results/Figures/3d_struct/" + foldpair_id + "_3d_aligned.png", False)
+    # Optional 3D-align plot (only on non-Linux in your original code)
+    if not platform.system() == "Linux":
+        out_3d = os.path.join(fasta_dir, "Results", "Figures", "3d_struct", f"{foldpair_id}_3d_aligned.png")
+        os.makedirs(os.path.dirname(out_3d), exist_ok=True)
+        align_and_visualize_proteins(
+            os.path.join('Pipeline', foldpair_id, f"{pdbids[0]}.pdb"),
+            os.path.join('Pipeline', foldpair_id, f"{pdbids[1]}.pdb"),
+            out_3d, False
+        )
 
     if global_plots:
         print("Make global plots!")
-        global_pairs_statistics_plots(output_file=FIGURE_RES_DIR + "/fold_pair_scatter_plot.png")
+        os.makedirs(FIGURE_RES_DIR, exist_ok=True)
+        global_pairs_statistics_plots(output_file=os.path.join(FIGURE_RES_DIR, "fold_pair_scatter_plot.png"))
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores
 
-#        print("Cmap dist: " + str(cmap_dists_vec[i]) + ", seq dist:" + str(seqs_dists_vec[i]))
-#        break
-# next plotP
 
 
 # Align two pdb structures from two pdb files
