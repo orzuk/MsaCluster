@@ -17,7 +17,7 @@ from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pa
 from utils.phytree_utils import phytree_from_msa
 
 from Analysis.postprocess_unified import post_processing_analysis
-from TableResults.gen_html_table import gen_html_from_summary_table, gen_html_from_cluster_detailed_table,
+from TableResults.gen_html_table import gen_html_from_summary_table, gen_html_from_cluster_detailed_table
 
 
 RUN_MODE_DESCRIPTIONS = {
