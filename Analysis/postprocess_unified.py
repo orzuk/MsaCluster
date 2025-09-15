@@ -1,6 +1,5 @@
 # postprocess_unified.py
 import os, re, glob
-import subprocess
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -11,6 +10,7 @@ from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_
 
 from utils.utils import list_protein_pairs, pair_str_to_tuple
 from utils.align_utils import compute_tmscore_align
+PAIR_DIR = Path(DATA_DIR)
 
 
 def _cmap_csv_path(pair_id: str) -> str:
@@ -20,19 +20,20 @@ def _read_or_compute_cmap(pair_id: str, force: bool = False) -> pd.DataFrame:
     out_csv = _cmap_csv_path(pair_id)
     pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/msa_transformer"
 
+    # use cached CSV when present (unless forced)
     if (not force) and os.path.isfile(out_csv):
         return pd.read_csv(out_csv)
 
+    # need predictions to compute metrics
     if not os.path.isdir(pred_dir) or not any(f.endswith(".npy") for f in os.listdir(pred_dir)):
         print(f"[warn] No MSA-Transformer NPYs found at {pred_dir}; skipping CMAP metrics.")
         return pd.DataFrame()
 
-    # call existing analyzer for this one pair; it writes out_csv
-    subprocess.run(["python3", "./cmap_analysis.py", pair_id], check=True)
-    return pd.read_csv(out_csv)
+    # import the callable (local import avoids import cycles at module load time)
+    from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
+    return compute_cmap_metrics_for_pair(pair_id, include_deep=False, thresh=0.4, sep_min=6, index_tol=0)
 
 
-PAIR_DIR = Path(DATA_DIR)
 
 def _pair_dir(pair_id: str) -> Path:
     return PAIR_DIR / pair_id

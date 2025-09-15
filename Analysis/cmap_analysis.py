@@ -3,9 +3,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from tqdm import tqdm
-from Analysis.PlotUtils import *
 from config import *
-import pandas as pd
 from utils.utils import *
 from utils.align_utils import *
 import argparse
@@ -164,160 +162,130 @@ def evaluate_pred_cmap(
     return out
 
 
+def compute_cmap_metrics_for_pair(
+    pair_id: str,
+    *,
+    include_deep: bool = False,
+    thresh: float = 0.4,
+    sep_min: int = 6,
+    index_tol: int = 0,
+    symmetrize: bool = True,
+) -> pd.DataFrame:
+    """Compute CMAP precision/recall/F1/etc. for one pair; write df_cmap.csv and return the DataFrame."""
+    # Ensure tuple like ('1dzlA','5keqF') and derive chains / dirs
+    foldA, foldB = pair_str_to_tuple(pair_id)
+    chains = (foldA[-1], foldB[-1])
+    subdir = f"{foldA}_{foldB}"
+
+    # Sequences from truth PDBs (CA-only) + truth contact maps
+    seq1 = extract_protein_sequence(f"{DATA_DIR}/{subdir}/{foldA[:-1]}.pdb", chain=chains[0], ca_only=True)
+    seq2 = extract_protein_sequence(f"{DATA_DIR}/{subdir}/{foldB[:-1]}.pdb", chain=chains[1], ca_only=True)
+    cmap_pdb1, _ = pdb_to_contact_map(f"{DATA_DIR}/{subdir}/{foldA[:-1]}.pdb", chain=chains[0])
+    cmap_pdb2, _ = pdb_to_contact_map(f"{DATA_DIR}/{subdir}/{foldB[:-1]}.pdb", chain=chains[1])
+
+    # Align truths to a common NxN frame + mapping indices
+    cmap_aln_1, cmap_aln_2, (idx1, idx2) = align_cmaps_by_sequence(cmap_pdb1, seq1, cmap_pdb2, seq2, mode="standard")
+
+    # Predictions dir
+    pred_dir = f"{DATA_DIR}/{subdir}/output_cmaps/msa_transformer"
+    cmaps = sorted(os.listdir(pred_dir)) if os.path.isdir(pred_dir) else []
+    if not cmaps:
+        # Write an empty file so downstream consistently finds it
+        os.makedirs(f"{DATA_DIR}/{subdir}/Analysis", exist_ok=True)
+        df_empty = pd.DataFrame()
+        df_empty.to_csv(f"{DATA_DIR}/{subdir}/Analysis/df_cmap.csv", index=False)
+        return df_empty
+
+    truth1_aln = cmap_aln_1.astype(np.uint8)
+    truth2_aln = cmap_aln_2.astype(np.uint8)
+    n_common = truth1_aln.shape[0]
+    idx1 = np.asarray(idx1, dtype=int)
+    idx2 = np.asarray(idx2, dtype=int)
+    L1, L2 = len(seq1), len(seq2)
+
+    rows = []
+    for fname in tqdm(cmaps, disable=True):  # quiet when imported
+        try:
+            if not fname.endswith(".npy"):
+                continue
+            # shallow only by default; include deep if requested
+            if ("ShallowMsa" not in fname) and (not include_deep):
+                continue
+            if ("visualization_map" in fname) or ("VizCmaps" in fname):
+                continue
+
+            pred_path = os.path.join(pred_dir, fname)
+            pred_full = np.load(pred_path)
+            if pred_full.ndim != 2 or pred_full.shape[0] != pred_full.shape[1]:
+                continue
+
+            Np = pred_full.shape[0]
+            if Np == L1:
+                pred_common = pred_full[np.ix_(idx1, idx1)]
+            elif Np == L2:
+                pred_common = pred_full[np.ix_(idx2, idx2)]
+            elif Np == n_common:
+                pred_common = pred_full
+            else:
+                # size mismatch; skip
+                continue
+
+            if pred_common.shape[0] != n_common:
+                continue
+
+            metrics = evaluate_pred_cmap(
+                pred_map=pred_common,
+                truth1_bin=truth1_aln,
+                truth2_bin=truth2_aln,
+                thresh=thresh,
+                sep_min=sep_min,
+                index_tol=index_tol,
+                symmetrize=symmetrize,
+            )
+            metric_keys = [k for k in metrics if k.startswith(("t1_", "t2_", "common_", "uniq1_", "uniq2_"))]
+            row = {"file": fname}
+            row.update({k: metrics[k] for k in metric_keys})
+            rows.append(row)
+
+        except Exception as e:
+            print("[warn]", fname, "->", e)
+            continue
+
+    os.makedirs(f"{DATA_DIR}/{subdir}/Analysis", exist_ok=True)
+    df = pd.DataFrame(rows)
+    df.to_csv(f"{DATA_DIR}/{subdir}/Analysis/df_cmap.csv", index=False)
+    return df
+
+
 # --- replace your existing main with this ---
 if __name__ == "__main__":
-    # Parse optional CLI pair
     parser = argparse.ArgumentParser(description="CMAP analysis for one pair or all pairs")
     parser.add_argument("pair", nargs="?", help="Optional pair like 1dzlA_5keqF")
+    parser.add_argument("--include_deep", action="store_true", help="Score the deep map as well")
+    parser.add_argument("--thresh", type=float, default=0.4)
+    parser.add_argument("--sep_min", type=int, default=6)
+    parser.add_argument("--index_tol", type=int, default=0)
     args = parser.parse_args()
 
-    DEFAULT_PYCHARM_PAIR = "1dzlA_5keqF"
+    if args.pair:
+        pairs = [pair_str_to_tuple(args.pair)]
+    else:
+        pairs = list_protein_pairs()
 
-    if args.pair:  # explicit CLI pair
-        fold_pairs = [pair_str_to_tuple(args.pair)]
-        mode = "single-arg"
-    elif is_pycharm():  # running from PyCharm, no CLI arg
-        fold_pairs = [pair_str_to_tuple(DEFAULT_PYCHARM_PAIR)]
-        mode = "pycharm-default"
-    else:  # no arg, non-PyCharm → run all pairs
-        fold_pairs = list_protein_pairs()
-        mode = "all"
-
-    print(f"[cmap_analysis] Mode={mode} | total pairs={len(fold_pairs)}")
-
-    fold_pair_errors = []
-    for fold_pair in fold_pairs:
-        chains = (fold_pair[0][-1], fold_pair[1][-1])
-        # ensure tuple form like ('1dzlA','5keqF')
-        if isinstance(fold_pair, str):
-            fold_pair = pair_str_to_tuple(fold_pair)
-
-        fold_pair_subdir = f"{fold_pair[0]}_{fold_pair[1]}"
-        res = []
+    print(f"[cmap_analysis] total pairs={len(pairs)}")
+    for fold_pair in pairs:
+        subdir = f"{fold_pair[0]}_{fold_pair[1]}"
         try:
-            print("Set plot_tool for: ", fold_pair_subdir)
-            plot_tool = PlotTool(folder=DATA_DIR, fold_pair=fold_pair_subdir)
-
-            print("Extract sequences for: ", fold_pair_subdir)
-            seq1 = extract_protein_sequence(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[0][:-1]}.pdb",
-                                            chain=chains[0], ca_only=True)
-            seq2 = extract_protein_sequence(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[1][:-1]}.pdb",
-                                            chain=chains[1], ca_only=True)  # Add chain!
-
-            print("Compute contact maps: ", fold_pair_subdir)
-            cmap_pdb1, _ = pdb_to_contact_map(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[0][:-1]}.pdb",
-                                              chain=chains[0])
-            cmap_pdb2, _ = pdb_to_contact_map(f"{DATA_DIR}/{fold_pair_subdir}/{fold_pair[1][:-1]}.pdb",
-                                              chain=chains[1])
-
-            print(f"[debug] cmap sizes: n1={cmap_pdb1.shape[0]}, n2={cmap_pdb2.shape[0]}")
-            print(f"[debug] seq lengths: L1={len(seq1)}, L2={len(seq2)}")
-
-#            print("DEBUG SEQ ALIGNMENT: ", fold_pair_subdir)
-#            pair_alignment = get_align_indexes(seq1, seq2, mode="standard", debug=True)
-#            print("DEBUG SEQ ALIGNMENT: BLOSUM ", fold_pair_subdir)
-#            pair_alignment_blosum = get_align_indexes(seq1, seq2, mode="blosum", debug=True)
-
-            print("NEW!!! Align cmaps for: ", fold_pair_subdir)
-#            cmap_aligned_pdb1, cmap_aligned_pdb2 = align_and_resize_contact_maps(
-#                cmap_pdb1, cmap_pdb2, window_size=1, step_size=1)  # OLD!!!
-            cmap_aligned_pdb1, cmap_aligned_pdb2, (idx1, idx2) = align_cmaps_by_sequence(
-                cmap_pdb1, seq1, cmap_pdb2, seq2, mode="standard") #"standard") # 'blosum')
-
-            print("Get only cmaps for: ", fold_pair_subdir)
-            cmap_only_pdb1, cmap_only_pdb2 = get_only_cmaps(cmap_aligned_pdb1, cmap_aligned_pdb2)
-
-            # === NEW: metrics only, no visualization files ===
-            pred_dir = f"{DATA_DIR}/{fold_pair_subdir}/output_cmaps/msa_transformer"
-            cmaps = sorted(os.listdir(pred_dir))
-            print("Loop on cmaps for: ", fold_pair_subdir)
-            print("List of cmaps: ", cmaps)
-
-            # Aligned truths (same NxN already)
-            truth1_aln = cmap_aligned_pdb1.astype(np.uint8)
-            truth2_aln = cmap_aligned_pdb2.astype(np.uint8)
-            n_common = truth1_aln.shape[0]
-
-            # For mapping predictions onto the same common frame:
-            # idx1 are positions in seq1 that survived alignment (map to common frame)
-            # idx2 are positions in seq2 that survived alignment (map to common frame)
-            idx1 = np.asarray(idx1, dtype=int)
-            idx2 = np.asarray(idx2, dtype=int)
-            L1 = len(seq1)
-            L2 = len(seq2)
-
-            for fname in tqdm(cmaps):
-                try:
-                    # Only shallow predicted cmaps
-                    if not (fname.endswith(".npy") and "ShallowMsa" in fname):
-                        continue
-                    if "visualization_map" in fname or "VizCmaps" in fname or "deep" in fname:
-                        continue
-
-                    stem = os.path.splitext(os.path.basename(fname))[0]  # e.g., 'msa_t__ShallowMsa_000'
-                    m = re.search(r"ShallowMsa_(\d+)", stem)
-                    cluster = m.group(1) if m else "UNK"
-
-                    pred_path = os.path.join(pred_dir, fname)
-                    pred_full = np.load(pred_path)  # float or binary
-                    if pred_full.ndim != 2 or pred_full.shape[0] != pred_full.shape[1]:
-                        print("[warn]", fname, "-> prediction is not square, skipping")
-                        continue
-
-                    Np = pred_full.shape[0]
-                    # Map prediction to the same common aligned frame used for truth1_aln/truth2_aln
-                    if Np == L1:
-                        # prediction is on seq1 indexing -> take common positions idx1
-                        pred_common = pred_full[np.ix_(idx1, idx1)]
-                        src_seq = "seq1"
-                    elif Np == L2:
-                        # prediction is on seq2 indexing -> take common positions idx2
-                        pred_common = pred_full[np.ix_(idx2, idx2)]
-                        src_seq = "seq2"
-                    elif Np == n_common:
-                        # already on the common frame (unlikely, but handle it)
-                        pred_common = pred_full
-                        src_seq = "common"
-                    else:
-                        print("[warn]", fname, f"-> size {Np} does not match len(seq1)={L1}, len(seq2)={L2}, "
-                                               f"or common={n_common}; skipping")
-                        continue
-
-                    if pred_common.shape[0] != n_common:
-                        print("[warn]", fname, "-> mapped prediction still not NxN common; skipping")
-                        continue
-
-                    # Evaluate on the common frame against the two aligned truths
-                    # Evaluate
-                    metrics = evaluate_pred_cmap(
-                        pred_map=pred_common,
-                        truth1_bin=truth1_aln,
-                        truth2_bin=truth2_aln,
-                        thresh=0.4,  # used only if pred is probabilistic
-                        sep_min=6,  # ignore |i-j| < 6 (diagonal/near-diagonal)
-                        index_tol=0,  # 0 strict; 1–2 if you want “nearby” matches allowed
-                        symmetrize=True
-                    )
-
-                    # Keep metrics only (drop pred_source_seq, n, sep_min, index_tol, thresh)
-                    metric_keys = [k for k in metrics.keys()
-                                   if k.startswith(("t1_", "t2_", "common_", "uniq1_", "uniq2_"))]
-
-                    row = {"file": fname}  # keep just the filename for reference (optional)
-                    row.update({k: metrics[k] for k in metric_keys})
-                    res.append(row)
-
-
-                except Exception as e:
-                    print("[warn]", fname, "->", e)
-                    continue
-
-            # Save data-frame for each protein pair
-            os.makedirs(f"{DATA_DIR}/{fold_pair_subdir}/Analysis", exist_ok=True)
-            df_cmap = pd.DataFrame(res)
-            df_cmap.to_csv(f"{DATA_DIR}/{fold_pair_subdir}/Analysis/df_cmap.csv", index=False)
-            print("Saved metrics:", f"{DATA_DIR}/{fold_pair_subdir}/Analysis/df_cmap.csv", "| rows:", len(df_cmap))
-
+            compute_cmap_metrics_for_pair(
+                subdir,
+                include_deep=args.include_deep,
+                thresh=args.thresh,
+                sep_min=args.sep_min,
+                index_tol=args.index_tol,
+            )
+            print("Saved metrics:", f"{DATA_DIR}/{subdir}/Analysis/df_cmap.csv")
         except Exception as err:
-            print("[error pair]", fold_pair_subdir, "->", err)
-    print("Finish all MSA-Transformer CMAP Similarity computations!")
+            print("[error pair]", subdir, "->", err)
+
+    print("Finish all MSA-Transformer CMAP computations!")
+
