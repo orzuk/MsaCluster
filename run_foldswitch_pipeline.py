@@ -773,8 +773,9 @@ def main():
     # AlphaFold options
     p.add_argument("--allow_inline_af", action="store_true",
                    help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
-    p.add_argument("--af_ver", default="2", choices=["2", "3", "both"],
-                   help="Which AlphaFold to run for --run_mode run_AF")
+    p.add_argument("--af_ver", default="both", choices=["2", "3", "both"],
+                   help="Which AlphaFold to run for --run_mode run_AF")  # default do both AF2 and AF3
+
     p.add_argument(
         "--force_rerun_AF",
         default="FALSE",
