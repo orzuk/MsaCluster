@@ -407,11 +407,13 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
 
 # ------------------------- tasks -------------------------
 def task_clean(pair_id: str, args: argparse.Namespace) -> None:
-    import shutil
+    import shutil, re
+    from pathlib import Path
+
     dry   = _bool_from_tf(getattr(args, "clean_dry_run", "TRUE"))
     level = getattr(args, "clean_level", "derived")
-
     pair_dir = Path(f"Pipeline/{pair_id}")
+
     if not pair_dir.exists():
         print(f"[clean] skip (missing): {pair_id}")
         return
@@ -423,21 +425,40 @@ def task_clean(pair_id: str, args: argparse.Namespace) -> None:
         return
 
     # ===== derived-only (keep base inputs) =====
+    # Current outputs
     rm_dirs_current = [
-        "output_get_msa", "output_msa_cluster", "output_AF",
-        "output_cmaps", "output_esm_fold", "output_phytree",
-        "tmp_msa_files", "Analysis",
+        "output_get_msa",
+        "output_msa_cluster",
+        "output_AF",
+        "output_cmaps",
+        "output_esm_fold",
+        "output_phytree",
+        "Analysis",
+        # temp / logs
+        "tmp_msa_files",
+        "tmp_esmfold",
+        "jobs",
+        "logs",
     ]
-    # legacy junk from old runs
+    # Legacy outputs from old runs
     rm_dirs_legacy = [
-        "output_cmap_esm", "esm_cmap_output", "AF_preds",
-        "chain_pdb_files", "fasta_chain_files",
+        "output_cmap_esm",
+        "esm_cmap_output",
+        "AF_preds",
+        "chain_pdb_files",
+        "fasta_chain_files",
     ]
+    # Root-level junk logs (old & new)
     rm_globs = [
-        "run_pipeline_for_*.out", "RunAF.out", "CmapESM.out",
-        "*.out", "*.log", "*.err",
+        "run_pipeline_for_*.out",
+        "RunAF.out",
+        "CmapESM.out",
+        "*.out",
+        "*.log",
+        "*.err",
     ]
 
+    # remove known directories
     for d in rm_dirs_current + rm_dirs_legacy:
         p = pair_dir / d
         if p.exists():
@@ -445,6 +466,14 @@ def task_clean(pair_id: str, args: argparse.Namespace) -> None:
             if not dry:
                 shutil.rmtree(p, ignore_errors=True)
 
+    # remove any other tmp_* dirs at the top level
+    for p in pair_dir.glob("tmp_*"):
+        if p.is_dir():
+            print(f"[clean] rm -rf {p}")
+            if not dry:
+                shutil.rmtree(p, ignore_errors=True)
+
+    # remove root-level logs
     for pat in rm_globs:
         for f in pair_dir.glob(pat):
             if f.is_file():
@@ -453,22 +482,27 @@ def task_clean(pair_id: str, args: argparse.Namespace) -> None:
                     try: f.unlink()
                     except: pass
 
-    # also remove pair-specific figures
-    figs_root = Path("Pipeline/Results/Figures")
-    if figs_root.exists():
-        for sub in ["Cmap_MSA", "PhyTree", "PhyTreeCluster", "3d_struct"]:
-            subdir = figs_root / sub
-            if subdir.exists():
-                for f in subdir.glob(f"{pair_id}_*.png"):
-                    print(f"[clean] rm {f}")
-                    if not dry:
-                        try: f.unlink()
-                        except: pass
+    # prune stale FASTA files:
+    # keep only chain-specific FASTA (e.g., 2pbkB.fasta, 3njqA.fasta)
+    # remove unsuffixed FASTA (e.g., 2pbk.fasta) if chain FASTA exist
+    m = re.match(r"^([0-9a-zA-Z]{4})([A-Za-z])_([0-9a-zA-Z]{4})([A-Za-z])$", pair_id)
+    expected = set()
+    if m:
+        pdb1, ch1, pdb2, ch2 = m.groups()
+        expected = {f"{pdb1}{ch1}.fasta", f"{pdb2}{ch2}.fasta"}
+    fasta_files = list(pair_dir.glob("*.fasta"))
+    have_chain_fastas = expected and all((pair_dir / e).exists() for e in expected)
+    for f in fasta_files:
+        name = f.name
+        if have_chain_fastas and name not in expected:
+            print(f"[clean] rm stale FASTA: {f}")
+            if not dry:
+                try: f.unlink()
+                except: pass
 
     # keep base inputs:
-    #   Pipeline/<pair>/*.pdb, *_cif.pdb, *.fasta, *_pdb_contacts.npy
+    #   Pipeline/<pair>/*.pdb, *_cif.pdb, *.fasta (chain-specific), *_pdb_contacts.npy
     print(f"[clean] done: {pair_id}")
-
 
 
 def task_load(pair_id: str, args: argparse.Namespace) -> None:
