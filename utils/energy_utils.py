@@ -2,7 +2,7 @@ try:
     import pyrosetta
     PYROSETTA_AVAILABLE = True
 except ImportError:
-    print("Can't run pyrosetta in windows. Re-run in linux")
+    print("PyRosetta not installed; skipping energy/ΔG panels")
     PYROSETTA_AVAILABLE = False
 
 import csv
@@ -96,8 +96,6 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
         ctr = 0
         for pdb in pair:
             pdb_file = os.path.basename(pdb) # .replace(".pdb", f"{chain}.pdb")
-            log_file_path = "Pipeline/output_deltaG/pyrosetta_" + pdb_file[:-4] + ".log"
-#                print("pdb_file: ", pdb_file, " log_file: ", log_file_path)
             deltaG, residue_energies[ctr], chain_count = compute_deltaG_and_residue_energies(pdb) # , log_file_path=log_file_path, silent=True)
 
 

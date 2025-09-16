@@ -11,7 +11,7 @@ from copy import deepcopy
 
 
 from config import *
-from utils.utils import pair_str_to_tuple, ensure_dir, write_pair_pipeline_script
+from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.phytree_utils import phytree_from_msa
@@ -406,35 +406,69 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
 
 
 # ------------------------- tasks -------------------------
-def task_clean(pair_id: str, _args) -> None:
-    base = f"Pipeline/{pair_id}"
-    to_rm_dirs = [
-        "output_get_msa",
-        "output_msa_cluster",
-        "output_cmaps",
-        "output_cmap_esm",   # legacy
-        "output_esm_fold",
-        "output_AF",
-        "output_phytree",
-        "fasta_chain_files",
-        "AF_preds",          # legacy
+def task_clean(pair_id: str, args: argparse.Namespace) -> None:
+    import shutil
+    dry   = _bool_from_tf(getattr(args, "clean_dry_run", "TRUE"))
+    level = getattr(args, "clean_level", "derived")
+
+    pair_dir = Path(f"Pipeline/{pair_id}")
+    if not pair_dir.exists():
+        print(f"[clean] skip (missing): {pair_id}")
+        return
+
+    if level == "all":
+        print(f"[clean:ALL] rm -rf {pair_dir}")
+        if not dry:
+            shutil.rmtree(pair_dir, ignore_errors=True)
+        return
+
+    # ===== derived-only (keep base inputs) =====
+    rm_dirs_current = [
+        "output_get_msa", "output_msa_cluster", "output_AF",
+        "output_cmaps", "output_esm_fold", "output_phytree",
+        "tmp_msa_files", "Analysis",
     ]
-    to_rm_files = [
-        "_seed_both.a3m",
-        "run_AF_for_{p}.out".format(p=pair_id),
-        "get_msa_for_{p}.out".format(p=pair_id),
-        "cluster_msa_for_{p}.out".format(p=pair_id),
-        "_tmp_ShallowMsa_*.fasta",
+    # legacy junk from old runs
+    rm_dirs_legacy = [
+        "output_cmap_esm", "esm_cmap_output", "AF_preds",
+        "chain_pdb_files", "fasta_chain_files",
     ]
-    for d in to_rm_dirs:
-        path = os.path.join(base, d)
-        if os.path.exists(path):
-            print(f"[clean] rm -rf {path}")
-            subprocess.run(f"rm -rf {shlex.quote(path)}", shell=True, check=False)
-    for pattern in to_rm_files:
-        for f in glob(os.path.join(base, pattern)):
-            print(f"[clean] rm -f {f}")
-            os.remove(f)
+    rm_globs = [
+        "run_pipeline_for_*.out", "RunAF.out", "CmapESM.out",
+        "*.out", "*.log", "*.err",
+    ]
+
+    for d in rm_dirs_current + rm_dirs_legacy:
+        p = pair_dir / d
+        if p.exists():
+            print(f"[clean] rm -rf {p}")
+            if not dry:
+                shutil.rmtree(p, ignore_errors=True)
+
+    for pat in rm_globs:
+        for f in pair_dir.glob(pat):
+            if f.is_file():
+                print(f"[clean] rm {f}")
+                if not dry:
+                    try: f.unlink()
+                    except: pass
+
+    # also remove pair-specific figures
+    figs_root = Path("Pipeline/Results/Figures")
+    if figs_root.exists():
+        for sub in ["Cmap_MSA", "PhyTree", "PhyTreeCluster", "3d_struct"]:
+            subdir = figs_root / sub
+            if subdir.exists():
+                for f in subdir.glob(f"{pair_id}_*.png"):
+                    print(f"[clean] rm {f}")
+                    if not dry:
+                        try: f.unlink()
+                        except: pass
+
+    # keep base inputs:
+    #   Pipeline/<pair>/*.pdb, *_cif.pdb, *.fasta, *_pdb_contacts.npy
+    print(f"[clean] done: {pair_id}")
+
 
 
 def task_load(pair_id: str, args: argparse.Namespace) -> None:
@@ -767,21 +801,19 @@ def main():
                    choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer",
                             "run_esmfold", "run_AF", "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
-    p.add_argument("--foldpair_ids", nargs="+", default=["ALL"],
-                   help="e.g. 1dzlA_5keqF (default: ALL in data list)")
+    p.add_argument("--foldpair_ids", nargs="+", required=True,
+                   help="List of pair IDs (e.g. 1dzlA_5keqF), or the literal token ALL")
+
     p.add_argument("--run_job_mode", default="inline", choices=["inline", "sbatch"])
 
     # AlphaFold options
     p.add_argument("--allow_inline_af", action="store_true",
-                   help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
+                    help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
     p.add_argument("--af_ver", default="both", choices=["2", "3", "both"],
-                   help="Which AlphaFold to run for --run_mode run_AF")  # default do both AF2 and AF3
+                    help="Which AlphaFold to run for --run_mode run_AF")  # default do both AF2 and AF3
 
-    p.add_argument(
-        "--force_rerun_AF",
-        default="FALSE",
-        choices=["TRUE", "FALSE"],
-        help="Run new AF2/AF3 predictions even if outputs exist. Default FALSE (skip if found).")
+    p.add_argument("--force_rerun_AF", default="FALSE", choices=["TRUE", "FALSE"],
+                    help="Run new AF2/AF3 predictions even if outputs exist. Default FALSE (skip if found).")
 
     # ESMFold options
     p.add_argument("--cluster_sample_n", type=int, default=10)
@@ -806,6 +838,11 @@ def main():
     p.add_argument("--force_rerun", default="FALSE", choices=["TRUE", "FALSE"],
         help="If TRUE (only for --run_mode msaclust_pipeline), run every step regardless of outputs.")
 
+    p.add_argument("--clean_level", default="derived", choices=["derived", "all"],
+        help="derived: remove computed outputs but keep base inputs; all: remove the entire pair folder")
+    p.add_argument("--clean_dry_run", default="TRUE", choices=["TRUE", "FALSE"],
+        help="TRUE: only print what would be removed; FALSE: actually delete")
+
     args = p.parse_args()
     # allow: python run_foldswitch_pipeline.py --run_mode help
     if args.run_mode == "help":
@@ -817,9 +854,9 @@ def main():
     # resolve list of pairs
     if args.foldpair_ids == ["ALL"]:
         # read the same list your current script reads
-        with open("data/foldswitch_PDB_IDs_full.txt", "r") as f:
-            raw = [line.rstrip("\n") for line in f if line.strip()]
-        foldpairs = [s.replace("\t", "_") for s in raw]
+#        with open("data/foldswitch_PDB_IDs_full.txt", "r") as f:
+#            raw = [line.rstrip("\n") for line in f if line.strip()]
+        foldpairs = list_protein_pairs() # [s.replace("\t", "_") for s in raw]
     else:
         foldpairs = args.foldpair_ids
 
