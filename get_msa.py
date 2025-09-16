@@ -47,34 +47,39 @@ def main():
     with open(seed_a3m, "r") as fh:
         a3m_lines = fh.read().splitlines()
 
-    def _make_deep(jobname: str, seq: str):
-        try:
-            tup = get_msa_and_templates(
-                query_sequences=seq,
-                jobname=jobname,
-                result_dir=result_dir,
-                use_templates=False,
-                custom_template_path="",
-                pair_mode="",
-                msa_mode="mmseqs2_uniref_env",
-                a3m_lines=a3m_lines,  # works on builds that accept it
-            )
-        except TypeError:
-            tup = get_msa_and_templates(
-                query_sequences=seq,
-                jobname=jobname,
-                result_dir=result_dir,
-                use_templates=False,
-                custom_template_path="",
-                pair_mode="",
-                msa_mode="mmseqs2_uniref_env",
-            )
-        unpaired_msa, paired_msa, quniq, qcard, _ = tup
-        msa = msa_to_str(unpaired_msa, paired_msa, quniq, qcard)
-        (result_dir / f"{jobname}.a3m").write_text(msa)
 
-    _make_deep(f"DeepMsa_{foldA}", seqA)
-    _make_deep(f"DeepMsa_{foldB}", seqB)
+    # ----- ONE combined MSA for the PAIR -----
+    jobname = "DeepMsa"
+    try:
+        tup = get_msa_and_templates(
+            query_sequences=[seqA, seqB],       # <- both chains at once
+            jobname=jobname,
+            result_dir=result_dir,
+            use_templates=False,
+            custom_template_path="",
+            pair_mode="unpaired_paired",        # "paired" also OK; this keeps unpaired too
+            msa_mode="mmseqs2_uniref_env",
+            a3m_lines=a3m_lines,                # some builds accept seed lines
+        )
+    except TypeError:
+        # Older colabfold versions don’t support a3m_lines param
+        tup = get_msa_and_templates(
+            query_sequences=[seqA, seqB],
+            jobname=jobname,
+            result_dir=result_dir,
+            use_templates=False,
+            custom_template_path="",
+            pair_mode="unpaired_paired",
+            msa_mode="mmseqs2_uniref_env",
+        )
+
+    unpaired_msa, paired_msa, q_unique, q_cardinality, _ = tup
+    msa_txt = msa_to_str(unpaired_msa, paired_msa, q_unique, q_cardinality)
+
+    out_path = result_dir / f"{jobname}.a3m"      # -> Pipeline/<pair>/output_get_msa/DeepMsa.a3m
+    out_path.write_text(msa_txt)
+    print(f"[get_msa] wrote {out_path} (len={len(msa_txt)} chars)")
+
 
 if __name__ == "__main__":
     main()
