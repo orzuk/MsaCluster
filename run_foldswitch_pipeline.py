@@ -602,9 +602,12 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
 
 
 def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
+    # Use the *current* Python interpreter so the same venv is used downstream
+    py  = shlex.quote(sys.executable)
+    pid = shlex.quote(pair_id)
     cmd = (
-        f"bash -lc 'cd Pipeline/{pair_id} && "
-        f"python3 ../../ClusterMSA_moriah.py "
+        f"bash -lc 'cd Pipeline/{pid} && "
+        f"{py} ../../ClusterMSA_moriah.py "
         f"--keyword ShallowMsa "
         f"-i output_get_msa/DeepMsa.a3m "
         f"-o output_msa_cluster'"
@@ -810,13 +813,58 @@ def task_deltaG(pair_id: str) -> None:
     compute_global_and_residue_energies(pdb_pair, [pair_id], out_dir)
 
 
-def task_postprocess(pair_id: str | None, args) -> None:
-    pairs = None
-    if pair_id:
-        pairs = [pair_id]
-    force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
-    print(f"[postprocess] pairs={pairs or 'ALL'} | force_rerun={force}")
-    post_processing_analysis(force_rerun=force, pairs=pairs)
+def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
+    """
+    Unified post-processing/reports:
+      1) per-pair postprocess_unified (df_af/df_cmap/df_esm etc.)
+      2) global CSVs (summary + detailed) and their HTML tables
+      3) per-pair HTML pages
+    Controlled by --reports: none | tables | html | all
+    Safe to run incrementally.
+    """
+    # 1) Per-pair metrics
+    try:
+        from Analysis.postprocess_unified import post_processing_analysis
+        force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
+        post_processing_analysis(force_rerun=force, pairs=foldpairs)  # pass list, or None for discover-all
+    except Exception as e:
+        print(f"[postprocess] WARN post_processing_analysis: {e}")
+
+    # 2) Global CSVs + HTML tables
+    if args.reports in ("tables", "all"):
+        try:
+            from TableResults.summary_table import collect_summary_tables
+            from config import DATA_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE
+            collect_summary_tables(DATA_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE)
+        except Exception as e:
+            print(f"[reports] WARN collect_summary_tables: {e}")
+
+        try:
+            from TableResults.gen_html_table import (
+                gen_html_from_summary_table,
+                gen_html_from_cluster_detailed_table,  # keep your current function name
+            )
+            gen_html_from_summary_table()
+        except Exception as e:
+            print(f"[reports] WARN gen_html_from_summary_table: {e}")
+
+        try:
+            gen_html_from_cluster_detailed_table()
+        except Exception as e:
+            print(f"[reports] NOTE cluster-detailed HTML skipped: {e}")
+
+    # 3) Per-pair HTML notebook pages
+    if args.reports in ("html", "all"):
+        import subprocess, shlex, sys
+        try:
+            pairs_arg = " ".join(args.html_pairs)  # supports 'ALL' or explicit list
+            cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
+            subprocess.run(cmd, shell=True, check=True)
+        except Exception as e:
+            print(f"[reports] WARN per-pair HTML generation: {e}")
+
+    print("[postprocess] done.", flush=True)
+
 
 # All Pipeline
 def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
@@ -934,6 +982,7 @@ def main():
     p.add_argument("--html_pairs", nargs="+", default=["ALL"],
                    help="Pairs to render per-pair HTML for (defaults to ALL).")
 
+
     # Pipeline-wide force flag
     p.add_argument("--force_rerun", default="FALSE", choices=["TRUE", "FALSE"],
         help="If TRUE (only for --run_mode msaclust_pipeline), run every step regardless of outputs.")
@@ -1043,31 +1092,16 @@ def main():
         else:
             raise ValueError(args.run_mode)
 
-    # If we only submitted jobs, do not try to build reports yet.
+
+    # If we only submitted per-pair jobs, don’t build reports now
     if args.run_mode == "msaclust_pipeline" and args.run_job_mode == "sbatch":
         print("[submit-only] Per-pair jobs have been submitted. Run reports later.", flush=True)
         return
-    else:
-        print("[done run+processing]", flush=True)
 
-    # ---- After all pairs processed, optionally build reports ----
-    if args.reports in ("tables", "all"):
-        # build global CSVs (summary + detailed)
-        # This will read existing per-pair CSVs (and only recompute if needed)
-        post_processing_analysis(force_rerun=False, pairs=None)
-
-        # turn CSVs into HTML tables
-        gen_html_from_summary_table()
-        gen_html_from_cluster_detailed_table()
-
-    if args.reports in ("html", "all"):
-        # per-pair HTML pages from the notebook
-        import subprocess, shlex
-        pairs_arg = " ".join(args.html_pairs)
-        cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
-        subprocess.run(cmd, shell=True, check=True)
-
-    print("[done html outputs]", flush=True)
+    # Otherwise build whatever the user asked for
+    if args.reports != "none":
+        task_postprocess(foldpairs, args)
+        print("[done html outputs]", flush=True)
 
 if __name__ == "__main__":
     main()

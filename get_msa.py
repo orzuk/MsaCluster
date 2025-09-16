@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 
 from colabfold.batch import get_msa_and_templates, msa_to_str
 
+
 def _ungap(s: str) -> str:
     return (s or "").replace("-", "").replace(".", "").strip()
 
