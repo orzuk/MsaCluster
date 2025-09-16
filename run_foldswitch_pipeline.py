@@ -897,6 +897,9 @@ def main():
     for pair_id in foldpairs:
         print(f"=== {args.run_mode} :: {pair_id} ===", flush=True)
 
+        if pair_id is tuple:  # convert format
+            pair_id = f"{pair_id[0]}_{pair_id[1]}"
+
         if args.run_mode == "load":
             task_load(pair_id, args)
 
