@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import List, Tuple
 from copy import deepcopy
+import shutil
 
 
 from config import *
@@ -37,7 +38,61 @@ RUN_MODE_DESCRIPTIONS = {
 
 # ------------------------- helpers -------------------------
 
-import re, shutil
+
+def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
+    """
+    Submit ONE Slurm job that runs the full pipeline for a single pair INLINE.
+    This avoids nested sbatch and lets the top-level launcher submit many jobs at once.
+    """
+    from pathlib import Path
+    import shlex
+
+    # Logs per pair
+    jobs_dir = Path(f"Pipeline/{pair_id}/jobs")
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    log = jobs_dir / f"msaclust_{pair_id}.out"
+
+    # build the wrapped python command that runs the full pipeline INLINE
+    py = shlex.quote(sys.executable)  # same interpreter
+    script = shlex.quote(Path(__file__).resolve().as_posix())
+    # Propagate the knobs you care about; force INLINE inside the job
+    cmd = (
+        f"{py} {script} "
+        f"--run_mode msaclust_pipeline "
+        f"--foldpair_ids {shlex.quote(pair_id)} "
+        f"--run_job_mode inline "
+        f"--af_ver {shlex.quote(getattr(args, 'af_ver','both'))} "
+        f"--esm_model {shlex.quote(getattr(args, 'esm_model','both') or 'both')} "
+        f"--force_rerun {shlex.quote(getattr(args, 'force_rerun','FALSE'))} "
+    )
+    # Optional toggles you may want to carry through:
+    if getattr(args, "global_plots", False):    cmd += " --global_plots"
+    if getattr(args, "plot_trees",  False):     cmd += " --plot_trees"
+
+    # sbatch resources
+    gres = getattr(args, "sbatch_gres", "gpu:1")
+    cpus = int(getattr(args, "sbatch_cpus", 8))
+    mem = getattr(args, "sbatch_mem", "40G")
+    time = getattr(args, "sbatch_time", "24:00:00")
+    part = getattr(args, "sbatch_partition", None)
+    cons = getattr(args, "sbatch_constraint", None)
+    acct = getattr(args, "sbatch_account", None)
+    qos = getattr(args, "sbatch_qos", None)
+    mail = getattr(args, "sbatch_mail", None)
+    mtyp = getattr(args, "sbatch_mail_type", None)
+
+    sbatch_opts = f"--gres={gres} --cpus-per-task={cpus} --mem={mem} --time={time}"
+    if part: sbatch_opts += f" -p {shlex.quote(part)}"
+    if cons: sbatch_opts += f" --constraint={shlex.quote(cons)}"
+    if acct: sbatch_opts += f" -A {shlex.quote(acct)}"
+    if qos:  sbatch_opts += f" --qos={shlex.quote(qos)}"
+    if mail: sbatch_opts += f" --mail-user={shlex.quote(mail)}"
+    if mtyp: sbatch_opts += f" --mail-type={shlex.quote(mtyp)}"
+
+    jobname = f"msaclust_{pair_id}"
+    sb = f"sbatch {sbatch_opts} -J {shlex.quote(jobname)} -o {shlex.quote(str(log))} --wrap {shlex.quote(cmd)}"
+    _run(sb, "sbatch")
+
 
 def _find_best_af2_pdb(out_dir: str) -> str | None:
     """
@@ -637,7 +692,18 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
         return
 
     inside_slurm = _in_slurm_session()
-    sbatch_opts = "--gres=gpu:a100:1 --cpus-per-task=8 --mem=40G --time=24:00:00"
+
+    # New (respect CLI defaults)
+    gres = getattr(args, "sbatch_gres", "gpu:1")
+    cpus = int(getattr(args, "sbatch_cpus", 8))
+    mem = getattr(args, "sbatch_mem", "40G")
+    time = getattr(args, "sbatch_time", "24:00:00")
+    part = getattr(args, "sbatch_partition", None)
+    cons = getattr(args, "sbatch_constraint", None)
+    sbatch_opts = f"--gres={gres} --cpus-per-task={cpus} --mem={mem} --time={time}"
+    if part: sbatch_opts += f" -p {shlex.quote(part)}"
+    if cons: sbatch_opts += f" --constraint={shlex.quote(cons)}"
+
 
     def _cmd_for(ver: str, a3m_path: str, out_dir: str) -> str:
         if ver == "2":
@@ -877,6 +943,29 @@ def main():
     p.add_argument("--clean_dry_run", default="TRUE", choices=["TRUE", "FALSE"],
         help="TRUE: only print what would be removed; FALSE: actually delete")
 
+    # Slurm resource knobs for per-pair jobs (defaults safe for your cluster)
+    p.add_argument("--sbatch_gres", default="gpu:1",
+                   help="Slurm --gres for per-pair job (e.g., gpu:1 or gpu:a100:1)")
+    p.add_argument("--sbatch_cpus", type=int, default=8,
+                   help="Slurm --cpus-per-task for per-pair job")
+    p.add_argument("--sbatch_mem", default="40G",
+                   help="Slurm --mem for per-pair job")
+    p.add_argument("--sbatch_time", default="24:00:00",
+                   help="Slurm --time for per-pair job")
+    p.add_argument("--sbatch_partition", default=None,
+                   help="Optional Slurm -p/--partition")
+    p.add_argument("--sbatch_constraint", default=None,
+                   help="Optional Slurm --constraint (e.g., a100, v100)")
+    p.add_argument("--sbatch_account", default=None,
+                   help="Optional Slurm -A/--account")
+    p.add_argument("--sbatch_qos", default=None,
+                   help="Optional Slurm --qos")
+    p.add_argument("--sbatch_mail", default=None,
+                   help="Optional --mail-user email for notifications")
+    p.add_argument("--sbatch_mail_type", default=None,
+                   help="Optional --mail-type (e.g., END,FAIL,ALL)")
+
+
     args = p.parse_args()
     # allow: python run_foldswitch_pipeline.py --run_mode help
     if args.run_mode == "help":
@@ -943,13 +1032,23 @@ def main():
             task_clean(pair_id, args)
 
         elif args.run_mode == "msaclust_pipeline":
-            task_msaclust_pipeline(pair_id, args)
+            if args.run_job_mode == "sbatch":
+                # Submit one Slurm job per pair; each job runs the whole pipeline inline.
+                _submit_msaclust_pair_job(pair_id, args)
+            else:
+                # Run the full pipeline inline for this pair (exactly as before)
+                task_msaclust_pipeline(pair_id, args)
+
 
         else:
             raise ValueError(args.run_mode)
 
-
-    print("[done run+processing]", flush=True)
+    # If we only submitted jobs, do not try to build reports yet.
+    if args.run_mode == "msaclust_pipeline" and args.run_job_mode == "sbatch":
+        print("[submit-only] Per-pair jobs have been submitted. Run reports later.", flush=True)
+        return
+    else:
+        print("[done run+processing]", flush=True)
 
     # ---- After all pairs processed, optionally build reports ----
     if args.reports in ("tables", "all"):
