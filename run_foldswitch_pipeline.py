@@ -2,7 +2,7 @@
 import argparse
 import subprocess
 import shlex
-import sys, os, warnings
+import sys, os, warnings, re
 from glob import glob
 import json
 from pathlib import Path
@@ -11,7 +11,6 @@ from copy import deepcopy
 import shutil
 import numpy as np
 import pandas as pd
-import shutil
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script
@@ -691,11 +690,6 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
     Run CCMpred on DeepMsa and on every ShallowMsa_XXX in output_msa_cluster.
     Outputs: Pipeline/<pair>/output_cmaps/ccmpred/<tag>.ccmpred.npy (APC-corrected)
     """
-    import os, re, shlex, subprocess
-    from pathlib import Path
-    from utils.msa_utils import load_fasta  # already present in your repo
-    from utils.protein_utils import read_msa
-    import numpy as np
 
     pair_dir = Path(f"Pipeline/{pair_id}")
     out_dir = pair_dir / "output_cmaps" / "ccmpred"
@@ -993,8 +987,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
 
         # After building the HTML tables, mirror the main table to repo root for GitHub Pages
         try:
-            import shutil, os
-            from config import MAIN_DIR, TABLES_RES
             src = os.path.join(TABLES_RES, "table.html")
             dst = os.path.join(MAIN_DIR, "table.html")
             if os.path.isfile(src):
@@ -1124,11 +1116,23 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
 
     # 8) after task_af(...) and cmap/esm steps in task_msaclust_pipeline
     try:
-        from Analysis.postprocess_unified import post_processing_analysis
         # compute metrics just for this pair; will be skipped later unless --force_rerun_postprocess TRUE
         post_processing_analysis(force_rerun=False, pairs=[pair_id])
     except Exception as e:
         print(f"[postprocess-inline] WARN: {e}")
+
+    # 9) ----- OPTIONAL: per-pair HTML (inside the same sbatch job) -----
+    if _bool_from_tf(getattr(args, "per_pair_html", "TRUE")):
+        print("[pipeline] html → running (per-pair)")
+        env = _jupyter_env_for_scratch()  # keep Jupyter caches off $HOME on the node
+        # Run the dedicated generator on just this pair
+        cmd = (
+            f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py "
+            f"{shlex.quote(pair_id)} --kernel {shlex.quote(getattr(args, 'per_pair_kernel', 'python3'))}"
+        )
+        subprocess.run(cmd, shell=True, check=True, env=env)
+    else:
+        print("[pipeline] html → skip (per-pair HTML disabled)")
 
 
 # ------------------------- CLI / main -------------------------
@@ -1173,6 +1177,8 @@ def main():
     # Post-processing options, computing metrics
     p.add_argument("--postprocess", default="FALSE", help="If TRUE, run post-processing after the selected task(s).")
     p.add_argument("--force_rerun_postprocess", default="FALSE", help="If TRUE, recompute per-pair caches.")
+    p.add_argument("--per_pair_html", default="TRUE")
+    p.add_argument("--per_pair_kernel", default="python3")
 
     # Plotting
     p.add_argument("--global_plots", action="store_true")
