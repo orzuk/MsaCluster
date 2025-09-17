@@ -992,12 +992,35 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     # 3) Per-pair HTML notebook pages
     if args.reports in ("html", "all"):
         try:
-            pairs_arg = " ".join(args.html_pairs)  # supports 'ALL' or explicit list
-            cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
-            subprocess.run(cmd, shell=True, check=True, env=_jupyter_env_for_scratch())
+            # Decide which pairs to try
+            if args.html_pairs == ["ALL"]:
+                candidates = [
+                    p if isinstance(p, str) else f"{p[0]}_{p[1]}"
+                    for p in (foldpairs if isinstance(foldpairs, list) else [foldpairs])
+                ]
+            else:
+                candidates = [
+                    p if isinstance(p, str) else f"{p[0]}_{p[1]}"
+                    for p in args.html_pairs
+                ]
 
+            # Keep only pairs that already have per-pair postprocess outputs
+            ready = []
+            for p in candidates:
+                if os.path.isfile(f"Pipeline/{p}/Analysis/df_af.csv"):
+                    ready.append(p)
+                else:
+                    print(f"[html] skip {p}: missing Pipeline/{p}/Analysis/df_af.csv")
+
+            if not ready:
+                print("[html] no ready pairs; skipping notebook generation")
+            else:
+                pairs_arg = " ".join(ready)
+                cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
+                subprocess.run(cmd, shell=True, check=True, env=_jupyter_env_for_scratch())
         except Exception as e:
             print(f"[reports] WARN per-pair HTML generation: {e}")
+
 
     print("[postprocess] done.", flush=True)
 
@@ -1231,9 +1254,6 @@ def main():
         elif args.run_mode == "compute_deltaG":
             task_deltaG(pair_id)
 
-        elif args.run_mode == "postprocess":
-            task_postprocess(pair_id, args)             # Allow optional single-pair positional arg the same way other modes do
-
         elif args.run_mode == "plot":
             task_plot(pair_id, args)
 
@@ -1249,9 +1269,14 @@ def main():
                 # Run the full pipeline inline for this pair (exactly as before)
                 task_msaclust_pipeline(pair_id, args)
 
-
         else:
             raise ValueError(args.run_mode)
+
+    # --- After the loop ---
+    if args.run_mode == "postprocess":
+        # Pass the full list so the function can filter to pairs that are ready
+        task_postprocess(foldpairs, args)
+        return  # or sys.exit(0)
 
 
     # If we only submitted per-pair jobs, don’t build reports now
