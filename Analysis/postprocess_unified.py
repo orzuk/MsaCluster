@@ -63,25 +63,38 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
 
     pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
     rows = []
-    # find any PDB produced by AF2/AF3
-    for pred in glob.glob(str(_pair_dir(pair_id) / "output_AF" / "**" / "*.pdb"), recursive=True):
-        name = os.path.basename(pred)
-        # capture model type & cluster when possible
-        m = re.search(r"(DeepMsa|ShallowMsa_\d+)", pred)
-        cluster = m.group(1) if m else "UNK"
-        model = "AF"
-        # TM to both truths
-        tm1 = compute_tmscore_align(pdb1, pred, chain2=None)
-        tm2 = compute_tmscore_align(pdb2, pred, chain2=None)
-        rows.append({"fold_pair": pair_id, "model": model, "cluster_num": cluster,
-                     "name": name, "pdb_path": pred,
-                     "TMscore_fold1": tm1, "TMscore_fold2": tm2})
+
+    # ONLY canonical top-level PDBs:
+    for ver in ("AF2", "AF3"):
+        top = _pair_dir(pair_id) / "output_AF" / ver
+        if not top.is_dir():
+            continue
+        for pred in sorted(top.glob("*.pdb")):  # <-- no recursion
+            name = pred.name.replace(".pdb", "")
+            # cluster: DeepMsa or ShallowMsa_###
+            m = re.search(r"(DeepMsa|ShallowMsa_\d+)", name)
+            cluster = m.group(1) if m else "UNK"
+
+            tm1 = compute_tmscore_align(pdb1, str(pred), chain2=None)
+            tm2 = compute_tmscore_align(pdb2, str(pred), chain2=None)
+
+            rows.append({
+                "fold_pair": pair_id,
+                "model": ver,  # AF2 vs AF3
+                "cluster_num": cluster,
+                "name": name,  # short
+                "TMscore_fold1": tm1,
+                "TMscore_fold2": tm2
+            })
+
     df = pd.DataFrame(rows)
     if len(df):
         df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
-        df.sort_values(["cluster_num","name"], inplace=True)
+        df = df[["fold_pair", "model", "cluster_num", "name", "TMscore_fold1", "TMscore_fold2", "TMdiff"]]
+        df.sort_values(["model", "cluster_num", "name"], inplace=True)
         df.to_csv(out_csv, index=False)
     return df
+
 
 def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
     """Read per-sample ESM TM-scores if cached; else compute quickly by scanning outputs."""
@@ -120,10 +133,20 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
                              "name": name, "pdb_path": str(pred),
                              "TMscore_fold1": tm1, "TMscore_fold2": tm2})
     df = pd.DataFrame(rows)
-    if len(df):
-        df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
-        df.sort_values(["model","cluster_num","name"], inplace=True)
-        df.to_csv(out_csv, index=False)
+
+    # normalize: cluster label and clean sample name (no paths)
+    df["cluster_num"] = df["name"].str.extract(r"(ShallowMsa_\d+)", expand=False).fillna("DeepMsa")
+    df["name"] = df["name"].apply(lambda s: os.path.basename(str(s)).replace(".pdb", ""))
+
+    # helpful deltas
+    df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
+
+    # ⬅ Save WITHOUT pdb_path column so the CSV is clean
+    cols = ["fold_pair", "model", "cluster_num", "name", "TMscore_fold1", "TMscore_fold2", "TMdiff"]
+    df = df[cols].sort_values(["model", "cluster_num", "name"])
+
+    df.to_csv(out_csv, index=False)
+
     return df
 
 def _read_cmap(pair_id: str) -> pd.DataFrame:
