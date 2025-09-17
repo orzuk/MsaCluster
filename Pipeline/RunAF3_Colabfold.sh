@@ -96,7 +96,8 @@ for ln in a3m:
         if started: break
         started=True; continue
     if not started: continue
-    seq.append(re.sub(r'[a-z.]','',ln.strip()))
+    # keep letters only; drop '-', '.', lowercase inserts, spaces, etc.
+    seq.append(re.sub(r'[^A-Za-z]', '', ln.strip()))
 s=''.join(seq)
 with open(sys.argv[2],'w') as f:
     f.write('>query\n'); f.write(s+'\n')

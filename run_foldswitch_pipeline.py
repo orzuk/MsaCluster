@@ -9,19 +9,27 @@ from pathlib import Path
 from typing import List, Tuple
 from copy import deepcopy
 import shutil
-
+import numpy as np
+import pandas as pd
+import shutil
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.phytree_utils import phytree_from_msa
+from utils.protein_plot_utils import make_foldswitch_all_plots
 
 from Analysis.postprocess_unified import post_processing_analysis
 from TableResults.gen_html_table import gen_html_from_summary_table, gen_html_from_cluster_detailed_table
+from TableResults.summary_table import collect_summary_tables
+from Bio import Align  # PairwiseAligner (modern replacement)
 
+from pydca.plmdca import plmdca
+from pydca.msa_trimmer import MsaTrimmer
 
 RUN_MODE_DESCRIPTIONS = {
+    "load":             "Load the pair from PDB.",
     "get_msa":          "Download/build deep MSAs for the pair and write DeepMsa.a3m.",
     "cluster_msa":      "Cluster the pairwise MSA into shallow clusters (ShallowMsa_XXX.a3m).",
     "run_AF":           "Run AlphaFold (AF2/AF3/both) per chain × cluster. Use --af_ver {2,3,both}.",
@@ -30,6 +38,7 @@ RUN_MODE_DESCRIPTIONS = {
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
     "postprocess": "Compute TM/cmap metrics and build summary/detailed tables. Use --force_rerun_postprocess TRUE to recompute." ,
     "plot":             "Generate pair-specific plots (requires PyMOL).",
+    "report":           "Generate html tables and reports.",
     "clean":            "Remove previous outputs for the pair.",
     "msaclust_pipeline":"Full pipeline: get_msa → cluster_msa → AF/ESM (as configured).",
     "help":             "Print this list of run modes with one-line explanations.",
@@ -39,13 +48,56 @@ RUN_MODE_DESCRIPTIONS = {
 # ------------------------- helpers -------------------------
 
 
+
+# --- helper: APC (Average Product Correction) ---
+def _apc(x: np.ndarray) -> np.ndarray:
+    r = x.mean(axis=1, keepdims=True)
+    c = x.mean(axis=0, keepdims=True)
+    t = x.mean()
+    return x - r @ c / max(t, 1e-8)
+
+def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
+    # reuse your utils to read & de-insert A3M rows
+    entries = read_msa(a3m_path)     # -> [(id, seq), ...] (already strips insertions/lowercase)
+    return [s for _, s in entries]
+
+def _plmdca_contact_scores_from_a3m(a3m_path: str, l2: float = 0.01) -> np.ndarray:
+    """
+    Returns an LxL symmetric contact score matrix using pydca plmDCA (APC-corrected Frobenius norm).
+    """
+
+    seqs = _load_a3m_strip_lower(a3m_path)
+    if len(seqs) < 2:
+        raise RuntimeError(f"MSA too small for DCA: {a3m_path}")
+    # pydca expects a list of aligned sequences with '-' gaps. We already have that.
+
+    # Minimal trimming (you can tune): drop columns that are all gaps
+    M = np.array([[c for c in s] for s in seqs], dtype='<U1')
+    keep_cols = (M != '-').any(axis=0)
+    M = M[:, keep_cols]
+    aln = ["".join(row.tolist()) for row in M]
+
+    dca = plmdca.PlmDCA(aln, seq_type='protein', par_lambda=l2)
+    # couplings: dict mapping pairs (i,j) to 21x21 matrices (AA+gap), i<j in 1-based index
+    fn = dca.compute_frobenius_norm()    # LxL, upper-tri filled (1-based inside but returned dense)
+    fn = np.asarray(fn, dtype=float)
+    # Symmetrize and APC
+    fn = 0.5 * (fn + fn.T)
+    scores = _apc(fn)
+    # normalize to [0,1] for convenience (optional)
+    smin, smax = float(scores.min()), float(scores.max())
+    if smax > smin:
+        scores = (scores - smin) / (smax - smin)
+    np.fill_diagonal(scores, 0.0)
+    return scores
+
+
+
 def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     """
     Submit ONE Slurm job that runs the full pipeline for a single pair INLINE.
     This avoids nested sbatch and lets the top-level launcher submit many jobs at once.
     """
-    from pathlib import Path
-    import shlex
 
     # Logs per pair
     jobs_dir = Path(f"Pipeline/{pair_id}/jobs")
@@ -280,7 +332,6 @@ def _has_esm_model(pair_id: str, model: str) -> bool:
     tsv = d / "samples_index.tsv"
     if tsv.is_file() and tsv.stat().st_size > 0:
         try:
-            import pandas as pd
             return len(pd.read_csv(tsv, sep="\t")) > 0
         except Exception:
             pass
@@ -363,7 +414,6 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     synthesize a per-chain A3M with the chain as FIRST row in the SAME column space.
     If the chain isn't present in the base A3M, align it to the base query row and project.
     """
-    from Bio import Align  # PairwiseAligner (modern replacement)
     # If your Biopython is older, you can import pairwise2 and use format_alignment instead.
 
     def _ungap_upper(s: str) -> str:
@@ -417,7 +467,6 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         # Using aligned coordinates API:
         b_blocks, c_blocks = aln.aligned  # arrays of (start, end) blocks for base and chain
         # Create an array over base_q_seq length telling for each bpos whether chain has a residue or gap
-        import numpy as np
         cover = np.zeros(len(base_q_seq), dtype=np.int8)  # 1 = has residue, 0 = gap in chain
         c_map = {}  # map bpos -> chain residue index (for residue retrieval)
         cpos = 0
@@ -448,22 +497,33 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
                 bpos += 1
         chain_aln = "".join(chain_aln_list)
 
+
     # Write new A3M: chain first, then the base entries (skip duplicate of same ungapped seq)
+    # --- NEW: drop columns where the chain has a gap so the query (first row) is ungapped ---
+    keep = [ch.isalpha() for ch in chain_aln]  # keep only letters in the query row
+
+    def _filter_cols(s: str) -> str:
+        # also drop '.' if present; uppercase everything for sanity
+        return "".join(ch.upper() for ch, k in zip(s, keep) if k and ch != '.')
+
+    chain_aln_nogap = _filter_cols(chain_aln)
+    base_entries_f = [(nm, _filter_cols(aln)) for (nm, aln) in base_entries]
+
+    # Write new A3M: chain first, then filtered base entries (skip exact duplicate)
     ensure_dir(os.path.dirname(out_path))
+
     with open(out_path, "w") as fh:
-        fh.write(f">{chain_tag}\n{chain_aln}\n")
-        chain_key_up = _ungap_upper(chain_aln)
-        for nm, aln in base_entries:
-            if _ungap_upper(aln) == chain_key_up:
-                continue
-            fh.write(f">{nm}\n{aln}\n")
+        fh.write(f">{chain_tag}\n{chain_aln_nogap}\n")
+        chain_key_up = _ungap_upper(chain_aln_nogap)
+    for nm, aln in base_entries_f:
+        if _ungap_upper(aln) == chain_key_up:
+            continue
+        fh.write(f">{nm}\n{aln}\n")
     return True
 
 
 # ------------------------- tasks -------------------------
 def task_clean(pair_id: str, args: argparse.Namespace) -> None:
-    import shutil, re
-    from pathlib import Path
 
     dry   = _bool_from_tf(getattr(args, "clean_dry_run", "TRUE"))
     level = getattr(args, "clean_level", "derived")
@@ -624,6 +684,36 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
         f"-o {outdir}"
     )
     _run(cmd, run_job_mode)
+
+
+def task_cmap_plmdca(pair_id: str, run_job_mode: str) -> None:
+    deep = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
+    cluster_glob = f"Pipeline/{pair_id}/output_msa_cluster/ShallowMsa_*.a3m"
+    outdir = Path(f"Pipeline/{pair_id}/output_cmaps/plmdca")
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    # Build command that runs inside Python (no extra process): compute and save .npy per MSA
+    py = sys.executable
+    # Inline Python one-liner keeps your _run plumbing; or call a small helper script instead
+    code = (
+        "import glob, numpy as np; "
+        "from __main__ import _plmdca_contact_scores_from_a3m as F; "
+        f"outs='{outdir.as_posix()}'; "
+        f"a3ms=[r'{deep}'] + sorted(glob.glob(r'{cluster_glob}')); "
+        "import os; os.makedirs(outs, exist_ok=True); "
+        "import pathlib; "
+        "for a in a3ms: "
+        "    try:\n"
+        "        S=F(a); "
+        "        tag=pathlib.Path(a).stem; "
+        "        np.save(f'{outs}/{tag}.npy', S); "
+        "        print('[plmdca] wrote', f'{outs}/{tag}.npy', flush=True)\n"
+        "    except Exception as e:\n"
+        "        print('[plmdca] FAILED', a, e, flush=True)"
+    )
+    cmd = f"{shlex.quote(py)} - <<'PY'\n{code}\nPY"
+    _run(cmd, run_job_mode)
+
 
 def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     """
@@ -792,7 +882,6 @@ def task_tree(pair_id: str, run_job_mode: str) -> None:
 
 def task_plot(pair_id: str, args: argparse.Namespace) -> None:
     # Import PyMOL-consuming code only here
-    from utils.protein_plot_utils import make_foldswitch_all_plots
     foldA, foldB = pair_str_to_tuple(pair_id)
     pdbids = [foldA[:-1], foldB[:-1]]
     pdbchains = [foldA[-1], foldB[-1]]
@@ -824,7 +913,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     """
     # 1) Per-pair metrics
     try:
-        from Analysis.postprocess_unified import post_processing_analysis
         force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
         post_processing_analysis(force_rerun=force, pairs=foldpairs)  # pass list, or None for discover-all
     except Exception as e:
@@ -833,17 +921,11 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     # 2) Global CSVs + HTML tables
     if args.reports in ("tables", "all"):
         try:
-            from TableResults.summary_table import collect_summary_tables
-            from config import DATA_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE
             collect_summary_tables(DATA_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE)
         except Exception as e:
             print(f"[reports] WARN collect_summary_tables: {e}")
 
         try:
-            from TableResults.gen_html_table import (
-                gen_html_from_summary_table,
-                gen_html_from_cluster_detailed_table,  # keep your current function name
-            )
             gen_html_from_summary_table()
         except Exception as e:
             print(f"[reports] WARN gen_html_from_summary_table: {e}")
@@ -855,7 +937,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
 
     # 3) Per-pair HTML notebook pages
     if args.reports in ("html", "all"):
-        import subprocess, shlex, sys
         try:
             pairs_arg = " ".join(args.html_pairs)  # supports 'ALL' or explicit list
             cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
@@ -1053,7 +1134,6 @@ def main():
 
         elif args.run_mode == "run_esmfold":
             if args.esm_model == "both":
-                from copy import deepcopy
                 for m in ("esm2", "esm3"):
                     a = deepcopy(args)
                     a.esm_model = m
