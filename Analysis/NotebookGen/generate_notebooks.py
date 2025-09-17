@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
+import sys, os, platform
 import argparse
 import subprocess
 from pathlib import Path
@@ -39,6 +39,8 @@ def generate_html_for_pair(
     env["PAIR_ID"] = pair_id
     env["PAIR_A"] = pair_a
     env["PAIR_B"] = pair_b
+    # Let the notebook know repo root explicitly
+    env["MSACLUSTER_ROOT"] = str(REPO_ROOT)
 
     cmd = [
         sys.executable, "-m", "jupyter", "nbconvert",
@@ -93,6 +95,7 @@ def main() -> None:
 #    user = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
 #    env_name = "Windows" if os.name == "nt" else "Unix"
     print("Current directory: ", Path(__file__).parent)
+    user = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
     print("RUNNING FOLD-SWITCH GENERATE NOTEBOOK WITH USER:", user, " ENVIRONMENT:", platform.system())
     print("Current directory:", Path.cwd())
     print("Start generate Notebook!!!")

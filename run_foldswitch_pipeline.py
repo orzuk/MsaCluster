@@ -1126,7 +1126,9 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
                 f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py "
                 f"{shlex.quote(pair_id)} --kernel {shlex.quote(getattr(args, 'per_pair_kernel', 'python3'))}"
             )
-            subprocess.run(cmd, shell=True, check=True, env=env)
+            rc = subprocess.run(cmd, shell=True, check=False, env=env).returncode
+            if rc != 0:
+                print(f"[html] nbconvert failed (rc={rc}) — will be retried later.")
         except Exception as e:
             print(f"[html] skipped: {e}")
     else:
