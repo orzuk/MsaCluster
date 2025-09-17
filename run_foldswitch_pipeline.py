@@ -1022,13 +1022,14 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
 # All Pipeline
 def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     """
-    If --force_rerun TRUE: run all steps unconditionally.
-    Else: run step-by-step and only execute steps whose outputs are missing.
-    AF step is always invoked (it internally skips already-complete jobs).
+    Full per-pair pipeline:
+      load → get_msa → cluster_msa → AF (AF2/AF3) → cmaps (msa-transformer, ccmpred)
+      → ESMFold → tree → ΔG → plots → per-pair postprocess (df_*.csv) → (optional) per-pair HTML.
+    If --force_rerun TRUE: force all recomputations; otherwise each step skips when outputs exist.
     """
     force_all = _bool_from_tf(getattr(args, "force_rerun", "FALSE"))
 
-    # 1) load PDBs/FASTA (cheap: always safe)
+    # 1) load PDB/FASTA (cheap; idempotent)
     task_load(pair_id, args)
 
     # 2) get_msa
@@ -1045,46 +1046,41 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     else:
         print("[pipeline] cluster_msa → skip (clusters exist)")
 
-    # 4) AF (AF2/AF3/both): always call; the task itself skips completed out_dirs unless forced
+    # 4) AF (AF2/AF3/both). Always invoke; the task itself skips completed outdirs unless forced.
     if force_all:
-        # bubble a TRUE into AF-only force without changing your AF default elsewhere
-        setattr(args, "force_rerun_AF", "TRUE")
+        setattr(args, "force_rerun_AF", "TRUE")  # only for AF stage
     print("[pipeline] AF → running (task will skip per-outdir if already complete)")
-    # If user asked specifically for AF2 only inside pipeline, keep it; otherwise default to both inside pipeline
-    if getattr(args, "af_ver", "2") == "2" and not force_all:
-        pass  # respect user's choice
-    else:
-        # default to both in the full pipeline unless user overrode
+    # Default to both versions inside the full pipeline unless user explicitly asked AF2-only.
+    if getattr(args, "af_ver", None) not in ("2", "3", "both"):
         args.af_ver = "both"
     task_af(pair_id, args)
 
-    # 5) cmap (MSA-Transformer)
+    # 5) cmaps (MSA-Transformer)
     if force_all or not _has_cmaps(pair_id):
         print("[pipeline] cmap_msa_transformer → running")
         task_cmap_msa_transformer(pair_id, "inline")
     else:
         print("[pipeline] cmap_msa_transformer → skip (cmaps exist)")
 
-    # 5b) cmap (CCMpred)
+    # 5b) cmaps (CCMpred) — best-effort
     try:
         print("[pipeline] cmap_ccmpred → running")
         task_cmap_ccmpred(pair_id, "inline")
     except Exception as e:
         print(f"[pipeline] cmap_ccmpred → skipped: {e}")
 
-    # 6) ESMFold (both models if esm_model==both; otherwise the selected one)
+    # 6) ESMFold (esm2/esm3 or user-specified)
     wanted_models = ["esm2", "esm3"] if getattr(args, "esm_model", None) in (None, "both") else [args.esm_model]
     for model in wanted_models:
         a2 = deepcopy(args)
         a2.esm_model = model
-        need = force_all or not _has_esm_model(pair_id, model)
-        if need:
+        if force_all or not _has_esm_model(pair_id, model):
             print(f"[pipeline] esmfold({model}) → running")
             task_esmfold(pair_id, a2)
         else:
             print(f"[pipeline] esmfold({model}) → skip (outputs exist)")
 
-    # 7) Phylogenetic tree (for tree plots)
+    # 7) phylogenetic tree (needed for tree plots)
     tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
     if force_all or not tree_path.exists():
         print("[pipeline] tree → running")
@@ -1092,7 +1088,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     else:
         print("[pipeline] tree → skip (exists)")
 
-    # 8) ΔG energies (PyRosetta)
+    # 8) ΔG energies (PyRosetta) — best-effort
     try:
         if force_all or not _has_deltaG(pair_id):
             print("[pipeline] deltaG → running")
@@ -1102,37 +1098,40 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"[deltaG] skipped: {e}")
 
-    # 9) plots (optional to gate; keep as-is or skip if you detect finished artifacts)
+    # 9) plots (includes tree clusters if available)
     try:
         ap = deepcopy(args)
         ap.global_plots = False
-        ap.plot_trees = True  # was False
+        ap.plot_trees = True
         print("[pipeline] plot → running")
         task_plot(pair_id, ap)
     except Exception as e:
         print(f"[plot] skipped: {e}")
 
-
-
-    # 8) after task_af(...) and cmap/esm steps in task_msaclust_pipeline
+    # 10) per-pair post-process (writes Pipeline/<pair>/Analysis/df_*.csv)
     try:
-        # compute metrics just for this pair; will be skipped later unless --force_rerun_postprocess TRUE
-        post_processing_analysis(force_rerun=False, pairs=[pair_id])
+        print("[pipeline] postprocess → running (per-pair)")
+        # Always compute for this pair; internal readers still skip unchanged unless forced.
+        post_processing_analysis(force_rerun=force_all or _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE")),
+                                 pairs=[pair_id])
     except Exception as e:
         print(f"[postprocess-inline] WARN: {e}")
 
-    # 9) ----- OPTIONAL: per-pair HTML (inside the same sbatch job) -----
-    if _bool_from_tf(getattr(args, "per_pair_html", "TRUE")):
-        print("[pipeline] html → running (per-pair)")
-        env = _jupyter_env_for_scratch()  # keep Jupyter caches off $HOME on the node
-        # Run the dedicated generator on just this pair
-        cmd = (
-            f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py "
-            f"{shlex.quote(pair_id)} --kernel {shlex.quote(getattr(args, 'per_pair_kernel', 'python3'))}"
-        )
-        subprocess.run(cmd, shell=True, check=True, env=env)
+    # 11) OPTIONAL: per-pair HTML (execute notebook for this pair inside the same job)
+    if _bool_from_tf(getattr(args, "per_pair_html", "FALSE")):
+        try:
+            print("[pipeline] html → running (per-pair)")
+            env = os.environ.copy()  # keep caches sane; customize if you want tmp dirs on node scratch
+            cmd = (
+                f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py "
+                f"{shlex.quote(pair_id)} --kernel {shlex.quote(getattr(args, 'per_pair_kernel', 'python3'))}"
+            )
+            subprocess.run(cmd, shell=True, check=True, env=env)
+        except Exception as e:
+            print(f"[html] skipped: {e}")
     else:
         print("[pipeline] html → skip (per-pair HTML disabled)")
+
 
 
 # ------------------------- CLI / main -------------------------
