@@ -1215,6 +1215,13 @@ def main():
     else:
         foldpairs = args.foldpair_ids
 
+    # --- Before the loop ---
+    if args.run_mode == "postprocess":
+        # Pass the full list so the function can filter to pairs that are ready
+        task_postprocess(foldpairs, args)
+        return  # or sys.exit(0)
+
+
     for pair_id in foldpairs:
         print(f"=== {args.run_mode} :: {pair_id} ===", flush=True)
 
@@ -1272,11 +1279,6 @@ def main():
         else:
             raise ValueError(args.run_mode)
 
-    # --- After the loop ---
-    if args.run_mode == "postprocess":
-        # Pass the full list so the function can filter to pairs that are ready
-        task_postprocess(foldpairs, args)
-        return  # or sys.exit(0)
 
 
     # If we only submitted per-pair jobs, don’t build reports now
