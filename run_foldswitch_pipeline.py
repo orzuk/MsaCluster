@@ -2,7 +2,7 @@
 import argparse
 import subprocess
 import shlex
-import sys, warnings
+import sys, os, warnings
 from glob import glob
 import json
 from pathlib import Path
@@ -33,6 +33,7 @@ RUN_MODE_DESCRIPTIONS = {
     "run_AF":           "Run AlphaFold (AF2/AF3/both) per chain × cluster. Use --af_ver {2,3,both}.",
     "run_esmfold":      "Run ESMFold on the pair. Use --esm_model {esm2,esm3,both}.",
     "run_cmap_msa_transformer":      "Run MSA-transformer on the pair to get contact maps.",
+    "run_cmap_ccmpred": "Run CCMpred on DeepMsa and all ShallowMsa_XXX clusters to get contact maps.",
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
     "postprocess": "Compute TM/cmap metrics and build summary/detailed tables. Use --force_rerun_postprocess TRUE to recompute." ,
     "plot":             "Generate pair-specific plots (requires PyMOL).",
@@ -46,6 +47,30 @@ RUN_MODE_DESCRIPTIONS = {
 # ------------------------- helpers -------------------------
 
 
+def _jupyter_env_for_scratch() -> dict:
+    base = "/sci/labs/orzuk/orzuk/tmp/jupyter"
+    cache = "/sci/labs/orzuk/orzuk/tmp/xdg-cache"
+    ipy   = "/sci/labs/orzuk/orzuk/tmp/ipython"
+    mpl   = "/sci/labs/orzuk/orzuk/tmp/matplotlib"
+    home  = f"{base}/home"
+
+    for d in (f"{base}/config", f"{base}/runtime", f"{base}/data", cache, ipy, mpl, home):
+        os.makedirs(d, exist_ok=True)
+
+    env = os.environ.copy()
+    # Keep EVERYTHING off your home:
+    env["HOME"]               = home
+    env["JUPYTER_CONFIG_DIR"] = f"{base}/config"
+    env["JUPYTER_RUNTIME_DIR"]= f"{base}/runtime"
+    env["JUPYTER_DATA_DIR"]   = f"{base}/data"
+    env["IPYTHONDIR"]         = ipy
+    env["XDG_CACHE_HOME"]     = cache
+    env["MPLCONFIGDIR"]       = mpl
+    # Optional: also move HF caches if used by the notebook
+    env.setdefault("TRANSFORMERS_CACHE", "/sci/labs/orzuk/orzuk/tmp/hf")
+    env.setdefault("HF_HOME", "/sci/labs/orzuk/orzuk/tmp/hf")
+    return env
+
 
 # --- helper: APC (Average Product Correction) ---
 def _apc(x: np.ndarray) -> np.ndarray:
@@ -58,40 +83,6 @@ def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
     # reuse your utils to read & de-insert A3M rows
     entries = read_msa(a3m_path)     # -> [(id, seq), ...] (already strips insertions/lowercase)
     return [s for _, s in entries]
-
-def _plmdca_contact_scores_from_a3m(a3m_path: str, l2: float = 0.01) -> np.ndarray:
-    from pydca.plmdca import plmdca
-    from pydca.msa_trimmer import MsaTrimmer
-
-    """
-    Returns an LxL symmetric contact score matrix using pydca plmDCA (APC-corrected Frobenius norm).
-    """
-
-    seqs = _load_a3m_strip_lower(a3m_path)
-    if len(seqs) < 2:
-        raise RuntimeError(f"MSA too small for DCA: {a3m_path}")
-    # pydca expects a list of aligned sequences with '-' gaps. We already have that.
-
-    # Minimal trimming (you can tune): drop columns that are all gaps
-    M = np.array([[c for c in s] for s in seqs], dtype='<U1')
-    keep_cols = (M != '-').any(axis=0)
-    M = M[:, keep_cols]
-    aln = ["".join(row.tolist()) for row in M]
-
-    dca = plmdca.PlmDCA(aln, seq_type='protein', par_lambda=l2)
-    # couplings: dict mapping pairs (i,j) to 21x21 matrices (AA+gap), i<j in 1-based index
-    fn = dca.compute_frobenius_norm()    # LxL, upper-tri filled (1-based inside but returned dense)
-    fn = np.asarray(fn, dtype=float)
-    # Symmetrize and APC
-    fn = 0.5 * (fn + fn.T)
-    scores = _apc(fn)
-    # normalize to [0,1] for convenience (optional)
-    smin, smax = float(scores.min()), float(scores.max())
-    if smax > smin:
-        scores = (scores - smin) / (smax - smin)
-    np.fill_diagonal(scores, 0.0)
-    return scores
-
 
 
 def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
@@ -687,33 +678,83 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     _run(cmd, run_job_mode)
 
 
-def task_cmap_plmdca(pair_id: str, run_job_mode: str) -> None:
-    deep = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
-    cluster_glob = f"Pipeline/{pair_id}/output_msa_cluster/ShallowMsa_*.a3m"
-    outdir = Path(f"Pipeline/{pair_id}/output_cmaps/plmdca")
-    outdir.mkdir(parents=True, exist_ok=True)
+def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
+    """
+    Run CCMpred on DeepMsa and on every ShallowMsa_XXX in output_msa_cluster.
+    Outputs: Pipeline/<pair>/output_cmaps/ccmpred/<tag>.ccmpred.npy (APC-corrected)
+    """
+    import os, re, shlex, subprocess
+    from pathlib import Path
+    from utils.msa_utils import load_fasta  # already present in your repo
+    from utils.protein_utils import read_msa
+    import numpy as np
 
-    # Build command that runs inside Python (no extra process): compute and save .npy per MSA
-    py = sys.executable
-    # Inline Python one-liner keeps your _run plumbing; or call a small helper script instead
-    code = (
-        "import glob, numpy as np; "
-        "from __main__ import _plmdca_contact_scores_from_a3m as F; "
-        f"outs='{outdir.as_posix()}'; "
-        f"a3ms=[r'{deep}'] + sorted(glob.glob(r'{cluster_glob}')); "
-        "import os; os.makedirs(outs, exist_ok=True); "
-        "import pathlib; "
-        "for a in a3ms: "
-        "    try:\n"
-        "        S=F(a); "
-        "        tag=pathlib.Path(a).stem; "
-        "        np.save(f'{outs}/{tag}.npy', S); "
-        "        print('[plmdca] wrote', f'{outs}/{tag}.npy', flush=True)\n"
-        "    except Exception as e:\n"
-        "        print('[plmdca] FAILED', a, e, flush=True)"
-    )
-    cmd = f"{shlex.quote(py)} - <<'PY'\n{code}\nPY"
-    _run(cmd, run_job_mode)
+    pair_dir = Path(f"Pipeline/{pair_id}")
+    out_dir = pair_dir / "output_cmaps" / "ccmpred"
+    tmp_dir = pair_dir / "tmp_ccmpred"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    ccmpred_bin = getattr(args, "ccmpred_bin", "/sci/labs/orzuk/orzuk/github/CCMpred/bin/ccmpred")
+    threads = int(getattr(args, "ccmpred_threads", 8))
+
+    def a3m_to_fa(a3m_path: Path, fasta_out: Path) -> bool:
+        # read_msa returns [(id, seq)], where seq may contain lowercase inserts for A3M.
+        entries = read_msa(str(a3m_path))
+        if not entries:
+            return False
+        names, seqs = zip(*entries)
+        clean = []
+        for s in seqs:
+            s = re.sub(r"[a-z.]", "", s)  # strip inserts; keep '-' gaps
+            s = s.replace("U", "C")       # CCMpred doesn't know 'U'
+            clean.append(s)
+        Ls = {len(s) for s in clean}
+        if len(Ls) != 1:
+            # ragged columns? pad with gaps just in case
+            L = max(Ls)
+            clean = [s.ljust(L, "-") for s in clean]
+        with open(fasta_out, "w") as f:
+            for i, (n, s) in enumerate(zip(names, clean), 1):
+                f.write(f">{n or f'seq{i}'}\n{s}\n")
+        return True
+
+    def apc(m: np.ndarray) -> np.ndarray:
+        ri = m.mean(axis=1, keepdims=True)
+        rj = m.mean(axis=0, keepdims=True)
+        mu = float(m.mean()) or 1e-8
+        return m - (ri @ rj) / mu
+
+    def run_one(a3m: Path, tag: str):
+        fa = tmp_dir / f"{tag}.fa"
+        npy = out_dir / f"{tag}.ccmpred.npy"
+        mat = out_dir / f"{tag}.ccmpred.mat"
+        if npy.exists() and npy.stat().st_size > 0:
+            return
+        if not a3m_to_fa(a3m, fa):
+            print(f"[ccmpred] skip (empty): {a3m}")
+            return
+        cmd = f"{shlex.quote(ccmpred_bin)} -t {threads} {shlex.quote(str(fa))} {shlex.quote(str(mat))}"
+        if run_job_mode == "inline":
+            subprocess.run(cmd, shell=True, check=True)
+        else:
+            # sbatch wrapper uses the same helper you use elsewhere
+            _run(cmd, run_job_mode)
+        arr = np.loadtxt(str(mat))
+        arr = 0.5 * (arr + arr.T)     # symmetrize, just in case
+        arr = apc(arr)                # APC correction
+        np.fill_diagonal(arr, 0.0)
+        np.save(str(npy), arr)
+
+    # Deep
+    deep = pair_dir / "output_get_msa" / "DeepMsa.a3m"
+    if deep.exists():
+        run_one(deep, "DeepMsa")
+
+    # All clusters
+    for a3m in sorted((pair_dir / "output_msa_cluster").glob("ShallowMsa_*.a3m")):
+        run_one(a3m, a3m.stem)
+
 
 
 def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
@@ -936,12 +977,25 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[reports] NOTE cluster-detailed HTML skipped: {e}")
 
+        # After building the HTML tables, mirror the main table to repo root for GitHub Pages
+        try:
+            import shutil, os
+            from config import MAIN_DIR, TABLES_RES
+            src = os.path.join(TABLES_RES, "table.html")
+            dst = os.path.join(MAIN_DIR, "table.html")
+            if os.path.isfile(src):
+                shutil.copy2(src, dst)
+                print(f"[reports] copied {src} -> {dst}")
+        except Exception as e:
+            print(f"[reports] WARN copying table.html to repo root: {e}")
+
     # 3) Per-pair HTML notebook pages
     if args.reports in ("html", "all"):
         try:
             pairs_arg = " ".join(args.html_pairs)  # supports 'ALL' or explicit list
             cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
-            subprocess.run(cmd, shell=True, check=True)
+            subprocess.run(cmd, shell=True, check=True, env=_jupyter_env_for_scratch())
+
         except Exception as e:
             print(f"[reports] WARN per-pair HTML generation: {e}")
 
@@ -994,6 +1048,13 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     else:
         print("[pipeline] cmap_msa_transformer → skip (cmaps exist)")
 
+    # 5b) cmap (CCMpred)
+    try:
+        print("[pipeline] cmap_ccmpred → running")
+        task_cmap_ccmpred(pair_id, "inline")
+    except Exception as e:
+        print(f"[pipeline] cmap_ccmpred → skipped: {e}")
+
     # 6) ESMFold (both models if esm_model==both; otherwise the selected one)
     wanted_models = ["esm2", "esm3"] if getattr(args, "esm_model", None) in (None, "both") else [args.esm_model]
     for model in wanted_models:
@@ -1018,6 +1079,16 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         print(f"[plot] skipped: {e}")
 
 
+
+    # 8) after task_af(...) and cmap/esm steps in task_msaclust_pipeline
+    try:
+        from Analysis.postprocess_unified import post_processing_analysis
+        # compute metrics just for this pair; will be skipped later unless --force_rerun_postprocess TRUE
+        post_processing_analysis(force_rerun=False, pairs=[pair_id])
+    except Exception as e:
+        print(f"[postprocess-inline] WARN: {e}")
+
+
 # ------------------------- CLI / main -------------------------
 
 def main():
@@ -1028,7 +1099,7 @@ def main():
     )
     p.add_argument("--run_mode",
                    required=True,
-                   choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer",
+                   choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer", "run_cmap_ccmpred",
                             "run_esmfold", "run_AF", "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=True,
@@ -1049,6 +1120,13 @@ def main():
     p.add_argument("--cluster_sample_n", type=int, default=10)
     p.add_argument("--esm_model", default=None, choices=["esm2", "esm3", "both"])
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
+
+    # ---- CCMpred options ----
+    p.add_argument("--ccmpred_bin",
+                   default="/sci/labs/orzuk/orzuk/github/CCMpred/bin/ccmpred",
+                   help="Path to CCMpred binary")
+    p.add_argument("--ccmpred_threads", type=int, default=8,
+                   help="Threads for CCMpred (-t)")
 
     # Post-processing options, computing metrics
     p.add_argument("--postprocess", default="FALSE", help="If TRUE, run post-processing after the selected task(s).")
@@ -1132,6 +1210,8 @@ def main():
         elif args.run_mode == "run_cmap_msa_transformer":
             task_cmap_msa_transformer(pair_id, args.run_job_mode)
 
+        elif args.run_mode == "run_cmap_ccmpred":
+            task_cmap_ccmpred(pair_id, args.run_job_mode)
 
         elif args.run_mode == "run_esmfold":
             if args.esm_model == "both":
