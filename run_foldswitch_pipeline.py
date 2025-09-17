@@ -46,6 +46,14 @@ RUN_MODE_DESCRIPTIONS = {
 
 # ------------------------- helpers -------------------------
 
+def _has_deltaG(pair_id: str) -> bool:
+    """Return True if both chain-level ΔG files exist for this pair."""
+    pA, pB = pair_str_to_tuple(pair_id)     # e.g., '1wp8C','5ejbC'
+    out_dir = Path("Pipeline/output_deltaG")
+    a = out_dir / f"deltaG_{pA[:-1]}.txt"   # 'deltaG_1wp8.txt'
+    b = out_dir / f"deltaG_{pB[:-1]}.txt"   # 'deltaG_5ejb.txt'
+    return a.exists() and b.exists()
+
 
 def _jupyter_env_for_scratch() -> dict:
     base = "/sci/labs/orzuk/orzuk/tmp/jupyter"
@@ -953,10 +961,16 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     Controlled by --reports: none | tables | html | all
     Safe to run incrementally.
     """
+    # Normalize pairs to strings like 1wp8C_5ejbC
+    norm_pairs = [
+        p if isinstance(p, str) else f"{p[0]}_{p[1]}"
+        for p in (foldpairs if isinstance(foldpairs, list) else [foldpairs])
+    ]
+
     # 1) Per-pair metrics
     try:
         force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
-        post_processing_analysis(force_rerun=force, pairs=foldpairs)  # pass list, or None for discover-all
+        post_processing_analysis(force_rerun=force, pairs=norm_pairs)  # pass list, or None for discover-all
     except Exception as e:
         print(f"[postprocess] WARN post_processing_analysis: {e}")
 
@@ -992,21 +1006,9 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     # 3) Per-pair HTML notebook pages
     if args.reports in ("html", "all"):
         try:
-            # Decide which pairs to try
-            if args.html_pairs == ["ALL"]:
-                candidates = [
-                    p if isinstance(p, str) else f"{p[0]}_{p[1]}"
-                    for p in (foldpairs if isinstance(foldpairs, list) else [foldpairs])
-                ]
-            else:
-                candidates = [
-                    p if isinstance(p, str) else f"{p[0]}_{p[1]}"
-                    for p in args.html_pairs
-                ]
-
             # Keep only pairs that already have per-pair postprocess outputs
             ready = []
-            for p in candidates:
+            for p in norm_pairs:
                 if os.path.isfile(f"Pipeline/{p}/Analysis/df_af.csv"):
                     ready.append(p)
                 else:
@@ -1090,12 +1092,29 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         else:
             print(f"[pipeline] esmfold({model}) → skip (outputs exist)")
 
-    # 7) plots (optional to gate; keep as-is or skip if you detect finished artifacts)
+    # 7) Phylogenetic tree (for tree plots)
+    tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
+    if force_all or not tree_path.exists():
+        print("[pipeline] tree → running")
+        task_tree(pair_id, "inline")
+    else:
+        print("[pipeline] tree → skip (exists)")
+
+    # 8) ΔG energies (PyRosetta)
+    try:
+        if force_all or not _has_deltaG(pair_id):
+            print("[pipeline] deltaG → running")
+            task_deltaG(pair_id)
+        else:
+            print("[pipeline] deltaG → skip (exists)")
+    except Exception as e:
+        print(f"[deltaG] skipped: {e}")
+
+    # 9) plots (optional to gate; keep as-is or skip if you detect finished artifacts)
     try:
         ap = deepcopy(args)
         ap.global_plots = False
-        if hasattr(ap, "plot_trees"):
-            ap.plot_trees = False
+        ap.plot_trees = True  # was False
         print("[pipeline] plot → running")
         task_plot(pair_id, ap)
     except Exception as e:
