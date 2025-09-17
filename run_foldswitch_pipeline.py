@@ -25,8 +25,6 @@ from TableResults.gen_html_table import gen_html_from_summary_table, gen_html_fr
 from TableResults.summary_table import collect_summary_tables
 from Bio import Align  # PairwiseAligner (modern replacement)
 
-from pydca.plmdca import plmdca
-from pydca.msa_trimmer import MsaTrimmer
 
 RUN_MODE_DESCRIPTIONS = {
     "load":             "Load the pair from PDB.",
@@ -62,6 +60,9 @@ def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
     return [s for _, s in entries]
 
 def _plmdca_contact_scores_from_a3m(a3m_path: str, l2: float = 0.01) -> np.ndarray:
+    from pydca.plmdca import plmdca
+    from pydca.msa_trimmer import MsaTrimmer
+
     """
     Returns an LxL symmetric contact score matrix using pydca plmDCA (APC-corrected Frobenius norm).
     """
