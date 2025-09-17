@@ -516,10 +516,10 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     with open(out_path, "w") as fh:
         fh.write(f">{chain_tag}\n{chain_aln_nogap}\n")
         chain_key_up = _ungap_upper(chain_aln_nogap)
-    for nm, aln in base_entries_f:
-        if _ungap_upper(aln) == chain_key_up:
-            continue
-        fh.write(f">{nm}\n{aln}\n")
+        for nm, aln in base_entries_f:
+            if _ungap_upper(aln) == chain_key_up:
+                continue
+            fh.write(f">{nm}\n{aln}\n")
     return True
 
 
