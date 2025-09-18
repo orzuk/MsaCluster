@@ -5,6 +5,8 @@ import shlex
 import sys, os, warnings, re
 from glob import glob
 import json
+import gzip
+
 from pathlib import Path
 from typing import List, Tuple
 from copy import deepcopy
@@ -428,6 +430,17 @@ def _postprocess_af2_run(out_dir: str):
         except Exception as e:
             print(f"[cleanup] warn: {pkl}: {e}")
 
+    # compress large AF2 JSONs (scores + PAE) to save space
+    for jf in glob(os.path.join(out_dir, "*_scores_rank_*.json")) + \
+              glob(os.path.join(out_dir, "*_predicted_aligned_error_v1.json")):
+        if not os.path.exists(jf + ".gz"):
+            try:
+                with open(jf, "rb") as fin, gzip.open(jf + ".gz", "wb", compresslevel=9) as fout:
+                    fout.writelines(fin)
+                os.remove(jf)
+                print(f"[cleanup] compressed {os.path.basename(jf)} → .json.gz")
+            except Exception as e:
+                print(f"[cleanup] warn: could not compress {jf}: {e}")
 
 def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
     """
