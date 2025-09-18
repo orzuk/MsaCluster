@@ -420,6 +420,14 @@ def _postprocess_af2_run(out_dir: str):
     for d in glob(os.path.join(out_dir, "*_env")):
         subprocess.run(f"rm -rf {shlex.quote(d)}", shell=True, check=False)
 
+    # remove huge AF2 "all" pickles if present (defensive cleanup)
+    for pkl in glob(os.path.join(out_dir, "*_all_*alphafold2_*.pickle")):
+        try:
+            os.remove(pkl)
+            print(f"[cleanup] removed {os.path.basename(pkl)}")
+        except Exception as e:
+            print(f"[cleanup] warn: {pkl}: {e}")
+
 
 def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
     """
@@ -861,8 +869,8 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
             return (
                 f"bash ./Pipeline/RunAF2_Colabfold.sh "
                 f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
-                f"--num-models 5 --num-recycle 1 --model-type alphafold2_ptm --save-all"
-            )
+                f"--num-models 5 --num-recycle 1 --model-type alphafold2_ptm"
+            )  # do not save large pickle files
         elif ver == "3":
             # AF3 runner converts A3M->JSON and runs AF3; also export top PDB
             return (
