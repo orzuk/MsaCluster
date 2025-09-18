@@ -997,11 +997,13 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     ]
 
     # 1) Per-pair metrics
-    try:
-        force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
-        post_processing_analysis(force_rerun=force, pairs=norm_pairs)  # pass list, or None for discover-all
-    except Exception as e:
-        print(f"[postprocess] WARN post_processing_analysis: {e}")
+    cached_only = _bool_from_tf(getattr(args, "cached_only", "FALSE"))
+    if not cached_only:
+        try:
+            force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
+            post_processing_analysis(force_rerun=force, pairs=norm_pairs)  # pass list, or None for discover-all
+        except Exception as e:
+            print(f"[postprocess] WARN post_processing_analysis: {e}")
 
     # 2) Global CSVs + HTML tables
     if args.reports in ("tables", "all"):

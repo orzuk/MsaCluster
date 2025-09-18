@@ -7,10 +7,9 @@ import pandas as pd
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
+# >>> Use your config — no ad-hoc path strings
 from config import *
 
-# >>> Use your config — no ad-hoc path strings
-from config import SUMMARY_RESULTS_TABLE, TABLES_RES  # , OUTPUT_PATH_NOTEBOOKS, DATA_DIR, MAIN_DIR
 
 def gen_html_from_summary_table(
     summary_csv: str | None = None,

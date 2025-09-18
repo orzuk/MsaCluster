@@ -85,7 +85,6 @@ if user in ['zuk_laptop', 'orzuk']:
 
     DATA_DIR = MAIN_DIR + '/Pipeline'
     TABLES_DIR = MAIN_DIR + '/data'
-    OUTPUT_PATH_NOTEBOOKS = DATA_DIR + '/HTMLs_new_3001'
     FIGURE_RES_DIR = DATA_DIR + '/Results/Figures'
     CMAP_RES_PATH = DATA_DIR + '/data/df_cmap_all.csv'
     AF_MODEL_FILE = TABLES_DIR + '/df_af_all.csv'
@@ -97,8 +96,10 @@ USE_TMALIGN_BINARY = (os.path.isfile(TMALIGN_EXE) and os.access(TMALIGN_EXE, os.
 
 
 # Relative paths common to all users
-TABLES_RES = MAIN_DIR + '/Pipeline_res'
-OUTPUT_PATH_NOTEBOOKS = TABLES_RES + 'HTMLs_new_3001'
+TABLES_RES = MAIN_DIR + '/docs'
+GITHUB_URL_HTML = "https://steveabecassis.github.io/MsaCluster/docs/HTML/"
+
+OUTPUT_PATH_NOTEBOOKS = TABLES_RES + 'HTML'
 SUMMARY_RESULTS_TABLE = TABLES_RES + '/summary_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
 DETAILED_RESULTS_TABLE = TABLES_RES + '/detailed_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
 SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
@@ -106,7 +107,6 @@ ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
 ENERGY_DIR = DATA_DIR + '/output_deltaG'
 ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
 
-GITHUB_URL_HTML = "https://steveabecassis.github.io/MsaCluster/HTML/"
 
 LOCAL_RUN = False
 
