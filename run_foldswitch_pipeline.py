@@ -54,28 +54,42 @@ def _has_deltaG(pair_id: str) -> bool:
     return a.exists() and b.exists()
 
 
-def _jupyter_env_for_scratch() -> dict:
-    base = "/sci/labs/orzuk/orzuk/tmp/jupyter"
-    cache = "/sci/labs/orzuk/orzuk/tmp/xdg-cache"
-    ipy   = "/sci/labs/orzuk/orzuk/tmp/ipython"
-    mpl   = "/sci/labs/orzuk/orzuk/tmp/matplotlib"
-    home  = f"{base}/home"
 
-    for d in (f"{base}/config", f"{base}/runtime", f"{base}/data", cache, ipy, mpl, home):
-        os.makedirs(d, exist_ok=True)
+import getpass
+from pathlib import Path
 
+def _jupyter_env_for_scratch(base: str | None = None) -> dict[str, str]:
+    """
+    Return an env mapping that forces Jupyter/nbconvert/IPython/matplotlib caches
+    into node-local or tmp storage, avoiding ~/.jupyter and NFS quotas.
+    """
     env = os.environ.copy()
-    # Keep EVERYTHING off your home:
-    env["HOME"]               = home
-    env["JUPYTER_CONFIG_DIR"] = f"{base}/config"
-    env["JUPYTER_RUNTIME_DIR"]= f"{base}/runtime"
-    env["JUPYTER_DATA_DIR"]   = f"{base}/data"
-    env["IPYTHONDIR"]         = ipy
-    env["XDG_CACHE_HOME"]     = cache
-    env["MPLCONFIGDIR"]       = mpl
-    # Optional: also move HF caches if used by the notebook
-    env.setdefault("TRANSFORMERS_CACHE", "/sci/labs/orzuk/orzuk/tmp/hf")
-    env.setdefault("HF_HOME", "/sci/labs/orzuk/orzuk/tmp/hf")
+
+    user = getpass.getuser()
+    base = base or os.environ.get("TMPDIR") or f"/tmp/{user}"
+    scratch = Path(base) / "msaclust_jupyter"
+    # Create all dirs up front so nbconvert won’t try to mkdir in HOME
+    dirs = {
+        "JUPYTER_CONFIG_DIR": scratch / "jupyter_config",
+        "JUPYTER_DATA_DIR":   scratch / "jupyter_data",
+        "JUPYTER_RUNTIME_DIR":scratch / "jupyter_runtime",
+        "IPYTHONDIR":         scratch / "ipython",
+        "MPLCONFIGDIR":       scratch / "mpl",
+        "XDG_CACHE_HOME":     scratch / "xdg_cache",
+    }
+    for k, p in dirs.items():
+        p.mkdir(parents=True, exist_ok=True)
+        env[k] = str(p)
+
+    # Last resort: also point HOME itself at scratch so *any* library that
+    # insists on ~/.something won’t touch your real home.
+    home_sandbox = scratch / "home"
+    home_sandbox.mkdir(parents=True, exist_ok=True)
+    env["HOME"] = str(home_sandbox)
+
+    # (Optional) kernel hint—nbconvert will pick the one in your venv anyway
+    env.setdefault("JUPYTER_KERNEL_NAME", "python3")
+
     return env
 
 
@@ -1117,15 +1131,17 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"[postprocess-inline] WARN: {e}")
 
+
     # 11) OPTIONAL: per-pair HTML (execute notebook for this pair inside the same job)
     if _bool_from_tf(getattr(args, "per_pair_html", "FALSE")):
         try:
             print("[pipeline] html → running (per-pair)")
-            env = os.environ.copy()  # keep caches sane; customize if you want tmp dirs on node scratch
+            env = _jupyter_env_for_scratch()  # ← use scratch env
             cmd = (
                 f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py "
                 f"{shlex.quote(pair_id)} --kernel {shlex.quote(getattr(args, 'per_pair_kernel', 'python3'))}"
             )
+            # make HTML failures non-fatal so the job completes
             rc = subprocess.run(cmd, shell=True, check=False, env=env).returncode
             if rc != 0:
                 print(f"[html] nbconvert failed (rc={rc}) — will be retried later.")
@@ -1133,7 +1149,6 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
             print(f"[html] skipped: {e}")
     else:
         print("[pipeline] html → skip (per-pair HTML disabled)")
-
 
 
 # ------------------------- CLI / main -------------------------
