@@ -1,8 +1,8 @@
 # MsaCluster
 
-You can find the summary results table in this [link](https://steveabecassis.github.io/MsaCluster/protein_comparison_table.html), with full detailed results available for each protein pair in clickable links.
+You can find the summary results table in this [link](https://orzuk.github.io/MsaCluster/protein_comparison_table.html), with full detailed results available for each protein pair in clickable links.
 
-A more detailed per-cluster analysis table is fond [here](https://steveabecassis.github.io/MsaCluster/protein_clusters_table.html). 
+A more detailed per-cluster analysis table is fond [here](https://orzuk.github.io/MsaCluster/protein_clusters_table.html). 
 
 ## Running from python
 The main entry point is `run_foldswitch_pipeline.py`. It lets you run the entire pipeline or individual tasks.  
