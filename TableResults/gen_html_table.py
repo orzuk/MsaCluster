@@ -259,14 +259,15 @@ if __name__ == "__main__":
     # Your main comparison table (to docs/protein_comparison_table.html)
     out1 = os.path.join(TABLES_RES, "protein_comparison_table.html")
     preferred = [
-    "pair_id", "#RES",
+    "pair_id", "#RES", "MSA DEPTH (#Clusters)",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
     "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
-    "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2",
-    ]
+    "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2"]
+
     explanations = {
         "#RES": "Number of residues in the longer chain of the pair.",
+        "MSA DEPTH (#Clusters)": "Number of sequences in DeepMsa.a3m (before clustering), and in parentheses the number of ShallowMsa_* clusters found.",
         "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
         "AF2Clust_TM2": "Best TM-score to Fold2 among AF2 predictions from shallow clusters.",
         "AF2Deep_TM1":  "Best TM-score to Fold1 among AF2 predictions built from the DeepMsa alignment.",

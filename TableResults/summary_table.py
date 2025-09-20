@@ -11,6 +11,31 @@ from utils.utils import list_protein_pairs
 
 SHALLOW_RE = re.compile(r"ShallowMsa_(\d+)", re.IGNORECASE)
 
+
+def _count_a3m_sequences(a3m_path: str) -> int:
+    """Count sequences in an A3M file (number of '>' lines)."""
+    try:
+        n = 0
+        with open(a3m_path, "r") as fh:
+            for line in fh:
+                if line.startswith(">"):
+                    n += 1
+        return n
+    except Exception:
+        return 0
+
+def _count_clusters(pair_dir: str) -> int:
+    """Count ShallowMsa_* cluster directories for a pair."""
+    try:
+        clust_dir = os.path.join(pair_dir, "output_msa_cluster")
+        return sum(
+            1 for name in os.listdir(clust_dir)
+            if name.startswith("ShallowMsa_") and os.path.isdir(os.path.join(clust_dir, name))
+        )
+    except Exception:
+        return 0
+
+
 def _truth_pdbs_for_pair(pair_id: str):
     a, b = pair_id.split("_", 1)
     p1, c1 = a[:-1], a[-1]
@@ -188,6 +213,14 @@ def collect_summary_tables(
         tm_all = pd.concat([tm_af, tm_esm], ignore_index=True) if len(tm_af) or len(tm_esm) else pd.DataFrame()
 
         row = {"pair_id": pair_id, "#RES": _pair_max_len(pair_id)}
+
+        pair_dir = os.path.join(DATA_DIR, pair_id)
+        deep_a3m = os.path.join(pair_dir, "output_msa", "DeepMsa.a3m")
+        msa_depth = _count_a3m_sequences(deep_a3m)
+        n_clusters = _count_clusters(pair_dir)
+        row["MSA DEPTH (#Clusters)"] = f"{msa_depth} ({n_clusters})"
+
+
         # AF keeps Clust & Deep
         for tag, up in (("af2","AF2"), ("af3","AF3")):
             row[f"{up}Clust_TM1"] = _pick_best(tm_all, tag, "clust", 1)
