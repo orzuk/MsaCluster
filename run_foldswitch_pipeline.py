@@ -556,6 +556,31 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     return True
 
 
+def _submit_notebook_job(pair_id: str, kernel: str, args: argparse.Namespace) -> None:
+    out = Path(f"Pipeline/{pair_id}/jobs")
+    out.mkdir(parents=True, exist_ok=True)
+    log = out / f"nb_{pair_id}.out"
+    cpus = getattr(args, "html_cpus", 2)
+    mem  = getattr(args, "html_mem",  "4G")
+    time = getattr(args, "html_time", "02:00:00")
+    part = getattr(args, "html_partition", None)
+
+    cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {shlex.quote(pair_id)} --kernel {shlex.quote(kernel)}"
+    sbatch = [
+        "sbatch",
+        f"--job-name=nb_{pair_id}",
+        f"--cpus-per-task={cpus}",
+        f"--mem={mem}",
+        f"--time={time}",
+        f"--output={log}",
+        "--parsable",
+        "--wrap", shlex.quote(cmd),
+    ]
+    if part: sbatch.insert(1, f"--partition={part}")
+
+    subprocess.run(" ".join(sbatch), shell=True, check=True, env=_jupyter_env_for_scratch())
+
+
 # ------------------------- tasks -------------------------
 def task_clean(pair_id: str, args: argparse.Namespace) -> None:
 
@@ -1066,9 +1091,14 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
             if not ready:
                 print("[html] no ready pairs; skipping notebook generation")
             else:
-                pairs_arg = " ".join(ready)
-                cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
-                subprocess.run(cmd, shell=True, check=True, env=_jupyter_env_for_scratch())
+                if args.run_job_mode == "sbatch":
+                    for p in ready:
+                        _submit_notebook_job(p, kernel="python3", args=args)
+                    print(f"[html] submitted {len(ready)} notebook jobs via sbatch")
+                else:
+                    pairs_arg = " ".join(ready)
+                    cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
+                    subprocess.run(cmd, shell=True, check=True, env=_jupyter_env_for_scratch())
         except Exception as e:
             print(f"[reports] WARN per-pair HTML generation: {e}")
 
@@ -1251,6 +1281,8 @@ def main():
     p.add_argument("--force_rerun_postprocess", default="FALSE", help="If TRUE, recompute per-pair caches.")
     p.add_argument("--per_pair_html", default="TRUE")
     p.add_argument("--per_pair_kernel", default="python3")
+    p.add_argument("--cached_only", default="FALSE", choices=["TRUE", "FALSE"],
+               help="Skip per-pair metric recomputation and only build reports/HTML.")
 
     # Plotting
     p.add_argument("--global_plots", action="store_true")
@@ -1293,6 +1325,12 @@ def main():
                    help="Optional --mail-user email for notifications")
     p.add_argument("--sbatch_mail_type", default=None,
                    help="Optional --mail-type (e.g., END,FAIL,ALL)")
+
+    # Slurm options for html output
+    p.add_argument("--html_cpus", type=int, default=2)
+    p.add_argument("--html_mem",  default="4G")
+    p.add_argument("--html_time", default="02:00:00")
+    p.add_argument("--html_partition", default=None)
 
 
     args = p.parse_args()

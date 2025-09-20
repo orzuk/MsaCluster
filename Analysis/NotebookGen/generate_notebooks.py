@@ -87,7 +87,7 @@ def main() -> None:
 
     main_dir = Path(MAIN_DIR)
     template_notebook = main_dir / "TemplateNotebook.ipynb"
-    html_dir = main_dir / "HTML"
+    html_dir = Path(OUTPUT_PATH_NOTEBOOKS)
     html_dir.mkdir(parents=True, exist_ok=True)
 
     pairs = _resolve_pairs(args.pairs)

@@ -55,7 +55,7 @@ if user == 'steveabecassis':
     if moriah:
         MAIN_DIR = '/sci/labs/orzuk/steveabecassis/MsaCluster'
     else:
-        MAIN_DIR = '/Users/MICHAEL_JORDAN/Desktop' # '/Users/steveabecassis/Desktop'
+        MAIN_DIR = '/Users/steveabecassis/Desktop'
     DATA_DIR = MAIN_DIR + '/Pipeline'
     CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
     LOCAL_RUN = True
@@ -97,9 +97,11 @@ USE_TMALIGN_BINARY = (os.path.isfile(TMALIGN_EXE) and os.access(TMALIGN_EXE, os.
 
 # Relative paths common to all users
 TABLES_RES = MAIN_DIR + '/docs'
-GITHUB_URL_HTML = "https://steveabecassis.github.io/MsaCluster/docs/HTML/"
+REPO_NAME = os.path.basename(MAIN_DIR.rstrip('/\\'))
+SITE_BASE  = f"/{REPO_NAME}"
+GITHUB_URL_HTML = f"{SITE_BASE}/HTML"
 
-OUTPUT_PATH_NOTEBOOKS = TABLES_RES + 'HTML'
+OUTPUT_PATH_NOTEBOOKS = TABLES_RES + '/HTML'
 SUMMARY_RESULTS_TABLE = TABLES_RES + '/summary_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
 DETAILED_RESULTS_TABLE = TABLES_RES + '/detailed_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
 SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
@@ -112,5 +114,5 @@ LOCAL_RUN = False
 
 PAIR_DIR_RE = re.compile(r'^([0-9A-Za-z]{4}[A-Za-z0-9])_([0-9A-Za-z]{4}[A-Za-z0-9])$')
 
-# Which of the five AF models to use for prediction
+# Which of the five AF2 models to use for prediction
 AF2_MODEL = 2
