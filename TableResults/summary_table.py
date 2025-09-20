@@ -92,10 +92,6 @@ def collect_summary_tables(
     # Make sure list_protein_pairs() sees the same DATA_DIR
     # (it uses the module-global DATA_DIR inside its body)
 #    global DATA_DIR as _DATA_DIR_GLOBAL  # type: ignore  # just to be explicit to readers
-    try:
-        old_data_dir = DATA_DIR
-    except Exception:
-        old_data_dir = None
     # If your file already defines DATA_DIR globally, this assignment keeps them in sync:
     globals()["DATA_DIR"] = DATA_DIR  # so list_protein_pairs() uses the provided path
 

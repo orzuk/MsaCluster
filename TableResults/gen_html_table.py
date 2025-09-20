@@ -113,10 +113,10 @@ def gen_html_from_summary_table(
     box-shadow: 0 4px 8px rgba(0,0,0,0.5);
   }}
   th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; }}
-  th {{ background-color: #004d40; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
+  th {{ background-color: #b71c1c; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
   tr:nth-child(even) {{ background-color: #2b2b2b; }}
   tr:hover {{ background-color: #3a3a3a; }}
-  a {{ color: #BB86FC; text-decoration: none; }}
+  a {{ color: #64B5F6; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
 </style>
@@ -241,10 +241,10 @@ def gen_html_from_cluster_detailed_table(
   body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #E0E0E0; margin: 20px; }}
   table {{ width: 95%; margin: auto; border-collapse: collapse; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }}
   th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; }}
-  th {{ background-color: #004d40; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
+  th {{ background-color: #b71c1c; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
   tr:nth-child(even) {{ background-color: #2b2b2b; }}
   tr:hover {{ background-color: #3a3a3a; }}
-  a {{ color: #BB86FC; text-decoration: none; }}
+  a {{ color: #64B5F6; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
 </style>
