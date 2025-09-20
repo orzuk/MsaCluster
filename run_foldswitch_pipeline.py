@@ -108,25 +108,22 @@ def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
     return [s for _, s in entries]
 
 
-
 def _repo_root() -> str:
     return str(Path(__file__).resolve().parent)
 
 def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extra_cli: str = "") -> None:
-    """Submit one Slurm job that runs this script INLINE for a single pair."""
     gres = getattr(args, "sbatch_gres", "gpu:1")
     cpus = int(getattr(args, "sbatch_cpus", 4))
     mem  = str(getattr(args, "sbatch_mem", "32G"))
     time = str(getattr(args, "sbatch_time", "24:00:00"))
     part = getattr(args, "sbatch_partition", None)
     cons = getattr(args, "sbatch_constraint", None)
-    nlist= getattr(args, "sbatch_nodelist", None)  # NEW
+    nlist= getattr(args, "sbatch_nodelist", None)
     acct = getattr(args, "sbatch_account", None)
     qos  = getattr(args, "sbatch_qos", None)
     mail = getattr(args, "sbatch_mail", None)
     mtyp = getattr(args, "sbatch_mail_type", None)
 
-    # inner call (inline inside Slurm)
     inner = [
         shlex.quote(sys.executable),
         "run_foldswitch_pipeline.py",
@@ -138,44 +135,55 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         inner.append(extra_cli)
     wrap_str = " ".join(inner)
 
-    # per-pair log file
     job_dir = Path(f"Pipeline/{pair_id}/jobs")
     job_dir.mkdir(parents=True, exist_ok=True)
     out_path = str(job_dir / f"{run_mode}_{pair_id}.out")
 
-    # build sbatch argv (NO shell)
-    sb = [
-        "sbatch",
-        "-J", f"{run_mode}_{pair_id}",
-        f"--gres={gres}",
-        "-c", str(cpus),
-        f"--mem={mem}",
-        "-t", time,
-        "--parsable",
-        "--chdir", _repo_root(),         # NEW: run from repo root
-        "--output", out_path,            # NEW: per-pair log
-        "--wrap", wrap_str,
-    ]
-    if part: sb += ["-p", part]
-    if nlist: sb += ["--nodelist", nlist]     # prefer explicit nodes on your cluster
-    if cons: sb += [f"--constraint={cons}"]   # keep, but nodelist usually safer
-    if acct: sb += ["-A", acct]
-    if qos:  sb += ["--qos", qos]
-    if mail: sb += ["--mail-user", mail]
-    if mtyp: sb += ["--mail-type", mtyp]
+    def build_sbatch(with_partition: bool):
+        sb = [
+            "sbatch",
+            "-J", f"{run_mode}_{pair_id}",
+            f"--gres={gres}",
+            "-c", str(cpus),
+            f"--mem={mem}",
+            "-t", time,
+            "--parsable",
+            "--chdir", _repo_root(),
+            "--output", out_path,
+            "--wrap", wrap_str,
+        ]
+        # If user specified a nodelist, prefer it and SKIP -p to avoid conflicts
+        if nlist:
+            sb += ["--nodelist", nlist]
+        elif with_partition and part:
+            sb += ["-p", part]
+        if cons:
+            sb += [f"--constraint={cons}"]
+        if acct: sb += ["-A", acct]
+        if qos:  sb += ["--qos", qos]
+        if mail: sb += ["--mail-user", mail]
+        if mtyp: sb += ["--mail-type", mtyp]
+        return sb
 
-    # preview for logs
+    # Prefer: if nodelist is set, don’t pass partition at all
+    sb = build_sbatch(with_partition=not bool(nlist))
     print("[sbatch]", " ".join(shlex.quote(x) for x in sb), flush=True)
-
     try:
         res = subprocess.run(sb, check=True, capture_output=True, text=True)
         jobid = res.stdout.strip()
         print(f"[submitted] {run_mode} {pair_id} → job {jobid}", flush=True)
     except subprocess.CalledProcessError as e:
-        # show Slurm's complaint
-        print(f"[sbatch ERROR] exit={e.returncode}", flush=True)
-        if e.stderr: print(e.stderr.strip(), flush=True)
-        raise
+        msg = (e.stderr or "").strip().lower()
+        print(f"[sbatch ERROR] exit={e.returncode}", (e.stderr or "").strip(), sep="\n", flush=True)
+        # Auto-retry once without partition if Slurm says partition is invalid/inactive
+        if "required partition not available" in msg or "invalid partition" in msg:
+            sb2 = build_sbatch(with_partition=False)
+            print("[sbatch RETRY]", " ".join(shlex.quote(x) for x in sb2), flush=True)
+            res2 = subprocess.run(sb2, check=True, capture_output=True, text=True)
+            jobid = res2.stdout.strip()
+            print(f"[submitted] {run_mode} {pair_id} → job {jobid}", flush=True)
+        else:
+            raise
 
 
 
