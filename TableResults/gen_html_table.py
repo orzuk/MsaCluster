@@ -1,37 +1,19 @@
 # File: TableResults/gen_html_table.py
-import os, sys, re
-import html
+import os, sys, re, html
 import pandas as pd
-
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
-
-# >>> Use your config — no ad-hoc path strings
-from config import *
-
+from config import TABLES_RES, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, GITHUB_URL_HTML
 
 def gen_html_from_summary_table(
     summary_csv: str | None = None,
     output_html: str | None = None,
     title: str = "Interactive Protein Comparison Table",
-    # Keep the website link pattern you’re already using
     base_pair_url: str | None = GITHUB_URL_HTML + "/{pair_id}.html",
     preferred_column_order: list[str] | None = None,
+    column_explanations: dict[str, str] | None = None,
 ) -> str:
-    """
-    Build a sortable HTML table from the *new* summary CSV (best-per-pair table).
-
-    - If summary_csv/output_html are not provided, they default to config:
-        summary_csv  -> config.SUMMARY_RESULTS_TABLE
-        output_html  -> os.path.join(config.TABLES_RES, 'table.html')
-    - First column links to per-pair page (base_pair_url).
-    - Sorts numerically using the numeric part of "0.53 (6)".
-
-    Returns:
-        The path of the written HTML file.
-    """
-    # Resolve inputs from config if omitted
     if summary_csv is None:
         summary_csv = SUMMARY_RESULTS_TABLE
     if output_html is None:
@@ -42,7 +24,6 @@ def gen_html_from_summary_table(
 
     df = pd.read_csv(summary_csv)
 
-    # Minimal empty-page fallback
     if df.empty:
         os.makedirs(os.path.dirname(output_html), exist_ok=True)
         with open(output_html, "w", encoding="utf-8") as f:
@@ -50,22 +31,15 @@ def gen_html_from_summary_table(
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
 
-    # Column ordering
     pair_col = "pair_id" if "pair_id" in df.columns else "fold_pair"
-    if pair_col not in df.columns:
-        raise KeyError("Expected a 'pair_id' (or 'fold_pair') column in the summary CSV.")
-
     cols = list(df.columns)
-    if preferred_column_order is None:
-        best_cols = [c for c in cols if c.startswith("BEST_")]
-        other_cols = [c for c in cols if c not in best_cols + [pair_col]]
-        ordered_cols = [pair_col] + sorted(best_cols) + other_cols
-    else:
+
+    if preferred_column_order is not None:
         wanted = [c for c in preferred_column_order if c in cols]
         rest = [c for c in cols if c not in wanted]
-        ordered_cols = wanted + rest
-
-    df = df[ordered_cols]
+        df = df[wanted + rest]
+    else:
+        df = df[[pair_col] + [c for c in cols if c != pair_col]]
 
     # Build header
     thead = "<tr>" + "".join(
@@ -73,7 +47,6 @@ def gen_html_from_summary_table(
         for i, col in enumerate(df.columns)
     ) + "</tr>"
 
-    # Helper: numeric part from "0.53 (6)"
     num_re = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
     def numeric_part(cell) -> str:
         if pd.isna(cell):
@@ -84,7 +57,6 @@ def gen_html_from_summary_table(
         m = num_re.match(s)
         return m.group(1) if m else s
 
-    # Build rows (first col = link to pair page)
     rows = []
     for _, r in df.iterrows():
         pair = str(r[pair_col])
@@ -93,10 +65,16 @@ def gen_html_from_summary_table(
         for col in df.columns[1:]:
             val = r[col]
             disp = "-" if pd.isna(val) else str(val)
-            tds.append(
-                f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>'
-            )
+            tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
         rows.append("<tr>" + "".join(tds) + "</tr>")
+
+    # Build explanations block (only for columns we actually have)
+    expl_lines = []
+    if column_explanations:
+        for c in df.columns:
+            if c in column_explanations:
+                expl_lines.append(f"<p><b>{html.escape(c)}</b>: {html.escape(column_explanations[c])}</p>")
+    expl_html = ("\n".join(expl_lines)) if expl_lines else ""
 
     html_doc = f"""<!DOCTYPE html>
 <html lang="en">
@@ -109,7 +87,7 @@ def gen_html_from_summary_table(
     background-color: #121212; color: #E0E0E0; margin: 20px;
   }}
   table {{
-    width: 90%; margin: auto; border-collapse: collapse;
+    width: 98%; margin: auto; border-collapse: collapse;
     box-shadow: 0 4px 8px rgba(0,0,0,0.5);
   }}
   th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; }}
@@ -119,6 +97,7 @@ def gen_html_from_summary_table(
   a {{ color: #64B5F6; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
+  .legend {{ width: 98%; margin: 20px auto; line-height: 1.4; }}
 </style>
 </head>
 <body>
@@ -129,6 +108,9 @@ def gen_html_from_summary_table(
     {"".join(rows)}
   </tbody>
 </table>
+<div class="legend">
+{expl_html}
+</div>
 <script>
 let sortAsc = [];
 function getCellSortValue(td) {{
@@ -163,25 +145,15 @@ function sortTable(colIdx) {{
     return output_html
 
 
-
 def gen_html_from_cluster_detailed_table(
     detailed_csv: str | None = None,
     output_html: str | None = None,
     title: str = "Cluster-level Results (one row per cluster)",
     base_pair_url: str | None = GITHUB_URL_HTML + "/{pair_id}.html",
 ) -> str:
-    """
-    Render the detailed (per-cluster) table to a sortable HTML page.
-
-    - Input: the *detailed* CSV (one row per cluster with a `fold_pair` column)
-      produced by postprocess_unified.py.
-    - Output: an HTML table. First column links to the per-pair HTML page.
-    """
     if detailed_csv is None:
-        from config import DETAILED_RESULTS_TABLE
         detailed_csv = DETAILED_RESULTS_TABLE
     if output_html is None:
-        from config import TABLES_RES
         output_html = os.path.join(TABLES_RES, "clusters_table.html")
 
     if not os.path.exists(detailed_csv):
@@ -195,15 +167,12 @@ def gen_html_from_cluster_detailed_table(
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
 
-    # Ensure the pair column exists and is first
     pair_col = "fold_pair" if "fold_pair" in df.columns else ("pair_id" if "pair_id" in df.columns else None)
-    if pair_col is None or pair_col not in df.columns:
+    if pair_col is None:
         raise KeyError("Expected a 'fold_pair' (or 'pair_id') column in the detailed CSV.")
-    # Reorder: put pair first; then the rest in original order
     cols = [pair_col] + [c for c in df.columns if c != pair_col]
     df = df[cols]
 
-    # Header
     thead = "<tr>" + "".join(
         f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
         for i, col in enumerate(df.columns)
@@ -219,7 +188,6 @@ def gen_html_from_cluster_detailed_table(
         m = num_re.match(s)
         return m.group(1) if m else s
 
-    # Rows (first col is a link to per-pair page)
     rows = []
     for _, r in df.iterrows():
         pair = str(r[pair_col])
@@ -231,7 +199,6 @@ def gen_html_from_cluster_detailed_table(
             tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
         rows.append("<tr>" + "".join(tds) + "</tr>")
 
-    # Same CSS/JS as the other table
     html_doc = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -239,7 +206,7 @@ def gen_html_from_cluster_detailed_table(
 <title>{html.escape(title)}</title>
 <style>
   body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #E0E0E0; margin: 20px; }}
-  table {{ width: 95%; margin: auto; border-collapse: collapse; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }}
+  table {{ width: 98%; margin: auto; border-collapse: collapse; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }}
   th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; }}
   th {{ background-color: #b71c1c; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
   tr:nth-child(even) {{ background-color: #2b2b2b; }}
@@ -288,26 +255,47 @@ function sortTable(colIdx) {{
     print(f"[html] wrote: {output_html}")
     return output_html
 
-
 if __name__ == "__main__":
-    # 1) Best-per-pair summary table
+    # Your main comparison table (to docs/protein_comparison_table.html)
     out1 = os.path.join(TABLES_RES, "protein_comparison_table.html")
+    preferred = [
+        "pair_id",
+        "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
+        "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
+        "ESM2Clust_TM1","ESM2Clust_TM2","ESM2Deep_TM1","ESM2Deep_TM2",
+        "ESM3Clust_TM1","ESM3Clust_TM2","ESM3Deep_TM1","ESM3Deep_TM2",
+        "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2",
+    ]
+    explanations = {
+        "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
+        "AF2Clust_TM2": "Best TM-score to Fold2 among AF2 predictions from shallow clusters.",
+        "AF2Deep_TM1":  "Best TM-score to Fold1 among AF2 predictions built from the DeepMsa alignment.",
+        "AF2Deep_TM2":  "Best TM-score to Fold2 among AF2 predictions from DeepMsa.",
+        "AF3Clust_TM1": "Best TM-score to Fold1 among AF3 predictions from shallow clusters.",
+        "AF3Clust_TM2": "Best TM-score to Fold2 among AF3 predictions from shallow clusters.",
+        "AF3Deep_TM1":  "Best TM-score to Fold1 among AF3 predictions from DeepMsa.",
+        "AF3Deep_TM2":  "Best TM-score to Fold2 among AF3 predictions from DeepMsa.",
+        "ESM2Clust_TM1":"Best TM-score to Fold1 among ESMFold(ESM2) predictions from shallow clusters.",
+        "ESM2Clust_TM2":"Best TM-score to Fold2 among ESMFold(ESM2) predictions from shallow clusters.",
+        "ESM2Deep_TM1": "Best TM-score to Fold1 among ESMFold(ESM2) predictions from DeepMsa.",
+        "ESM2Deep_TM2": "Best TM-score to Fold2 among ESMFold(ESM2) predictions from DeepMsa.",
+        "ESM3Clust_TM1":"Best TM-score to Fold1 among ESMFold(ESM3) predictions from shallow clusters.",
+        "ESM3Clust_TM2":"Best TM-score to Fold2 among ESMFold(ESM3) predictions from shallow clusters.",
+        "ESM3Deep_TM1": "Best TM-score to Fold1 among ESMFold(ESM3) predictions from DeepMsa.",
+        "ESM3Deep_TM2": "Best TM-score to Fold2 among ESMFold(ESM3) predictions from DeepMsa.",
+        "MSATrans_CMAP_PR1": "Maximum precision of MSA-Transformer contact map vs Fold1 truth (threshold=0.4; |i−j|≥6).",
+        "MSATrans_CMAP_PR2": "Maximum precision vs Fold2 truth (same settings).",
+        "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
+        "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
+    }
     gen_html_from_summary_table(
-        preferred_column_order=[
-            "pair_id",
-            "BEST_AF_TM_FOLD1",
-            "BEST_CMAP_T1_F1",
-            "BEST_CMAP_T1_PRECISION",
-            "BEST_CMAP_T1_RECALL",
-            "BEST_CMAP_T1_JACCARD",
-            "BEST_CMAP_T1_MCC",
-        ],
+        preferred_column_order=preferred,
         output_html=out1,
+        column_explanations=explanations,
     )
 
-    # 2) Cluster-level (detailed) table
+    # Cluster-level (detailed) table unchanged
     out2 = os.path.join(TABLES_RES, "protein_clusters_table.html")
     gen_html_from_cluster_detailed_table(output_html=out2)
 
     print("OK:\n ", out1, "\n ", out2)
-
