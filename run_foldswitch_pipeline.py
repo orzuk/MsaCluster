@@ -109,20 +109,24 @@ def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
 
 
 
+def _repo_root() -> str:
+    return str(Path(__file__).resolve().parent)
+
 def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extra_cli: str = "") -> None:
-    """Submit one Slurm job that calls this script INLINE inside Slurm for a single pair."""
+    """Submit one Slurm job that runs this script INLINE for a single pair."""
     gres = getattr(args, "sbatch_gres", "gpu:1")
     cpus = int(getattr(args, "sbatch_cpus", 4))
     mem  = str(getattr(args, "sbatch_mem", "32G"))
     time = str(getattr(args, "sbatch_time", "24:00:00"))
     part = getattr(args, "sbatch_partition", None)
     cons = getattr(args, "sbatch_constraint", None)
+    nlist= getattr(args, "sbatch_nodelist", None)  # NEW
     acct = getattr(args, "sbatch_account", None)
     qos  = getattr(args, "sbatch_qos", None)
     mail = getattr(args, "sbatch_mail", None)
     mtyp = getattr(args, "sbatch_mail_type", None)
 
-    # Build the inner python call as a single wrapped string
+    # inner call (inline inside Slurm)
     inner = [
         shlex.quote(sys.executable),
         "run_foldswitch_pipeline.py",
@@ -134,6 +138,12 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         inner.append(extra_cli)
     wrap_str = " ".join(inner)
 
+    # per-pair log file
+    job_dir = Path(f"Pipeline/{pair_id}/jobs")
+    job_dir.mkdir(parents=True, exist_ok=True)
+    out_path = str(job_dir / f"{run_mode}_{pair_id}.out")
+
+    # build sbatch argv (NO shell)
     sb = [
         "sbatch",
         "-J", f"{run_mode}_{pair_id}",
@@ -141,24 +151,32 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         "-c", str(cpus),
         f"--mem={mem}",
         "-t", time,
-        "--parsable",                    # get jobid on stdout
-        "--wrap", wrap_str,              # IMPORTANT: pass as one arg
+        "--parsable",
+        "--chdir", _repo_root(),         # NEW: run from repo root
+        "--output", out_path,            # NEW: per-pair log
+        "--wrap", wrap_str,
     ]
     if part: sb += ["-p", part]
-    if cons: sb += [f"--constraint={cons}"]  # no shell => '|' stays literal
+    if nlist: sb += ["--nodelist", nlist]     # prefer explicit nodes on your cluster
+    if cons: sb += [f"--constraint={cons}"]   # keep, but nodelist usually safer
     if acct: sb += ["-A", acct]
     if qos:  sb += ["--qos", qos]
     if mail: sb += ["--mail-user", mail]
     if mtyp: sb += ["--mail-type", mtyp]
 
-    # Print a shell-safe preview (for your logs)
-    preview = " ".join(shlex.quote(x) for x in sb)
-    print("[sbatch]", preview, flush=True)
+    # preview for logs
+    print("[sbatch]", " ".join(shlex.quote(x) for x in sb), flush=True)
 
-    # Submit without a shell, so '|' is not treated as a pipe
-    res = subprocess.run(sb, check=True, capture_output=True, text=True)
-    jobid = res.stdout.strip()
-    print(f"[submitted] {run_mode} {pair_id} → job {jobid}", flush=True)
+    try:
+        res = subprocess.run(sb, check=True, capture_output=True, text=True)
+        jobid = res.stdout.strip()
+        print(f"[submitted] {run_mode} {pair_id} → job {jobid}", flush=True)
+    except subprocess.CalledProcessError as e:
+        # show Slurm's complaint
+        print(f"[sbatch ERROR] exit={e.returncode}", flush=True)
+        if e.stderr: print(e.stderr.strip(), flush=True)
+        raise
+
 
 
 
@@ -1379,6 +1397,8 @@ def main():
                    help="Optional --mail-user email for notifications")
     p.add_argument("--sbatch_mail_type", default=None,
                    help="Optional --mail-type (e.g., END,FAIL,ALL)")
+    p.add_argument("--sbatch_nodelist", default=None,
+               help="Comma-separated Slurm nodelist, e.g. salmon-[01-10],dogfish-[01-02]")
 
     # Slurm options for html output
     p.add_argument("--html_cpus", type=int, default=2)
