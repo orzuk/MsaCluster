@@ -110,11 +110,11 @@ def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
 
 
 def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extra_cli: str = "") -> None:
-    """Submit a simple one-pair job that calls this script in INLINE mode inside Slurm."""
+    """Submit one Slurm job that calls this script INLINE inside Slurm for a single pair."""
     gres = getattr(args, "sbatch_gres", "gpu:1")
     cpus = int(getattr(args, "sbatch_cpus", 4))
-    mem  = getattr(args, "sbatch_mem", "32G")
-    time = getattr(args, "sbatch_time", "24:00:00")
+    mem  = str(getattr(args, "sbatch_mem", "32G"))
+    time = str(getattr(args, "sbatch_time", "24:00:00"))
     part = getattr(args, "sbatch_partition", None)
     cons = getattr(args, "sbatch_constraint", None)
     acct = getattr(args, "sbatch_account", None)
@@ -122,26 +122,44 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
     mail = getattr(args, "sbatch_mail", None)
     mtyp = getattr(args, "sbatch_mail_type", None)
 
-    base = (
-        f"python3 run_foldswitch_pipeline.py "
-        f"--run_mode {run_mode} --foldpair_ids {pair_id} --run_job_mode inline {extra_cli}"
-    )
+    # Build the inner python call as a single wrapped string
+    inner = [
+        shlex.quote(sys.executable),
+        "run_foldswitch_pipeline.py",
+        "--run_mode", run_mode,
+        "--foldpair_ids", pair_id,
+        "--run_job_mode", "inline",
+    ]
+    if extra_cli:
+        inner.append(extra_cli)
+    wrap_str = " ".join(inner)
 
     sb = [
-        "sbatch", "-J", f"{run_mode}_{pair_id}",
-        f"--gres={gres}", "-c", str(cpus), f"--mem={mem}", f"-t", time
+        "sbatch",
+        "-J", f"{run_mode}_{pair_id}",
+        f"--gres={gres}",
+        "-c", str(cpus),
+        f"--mem={mem}",
+        "-t", time,
+        "--parsable",                    # get jobid on stdout
+        "--wrap", wrap_str,              # IMPORTANT: pass as one arg
     ]
     if part: sb += ["-p", part]
-    if cons: sb += ["--constraint", cons]
+    if cons: sb += [f"--constraint={cons}"]  # no shell => '|' stays literal
     if acct: sb += ["-A", acct]
     if qos:  sb += ["--qos", qos]
     if mail: sb += ["--mail-user", mail]
     if mtyp: sb += ["--mail-type", mtyp]
 
-    # important: wrap the inner python call
-    sb += ["--wrap", base]
-    print("[sbatch]", " ".join(sb), flush=True)
-    subprocess.run(" ".join(sb), shell=True, check=True)
+    # Print a shell-safe preview (for your logs)
+    preview = " ".join(shlex.quote(x) for x in sb)
+    print("[sbatch]", preview, flush=True)
+
+    # Submit without a shell, so '|' is not treated as a pipe
+    res = subprocess.run(sb, check=True, capture_output=True, text=True)
+    jobid = res.stdout.strip()
+    print(f"[submitted] {run_mode} {pair_id} → job {jobid}", flush=True)
+
 
 
 def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
