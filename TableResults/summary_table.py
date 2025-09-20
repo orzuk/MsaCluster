@@ -146,6 +146,8 @@ def collect_summary_tables(
             colmap = {}
             if "score_pdb1" in df_af.columns: colmap["score_pdb1"] = "af_tm_fold1"
             if "score_pdb2" in df_af.columns: colmap["score_pdb2"] = "af_tm_fold2"
+            if "TMscore_fold1" in df_af.columns: colmap["TMscore_fold1"] = "af_tm_fold1"
+            if "TMscore_fold2" in df_af.columns: colmap["TMscore_fold2"] = "af_tm_fold2"
             df_af = df_af.rename(columns=colmap)
             df_af["pair_id"] = pair_id
             df_af = _ensure_cluster_column(df_af)
