@@ -796,29 +796,49 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
 
 def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     """
-    - Sample up to N seqs per cluster -> _tmp_ShallowMsa_XXX.fasta
-    - Call ESMFoldHF once with correct CLI:
-        python3 ./ESMFoldHF.py -input <PAIR_ID> --model {esm2|esm3} [--device ...]
-    - Outputs go to: Pipeline/<pair>/output_esm_fold/<esm_model>/
+    - Sample up to N seqs per cluster -> tmp_esmfold/*.fasta
+    - Call ESMFoldHF once:
+        python3 ./ESMFoldHF.py -input <PAIR_ID> --model {esm2|esm3} --device {auto|cuda|cpu}
+    - Outputs: Pipeline/<pair>/output_esm_fold/<esm_model>/
     """
     if _is_windows():
         raise SystemExit("ESMFold can’t run on Windows. Run on Moriah/Linux.")
 
-    # Prepare sampled FASTAs for clusters (and skip deep by default here)
+    # Prepare sampled FASTAs (your helper)
     _sample_to_tmp_fastas(pair_id, args.cluster_sample_n, include_deep=False)
 
-    # Ensure output dir exists (the HF script will place files under the model subdir)
-    model_dir = f"Pipeline/{pair_id}/output_esm_fold/{args.esm_model}"
-    ensure_dir(model_dir)
+    # Decide device: if sequences are very long, prefer CPU to avoid CUDA OOM
+    tmp_dir = Path(f"Pipeline/{pair_id}/tmp_esmfold")
+    max_len = 0
+    for fa in sorted(tmp_dir.glob("*.fasta")):
+        with open(fa) as f:
+            for line in f:
+                if line.startswith(">"): 
+                    continue
+                max_len = max(max_len, len(line.strip()))
 
-    # Correct CLI: no -i/-o
-    device = args.esm_device or "auto"
+    device = (args.esm_device or "auto")
+    if device == "auto" and getattr(args, "esm_gpu_len_threshold", None):
+        if max_len >= int(args.esm_gpu_len_threshold):
+            print(f"[esm] max L={max_len} ≥ {args.esm_gpu_len_threshold} → using CPU")
+            device = "cpu"
+
+    ensure_dir(f"Pipeline/{pair_id}/output_esm_fold/{args.esm_model}")
     cmd = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device {device}"
-    _run(cmd, args.run_job_mode)
+    try:
+        _run(cmd, args.run_job_mode)
+    except Exception as e:
+        # Best-effort retry on CPU if we weren’t already on CPU
+        if device != "cpu":
+            print(f"[esm] WARN ({e}). Retrying on CPU…")
+            cmd_cpu = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device cpu"
+            try:
+                _run(cmd_cpu, args.run_job_mode)
+            except Exception as e2:
+                print(f"[esm] ERROR retry on CPU failed: {e2}")
+        else:
+            print(f"[esm] ERROR: {e}")
 
-    # No cleanup!
-    # tmpdir = f"Pipeline/{pair_id}/tmp_esmfold"
-    # subprocess.run(f"rm -rf {shlex.quote(tmpdir)}", shell=True, check=False)
 
 
 def task_af(pair_id: str, args: argparse.Namespace) -> None:
@@ -1090,14 +1110,20 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     # Default to both versions inside the full pipeline unless user explicitly asked AF2-only.
     if getattr(args, "af_ver", None) not in ("2", "3", "both"):
         args.af_ver = "both"
-    task_af(pair_id, args)
+    try:
+        task_af(pair_id, args)
+    except Exception as e:
+        print(f"[pipeline] AF → skipped: {e}")        
 
     # 5) cmaps (MSA-Transformer)
-    if force_all or not _has_cmaps(pair_id):
-        print("[pipeline] cmap_msa_transformer → running")
-        task_cmap_msa_transformer(pair_id, "inline")
-    else:
-        print("[pipeline] cmap_msa_transformer → skip (cmaps exist)")
+    try:
+        if force_all or not _has_cmaps(pair_id):
+            print("[pipeline] cmap_msa_transformer → running")
+            task_cmap_msa_transformer(pair_id, "inline")
+        else:
+            print("[pipeline] cmap_msa_transformer → skip (cmaps exist)")
+    except Exception as e:
+        print(f"[pipeline] cmap_msa_transformer → skipped: {e}")
 
     # 5b) cmaps (CCMpred) — best-effort
     try:
@@ -1106,24 +1132,29 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"[pipeline] cmap_ccmpred → skipped: {e}")
 
-    # 6) ESMFold (esm2/esm3 or user-specified)
+    # 6) ESMFold (esm2/esm3 or user-specified)    
     wanted_models = ["esm2", "esm3"] if getattr(args, "esm_model", None) in (None, "both") else [args.esm_model]
     for model in wanted_models:
-        a2 = deepcopy(args)
-        a2.esm_model = model
-        if force_all or not _has_esm_model(pair_id, model):
-            print(f"[pipeline] esmfold({model}) → running")
-            task_esmfold(pair_id, a2)
-        else:
-            print(f"[pipeline] esmfold({model}) → skip (outputs exist)")
+        try:
+            a2 = deepcopy(args); a2.esm_model = model
+            if force_all or not _has_esm_model(pair_id, model):
+                print(f"[pipeline] esmfold({model}) → running")
+                task_esmfold(pair_id, a2)
+            else:
+                print(f"[pipeline] esmfold({model}) → skip (outputs exist)")
+        except Exception as e:
+            print(f"[pipeline] esmfold({model}) → skipped: {e}")
 
     # 7) phylogenetic tree (needed for tree plots)
-    tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
-    if force_all or not tree_path.exists():
-        print("[pipeline] tree → running")
-        task_tree(pair_id, "inline")
-    else:
-        print("[pipeline] tree → skip (exists)")
+    try:
+        tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
+        if force_all or not tree_path.exists():
+            print("[pipeline] tree → running")
+            task_tree(pair_id, "inline")
+        else:
+            print("[pipeline] tree → skip (exists)")
+    except Exception as e:
+        print(f"[pipeline] tree → skipped: {e}")
 
     # 8) ΔG energies (PyRosetta) — best-effort
     try:
@@ -1205,6 +1236,8 @@ def main():
     p.add_argument("--cluster_sample_n", type=int, default=10)
     p.add_argument("--esm_model", default=None, choices=["esm2", "esm3", "both"])
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
+    p.add_argument("--esm_gpu_len_threshold", type=int, default=800,
+               help="If max chain length ≥ this, run ESM on CPU to avoid CUDA OOM (default: 800).")
 
     # ---- CCMpred options ----
     p.add_argument("--ccmpred_bin",

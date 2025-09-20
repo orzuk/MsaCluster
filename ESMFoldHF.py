@@ -209,44 +209,54 @@ def _detect_esm2_checkpoint() -> str | None:
 
 
 
-def run_esm2_fold(seqs, device):
+def run_esm2_fold(
+    seqs,
+    device,
+    chunk_size: int = 64,
+    num_recycles: int = 1,
+    amp_dtype=None,     # torch.float16 / torch.bfloat16 / None
+):
     """
-    Run structure prediction using ESMFold.
-    Uses Meta+OpenFold if available; otherwise falls back to HF port.
-    Returns {"backend": "...", "chains": [...]}
+    Run structure prediction using ESMFold (Meta or HF port).
+    Memory savers:
+      - trunk.chunk_size
+      - num_recycles
+      - autocast (fp16/bf16) when on CUDA
     """
-    backend, model = load_esmfold(device)  # <-- use it!
+    backend, model = load_esmfold(device)  # returns ("meta-esmfold"| "hf-esmfold", model)
     if device != "cpu":
         model = model.to(device)
+    # memory knobs
+    if hasattr(model, "trunk"):
+        try:
+            model.trunk.chunk_size = int(chunk_size)
+        except Exception:
+            pass
+        if hasattr(model, "set_num_recycles"):
+            try: model.set_num_recycles(int(num_recycles))
+            except Exception: pass
+        elif hasattr(model.trunk, "num_recycles"):
+            try: model.trunk.num_recycles = int(num_recycles)
+            except Exception: pass
+
+    use_amp = (device == "cuda" and amp_dtype is not None)
 
     outputs = []
     for name, seq in seqs:
         print(f"[{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
         t0 = time.time()
-        # sanitize: drop gaps/invalids to avoid HF ESMFold crash on '-'
+        # sanitize (strip gaps/non-letters)
         try:
             seq = process_sequence(seq)
         except Exception:
-            # minimal fallback: strip gaps
             seq = "".join(ch for ch in seq if ch.isalpha())
 
-
-        # Both Meta ESMFold and the HF port expose infer_pdb; use it if present.
-        if hasattr(model, "infer_pdb"):
-            pdb_str = model.infer_pdb(seq)
-        else:
-            # Very rare: fallback path if a future HF build renames the API.
-            tok = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
-            batch = tok([seq], return_tensors="pt", add_special_tokens=False).to(device)
-            with torch.no_grad():
-                out = model(**batch)
-            # Try common helpers; raise if none exist (so we notice)
-            if hasattr(model, "to_pdb"):
-                pdb_str = model.to_pdb(out)
-            elif hasattr(model, "output_to_pdb"):
-                pdb_str = model.output_to_pdb(out)
+        with torch.no_grad():
+            if use_amp:
+                with torch.cuda.amp.autocast(dtype=amp_dtype):
+                    pdb_str = model.infer_pdb(seq)
             else:
-                raise RuntimeError("ESMFold model has no infer_pdb/to_pdb/output_to_pdb methods.")
+                pdb_str = model.infer_pdb(seq)
 
         dt = time.time() - t0
         print(f"[{backend}] done in {dt:.1f}s")
@@ -258,6 +268,7 @@ def run_esm2_fold(seqs, device):
             "residue_index": list(range(1, len(seq) + 1)),
         })
     return {"backend": backend, "chains": outputs}
+
 
 
 
@@ -400,19 +411,28 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("-input", dest="pair_id", required=True, help="Pair id (e.g., 1fzpD_2frhA) OR an existing directory path")
     parser.add_argument("--model", choices=["esm2", "esm3"], default="esm2")
     parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto")
+    parser.add_argument("--esm_chunk", type=int, default=64, help="Chunk size for trunk attention (smaller → less VRAM).")
+    parser.add_argument("--esm_recycles", type=int, default=1, help="Number of recycles (1–3; fewer → less VRAM).")
+    parser.add_argument("--esm_dtype", choices=["auto","fp32","fp16","bf16"], default="auto",
+               help="Autocast dtype on CUDA (auto→bf16 if available, else fp16).")
     args = parser.parse_args(argv)
-
     print(f"Running ESM, finished reading args parameters!", flush=True)
-
 
     t_start = time.time()
     device = pick_device() if args.device == "auto" else args.device
+
+    # decide AMP dtype (optional)
+    use_cuda = (device == "cuda")
+    amp_dtype = None
+    if args.esm_dtype == "bf16" or (args.esm_dtype == "auto" and use_cuda and torch.cuda.is_bf16_supported()):
+        amp_dtype = torch.bfloat16
+    elif args.esm_dtype == "fp16" or (args.esm_dtype == "auto" and use_cuda):
+        amp_dtype = torch.float16
+
     dev_str = device
     if device == "cuda":
-        try:
-            dev_str += f" ({torch.cuda.get_device_name(0)})"
-        except Exception:
-            pass
+        try: dev_str += f" ({torch.cuda.get_device_name(0)})"
+        except Exception: pass
     print(f"Running ESM on device: {dev_str}", flush=True)
 
     t0 = time.time()
@@ -427,7 +447,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     t2 = time.time()
     if model_tag == "esm2":
-        result = run_esm2_fold(sequences, device)
+        result = run_esm2_fold(
+            sequences, device,
+            chunk_size=args.esm_chunk,
+            num_recycles=args.esm_recycles,
+            amp_dtype=amp_dtype,
+        )
     else:
         result = run_esm3_fold(sequences, device)
     t3 = time.time()

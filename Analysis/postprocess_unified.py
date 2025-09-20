@@ -15,6 +15,7 @@ from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 PAIR_DIR = Path(DATA_DIR)
 
 
+
 def _cmap_csv_path(pair_id: str) -> str:
     return f"{DATA_DIR}/{pair_id}/Analysis/df_cmap.csv"
 
@@ -201,15 +202,18 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             det["fold_pair"] = pair_id
             all_detailed.append(det)
 
+        max_len = _pair_max_len(pair_id)
         # Summary row (pair-level)
         summary_rows.append({
             "fold_pair": pair_id,
+            "#RES": max_len,
             **(best_tm or {}),
             **(best_cmap or {}),
             "n_af_preds": int(len(df_af)),
             "n_esm_preds": int(len(df_esm)),
             "n_cmap_preds": int(len(df_cmap))
         })
+
 
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)

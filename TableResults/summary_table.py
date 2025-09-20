@@ -11,6 +11,52 @@ from utils.utils import list_protein_pairs
 
 SHALLOW_RE = re.compile(r"ShallowMsa_(\d+)", re.IGNORECASE)
 
+def _truth_pdbs_for_pair(pair_id: str):
+    a, b = pair_id.split("_", 1)
+    p1, c1 = a[:-1], a[-1]
+    p2, c2 = b[:-1], b[-1]
+    base = os.path.join(DATA_DIR, pair_id)
+    cand1 = os.path.join(base, "chain_pdb_files", f"{a}.pdb")
+    cand2 = os.path.join(base, "chain_pdb_files", f"{b}.pdb")
+    pdb1 = cand1 if os.path.isfile(cand1) else os.path.join(base, f"{p1}.pdb")
+    pdb2 = cand2 if os.path.isfile(cand2) else os.path.join(base, f"{p2}.pdb")
+    return pdb1, c1, pdb2, c2
+
+def _chain_len_from_pdb(pdb_path: str, chain_id: str | None) -> int:
+    n = 0
+    seen = set()
+    try:
+        with open(pdb_path) as fh:
+            for line in fh:
+                if not line.startswith("ATOM"): 
+                    continue
+                if line[12:16].strip() != "CA":
+                    continue
+                if chain_id and (line[21].strip() != chain_id):
+                    continue
+                resnum = (line[22:27], line[26])
+                if resnum not in seen:
+                    seen.add(resnum); n += 1
+    except Exception:
+        pass
+    return n
+
+def _pair_max_len(pair_id: str) -> int:
+    pdb1, c1, pdb2, c2 = _truth_pdbs_for_pair(pair_id)
+    return max(_chain_len_from_pdb(pdb1, c1), _chain_len_from_pdb(pdb2, c2))
+
+
+def _pick_best_overall(dfall: pd.DataFrame, model_tag: str, which_fold: int) -> str:
+    if dfall is None or dfall.empty:
+        return "-"
+    df = dfall[dfall["model"] == model_tag]
+    col = "TM1" if which_fold == 1 else "TM2"
+    s = pd.to_numeric(df[col], errors="coerce")
+    if s.notna().any():
+        return f"{s.max():.2f}"
+    return "-"
+
+
 def _safe_read_csv(path: str) -> Optional[pd.DataFrame]:
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return None
@@ -141,12 +187,19 @@ def collect_summary_tables(
         tm_esm = _norm_tm_df(df_esm, "esm2")   # default if legacy
         tm_all = pd.concat([tm_af, tm_esm], ignore_index=True) if len(tm_af) or len(tm_esm) else pd.DataFrame()
 
-        row = {"pair_id": pair_id}
-        for tag, up in (("af2","AF2"), ("af3","AF3"), ("esm2","ESM2"), ("esm3","ESM3")):
+        row = {"pair_id": pair_id, "#RES": _pair_max_len(pair_id)}
+        # AF keeps Clust & Deep
+        for tag, up in (("af2","AF2"), ("af3","AF3")):
             row[f"{up}Clust_TM1"] = _pick_best(tm_all, tag, "clust", 1)
             row[f"{up}Clust_TM2"] = _pick_best(tm_all, tag, "clust", 2)
             row[f"{up}Deep_TM1"]  = _pick_best(tm_all, tag, "deep",  1)
             row[f"{up}Deep_TM2"]  = _pick_best(tm_all, tag, "deep",  2)
+
+        # ESM is overall-best (no cluster split)    
+        row["ESM2_TM1"] = _pick_best_overall(tm_all, "esm2", 1)
+        row["ESM2_TM2"] = _pick_best_overall(tm_all, "esm2", 2)
+        row["ESM3_TM1"] = _pick_best_overall(tm_all, "esm3", 1)
+        row["ESM3_TM2"] = _pick_best_overall(tm_all, "esm3", 2)
 
         # CMAP maxima (MSA-Transformer)
         row["MSATrans_CMAP_PR1"] = _best_max(df_cmap, "t1_precision")
