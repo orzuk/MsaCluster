@@ -9,6 +9,157 @@ from utils.align_utils import *
 import argparse
 
 
+import re
+import numpy as np
+
+CONTACT_CUTOFF = 8.0  # Å; adjust if you use a different truth definition
+
+def _read_two_seeds_from_a3m(a3m_path: str):
+    """
+    Return (seed1, seed2) strings from an A3M; if only 1 seed is present,
+    seed2 may be None. Lines are concatenated and kept exactly as in A3M
+    (uppercase = aligned residue, lowercase = insertion, '-' = gap).
+    """
+    if not os.path.isfile(a3m_path):
+        return None, None
+    seqs = []
+    take = False
+    cur = []
+    with open(a3m_path) as fh:
+        for line in fh:
+            if line.startswith(">"):
+                if cur:
+                    seqs.append("".join(cur)); cur = []
+                take = True
+                continue
+            if take:
+                s = line.strip()
+                if not s:
+                    continue
+                cur.append(s)
+        if cur:
+            seqs.append("".join(cur))
+    # top two
+    s1 = seqs[0] if len(seqs) >= 1 else None
+    s2 = seqs[1] if len(seqs) >= 2 else None
+    return s1, s2
+
+
+def _uppercase_cols(seed: str):
+    """Return list of alignment-column indices to KEEP (seed has uppercase AAs)."""
+    if not seed:
+        return []
+    return [i for i, ch in enumerate(seed) if ch.isalpha() and ch.isupper()]
+
+
+def _common_cols(seed1: str, seed2: str):
+    """Columns where BOTH seeds have uppercase residues (shared-by-residue frame)."""
+    if not seed1 or not seed2:
+        return []
+    keep1 = _uppercase_cols(seed1)
+    keep2 = _uppercase_cols(seed2)
+    K1 = set(keep1)
+    K2 = set(keep2)
+    return sorted(list(K1.intersection(K2)))
+
+
+def _coords_from_pdb_chain(pdb_path: str, chain_id: str | None):
+    """Extract CA coords (N×3). Falls back to CB if needed."""
+    if not os.path.isfile(pdb_path):
+        return None
+    ca = []
+    cb = []
+    with open(pdb_path) as fh:
+        for line in fh:
+            if not line.startswith("ATOM"):
+                continue
+            if chain_id and line[21].strip() != chain_id:
+                continue
+            atom = line[12:16].strip()
+            if atom not in ("CA", "CB"):
+                continue
+            try:
+                x = float(line[30:38]); y = float(line[38:46]); z = float(line[46:54])
+            except Exception:
+                continue
+            if atom == "CA":
+                ca.append((x,y,z))
+            elif atom == "CB":
+                cb.append((x,y,z))
+    arr = np.array(ca if ca else cb, dtype=np.float32)
+    return arr if len(arr) else None
+
+
+def _truth_contacts(coords: np.ndarray, cutoff=CONTACT_CUTOFF, sep_min=6):
+    """Return boolean NxN contact mask from coordinates."""
+    if coords is None or len(coords) == 0:
+        return None
+    X = coords
+    d2 = np.sum((X[:,None,:] - X[None,:,:])**2, axis=2)
+    mask = d2 <= (cutoff*cutoff)
+    # remove diagonal & short-range
+    n = mask.shape[0]
+    for i in range(n):
+        lo = max(0, i - (sep_min-1))
+        hi = min(n, i + (sep_min))
+        mask[i, lo:hi] = False
+    np.fill_diagonal(mask, False)
+    # make symmetric
+    mask = np.triu(mask, 1) | np.tril(mask, -1)
+    return mask
+
+
+def _bin_pred(mat: np.ndarray, thresh=0.4, sep_min=6, index_tol=0):
+    """Threshold a probability CMAP; apply sep_min and optional +/- index tolerance."""
+    n = mat.shape[0]
+    pred = (mat >= thresh)
+    # remove diagonal & short-range
+    for i in range(n):
+        lo = max(0, i - (sep_min-1))
+        hi = min(n, i + (sep_min))
+        pred[i, lo:hi] = False
+    np.fill_diagonal(pred, False)
+    pred = np.triu(pred, 1) | np.tril(pred, -1)
+
+    if index_tol > 0:
+        # simple dilation on the binary grid within a Chebyshev radius 'index_tol'
+        pred_eff = pred.copy()
+        for di in range(-index_tol, index_tol+1):
+            for dj in range(-index_tol, index_tol+1):
+                if di == 0 and dj == 0:
+                    continue
+                sh = np.zeros_like(pred)
+                si0, si1 = max(0, -di), min(n, n-di)
+                sj0, sj1 = max(0, -dj), min(n, n-dj)
+                di0, dj0 = max(0, di), max(0, dj)
+                if si1 > si0 and sj1 > sj0:
+                    sh[di0:di0+(si1-si0), dj0:dj0+(sj1-sj0)] = pred[si0:si1, sj0:sj1]
+                pred_eff |= sh
+        pred = pred_eff
+    return pred
+
+
+def _metrics(pred_bin: np.ndarray, truth_bin: np.ndarray):
+    """Return precision, recall, F1, Jaccard, MCC on upper-tri entries."""
+    if pred_bin is None or truth_bin is None:
+        return dict(precision=np.nan, recall=np.nan, f1=np.nan, jaccard=np.nan, mcc=np.nan)
+    iu = np.triu_indices_from(truth_bin, 1)
+    p = pred_bin[iu].astype(bool)
+    t = truth_bin[iu].astype(bool)
+    tp = int(np.sum(p & t))
+    fp = int(np.sum(p & ~t))
+    fn = int(np.sum(~p & t))
+    tn = int(np.sum(~p & ~t))
+    prec = tp / (tp + fp) if (tp+fp) else np.nan
+    rec  = tp / (tp + fn) if (tp+fn) else np.nan
+    f1   = 2*prec*rec / (prec+rec) if prec>0 and rec>0 else (1.0 if (prec==1 and rec==1) else (0.0 if (prec==0 or rec==0) else np.nan))
+    jac  = tp / (tp + fp + fn) if (tp+fp+fn) else np.nan
+    # MCC
+    denom = (tp+fp)*(tp+fn)*(tn+fp)*(tn+fn)
+    mcc = ((tp*tn - fp*fn) / np.sqrt(denom)) if denom else np.nan
+    return dict(precision=prec, recall=rec, f1=f1, jaccard=jac, mcc=mcc)
+
+
 def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
     """
     Align two contact maps and resize them to match the smaller map's dimensions.
@@ -163,129 +314,230 @@ def evaluate_pred_cmap(
 
 
 def compute_cmap_metrics_for_pair(
-    pair_id: str,
-    *,
-    include_deep: bool = True,   # ← default TRUE now
-    thresh: float = 0.4, # In angstrom
+    subdir: str,
+    include_deep: bool = True,
+    thresh: float = 0.4,
     sep_min: int = 6,
     index_tol: int = 0,
-    symmetrize: bool = True,
-) -> pd.DataFrame:
-    """Compute CMAP precision/recall/F1/etc. for one pair; write df_cmap.csv and return the DataFrame."""
-    # Ensure tuple like ('1dzlA','5keqF') and derive chains / dirs
-    foldA, foldB = pair_str_to_tuple(pair_id)
-    chains = (foldA[-1], foldB[-1])
-    subdir = f"{foldA}_{foldB}"
+):
+    """
+    Write Pipeline/<pair>/Analysis/df_cmap.csv with per-file metrics:
+      t1_* / t2_* (per fold), and common_* / uniq1_* / uniq2_* (shared & contact-unique).
+    Symmetric: truth2 does not depend on truth1 — both are aligned via _seed_both.a3m.
+    """
+    pair_dir = os.path.join(DATA_DIR, subdir)
+    out_dir  = os.path.join(pair_dir, "Analysis")
+    os.makedirs(out_dir, exist_ok=True)
+    out_csv  = os.path.join(out_dir, "df_cmap.csv")
 
-    # Sequences from truth PDBs (CA-only) + truth contact maps
-    seq1 = extract_protein_sequence(f"{DATA_DIR}/{subdir}/{foldA[:-1]}.pdb", chain=chains[0], ca_only=True)
-    seq2 = extract_protein_sequence(f"{DATA_DIR}/{subdir}/{foldB[:-1]}.pdb", chain=chains[1], ca_only=True)
-    cmap_pdb1, _ = pdb_to_contact_map(f"{DATA_DIR}/{subdir}/{foldA[:-1]}.pdb", chain=chains[0])
-    cmap_pdb2, _ = pdb_to_contact_map(f"{DATA_DIR}/{subdir}/{foldB[:-1]}.pdb", chain=chains[1])
+    # ---- 1) paths & truths
+    a, b = subdir.split("_", 1)
+    p1, c1 = a[:-1], a[-1]
+    p2, c2 = b[:-1], b[-1]
+    # prefer chain-specific PDBs if present
+    cand1 = os.path.join(pair_dir, "chain_pdb_files", f"{a}.pdb")
+    cand2 = os.path.join(pair_dir, "chain_pdb_files", f"{b}.pdb")
+    pdb1  = cand1 if os.path.isfile(cand1) else os.path.join(pair_dir, f"{p1}.pdb")
+    pdb2  = cand2 if os.path.isfile(cand2) else os.path.join(pair_dir, f"{p2}.pdb")
 
-    # Align truths to a common NxN frame + mapping indices
-    cmap_aln_1, cmap_aln_2, (idx1, idx2) = align_cmaps_by_sequence(cmap_pdb1, seq1, cmap_pdb2, seq2, mode="standard")
+    coords1 = _coords_from_pdb_chain(pdb1, c1)
+    coords2 = _coords_from_pdb_chain(pdb2, c2)
+    if coords1 is None or coords2 is None:
+        raise RuntimeError("Could not load truth coordinates for one or both chains")
 
-    # Predictions dir
-    pred_dir = f"{DATA_DIR}/{subdir}/output_cmaps/msa_transformer"
-    cmaps = sorted(os.listdir(pred_dir)) if os.path.isdir(pred_dir) else []
-    if not cmaps:
-        # Write an empty file so downstream consistently finds it
-        os.makedirs(f"{DATA_DIR}/{subdir}/Analysis", exist_ok=True)
-        df_empty = pd.DataFrame()
-        df_empty.to_csv(f"{DATA_DIR}/{subdir}/Analysis/df_cmap.csv", index=False)
-        return df_empty
+    T1 = _truth_contacts(coords1, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
+    T2 = _truth_contacts(coords2, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
+    L1, L2 = T1.shape[0], T2.shape[0]
 
-    truth1_aln = cmap_aln_1.astype(np.uint8)
-    truth2_aln = cmap_aln_2.astype(np.uint8)
-    n_common = truth1_aln.shape[0]
-    idx1 = np.asarray(idx1, dtype=int)
-    idx2 = np.asarray(idx2, dtype=int)
-    L1, L2 = len(seq1), len(seq2)
+    # ---- 2) alignment frames from _seed_both.a3m (symmetric mapping)
+    both_a3m = os.path.join(pair_dir, "_seed_both.a3m")
+    s1, s2 = _read_two_seeds_from_a3m(both_a3m)
+    keep1 = _uppercase_cols(s1) if s1 else []
+    keep2 = _uppercase_cols(s2) if s2 else []
+    common_cols = _common_cols(s1, s2)
+
+    # map 'common' columns to residue indices in each fold
+    # For each alignment column with uppercase in both seeds, we know its residue index
+    # within each seed's ungapped sequence.
+    def _ungapped_positions(seed):
+        idxs = []
+        resi = 0
+        for i, ch in enumerate(seed or ""):
+            if ch.isalpha():
+                if ch.isupper():
+                    resi += 1
+                    idxs.append(resi-1)  # 0-based residue index in that seed
+                # lowercase: insertion (doesn't count for residue index)
+            else:
+                # '-' gap
+                pass
+        return idxs
+
+    # Build position maps from alignment column -> residue index
+    def _col_to_res(seed):
+        col2res = {}
+        resi = 0
+        for i, ch in enumerate(seed or ""):
+            if ch.isalpha():
+                if ch.isupper():
+                    col2res[i] = resi  # map to current residue index (0-based)
+                    resi += 1
+            # lowercase or '-' → no mapping
+        return col2res
+
+    col2res1 = _col_to_res(s1) if s1 else {}
+    col2res2 = _col_to_res(s2) if s2 else {}
+
+    # For the common frame, we’ll need arrays that map common positions -> residue indices in each fold
+    c_to_r1 = [col2res1[c] for c in common_cols] if common_cols else []
+    c_to_r2 = [col2res2[c] for c in common_cols] if common_cols else []
+
+    # Sanity: lengths expected after collapsing
+    exp1 = len(keep1)
+    exp2 = len(keep2)
+    expC = len(common_cols)
+
+    # ---- 3) iterate predicted maps
+    pred_dir = os.path.join(pair_dir, "output_cmaps", "msa_transformer")
+    files = []
+    if os.path.isdir(pred_dir):
+        for fn in sorted(os.listdir(pred_dir)):
+            if fn.startswith("msa_t__") and fn.endswith(".npy"):
+                if (not include_deep) and ("MSA_deep" in fn):
+                    continue
+                files.append(os.path.join(pred_dir, fn))
 
     rows = []
-    for fname in tqdm(cmaps, disable=True):  # quiet when imported
-        try:
-            if not fname.endswith(".npy"):
-                continue
-            # Skip only visualization artifacts; keep shallow and deep by default
-            if ("visualization_map" in fname) or ("VizCmaps" in fname):
-                continue
-            if (not include_deep) and ("deep" in fname.lower()):
-                continue
-
-            pred_path = os.path.join(pred_dir, fname)
-            pred_full = np.load(pred_path)
-            if pred_full.ndim != 2 or pred_full.shape[0] != pred_full.shape[1]:
-                continue
-
-            Np = pred_full.shape[0]
-            if Np == L1:
-                pred_common = pred_full[np.ix_(idx1, idx1)]
-            elif Np == L2:
-                pred_common = pred_full[np.ix_(idx2, idx2)]
-            elif Np == n_common:
-                pred_common = pred_full
-            else:
-                # size mismatch; skip
-                continue
-
-            if pred_common.shape[0] != n_common:
-                continue
-
-            metrics = evaluate_pred_cmap(
-                pred_map=pred_common,
-                truth1_bin=truth1_aln,
-                truth2_bin=truth2_aln,
-                thresh=thresh,
-                sep_min=sep_min,
-                index_tol=index_tol,
-                symmetrize=symmetrize)
-            metric_keys = [k for k in metrics if k.startswith(("t1_", "t2_", "common_", "uniq1_", "uniq2_"))]
-            row = {"file": fname}
-            row.update({k: metrics[k] for k in metric_keys})
-            rows.append(row)
-
-        except Exception as e:
-            print("[warn]", fname, "->", e)
+    for f in files:
+        P = np.load(f)  # NxN in alignment columns
+        N = P.shape[0]
+        if P.shape[0] != P.shape[1]:
+            # skip weird shapes
             continue
 
-    os.makedirs(f"{DATA_DIR}/{subdir}/Analysis", exist_ok=True)
+        # collapse to fold1 frame
+        pred1 = None
+        if exp1 and max(keep1) < N:
+            pred1 = P[np.ix_(keep1, keep1)]
+            if pred1.shape[0] != L1:
+                # If unusual mismatch (e.g., missing residues), skip t1_* but still compute common
+                pred1 = None
+
+        # collapse to fold2 frame
+        pred2 = None
+        if exp2 and max(keep2) < N:
+            pred2 = P[np.ix_(keep2, keep2)]
+            if pred2.shape[0] != L2:
+                pred2 = None
+
+        # common frame (symmetric; does not depend on choosing fold1 or fold2)
+        predC = None
+        if expC and max(common_cols) < N:
+            predC = P[np.ix_(common_cols, common_cols)]
+            # Build T1/T2 in that same common frame by remapping residue indices:
+            if expC and len(c_to_r1) == expC and len(c_to_r2) == expC:
+                T1C = T1[np.ix_(c_to_r1, c_to_r1)]
+                T2C = T2[np.ix_(c_to_r2, c_to_r2)]
+            else:
+                T1C = None; T2C = None
+        else:
+            T1C = None; T2C = None
+
+        # --- metrics ---
+        # Fold1
+        t1_prec = t1_rec = t1_f1 = t1_jac = t1_mcc = np.nan
+        if pred1 is not None:
+            pb = _bin_pred(pred1, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
+            m  = _metrics(pb, T1)
+            t1_prec, t1_rec, t1_f1, t1_jac, t1_mcc = m["precision"], m["recall"], m["f1"], m["jaccard"], m["mcc"]
+
+        # Fold2
+        t2_prec = t2_rec = t2_f1 = t2_jac = t2_mcc = np.nan
+        if pred2 is not None:
+            pb = _bin_pred(pred2, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
+            m  = _metrics(pb, T2)
+            t2_prec, t2_rec, t2_f1, t2_jac, t2_mcc = m["precision"], m["recall"], m["f1"], m["jaccard"], m["mcc"]
+
+        # Common / uniq-by-contact categories (symmetric)
+        com_prec = com_rec = com_f1 = com_jac = com_mcc = np.nan
+        u1_prec = u1_rec = u1_f1 = u1_jac = u1_mcc = np.nan
+        u2_prec = u2_rec = u2_f1 = u2_jac = u2_mcc = np.nan
+
+        if predC is not None and T1C is not None and T2C is not None:
+            pb = _bin_pred(predC, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
+
+            common_mask = (T1C & T2C)
+            uniq1_mask  = (T1C & ~T2C)
+            uniq2_mask  = (T2C & ~T1C)
+
+            # evaluate each category by masking the truth and reusing the same pb grid
+            def _masked_metrics(pb, truth_mask):
+                return _metrics(pb, truth_mask)
+
+            mcom = _masked_metrics(pb, common_mask)
+            mu1  = _masked_metrics(pb, uniq1_mask)
+            mu2  = _masked_metrics(pb, uniq2_mask)
+
+            com_prec, com_rec, com_f1, com_jac, com_mcc = mcom["precision"], mcom["recall"], mcom["f1"], mcom["jaccard"], mcom["mcc"]
+            u1_prec,  u1_rec,  u1_f1,  u1_jac,  u1_mcc  = mu1["precision"],  mu1["recall"],  mu1["f1"],  mu1["jaccard"],  mu1["mcc"]
+            u2_prec,  u2_rec,  u2_f1,  u2_jac,  u2_mcc  = mu2["precision"],  mu2["recall"],  mu2["f1"],  mu2["jaccard"],  mu2["mcc"]
+
+        # File/meta
+        base = os.path.basename(f)
+        if "MSA_deep" in base:
+            clus = "DeepMsa"
+        else:
+            m = re.search(r"(ShallowMsa_\d+)", base)
+            clus = m.group(1) if m else "Unknown"
+
+        rows.append({
+            "pair_id": subdir,
+            "file": base,
+            "cluster": clus,
+            "thresh": thresh,
+            "sep_min": sep_min,
+            # per fold
+            "t1_precision": t1_prec, "t1_recall": t1_rec, "t1_f1": t1_f1, "t1_jaccard": t1_jac, "t1_mcc": t1_mcc,
+            "t2_precision": t2_prec, "t2_recall": t2_rec, "t2_f1": t2_f1, "t2_jaccard": t2_jac, "t2_mcc": t2_mcc,
+            # symmetric categories
+            "common_precision": com_prec, "common_recall": com_rec, "common_f1": com_f1, "common_jaccard": com_jac, "common_mcc": com_mcc,
+            "uniq1_precision": u1_prec, "uniq1_recall": u1_rec, "uniq1_f1": u1_f1, "uniq1_jaccard": u1_jac, "uniq1_mcc": u1_mcc,
+            "uniq2_precision": u2_prec, "uniq2_recall": u2_rec, "uniq2_f1": u2_f1, "uniq2_jaccard": u2_jac, "uniq2_mcc": u2_mcc,
+        })
+
+    # ---- 4) write CSV
+    import pandas as pd
     df = pd.DataFrame(rows)
-    df.to_csv(f"{DATA_DIR}/{subdir}/Analysis/df_cmap.csv", index=False)
+    df.to_csv(out_csv, index=False)
     return df
 
 
-# --- replace your existing main with this ---
+# Compute and save contact maps metrics
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="CMAP analysis for one pair or all pairs")
-    parser.add_argument("pair", nargs="?", help="Optional pair like 1dzlA_5keqF")
-    parser.add_argument("--include_deep", action="store_true", help="Score the deep map as well")
-    parser.add_argument("--thresh", type=float, default=0.4)
-    parser.add_argument("--sep_min", type=int, default=6)
-    parser.add_argument("--index_tol", type=int, default=0)
-    parser.add_argument("--include_deep", action="store_true", default=True,
-                        help="Score the deep map as well (default: True). Use --no-include_deep to disable.")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser("Compute MSA-Transformer CMAP metrics for pair(s)")
+    ap.add_argument("pairs", nargs="*", help="pair IDs like 1dzlA_5keqF; if empty, process all")
+    ap.add_argument("--include_deep", action="store_true")
+    ap.add_argument("--thresh", type=float, default=0.4)
+    ap.add_argument("--sep_min", type=int, default=6)
+    ap.add_argument("--index_tol", type=int, default=0)
+    args = ap.parse_args()
 
-    if args.pair:
-        pairs = [pair_str_to_tuple(args.pair)]
+    if args.pairs:
+        todo = args.pairs
     else:
-        pairs = list_protein_pairs()
+        from utils.utils import list_protein_pairs
+        todo = list_protein_pairs(parsed=False, sort_result=True)
 
-    print(f"[cmap_analysis] total pairs={len(pairs)}")
-    for fold_pair in pairs:
-        subdir = f"{fold_pair[0]}_{fold_pair[1]}"
+    for pid in todo:
         try:
             compute_cmap_metrics_for_pair(
-                subdir,
+                pid,
                 include_deep=args.include_deep,
                 thresh=args.thresh,
                 sep_min=args.sep_min,
-                index_tol=args.index_tol)
-            print("Saved metrics:", f"{DATA_DIR}/{subdir}/Analysis/df_cmap.csv")
-        except Exception as err:
-            print("[error pair]", subdir, "->", err)
-
-    print("Finish all MSA-Transformer CMAP computations!")
+                index_tol=args.index_tol,
+            )
+            print("[cmap] wrote", os.path.join(DATA_DIR, pid, "Analysis", "df_cmap.csv"))
+        except Exception as e:
+            print("[cmap] ERROR", pid, "→", e)
 
