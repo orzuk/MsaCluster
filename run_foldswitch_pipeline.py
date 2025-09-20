@@ -108,6 +108,42 @@ def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
     return [s for _, s in entries]
 
 
+
+def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extra_cli: str = "") -> None:
+    """Submit a simple one-pair job that calls this script in INLINE mode inside Slurm."""
+    gres = getattr(args, "sbatch_gres", "gpu:1")
+    cpus = int(getattr(args, "sbatch_cpus", 4))
+    mem  = getattr(args, "sbatch_mem", "32G")
+    time = getattr(args, "sbatch_time", "24:00:00")
+    part = getattr(args, "sbatch_partition", None)
+    cons = getattr(args, "sbatch_constraint", None)
+    acct = getattr(args, "sbatch_account", None)
+    qos  = getattr(args, "sbatch_qos", None)
+    mail = getattr(args, "sbatch_mail", None)
+    mtyp = getattr(args, "sbatch_mail_type", None)
+
+    base = (
+        f"python3 run_foldswitch_pipeline.py "
+        f"--run_mode {run_mode} --foldpair_ids {pair_id} --run_job_mode inline {extra_cli}"
+    )
+
+    sb = [
+        "sbatch", "-J", f"{run_mode}_{pair_id}",
+        f"--gres={gres}", "-c", str(cpus), f"--mem={mem}", f"-t", time
+    ]
+    if part: sb += ["-p", part]
+    if cons: sb += ["--constraint", cons]
+    if acct: sb += ["-A", acct]
+    if qos:  sb += ["--qos", qos]
+    if mail: sb += ["--mail-user", mail]
+    if mtyp: sb += ["--mail-type", mtyp]
+
+    # important: wrap the inner python call
+    sb += ["--wrap", base]
+    print("[sbatch]", " ".join(sb), flush=True)
+    subprocess.run(" ".join(sb), shell=True, check=True)
+
+
 def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     """
     Submit ONE Slurm job that runs the full pipeline for a single pair INLINE.
@@ -1363,6 +1399,22 @@ def main():
         if type(pair_id) in [tuple, list]:  # convert format
             pair_id = f"{pair_id[0]}_{pair_id[1]}"
 
+        # NEW: generic per-pair submit for single-step run modes
+        if args.run_job_mode == "sbatch" and args.run_mode in {
+            "run_esmfold", "run_cmap_msa_transformer", "run_cmap_ccmpred", "postprocess"
+        }:
+            extras = []
+            if args.run_mode == "run_esmfold":
+                # pass through ESM flags
+                if getattr(args, "esm_model", None):
+                    extras += [f"--esm_model {args.esm_model}"]
+                if getattr(args, "esm_device", None):
+                    extras += [f"--esm_device {args.esm_device}"]
+            if args.run_mode == "postprocess" and args.reports != "none":
+                extras += [f"--reports {args.reports}"]
+            _submit_pair_job(args.run_mode, pair_id, args, " ".join(extras))
+            continue
+
         if args.run_mode == "load":
             task_load(pair_id, args)
 
@@ -1417,9 +1469,12 @@ def main():
 
 
     # If we only submitted per-pair jobs, don’t build reports now
-    if args.run_mode == "msaclust_pipeline" and args.run_job_mode == "sbatch":
+    if args.run_job_mode == "sbatch" and args.run_mode in {
+        "msaclust_pipeline", "run_esmfold", "run_cmap_msa_transformer", "run_cmap_ccmpred", "postprocess"
+    }:
         print("[submit-only] Per-pair jobs have been submitted. Run reports later.", flush=True)
         return
+
 
     # Otherwise build whatever the user asked for
     if args.reports != "none":

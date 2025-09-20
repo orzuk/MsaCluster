@@ -209,64 +209,79 @@ def _detect_esm2_checkpoint() -> str | None:
 
 
 
-def run_esm2_fold(
-    seqs,
-    device,
-    chunk_size: int = 64,
-    num_recycles: int = 1,
-    amp_dtype=None,     # torch.float16 / torch.bfloat16 / None
-):
-    """
-    Run structure prediction using ESMFold (Meta or HF port).
-    Memory savers:
-      - trunk.chunk_size
-      - num_recycles
-      - autocast (fp16/bf16) when on CUDA
-    """
-    backend, model = load_esmfold(device)  # returns ("meta-esmfold"| "hf-esmfold", model)
+def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None):
+    backend, model = load_esmfold(device)
     if device != "cpu":
         model = model.to(device)
-    # memory knobs
-    if hasattr(model, "trunk"):
-        try:
-            model.trunk.chunk_size = int(chunk_size)
-        except Exception:
-            pass
-        if hasattr(model, "set_num_recycles"):
-            try: model.set_num_recycles(int(num_recycles))
-            except Exception: pass
-        elif hasattr(model.trunk, "num_recycles"):
-            try: model.trunk.num_recycles = int(num_recycles)
-            except Exception: pass
 
-    use_amp = (device == "cuda" and amp_dtype is not None)
+    def _apply_knobs(cur_chunk, cur_recycles):
+        if hasattr(model, "trunk"):
+            try: model.trunk.chunk_size = int(cur_chunk)
+            except Exception: pass
+            # try both styles; HF and Meta builds differ a bit
+            if hasattr(model, "set_num_recycles"):
+                try: model.set_num_recycles(int(cur_recycles))
+                except Exception: pass
+            elif hasattr(model.trunk, "num_recycles"):
+                try: model.trunk.num_recycles = int(cur_recycles)
+                except Exception: pass
 
     outputs = []
-    for name, seq in seqs:
-        print(f"[{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
-        t0 = time.time()
-        # sanitize (strip gaps/non-letters)
-        try:
-            seq = process_sequence(seq)
-        except Exception:
-            seq = "".join(ch for ch in seq if ch.isalpha())
+    use_amp = (device == "cuda" and amp_dtype is not None)
 
-        with torch.no_grad():
-            if use_amp:
-                with torch.cuda.amp.autocast(dtype=amp_dtype):
-                    pdb_str = model.infer_pdb(seq)
-            else:
-                pdb_str = model.infer_pdb(seq)
+    for name, raw_seq in seqs:
+        seq = process_sequence(raw_seq) or "".join(ch for ch in raw_seq if ch.isalpha())
+        print(f"[{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
+
+        cur_chunk = int(chunk_size)
+        cur_recycles = int(num_recycles)
+        cur_dtype = amp_dtype
+        t0 = time.time()
+
+        while True:
+            try:
+                _apply_knobs(cur_chunk, cur_recycles)
+                with torch.no_grad():
+                    if use_amp and device == "cuda":
+                        with torch.cuda.amp.autocast(dtype=cur_dtype):
+                            pdb_str = model.infer_pdb(seq)
+                    else:
+                        pdb_str = model.infer_pdb(seq)
+                break  # success
+            except torch.cuda.OutOfMemoryError as e:
+                # free what we can
+                try:
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
+
+                # Step-down strategy: shrink chunk → shrink recycles → switch dtype → give up
+                if cur_chunk > 8:
+                    cur_chunk = max(8, cur_chunk // 2)
+                    print(f"[{backend}] OOM → retry with chunk_size={cur_chunk}", flush=True)
+                    continue
+                if cur_recycles > 1:
+                    cur_recycles = 1
+                    print(f"[{backend}] OOM → retry with num_recycles=1", flush=True)
+                    continue
+                if device == "cuda" and cur_dtype is None:
+                    # last resort: turn on autocast if it wasn’t
+                    cur_dtype = (torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16)
+                    print(f"[{backend}] OOM → retry with autocast dtype={cur_dtype}", flush=True)
+                    continue
+                # still OOM → rethrow
+                raise
 
         dt = time.time() - t0
-        print(f"[{backend}] done in {dt:.1f}s")
+        print(f"[{backend}] done in {dt:.1f}s (chunk={cur_chunk}, recycles={cur_recycles}, amp={cur_dtype})", flush=True)
+
         outputs.append({
             "name": name,
             "pdb": pdb_str,
-            "plddt": None,
-            "pae": None,
+            "plddt": None, "pae": None,
             "residue_index": list(range(1, len(seq) + 1)),
         })
+
     return {"backend": backend, "chains": outputs}
 
 
@@ -411,15 +426,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("-input", dest="pair_id", required=True, help="Pair id (e.g., 1fzpD_2frhA) OR an existing directory path")
     parser.add_argument("--model", choices=["esm2", "esm3"], default="esm2")
     parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto")
-    parser.add_argument("--esm_chunk", type=int, default=64, help="Chunk size for trunk attention (smaller → less VRAM).")
-    parser.add_argument("--esm_recycles", type=int, default=1, help="Number of recycles (1–3; fewer → less VRAM).")
+    parser.add_argument("--require_cuda", action="store_true",
+                help="Abort if CUDA is not available (never fall back to CPU).")
+    parser.add_argument("--esm_chunk", type=int, default=32,
+                help="ESMFold trunk chunk size. Smaller uses less VRAM (8–64).")
+    parser.add_argument("--esm_recycles", type=int, default=1,
+                help="Number of recycles (1–3). Fewer uses less VRAM.")
     parser.add_argument("--esm_dtype", choices=["auto","fp32","fp16","bf16"], default="auto",
-               help="Autocast dtype on CUDA (auto→bf16 if available, else fp16).")
+                help="Autocast dtype on CUDA. 'auto' → bf16 if supported else fp16.")
+
+
     args = parser.parse_args(argv)
     print(f"Running ESM, finished reading args parameters!", flush=True)
 
     t_start = time.time()
     device = pick_device() if args.device == "auto" else args.device
+
+    if args.require_cuda and device != "cuda":
+        raise SystemExit("CUDA is required (--require_cuda), but no GPU was selected/available.")
+    if torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = True
 
     # decide AMP dtype (optional)
     use_cuda = (device == "cuda")
