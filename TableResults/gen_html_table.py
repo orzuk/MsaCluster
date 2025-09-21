@@ -1,10 +1,25 @@
 # File: TableResults/gen_html_table.py
 import os, sys, re, html
 import pandas as pd
+import argparse
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 from config import TABLES_RES, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, GITHUB_URL_HTML
+from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
+
+
+# === NEW: ensure unified CSVs exist (or rebuild on demand) ===
+def _ensure_unified_csvs(force_rerun: bool = False):
+    need = force_rerun or (not os.path.exists(SUMMARY_RESULTS_TABLE)) or (not os.path.exists(DETAILED_RESULTS_TABLE))
+    if need:
+        # local import to avoid cycles when this module is imported elsewhere
+        try:
+            build_unified_tables_from_cluster_dfs(write_out=True)
+            print("[gen_html] ensured unified CSVs (summary + detailed).")
+        except Exception as e:
+            print(f"[gen_html] WARN: could not build unified CSVs automatically: {e}")
+
 
 def gen_html_from_summary_table(
     summary_csv: str | None = None,
@@ -18,6 +33,9 @@ def gen_html_from_summary_table(
         summary_csv = SUMMARY_RESULTS_TABLE
     if output_html is None:
         output_html = os.path.join(TABLES_RES, "table.html")
+
+    # === NEW: auto-create CSVs if missing ===
+    _ensure_unified_csvs(force_rerun=False)
 
     if not os.path.exists(summary_csv):
         raise FileNotFoundError(f"Summary CSV not found: {summary_csv}")
@@ -156,6 +174,9 @@ def gen_html_from_cluster_detailed_table(
     if output_html is None:
         output_html = os.path.join(TABLES_RES, "clusters_table.html")
 
+    # === NEW: auto-create CSVs if missing ===
+    _ensure_unified_csvs(force_rerun=False)
+
     if not os.path.exists(detailed_csv):
         raise FileNotFoundError(f"Detailed CSV not found: {detailed_csv}")
 
@@ -261,7 +282,6 @@ def gen_html_for_global_plots(
     output_html: str = os.path.join("docs", "pairs_global_analysis.html"),
     title: str = "Global Comparison Plots"
 ) -> str:
-    import os, html
     files = sorted([f for f in os.listdir(images_dir) if f.lower().endswith((".png",".jpg",".jpeg",".webp",".svg"))])
     os.makedirs(os.path.dirname(output_html), exist_ok=True)
     rows = "\n".join(
@@ -281,14 +301,22 @@ def gen_html_for_global_plots(
 
 
 if __name__ == "__main__":
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--force_rerun", action="store_true", help="Recompute unified CSVs from per-pair cluster CSVs before building HTML.")
+    args = ap.parse_args()
+
+    _ensure_unified_csvs(force_rerun=args.force_rerun)
+
+
     # Your main comparison table (to docs/protein_comparison_table.html)
     out1 = os.path.join(TABLES_RES, "protein_comparison_table.html")
     preferred = [
-    "pair_id", "#RES", "MSA DEPTH (#Clusters)",
-    "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
-    "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
-    "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
-    "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2"]
+        "pair_id", "#RES", "MSA DEPTH (#Clusters)",
+        "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
+        "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
+        "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
+        "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2"]
 
     explanations = {
         "#RES": "Number of residues in the longer chain of the pair.",
@@ -310,14 +338,11 @@ if __name__ == "__main__":
         "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
         "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
     }
-    gen_html_from_summary_table(
-        preferred_column_order=preferred,
-        output_html=out1,
-        column_explanations=explanations,
-    )
 
-    # Cluster-level (detailed) table unchanged
+    gen_html_from_summary_table(summary_csv=None, output_html=out1, preferred_column_order=preferred, column_explanations=explanations)
+    # clusters table
     out2 = os.path.join(TABLES_RES, "protein_clusters_table.html")
-    gen_html_from_cluster_detailed_table(output_html=out2)
+    gen_html_from_cluster_detailed_table(detailed_csv=None, output_html=out2)
+
 
     print("OK:\n ", out1, "\n ", out2)

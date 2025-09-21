@@ -2,7 +2,9 @@
 import os, re, glob
 import pandas as pd
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
+import fnmatch
+
 from tqdm import tqdm
 import argparse
 
@@ -13,6 +15,232 @@ from utils.align_utils import compute_tmscore_align
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
 PAIR_DIR = Path(DATA_DIR)
+
+
+# === NEW: fast builder from cached per-pair cluster CSVs to unified CSVs ===
+def _deepmsa_a3m_path(pair_id: str) -> str:
+    # exact path you asked for
+    return f"{DATA_DIR}/{pair_id}/output_get_msa/DeepMsa.a3m"
+
+def _count_a3m_sequences_fast(a3m_path: str) -> int:
+    """Count '>' headers in a plain-text A3M file."""
+    try:
+        n = 0
+        with open(a3m_path, "r") as fh:
+            for line in fh:
+                if line.startswith(">"):
+                    n += 1
+        return n
+    except Exception:
+        return 0
+
+def _count_shallow_clusters_fast(pair_id: str) -> int:
+    """Count ShallowMsa_*.a3m files directly under output_msa_cluster/."""
+    base = f"{DATA_DIR}/{pair_id}/output_msa_cluster"
+    try:
+        names = os.listdir(base)
+    except Exception:
+        return 0
+    return sum(1 for name in names if fnmatch.fnmatch(name, "ShallowMsa_*.a3m"))
+
+def _safe_read_csv(path: str) -> Optional[pd.DataFrame]:
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return None
+    try:
+        return pd.read_csv(path)
+    except Exception:
+        return None
+
+def _norm_tm_df(df: Optional[pd.DataFrame], default_source: str) -> pd.DataFrame:
+    """
+    Normalize AF/ESM TM tables into a single schema:
+      columns: model (af2|af3|esm2|esm3), cluster_tag, cluster_type ('clust'|'deep'|None),
+               cluster_id (e.g., '7' for ShallowMsa_007), TM1, TM2
+    """
+    import re
+    SHALLOW_RE = re.compile(r"ShallowMsa_(\d+)", re.IGNORECASE)
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["model","cluster_tag","cluster_type","cluster_id","TM1","TM2"])
+
+    df = df.copy()
+    # Accept both new and legacy column names
+    if "TMscore_fold1" not in df.columns and "score_pdb1" in df.columns:
+        df = df.rename(columns={"score_pdb1": "TMscore_fold1", "score_pdb2": "TMscore_fold2"})
+    # Model normalization
+    if "model" not in df.columns:
+        df["model"] = default_source
+    df["model"] = df["model"].astype(str).str.lower()  # 'AF2' -> 'af2', etc.
+
+    # Cluster tag
+    if "cluster_num" in df.columns:
+        ctag = df["cluster_num"].astype(str)
+    elif "cluster" in df.columns:
+        ctag = df["cluster"].astype(str)
+    else:
+        ctag = pd.Series([None] * len(df))
+    df["_cluster_tag"] = ctag
+
+    # Parse type/id
+    def _ctype_id(s):
+        if s is None or s != s:
+            return None, None
+        st = str(s)
+        if "deep" in st.lower():
+            return "deep", None
+        m = SHALLOW_RE.search(st)
+        if m:
+            cid = m.group(1).lstrip("0") or "0"
+            return "clust", cid
+        if st.isdigit():
+            return "clust", st.lstrip("0") or "0"
+        return None, None
+
+    types, ids = zip(*[_ctype_id(s) for s in df["_cluster_tag"]])
+    out = pd.DataFrame({
+        "model": df["model"].str.lower(),
+        "cluster_tag": df["_cluster_tag"],
+        "cluster_type": list(types),
+        "cluster_id": list(ids),
+        "TM1": pd.to_numeric(df.get("TMscore_fold1"), errors="coerce"),
+        "TM2": pd.to_numeric(df.get("TMscore_fold2"), errors="coerce"),
+    })
+    return out
+
+def _pick_best(dfall: pd.DataFrame, model_tag: str, mode: str, which_fold: int) -> str:
+    """
+    mode: 'clust' or 'deep'; which_fold: 1 or 2
+    Returns formatted string:
+      - Clust: "0.78 (7)"
+      - Deep:  "0.64"
+      - "-" if unavailable
+    """
+    if dfall is None or dfall.empty:
+        return "-"
+    df = dfall[dfall["model"] == model_tag]
+    if mode == "clust":
+        df = df[df["cluster_type"] == "clust"]
+    elif mode == "deep":
+        df = df[df["cluster_type"] == "deep"]
+    col = "TM1" if which_fold == 1 else "TM2"
+    if df.empty or df[col].isna().all():
+        return "-"
+    idx = df[col].idxmax()
+    val = float(df.loc[idx, col])
+    if mode == "clust":
+        cid = df.loc[idx, "cluster_id"]
+        if cid is not None and cid == cid:
+            return f"{val:.2f} ({cid})"
+    return f"{val:.2f}"
+
+def _pick_best_overall(dfall: pd.DataFrame, model_tag: str, which_fold: int) -> str:
+    if dfall is None or dfall.empty:
+        return "-"
+    df = dfall[dfall["model"] == model_tag]
+    col = "TM1" if which_fold == 1 else "TM2"
+    s = pd.to_numeric(df[col], errors="coerce")
+    return f"{s.max():.2f}" if s.notna().any() else "-"
+
+def _best_max(df: Optional[pd.DataFrame], col: str) -> str:
+    if df is None or df.empty or col not in df.columns:
+        return "-"
+    s = pd.to_numeric(df[col], errors="coerce")
+    return f"{s.max():.2f}" if s.notna().any() else "-"
+
+def _pair_max_len_from_truth(pair_id: str) -> int:
+    pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+    def _len(pdb_path, chain_id):
+        n, seen = 0, set()
+        try:
+            with open(pdb_path) as fh:
+                for line in fh:
+                    if not line.startswith("ATOM"): continue
+                    if line[12:16].strip() != "CA": continue
+                    if chain_id and (line[21].strip() != chain_id): continue
+                    resnum = (line[22:27], line[26])
+                    if resnum not in seen:
+                        seen.add(resnum); n += 1
+        except Exception:
+            pass
+        return n
+    return max(_len(pdb1, c1), _len(pdb2, c2))
+
+def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
+                                          write_out: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Fast path:
+      - READ cached per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv) – no recompute
+      - COMPUTE summary (one row per pair) incl. "#RES" and "MSA DEPTH (#Clusters)"
+      - COMPUTE detailed (concat of df_af/df_esm with fold_pair column)
+      - Optionally write SUMMARY_RESULTS_TABLE and DETAILED_RESULTS_TABLE
+    """
+    if not pairs:
+        pairs = [f"{a}_{b}" for a, b in list_protein_pairs()]
+
+    all_detailed = []
+    summary_rows = []
+
+    for pair_id in pairs:
+        pair_dir = _pair_dir(pair_id)
+        if not pair_dir.is_dir():
+            continue
+
+        df_af   = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_af.csv"))
+        df_esm  = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_esm.csv"))
+        df_cmap = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_cmap.csv"))
+
+        # Detailed rows (cluster-level)
+        det = []
+        if df_af is not None and not df_af.empty:
+            det.append(df_af.copy())
+        if df_esm is not None and not df_esm.empty:
+            det.append(df_esm.copy())
+        if det:
+            det = pd.concat(det, ignore_index=True)
+            det["fold_pair"] = pair_id
+            all_detailed.append(det)
+
+        # Build best-per-pair row + depth & #clusters
+        tm_af  = _norm_tm_df(df_af,  "af2")
+        tm_esm = _norm_tm_df(df_esm, "esm2")
+        tm_all = pd.concat([tm_af, tm_esm], ignore_index=True) if len(tm_af) or len(tm_esm) else pd.DataFrame()
+
+        row = {"fold_pair": pair_id, "#RES": _pair_max_len_from_truth(pair_id)}
+
+        deepmsa_file = _deepmsa_a3m_path(pair_id)
+        msa_depth = _count_a3m_sequences_fast(deepmsa_file)
+        n_clusters = _count_shallow_clusters_fast(pair_id)
+        row["MSA DEPTH (#Clusters)"] = f"{msa_depth} ({n_clusters})"
+
+        # AF: Clust + Deep, per fold
+        for tag, up in (("af2","AF2"), ("af3","AF3")):
+            row[f"{up}Clust_TM1"] = _pick_best(tm_all, tag, "clust", 1)
+            row[f"{up}Clust_TM2"] = _pick_best(tm_all, tag, "clust", 2)
+            row[f"{up}Deep_TM1"]  = _pick_best(tm_all, tag, "deep",  1)
+            row[f"{up}Deep_TM2"]  = _pick_best(tm_all, tag, "deep",  2)
+
+        # ESM overall bests
+        row["ESM2_TM1"] = _pick_best_overall(tm_all, "esm2", 1)
+        row["ESM2_TM2"] = _pick_best_overall(tm_all, "esm2", 2)
+        row["ESM3_TM1"] = _pick_best_overall(tm_all, "esm3", 1)
+        row["ESM3_TM2"] = _pick_best_overall(tm_all, "esm3", 2)
+
+        # CMAP maxima (MSA-Transformer)
+        row["MSATrans_CMAP_PR1"] = _best_max(df_cmap, "t1_precision")
+        row["MSATrans_CMAP_PR2"] = _best_max(df_cmap, "t2_precision")
+        row["MSATrans_CMAP_RE1"] = _best_max(df_cmap, "t1_recall")
+        row["MSATrans_CMAP_RE2"] = _best_max(df_cmap, "t2_recall")
+
+        summary_rows.append(row)
+
+    detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
+    summary_df  = pd.DataFrame(summary_rows)
+
+    if write_out:
+        Path(SUMMARY_RESULTS_TABLE).parent.mkdir(parents=True, exist_ok=True)
+        summary_df.to_csv(SUMMARY_RESULTS_TABLE, index=False)
+        detailed_df.to_csv(DETAILED_RESULTS_TABLE, index=False)
+
+    return summary_df, detailed_df
 
 
 
@@ -218,20 +446,30 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
-    # Write global tables
-    Path(SUMMARY_RESULTS_TABLE).parent.mkdir(parents=True, exist_ok=True)
-    summary_df.to_csv(SUMMARY_RESULTS_TABLE, index=False)
-    detailed_df.to_csv(DETAILED_RESULTS_TABLE, index=False)
     return summary_df, detailed_df
 
-
 if __name__ == "__main__":
-
-    p = argparse.ArgumentParser(description="Unified post-processing: TM-scores (AF/ESM), CMAP metrics, summary tables.")
+    import argparse
+    p = argparse.ArgumentParser(description="Unified post-processing: build summary/detailed CSVs for the website.")
     p.add_argument("--pairs", nargs="*", help="Pair IDs like 1fzpD_2frhA. If omitted, process all pairs.")
-    p.add_argument("--force_rerun", action="store_true", help="Recompute per-pair CSVs even if they exist.")
+    p.add_argument("--force_rerun", action="store_true",
+                   help="FULL mode: recompute per-pair Analysis CSVs even if they exist.")
+    p.add_argument("--mode", choices=["full", "unify"], default="full",
+                   help="'full' recomputes per-pair Analysis CSVs then unifies; 'unify' only rebuilds unified CSVs from cached per-pair Analysis CSVs.")
     args = p.parse_args()
 
-    summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=args.pairs)
-    print(f"[postprocess] wrote:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
-    print(f"[postprocess] summary rows={len(summary_df)} | detailed rows={len(detailed_df)}")
+    if args.mode == "full":
+        # 1) Recompute/refresh per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv)
+        summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=args.pairs)
+        print(f"[postprocess] per-pair Analysis refreshed: summary rows={len(summary_df)} | detailed rows={len(detailed_df)}")
+
+        # 2) Build unified CSVs from those cached per-pair Analysis CSVs (single writer)
+        from postprocess_unified import build_unified_tables_from_cluster_dfs
+        build_unified_tables_from_cluster_dfs(pairs=args.pairs, write_out=True)
+        print(f"[postprocess] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
+
+    else:  # args.mode == "unify"
+        # Only build unified CSVs from cached per-pair Analysis CSVs (fast path)
+        from postprocess_unified import build_unified_tables_from_cluster_dfs
+        build_unified_tables_from_cluster_dfs(pairs=args.pairs, write_out=True)
+        print(f"[postprocess] unified-only CSV rebuild done:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
