@@ -14,6 +14,7 @@ from utils.utils import list_protein_pairs, pair_str_to_tuple
 from utils.align_utils import compute_tmscore_align
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
+
 PAIR_DIR = Path(DATA_DIR)
 
 
@@ -463,13 +464,6 @@ if __name__ == "__main__":
         summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=args.pairs)
         print(f"[postprocess] per-pair Analysis refreshed: summary rows={len(summary_df)} | detailed rows={len(detailed_df)}")
 
-        # 2) Build unified CSVs from those cached per-pair Analysis CSVs (single writer)
-        from postprocess_unified import build_unified_tables_from_cluster_dfs
-        build_unified_tables_from_cluster_dfs(pairs=args.pairs, write_out=True)
-        print(f"[postprocess] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
-
-    else:  # args.mode == "unify"
-        # Only build unified CSVs from cached per-pair Analysis CSVs (fast path)
-        from postprocess_unified import build_unified_tables_from_cluster_dfs
-        build_unified_tables_from_cluster_dfs(pairs=args.pairs, write_out=True)
-        print(f"[postprocess] unified-only CSV rebuild done:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
+    # 2) Build unified CSVs from those cached per-pair Analysis CSVs (single writer)
+    build_unified_tables_from_cluster_dfs(pairs=args.pairs, write_out=True)
+    print(f"[postprocess] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")

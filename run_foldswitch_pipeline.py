@@ -24,7 +24,6 @@ from utils.protein_plot_utils import make_foldswitch_all_plots
 from Analysis.postprocess_unified import post_processing_analysis
 from TableResults.gen_html_table import *
 
-from TableResults.summary_table import collect_summary_tables
 from Bio import Align  # PairwiseAligner (modern replacement)
 
 
@@ -1111,64 +1110,112 @@ def task_deltaG(pair_id: str) -> None:
 
 def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     """
-    Unified post-processing/reports:
-      1) per-pair postprocess_unified (df_af/df_cmap/df_esm etc.)
-      2) global CSVs (summary + detailed) and their HTML tables
-      3) per-pair HTML pages
+    Unified post-processing / reports:
+      1) (optional) per-pair postprocess_unified (df_af/df_esm/df_cmap, etc.)
+      2) build unified CSVs (summary + detailed) from cached per-pair Analysis CSVs
+      3) generate global HTML tables (summary + clusters) and global plots page
+      4) (optional) per-pair HTML pages
     Controlled by --reports: none | tables | html | all
     Safe to run incrementally.
     """
-    # Normalize pairs to strings like 1wp8C_5ejbC
-    norm_pairs = [p if isinstance(p, str) else f"{p[0]}_{p[1]}"
-        for p in (foldpairs if isinstance(foldpairs, list) else [foldpairs])]
+    import os, shlex, subprocess, shutil, sys
+    from postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs
+    from TableResults.gen_html_table import (
+        gen_html_from_summary_table,
+        gen_html_from_cluster_detailed_table,
+        gen_html_for_global_plots,
+    )
+    from config import (
+        DATA_DIR,
+        SUMMARY_RESULTS_TABLE,
+        DETAILED_RESULTS_TABLE,
+        TABLES_RES,
+        FIGURE_RES_DIR,
+        MAIN_DIR,
+    )
 
-    # 1) Per-pair metrics
+    # Normalize pairs to strings like "1wp8C_5ejbC"
+    norm_pairs = [
+        p if isinstance(p, str) else f"{p[0]}_{p[1]}"
+        for p in (foldpairs if isinstance(foldpairs, list) else [foldpairs])
+    ]
+    # For builders that auto-discover when None:
+    pairs_arg = None if norm_pairs == ["ALL"] else norm_pairs
+
+    # 1) Per-pair metrics (heavy) — skip if --cached_only TRUE
     cached_only = _bool_from_tf(getattr(args, "cached_only", "FALSE"))
     if not cached_only:
         try:
             force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
-            post_processing_analysis(force_rerun=force, pairs=norm_pairs)  # pass list, or None for discover-all
+            post_processing_analysis(force_rerun=force, pairs=pairs_arg)
         except Exception as e:
             print(f"[postprocess] WARN post_processing_analysis: {e}")
 
     # 2) Global CSVs + HTML tables
     if args.reports in ("tables", "all"):
+        # 2.1) Build unified CSVs from cached per-pair Analysis CSVs (single writer; includes DEPTH column)
         try:
-            collect_summary_tables(DATA_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE)
+            build_unified_tables_from_cluster_dfs(pairs=pairs_arg, write_out=True)
+            print(f"[reports] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
         except Exception as e:
-            print(f"[reports] WARN collect_summary_tables: {e}")
+            print(f"[reports] WARN building unified CSVs: {e}")
 
+        # 2.2) Generate HTML tables
         try:
-            gen_html_from_summary_table()
+            os.makedirs(TABLES_RES, exist_ok=True)
+            # Summary (main comparison page)
+            out_summary = os.path.join(TABLES_RES, "protein_comparison_table.html")
+            preferred = [
+                "pair_id", "#RES", "MSA DEPTH (#Clusters)",
+                "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
+                "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
+                "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
+                "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2",
+            ]
+            explanations = {
+                "#RES": "Number of residues in the longer chain of the pair.",
+                "MSA DEPTH (#Clusters)": "Sequences in DeepMsa.a3m; in parentheses, the number of ShallowMsa_* clusters.",
+            }
+            gen_html_from_summary_table(
+                summary_csv=SUMMARY_RESULTS_TABLE,
+                output_html=out_summary,
+                preferred_column_order=preferred,
+                column_explanations=explanations,
+            )
         except Exception as e:
             print(f"[reports] WARN gen_html_from_summary_table: {e}")
 
         try:
-            gen_html_from_cluster_detailed_table()
+            # Cluster-level table
+            out_clusters = os.path.join(TABLES_RES, "protein_clusters_table.html")
+            gen_html_from_cluster_detailed_table(
+                detailed_csv=DETAILED_RESULTS_TABLE,
+                output_html=out_clusters,
+            )
         except Exception as e:
             print(f"[reports] NOTE cluster-detailed HTML skipped: {e}")
 
-
-        # 2.5) Global HTML with analysis figures
+        # 2.3) Global plots page (gallery of images already generated by --run_mode plot --global_plots)
         try:
-            # FIGURE_RES_DIR is from config
-            gen_html_for_global_plots(images_dir=FIGURE_RES_DIR, output_html=os.path.join("docs","pairs_global_analysis.html"))
-            # Optional: mirror to repo root for GitHub Pages like you already do for table.html
-            src = os.path.join("docs","pairs_global_analysis.html")
-            dst = os.path.join(MAIN_DIR,"pairs_global_analysis.html")
+            gen_html_for_global_plots(
+                images_dir=FIGURE_RES_DIR,
+                output_html=os.path.join("docs", "pairs_global_analysis.html"),
+            )
+            # Mirror to repo root for GitHub Pages (optional)
+            src = os.path.join("docs", "pairs_global_analysis.html")
+            dst = os.path.join(MAIN_DIR, "pairs_global_analysis.html")
             if os.path.isfile(src):
                 shutil.copy2(src, dst)
                 print(f"[reports] copied {src} -> {dst}")
         except Exception as e:
             print(f"[reports] WARN building global plots page: {e}")
 
-
     # 3) Per-pair HTML notebook pages
     if args.reports in ("html", "all"):
         try:
-            # Keep only pairs that already have per-pair postprocess outputs
+            # keep only pairs that already have per-pair postprocess outputs
             ready = []
-            for p in norm_pairs:
+            for p in (norm_pairs if pairs_arg is not None else [d.name for d in Path(DATA_DIR).iterdir() if d.is_dir()]):
                 if os.path.isfile(f"Pipeline/{p}/Analysis/df_af.csv"):
                     ready.append(p)
                 else:
@@ -1182,12 +1229,11 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
                         _submit_notebook_job(p, kernel="python3", args=args)
                     print(f"[html] submitted {len(ready)} notebook jobs via sbatch")
                 else:
-                    pairs_arg = " ".join(ready)
-                    cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg} --kernel python3"
+                    pairs_arg_str = " ".join(ready)
+                    cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg_str} --kernel python3"
                     subprocess.run(cmd, shell=True, check=True, env=_jupyter_env_for_scratch())
         except Exception as e:
             print(f"[reports] WARN per-pair HTML generation: {e}")
-
 
     print("[postprocess] done.", flush=True)
 
