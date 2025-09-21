@@ -22,7 +22,8 @@ from utils.phytree_utils import phytree_from_msa
 from utils.protein_plot_utils import make_foldswitch_all_plots
 
 from Analysis.postprocess_unified import post_processing_analysis
-from TableResults.gen_html_table import gen_html_from_summary_table, gen_html_from_cluster_detailed_table
+from TableResults.gen_html_table import *
+
 from TableResults.summary_table import collect_summary_tables
 from Bio import Align  # PairwiseAligner (modern replacement)
 
@@ -1116,10 +1117,8 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     Safe to run incrementally.
     """
     # Normalize pairs to strings like 1wp8C_5ejbC
-    norm_pairs = [
-        p if isinstance(p, str) else f"{p[0]}_{p[1]}"
-        for p in (foldpairs if isinstance(foldpairs, list) else [foldpairs])
-    ]
+    norm_pairs = [p if isinstance(p, str) else f"{p[0]}_{p[1]}"
+        for p in (foldpairs if isinstance(foldpairs, list) else [foldpairs])]
 
     # 1) Per-pair metrics
     cached_only = _bool_from_tf(getattr(args, "cached_only", "FALSE"))
@@ -1147,15 +1146,20 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[reports] NOTE cluster-detailed HTML skipped: {e}")
 
-        # After building the HTML tables, mirror the main table to repo root for GitHub Pages
+
+        # 2.5) Global HTML with analysis figures
         try:
-            src = os.path.join(TABLES_RES, "table.html")
-            dst = os.path.join(MAIN_DIR, "table.html")
+            # FIGURE_RES_DIR is from config
+            gen_html_for_global_plots(images_dir=FIGURE_RES_DIR, output_html=os.path.join("docs","pairs_global_analysis.html"))
+            # Optional: mirror to repo root for GitHub Pages like you already do for table.html
+            src = os.path.join("docs","pairs_global_analysis.html")
+            dst = os.path.join(MAIN_DIR,"pairs_global_analysis.html")
             if os.path.isfile(src):
                 shutil.copy2(src, dst)
                 print(f"[reports] copied {src} -> {dst}")
         except Exception as e:
-            print(f"[reports] WARN copying table.html to repo root: {e}")
+            print(f"[reports] WARN building global plots page: {e}")
+
 
     # 3) Per-pair HTML notebook pages
     if args.reports in ("html", "all"):

@@ -178,35 +178,75 @@ def make_foldswitch_all_plots(
         tmscores_df = pd.DataFrame(index=new_indices,
                                    columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])
 
-        # (unchanged) populate tmscores_df from AF/ESM CSVs as in your original code ...
-        # [Keeping your existing logic below]
-        print("total cmaps: " + str(len(msa_pred_files)))
-        AF_model_files = glob('Pipeline/' + foldpair_id + "/AF_preds/*Msa*model_1_*pdb")
-        af_df = pd.read_csv(AF_MODEL_FILE, dtype=str)
-        msa_trans_df = pd.read_csv(MSA_TRANS_MODEL_FILE, dtype=str)
-        esmf_df = pd.read_csv(ESMF_MODEL_FILE, dtype=str)
 
-        for fold in range(2):
-            for c in range(len(tmscores_df.index)):
-                cur_AF_file = next((el for el in AF_model_files if tmscores_df.index[c] in el
-                                    or (tmscores_df.index[c].endswith('deep') and 'Deep' in el)), None)
-                if cur_AF_file is None:
-                    tmscores_df.iloc[c, fold] = 0
-                    continue
-                filtered_af_df = af_df[(af_df['fold_pair'] == foldpair_id) &
-                                       (af_df['cluster_num'] == tmscores_df.index[c][4:])]
-                tmscores_df.iloc[c, fold] = float(
-                    filtered_af_df.loc[filtered_af_df['pdb_file'].str.contains('unrelaxed_rank_00' + str(AF2_MODEL)),
-                                       'score_pdb' + str(fold + 1)].values[0]
-                )
-                filtered_esm_df = esmf_df[(esmf_df['fold_pair'] == foldpair_id) &
-                                          (esmf_df['cluster_num'] == tmscores_df.index[c][4:])]
-                tmscores_df.iloc[c, fold + 2] = float(filtered_esm_df['TM_mean_cluster_pdb' + str(fold + 1)].iloc[0])
+                # --- REPLACE the legacy CSV/glob-based filling of tmscores_df with this unified-table version ---
 
-        clusters_subtree = extract_induced_subtree(phytree_file, representative_cluster_leaves)
-        cluster_node_values_df.index = new_indices
-        for n in clusters_subtree.iter_leaves():
-            n.name = ete_leaves_cluster_ids[n.name]
+        # Fill TM scores per cluster from the unified detailed table
+        from config import DETAILED_RESULTS_TABLE
+        if os.path.isfile(DETAILED_RESULTS_TABLE) and os.path.getsize(DETAILED_RESULTS_TABLE) > 0:
+            det = pd.read_csv(DETAILED_RESULTS_TABLE)
+        else:
+            det = pd.DataFrame(columns=["fold_pair","model","cluster_num","TMscore_fold1","TMscore_fold2"])
+
+        # Accept legacy column names if present
+        if "TMscore_fold1" not in det.columns and "score_pdb1" in det.columns:
+            det = det.rename(columns={"score_pdb1": "TMscore_fold1", "score_pdb2": "TMscore_fold2"})
+        if "fold_pair" not in det.columns and "pair_id" in det.columns:
+            det = det.rename(columns={"pair_id": "fold_pair"})
+
+        # Normalize cluster id to something like "ShallowMsa_007" or "DeepMsa"
+        det["_cluster_tag"] = det.get("cluster_num", det.get("cluster", "")).astype(str)
+
+        # Keep only rows for this pair
+        det = det[det["fold_pair"] == foldpair_id].copy()
+        det["model"] = det.get("model", "").astype(str).str.upper()
+
+        # helper to map a displayed index like 'MSA_deep' or 'ShallowMsa_007' back to det._cluster_tag
+        def _match_cluster(row_index: str) -> str | None:
+            idx = row_index
+            # our 'new_indices' already extracted compact names (e.g., 'ShallowMsa_007', maybe lower/upper)
+            # make a case-insensitive match
+            hits = det[det["_cluster_tag"].astype(str).str.lower() == idx.lower()]
+            if len(hits):
+                return str(hits["_cluster_tag"].iloc[0])
+            # also tolerate bare numbers (e.g., '007')
+            m = re.search(r"(\d+)$", idx)
+            if m is not None:
+                hits = det[det["_cluster_tag"].astype(str).str.contains(m.group(1))]
+                if len(hits):
+                    return str(hits["_cluster_tag"].iloc[0])
+            # finally, try DeepMsa aliasing
+            if "deep" in idx.lower():
+                hits = det[det["_cluster_tag"].astype(str).str.contains("Deep", case=False, regex=False)]
+                if len(hits):
+                    return str(hits["_cluster_tag"].iloc[0])
+            return None
+
+        # Fill per cluster: AF_* from AF2/AF3 best (choose max over AF2/AF3), ESM_* from ESM2/ESM3 best (max)
+        for c in range(len(tmscores_df.index)):
+            clus_key = _match_cluster(tmscores_df.index[c])
+            if clus_key is None:
+                tmscores_df.iloc[c, :] = 0.0
+                continue
+
+            # AF best for this cluster (max over AF2/AF3)
+            af_rows = det[(det["_cluster_tag"] == clus_key) & (det["model"].isin(["AF2","AF3"]))]
+            if len(af_rows):
+                tmscores_df.iloc[c, 0] = pd.to_numeric(af_rows["TMscore_fold1"], errors="coerce").max()
+                tmscores_df.iloc[c, 1] = pd.to_numeric(af_rows["TMscore_fold2"], errors="coerce").max()
+            else:
+                tmscores_df.iloc[c, 0] = 0.0
+                tmscores_df.iloc[c, 1] = 0.0
+
+            # ESM best for this cluster (max over ESM2/ESM3)
+            es_rows = det[(det["_cluster_tag"] == clus_key) & (det["model"].isin(["ESM2","ESM3"]))]
+            if len(es_rows):
+                tmscores_df.iloc[c, 2] = pd.to_numeric(es_rows["TMscore_fold1"], errors="coerce").max()
+                tmscores_df.iloc[c, 3] = pd.to_numeric(es_rows["TMscore_fold2"], errors="coerce").max()
+            else:
+                tmscores_df.iloc[c, 2] = 0.0
+                tmscores_df.iloc[c, 3] = 0.0
+
 
         concat_scores = pd.concat([tmscores_df, cluster_node_values_df], ignore_index=True, axis=1)
         concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
@@ -602,145 +642,118 @@ def plot_foldswitch_contacts_and_predictions(
 
 
 # Make global plots for all families
+# --- REPLACE the entire global_pairs_statistics_plots with this version ---
+
 def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter_plot.png"):
     """
-    Reads a CSV file and creates a scatter plot with specific values.
+    Build global scatter plots from the unified CSVs:
+      - AF2 / AF3 / ESM2 / ESM3: per-pair mean(+)/max(*) of TM1 vs TM2
+      - MSA-Transformer: per-pair max recall (t1_recall vs t2_recall)
 
-    Args:
-        file_path (str): Path to the input CSV file.
-        output_file (str): Path to save the scatter plot image.
+    Saves: .../fold_pair_scatter_AF2.png, _AF3.png, _ESM2.png, _ESM3.png, _MSA_TRANS.png
     """
-    # Load the data
-    # load three output files
-    af_df = pd.read_csv(AF_MODEL_FILE)
-    msa_trans_df = pd.read_csv(MSA_TRANS_MODEL_FILE)
-    esmf_df = pd.read_csv(ESMF_MODEL_FILE)
+    import os
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    from config import DETAILED_RESULTS_TABLE, DATA_DIR, FIGURE_RES_DIR
+    from utils.utils import list_protein_pairs
 
-    print(af_df.columns.to_list())
-    print(msa_trans_df.columns.to_list())
-    print(esmf_df.columns.to_list())
+    os.makedirs(FIGURE_RES_DIR, exist_ok=True)
 
-#    esmf_df = pd.read_csv(file_path)
+    # ---------------- AF/ESM from unified detailed table ----------------
+    if not os.path.isfile(DETAILED_RESULTS_TABLE) or os.path.getsize(DETAILED_RESULTS_TABLE) == 0:
+        print(f"[warn] No detailed CSV at {DETAILED_RESULTS_TABLE}. Run postprocess first.")
+        df_det = pd.DataFrame(columns=["fold_pair","model","TMscore_fold1","TMscore_fold2"])
+    else:
+        df_det = pd.read_csv(DETAILED_RESULTS_TABLE)
 
-    # Group data by the first column
-    grouped_esmf = esmf_df.groupby(esmf_df.columns[0])
-    grouped_af = af_df.groupby(af_df.columns[0])
-    grouped_msa_trans = msa_trans_df.groupby(msa_trans_df.columns[0])
-
-    # Initialize the plot
-    for model in ['AF', 'MSA_TRANS', 'ESMFold']:
-        grouped = grouped_esmf if model == 'ESMFold' else grouped_af if model == 'AF' else grouped_msa_trans
-        plt.figure(figsize=(10, 8))
-        for fold_pair, group in grouped:
-
-
-            if model == 'ESMFold':
-                mean_x = group['TM_mean_cluster_pdb1'].mean()
-                mean_y = group['TM_mean_cluster_pdb2'].mean()
-
-                # Compute maximums
-                max_x = group['TMscore_fold1'].max()
-                max_y = group['TMscore_fold2'].max()
-            elif model == 'AF':
-                mean_x = group['score_pdb1'].mean()
-                mean_y = group['score_pdb2'].mean()
-
-                # Compute maximums
-                max_x = group['score_pdb1'].max()
-                max_y = group['score_pdb2'].max()
-            else:    
-                mean_x = group['recall_only_fold1'].mean()
-                mean_y = group['recall_only_fold2'].mean()
-
-                # Compute maximums
-                max_x = group['recall_only_fold1'].max()
-                max_y = group['recall_only_fold2'].max()
-
-            # Plot the mean values with '+'
-            # Convert dict_keys to a list for comparison
-            first_key = list(grouped.groups.keys())[0]
-
-            # Plot the mean values with '+'
-            plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
-
-            # Plot the maximum values with '*'
-            plt.scatter(max_x, max_y, marker='*', color='red', label='Max' if fold_pair == first_key else "")
-
-            plt.plot([mean_x, max_x], [mean_y, max_y], linestyle='--', color='gray', alpha=0.5)
-
-            # Add fold-pair text for max values
-            plt.text(max_x, max_y, fold_pair, fontsize=8, ha='right', color='black')
-
-        # Customize the plot
-        if model == 'cmap':
-            plt.xlabel('Recall Fold 1')
-            plt.ylabel('Recall Fold 2')
+    # Accept legacy column names too
+    if "TMscore_fold1" not in df_det.columns and "score_pdb1" in df_det.columns:
+        df_det = df_det.rename(columns={"score_pdb1": "TMscore_fold1", "score_pdb2": "TMscore_fold2"})
+    if "fold_pair" not in df_det.columns:
+        # Some earlier tables used 'pair_id'
+        if "pair_id" in df_det.columns:
+            df_det = df_det.rename(columns={"pair_id": "fold_pair"})
         else:
-            plt.xlabel('TMscore fold1')
-            plt.ylabel('TMscore fold2')
-        plt.title(f'Scatter Plot of {model} vs. Fold Pairs')
-        plt.legend(loc='upper left')
+            df_det["fold_pair"] = "UNK"
+
+    # Normalize model tags
+    df_det["model"] = df_det.get("model", "").astype(str).str.upper()
+
+    wanted_models = ["AF2", "AF3", "ESM2", "ESM3"]
+    for model_tag in wanted_models:
+        dfm = df_det[df_det["model"] == model_tag]
+        if dfm.empty:
+            print(f"[info] No rows for {model_tag} in {DETAILED_RESULTS_TABLE}")
+            continue
+
+        g = dfm.groupby("fold_pair", as_index=False).agg(
+            mean_TM1=("TMscore_fold1","mean"),
+            mean_TM2=("TMscore_fold2","mean"),
+            max_TM1 =("TMscore_fold1","max"),
+            max_TM2 =("TMscore_fold2","max"),
+        )
+
+        plt.figure(figsize=(8,7))
+        first = True
+        for _, r in g.iterrows():
+            # '+' = mean; '*' = max; dashed line between them
+            plt.scatter(r["mean_TM1"], r["mean_TM2"], marker="+", label="Mean" if first else "")
+            plt.scatter(r["max_TM1"],  r["max_TM2"],  marker="*", label="Max"  if first else "")
+            plt.plot([r["mean_TM1"], r["max_TM1"]], [r["mean_TM2"], r["max_TM2"]],
+                     linestyle="--", color="gray", alpha=0.5)
+            # annotate the max point with the pair id
+            plt.text(r["max_TM1"], r["max_TM2"], r["fold_pair"], fontsize=7, ha="right")
+            first = False
+
+        plt.xlabel("TMscore fold1")
+        plt.ylabel("TMscore fold2")
+        plt.title(f"Per-pair TM (mean vs max): {model_tag}")
+        plt.legend(loc="upper left")
         plt.grid(True)
-
-        # Save the plot to a file
+        out = os.path.join(FIGURE_RES_DIR, f"{os.path.splitext(os.path.basename(output_file))[0]}_{model_tag}.png")
         plt.tight_layout()
-        plt.savefig(output_file[:-4] + f"_{model}.png")
+        plt.savefig(out, dpi=160)
         plt.close()
-        print(f"{model} Scatter plot saved to {output_file}")
+        print(f"[plot] wrote {out}")
 
-    # Now compare AF to ESMFold
-    plt.figure(figsize=(10, 8))
-    for fold_pair, group in grouped_esmf:
-        mean_x = group['TM_mean_cluster_pdb1'].mean()
-        mean_y = grouped_af.get_group(fold_pair)['score_pdb1'].mean()
-
-        plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
-
-    plt.xlabel("TMScore ESMF")
-    plt.ylabel("TMScore AF")
-    plt.title("TMScore Comparison ESMF vs. AF")
-    plt.legend(loc='upper left')
-    plt.tight_layout()
-
-
-    # Plot cmap recalls
-    grouped = msa_trans_df.groupby('fold_pair')
-    plt.figure(figsize=(10, 8))
-
-    for fold_pair, group in grouped:
-        # Calculate mean values for recall_only_fold1 and recall_only_fold2
-        mean_x = group['recall_only_fold1'].mean()
-        mean_y = group['recall_only_fold2'].mean()
-
-        # Find the max values and corresponding row
-        max_row = group.loc[group[['recall_only_fold1', 'recall_only_fold2']].sum(axis=1).idxmax()]
-        max_x = max_row['recall_only_fold1']
-        max_y = max_row['recall_only_fold2']
-
-        first_key = list(grouped.groups.keys())[0]
-
-        # Plot the mean with '+'
-        plt.scatter(mean_x, mean_y, marker='+', color='blue', label='Mean' if fold_pair == first_key else "")
-
-        # Plot the max with '*' and add text annotation
-        plt.scatter(max_x, max_y, marker='*', color='red', label='Max' if fold_pair == first_key else "")
-        plt.text(max_x, max_y, fold_pair, fontsize=9, ha='right')
-
-        # Add a faint line connecting mean and max points
-        plt.plot([mean_x, max_x], [mean_y, max_y], linestyle='--', color='gray', alpha=0.5)
-
-    plt.xlabel("Recall Fold 1")
-    plt.ylabel("Recall Fold 2")
-    plt.title("Recall Comparison Unique Contacts")
-    plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
-    plt.axvline(0, color='black', linewidth=0.8, linestyle='--')
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.legend(loc='upper left')
-    plt.tight_layout()
-
-    # Save the plot to the specified file
-    plt.savefig(output_file[:-4] + "_msa_trans.png")
-    plt.close()
+    # ---------------- MSA-Transformer (recall) from per-pair df_cmap.csv ----------------
+    pairs = list_protein_pairs(parsed=False)
+    rows = []
+    for pid in pairs:
+        p_csv = os.path.join(DATA_DIR, pid, "Analysis", "df_cmap.csv")
+        if not os.path.isfile(p_csv) or os.path.getsize(p_csv) == 0:
+            continue
+        try:
+            d = pd.read_csv(p_csv)
+        except Exception:
+            continue
+        # Compatible names: prefer t1_recall / t2_recall if present
+        c1 = "t1_recall" if "t1_recall" in d.columns else None
+        c2 = "t2_recall" if "t2_recall" in d.columns else None
+        if not c1 or not c2:
+            continue
+        rows.append({"fold_pair": pid, "max_R1": pd.to_numeric(d[c1], errors="coerce").max(),
+                                 "max_R2": pd.to_numeric(d[c2], errors="coerce").max()})
+    if rows:
+        df_msat = pd.DataFrame(rows)
+        plt.figure(figsize=(8,7))
+        first = True
+        for _, r in df_msat.iterrows():
+            plt.scatter(r["max_R1"], r["max_R2"], marker="*", label="Max" if first else "")
+            plt.text(r["max_R1"], r["max_R2"], r["fold_pair"], fontsize=7, ha="right")
+            first = False
+        plt.xlabel("MSA-Transformer Recall (fold1)")
+        plt.ylabel("MSA-Transformer Recall (fold2)")
+        plt.title("Per-pair max recall: MSA-Transformer")
+        plt.legend(loc="upper left")
+        plt.grid(True)
+        out = os.path.join(FIGURE_RES_DIR, f"{os.path.splitext(os.path.basename(output_file))[0]}_MSA_TRANS.png")
+        plt.tight_layout()
+        plt.savefig(out, dpi=160); plt.close()
+        print(f"[plot] wrote {out}")
+    else:
+        print("[info] No df_cmap.csv files found; skipping MSA-Transformer plot.")
 
 
 
