@@ -21,7 +21,7 @@ from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pa
 from utils.phytree_utils import phytree_from_msa
 from utils.protein_plot_utils import make_foldswitch_all_plots
 
-from Analysis.postprocess_unified import post_processing_analysis
+from Analysis.postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs
 from TableResults.gen_html_table import *
 
 from Bio import Align  # PairwiseAligner (modern replacement)
@@ -1118,21 +1118,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     Controlled by --reports: none | tables | html | all
     Safe to run incrementally.
     """
-    import os, shlex, subprocess, shutil, sys
-    from postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs
-    from TableResults.gen_html_table import (
-        gen_html_from_summary_table,
-        gen_html_from_cluster_detailed_table,
-        gen_html_for_global_plots,
-    )
-    from config import (
-        DATA_DIR,
-        SUMMARY_RESULTS_TABLE,
-        DETAILED_RESULTS_TABLE,
-        TABLES_RES,
-        FIGURE_RES_DIR,
-        MAIN_DIR,
-    )
 
     # Normalize pairs to strings like "1wp8C_5ejbC"
     norm_pairs = [
