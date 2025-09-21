@@ -17,6 +17,14 @@ from typing import List, Tuple, Union
 import numpy as np
 import pandas as pd
 
+def str2bool(v):
+    if isinstance(v, bool): return v
+    s = str(v).strip().lower()
+    if s in {"true", "t", "1", "yes", "y"}: return True
+    if s in {"false", "f", "0", "no", "n"}: return False
+    raise argparse.ArgumentTypeError("expected boolean (true/false)")
+
+
 def load_csv_or_none(path, **kwargs):
     p = Path(path)
     if not p.exists() or p.stat().st_size == 0:

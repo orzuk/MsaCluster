@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from config import *
-from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script
+from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.phytree_utils import phytree_from_msa
@@ -47,6 +47,8 @@ RUN_MODE_DESCRIPTIONS = {
 
 
 # ------------------------- helpers -------------------------
+
+
 
 def _has_deltaG(pair_id: str) -> bool:
     """Return True if both chain-level ΔG files exist for this pair."""
@@ -1369,8 +1371,10 @@ def main():
                help="Skip per-pair metric recomputation and only build reports/HTML.")
 
     # Plotting
-    p.add_argument("--global_plots", action="store_true")
-    p.add_argument("--plot_trees", action="store_true")
+#    p.add_argument("--global_plots", action="store_true")
+#    p.add_argument("--plot_trees", action="store_true")
+    p.add_argument("--global_plots", type=str2bool, nargs="?", const=True, default=False)
+    p.add_argument("--plot_trees",   type=str2bool, nargs="?", const=True, default=False)
 
     # Output html tables and pages
     p.add_argument("--reports", default="none", choices=["none", "tables", "html", "all"],
