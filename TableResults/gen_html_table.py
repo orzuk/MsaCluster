@@ -255,6 +255,31 @@ function sortTable(colIdx) {{
     print(f"[html] wrote: {output_html}")
     return output_html
 
+
+def gen_html_for_global_plots(
+    images_dir: str,
+    output_html: str = os.path.join("docs", "pairs_global_analysis.html"),
+    title: str = "Global Comparison Plots"
+) -> str:
+    import os, html
+    files = sorted([f for f in os.listdir(images_dir) if f.lower().endswith((".png",".jpg",".jpeg",".webp",".svg"))])
+    os.makedirs(os.path.dirname(output_html), exist_ok=True)
+    rows = "\n".join(
+        f'<div style="margin:16px 0;"><h3 style="margin:4px 0;font-family:Segoe UI;">{html.escape(f)}</h3>'
+        f'<img src="{html.escape(os.path.join(images_dir, f))}" style="max-width:98%;border:1px solid #333;"/></div>'
+        for f in files
+    )
+    html_doc = f"""<!DOCTYPE html><html><head><meta charset="utf-8"/>
+    <title>{html.escape(title)}</title>
+    <style>body{{background:#121212;color:#E0E0E0;font-family:'Segoe UI',Tahoma,Verdana,sans-serif;margin:20px}}</style>
+    </head><body><h2>{html.escape(title)}</h2>{rows}</body></html>"""
+    with open(output_html, "w", encoding="utf-8") as f:
+        f.write(html_doc)
+    print(f"[html] wrote: {output_html}")
+    return output_html
+
+
+
 if __name__ == "__main__":
     # Your main comparison table (to docs/protein_comparison_table.html)
     out1 = os.path.join(TABLES_RES, "protein_comparison_table.html")
