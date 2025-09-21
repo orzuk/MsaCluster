@@ -2,6 +2,8 @@
 
 You can find the summary results table in this [link](https://orzuk.github.io/MsaCluster/protein_comparison_table.html), with full detailed results available for each protein pair in clickable links.
 
+Global plots showing all pairs results can be found [here](https://orzuk.github.io/MsaCluster/pairs_global_analysis.html). 
+
 A more detailed per-cluster analysis table is fond [here](https://orzuk.github.io/MsaCluster/protein_clusters_table.html). 
 
 ## Running from python
