@@ -14,8 +14,10 @@ SHALLOW_RE = re.compile(r"ShallowMsa_(\d+)", re.IGNORECASE)
 
 
 
+# --- REPLACE these helpers in TableResults/summary_table.py ---
+
 def _count_a3m_sequences(a3m_path: str) -> int:
-    """(kept for compatibility)"""
+    """Count sequences in an A3M file (number of '>' lines)."""
     try:
         n = 0
         with open(a3m_path, "r") as fh:
@@ -26,58 +28,19 @@ def _count_a3m_sequences(a3m_path: str) -> int:
     except Exception:
         return 0
 
-def _count_deepmsa_sequences_any(pair_dir: str) -> int:
-    """
-    Count sequences in the DeepMSA alignment, searching common locations/names
-    and supporting .gz.
-    """
-    candidates = [
-        os.path.join(pair_dir, "output_msa", "DeepMsa.a3m"),
-        os.path.join(pair_dir, "output_msa", "DeepMSA.a3m"),
-        os.path.join(pair_dir, "output_msa", "DeepMsa", "DeepMsa.a3m"),
-    ]
-    # glob any DeepMsa*.a3m or .a3m.gz anywhere under the pair
-    candidates += glob.glob(os.path.join(pair_dir, "**", "DeepMsa*.a3m"), recursive=True)
-    candidates += glob.glob(os.path.join(pair_dir, "**", "DeepMsa*.a3m.gz"), recursive=True)
-
-    for p in candidates:
-        try:
-            opener = gzip.open if p.endswith(".gz") else open
-            with opener(p, "rt") as fh:
-                return sum(1 for line in fh if line.startswith(">"))
-        except Exception:
-            continue
-    return 0
-
 def _count_clusters(pair_dir: str) -> int:
     """
-    Count shallow clusters either as ShallowMsa_* directories in the canonical
-    location or as ShallowMsa_*.a3m files anywhere in the pair folder.
+    Count shallow clusters as the number of ShallowMsa_*.a3m files directly
+    under Pipeline/<PAIR>/output_msa_cluster/.
     """
-    # 1) directory style (original behavior)
-    n_dir = 0
+    import os
+    import fnmatch
+    clust_dir = os.path.join(pair_dir, "output_msa_cluster")
     try:
-        clust_dir = os.path.join(pair_dir, "output_msa_cluster")
-        if os.path.isdir(clust_dir):
-            n_dir = sum(
-                1 for name in os.listdir(clust_dir)
-                if name.lower().startswith("shallowmsa_")
-                and os.path.isdir(os.path.join(clust_dir, name))
-            )
+        names = os.listdir(clust_dir)
     except Exception:
-        pass
-
-    # 2) file style (.a3m or .a3m.gz), dedup by cluster id
-    ids = set()
-    try:
-        for p in glob.glob(os.path.join(pair_dir, "**", "ShallowMsa_*.a3m*"), recursive=True):
-            m = SHALLOW_RE.search(os.path.basename(p))
-            if m:
-                ids.add(m.group(1).lstrip("0") or "0")
-    except Exception:
-        pass
-
-    return max(n_dir, len(ids))
+        return 0
+    return sum(1 for name in names if fnmatch.fnmatch(name, "ShallowMsa_*.a3m"))
 
 
 
@@ -261,10 +224,11 @@ def collect_summary_tables(
 
         pair_dir = os.path.join(DATA_DIR, pair_id)
 
-        # new (searches multiple layouts)
-        msa_depth = _count_deepmsa_sequences_any(pair_dir)
+
+        # NEW (exact paths you requested):
+        deep_a3m = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
+        msa_depth = _count_a3m_sequences(deep_a3m)
         n_clusters = _count_clusters(pair_dir)
-        row["MSA DEPTH (#Clusters)"] = f"{msa_depth} ({n_clusters})"
 
 
         # AF keeps Clust & Deep
