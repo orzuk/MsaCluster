@@ -1117,10 +1117,11 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
         pdbids    = [pA[:-1], pB[:-1]]
         pdbchains = [pA[-1],  pB[-1]]
         print(f"=== plot :: {tuple(pdbids)} ===", flush=True)
+        print("pid is: ", pA + "_" + pB)
         make_foldswitch_all_plots(
             pdbids=pdbids,
             fasta_dir="Pipeline",
-            foldpair_id=pid,
+            foldpair_id=pA + "_" + pB,
             pdbchains=pdbchains,
             plot_tree_clusters=bool(plot_trees),
             plot_contacts=True,
