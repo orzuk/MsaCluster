@@ -1086,14 +1086,45 @@ def task_tree(pair_id: str, run_job_mode: str) -> None:
     ensure_dir(os.path.dirname(out))
     phytree_from_msa(msa_file, output_tree_file=out)
 
-def task_plot(pair_id: str, args: argparse.Namespace) -> None:
-    # Import PyMOL-consuming code only here
-    foldA, foldB = pair_str_to_tuple(pair_id)
-    pdbids = [foldA[:-1], foldB[:-1]]
-    pdbchains = [foldA[-1], foldB[-1]]
-    make_foldswitch_all_plots(pdbids, "Pipeline", pair_id, pdbchains,
-                              plot_tree_clusters=args.plot_trees,
-                              plot_contacts=True, global_plots=args.global_plots)
+def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
+    """
+    Plot mode with scope:
+      - pair:   only per-pair plots
+      - global: only global plots (once)
+      - both:   per-pair plots, then global plots
+    """
+    from utils.protein_plot_utils import make_foldswitch_all_plots, global_pairs_statistics_plots
+    scope = getattr(args, "plot_scope", "both")
+    plot_trees = getattr(args, "plot_trees", False)
+    ONLY_GLOBAL = (scope == "global")
+    ONLY_PAIR   = (scope == "pair")
+
+    # Discover pairs if needed
+    pairs = list_protein_pairs() if (pair_id in (None, "ALL")) else [pair_id]
+
+    # 1) Per-pair plots
+    if not ONLY_GLOBAL:
+        for pid in pairs:
+            pA, pB = pair_str_to_tuple(pid)
+            pdbids    = [pA[:-1], pB[:-1]]
+            pdbchains = [pA[-1],  pB[-1]]
+            print(f"=== plot :: {tuple(pdbids)} ===", flush=True)
+            make_foldswitch_all_plots(
+                pdbids=pdbids,
+                fasta_dir="Pipeline",
+                foldpair_id=pid,
+                pdbchains=pdbchains,
+                plot_tree_clusters=bool(plot_trees),
+                plot_contacts=True,
+                global_plots=False,   # global handled after loop if requested
+            )
+
+    # 2) Global plots
+    if not ONLY_PAIR:
+        os.makedirs(FIGURE_RES_DIR, exist_ok=True)
+        print("[plot] Generating global plots…")
+        global_pairs_statistics_plots(output_file=os.path.join(FIGURE_RES_DIR, "fold_pair_scatter_plot.png"))
+        print("[plot] Global plots written to", FIGURE_RES_DIR)
 
 def task_deltaG(pair_id: str) -> None:
     # Import PyRosetta-consuming code only here
@@ -1101,11 +1132,11 @@ def task_deltaG(pair_id: str) -> None:
         from utils.energy_utils import compute_global_and_residue_energies
     except ImportError:
         raise SystemExit("PyRosetta utilities are unavailable in this env.")
-    out_dir = "Pipeline/output_deltaG"
-    ensure_dir(out_dir)
     pA, pB = pair_str_to_tuple(pair_id)
     pdb_pair = [(f"Pipeline/{pair_id}/{pA[:-1]}.pdb", f"Pipeline/{pair_id}/{pB[:-1]}.pdb")]
-    compute_global_and_residue_energies(pdb_pair, [pair_id], out_dir)
+    pair_dir = f"Pipeline/{pair_id}/output_deltaG"
+    os.makedirs(pair_dir, exist_ok=True)
+    compute_global_and_residue_energies(pdb_pairs=pdb_pair, foldpair_ids=[pair_id], output_dir=pair_dir)
 
 
 def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
@@ -1406,6 +1437,8 @@ def main():
 #    p.add_argument("--plot_trees", action="store_true")
     p.add_argument("--global_plots", type=str2bool, nargs="?", const=True, default=False)
     p.add_argument("--plot_trees",   type=str2bool, nargs="?", const=True, default=False)
+    p.add_argument("--plot_scope", choices=["pair", "global", "both"], default="both", 
+                help="In --run_mode plot: generate pair-specific plots only, global plots only, or both.")
 
     # Output html tables and pages
     p.add_argument("--reports", default="none", choices=["none", "tables", "html", "all"],

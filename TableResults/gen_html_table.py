@@ -34,7 +34,7 @@ def gen_html_from_summary_table(
     if output_html is None:
         output_html = os.path.join(TABLES_RES, "table.html")
 
-    # === NEW: auto-create CSVs if missing ===
+    # Ensure CSVs exist if missing
     _ensure_unified_csvs(force_rerun=False)
 
     if not os.path.exists(summary_csv):
@@ -49,22 +49,43 @@ def gen_html_from_summary_table(
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
 
-    pair_col = "pair_id" if "pair_id" in df.columns else "fold_pair"
-    cols = list(df.columns)
-
-    if preferred_column_order is not None:
-        wanted = [c for c in preferred_column_order if c in cols]
-        rest = [c for c in cols if c not in wanted]
-        df = df[wanted + rest]
+    # --- Normalize pair id column name to 'pair_id' (for display & linking) ---
+    if "pair_id" in df.columns:
+        pair_col = "pair_id"
+    elif "fold_pair" in df.columns:
+        df = df.rename(columns={"fold_pair": "pair_id"})
+        pair_col = "pair_id"
     else:
-        df = df[[pair_col] + [c for c in cols if c != pair_col]]
+        # Fallback: first column becomes pair id
+        pair_col = df.columns[0]
+        df = df.rename(columns={pair_col: "pair_id"})
+        pair_col = "pair_id"
 
-    # Build header
+    # --- Build display column order: pair_id first, then preferred order (excluding pair_id), then the rest ---
+    cols_all = list(df.columns)
+    # Remove any duplicate/alias of pair id from the pool
+    remaining = [c for c in cols_all if c != "pair_id"]
+
+    ordered = ["pair_id"]
+    if preferred_column_order:
+        # Only keep preferred columns that actually exist and are not pair_id
+        wanted = [c for c in preferred_column_order if c in remaining]
+        ordered += wanted
+        # Add everything else not already included
+        the_rest = [c for c in remaining if c not in wanted]
+        ordered += the_rest
+    else:
+        ordered += remaining
+
+    df = df[ordered]
+
+    # --- Table header (clickable for sorting) ---
     thead = "<tr>" + "".join(
         f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
         for i, col in enumerate(df.columns)
     ) + "</tr>"
 
+    # For sorting: pull numeric prefix from strings like "3219 (18)" -> "3219"
     num_re = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
     def numeric_part(cell) -> str:
         if pd.isna(cell):
@@ -75,10 +96,12 @@ def gen_html_from_summary_table(
         m = num_re.match(s)
         return m.group(1) if m else s
 
+    # --- Rows ---
     rows = []
     for _, r in df.iterrows():
-        pair = str(r[pair_col])
+        pair = str(r["pair_id"])
         link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
+        # First cell: linked pair id (never duplicated in later columns)
         tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
         for col in df.columns[1:]:
             val = r[col]
@@ -86,7 +109,7 @@ def gen_html_from_summary_table(
             tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
         rows.append("<tr>" + "".join(tds) + "</tr>")
 
-    # Build explanations block (only for columns we actually have)
+    # --- Explanations (only for existing columns) ---
     expl_lines = []
     if column_explanations:
         for c in df.columns:
@@ -94,6 +117,7 @@ def gen_html_from_summary_table(
                 expl_lines.append(f"<p><b>{html.escape(c)}</b>: {html.escape(column_explanations[c])}</p>")
     expl_html = ("\n".join(expl_lines)) if expl_lines else ""
 
+    # --- HTML doc ---
     html_doc = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -161,6 +185,7 @@ function sortTable(colIdx) {{
         f.write(html_doc)
     print(f"[html] wrote: {output_html}")
     return output_html
+
 
 
 def gen_html_from_cluster_detailed_table(
