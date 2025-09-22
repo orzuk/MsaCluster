@@ -1502,6 +1502,13 @@ def main():
         task_postprocess(foldpairs, args)
         return  # or sys.exit(0)
 
+    # Run once for all pairs
+    scope = getattr(args, "plot_scope", "both")
+    if args.run_mode == "plot":
+        task_plot(pair_id=foldpairs, args=args)        # Run global plots ONCE
+        return
+
+
 
     for pair_id in foldpairs:
         print(f"=== {args.run_mode} :: {pair_id} ===", flush=True)
@@ -1573,10 +1580,6 @@ def main():
             raise ValueError(args.run_mode)
 
 
-    # Ended loop on pairs. Run once for all pairs
-    scope = getattr(args, "plot_scope", "both")
-    if args.run_mode == "plot":
-        task_plot(pair_id=foldpairs, args=args)        # Run global plots ONCE
 
 
 
