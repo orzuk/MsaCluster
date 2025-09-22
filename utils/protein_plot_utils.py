@@ -2,7 +2,6 @@ from config import *
 import re
 import os
 
-
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
 #if not platform.system() == "Linux":  # Plotting doesn't work on unix
@@ -27,6 +26,43 @@ import matplotlib.pyplot as plt
 
 import math
 import pandas as pd
+
+
+# Map ete leaves to cluster metrics; accept several cluster-key aliases
+def _resolve_cluster_key(raw_key: str) -> str | None:
+    # Examples of incoming raw_key from seqs_ids_to_cluster_ids:
+    #   "ShallowMsa_000", "MSA_deep", "DeepMsa", "000", etc.
+    cands = []
+    k = str(raw_key)
+
+    # as-is
+    cands.append(k)
+
+    # if it's just a number, prefer ShallowMsa_### (zero-padded)
+    m = re.fullmatch(r"\d+", k)
+    if m:
+        cands.append(f"ShallowMsa_{int(k):03d}")
+
+    # normalize deep naming
+    if "deep" in k.lower():
+        cands.extend(["DeepMsa", "MSA_deep"])
+
+    # normalize "Shallow..." variants
+    if k.lower().startswith("shallow") and not k.lower().startswith("shallowmsa_"):
+        # turn e.g. "Shallow_007" / "ShallowMsa007" into "ShallowMsa_007"
+        nn = re.sub(r"(?i)^shallow(msa)?_?", "ShallowMsa_", k)
+        # ensure zero-padding
+        nn = re.sub(r"(\D)(\d{1,3})$", lambda m: f"{m.group(1)}{int(m.group(2)):03d}", nn)
+        cands.append(nn)
+
+    # last: strip any file/prefix like "msa_t__"
+    cands.append(k.replace("msa_t__", ""))
+
+    # return the first candidate that exists
+    for c in cands:
+        if c in cluster_node_values:
+            return c
+    return None
 
 
 # Make all plots
@@ -156,16 +192,28 @@ def make_foldswitch_all_plots(
 
     ete_leaves_cluster_ids = seqs_ids_to_cluster_ids(
         os.path.join(fasta_dir, foldpair_id, "output_msa_cluster", "*.a3m"),
-        [n.name for n in ete_tree]
-    )
+        [n.name for n in ete_tree])
     print("Converted seq ids to cluster ids:")
 
-    ete_leaves_node_values = {
-        n.name: cluster_node_values[foldpair_id + '/output_cmaps/msa_transformer/msa_t__Shallow' + ete_leaves_cluster_ids[n.name]]
-        for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'
-    }
-    ete_leaves_node_values = pd.DataFrame(ete_leaves_node_values).T
-    ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
+    # Build a dict of leaf-name -> (shared, foldA, foldB) metrics
+    entries = {}
+    for n in ete_tree.iter_leaves():  # leaves only
+        cid = ete_leaves_cluster_ids.get(n.name)
+        if not cid or cid == 'p':
+            continue
+        key = _resolve_cluster_key(cid)
+        if key is None:
+            print(f"[tree] WARN: no metrics for leaf '{n.name}' with cid='{cid}' → skipping")
+            continue
+        entries[n.name] = cluster_node_values[key]
+
+    if not entries:
+        # nothing to plot; keep a minimal frame to avoid downstream crashes
+        ete_leaves_node_values = pd.DataFrame(columns=["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]])
+    else:
+        ete_leaves_node_values = pd.DataFrame(entries).T
+        ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
+
 
     if plot_tree_clusters:
         print("Plot Tree Clusters:")
