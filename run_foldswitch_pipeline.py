@@ -1109,7 +1109,9 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
             return
 
     # === 2) Per-pair plots ===
-    pairs = list_protein_pairs() if (pair_id in (None, "ALL")) else [pair_id]
+    pairs = list_protein_pairs() if (pair_id in (None, "ALL")) else pair_id
+    if isinstance(pairs, str):
+        pairs = [pairs]
     for pid in pairs:
         pA, pB = pair_str_to_tuple(pid)
         pdbids    = [pA[:-1], pB[:-1]]
