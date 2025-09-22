@@ -31,6 +31,7 @@ RUN_MODE_DESCRIPTIONS = {
     "load":             "Load the pair from PDB.",
     "get_msa":          "Download/build deep MSAs for the pair and write DeepMsa.a3m.",
     "cluster_msa":      "Cluster the pairwise MSA into shallow clusters (ShallowMsa_XXX.a3m).",
+    "tree":             "Build phylogenetic tree from MSA.",
     "run_AF":           "Run AlphaFold (AF2/AF3/both) per chain × cluster. Use --af_ver {2,3,both}.",
     "run_esmfold":      "Run ESMFold on the pair. Use --esm_model {esm2,esm3,both}.",
     "run_cmap_msa_transformer":      "Run MSA-transformer on the pair to get contact maps.",

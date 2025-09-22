@@ -307,21 +307,57 @@ def gen_html_for_global_plots(
     output_html: str = os.path.join("docs", "pairs_global_analysis.html"),
     title: str = "Global Comparison Plots"
 ) -> str:
-    files = sorted([f for f in os.listdir(images_dir) if f.lower().endswith((".png",".jpg",".jpeg",".webp",".svg"))])
-    os.makedirs(os.path.dirname(output_html), exist_ok=True)
-    rows = "\n".join(
-        f'<div style="margin:16px 0;"><h3 style="margin:4px 0;font-family:Segoe UI;">{html.escape(f)}</h3>'
-        f'<img src="{html.escape(os.path.join(images_dir, f))}" style="max-width:98%;border:1px solid #333;"/></div>'
-        for f in files
-    )
-    html_doc = f"""<!DOCTYPE html><html><head><meta charset="utf-8"/>
-    <title>{html.escape(title)}</title>
-    <style>body{{background:#121212;color:#E0E0E0;font-family:'Segoe UI',Tahoma,Verdana,sans-serif;margin:20px}}</style>
-    </head><body><h2>{html.escape(title)}</h2>{rows}</body></html>"""
+    import os, html
+
+    # Resolve absolute dir (for safe listing no matter CWD)
+    images_dir_abs = os.path.abspath(images_dir)
+    if not os.path.isdir(images_dir_abs):
+        raise FileNotFoundError(f"Images dir not found: {images_dir_abs}")
+
+    files = sorted([
+        f for f in os.listdir(images_dir_abs)
+        if f.lower().endswith((".png",".jpg",".jpeg",".webp",".svg"))
+    ])
+
+    # Ensure output dir exists and compute a RELATIVE path for <img src=...>
+    out_dir = os.path.abspath(os.path.dirname(output_html))
+    os.makedirs(out_dir, exist_ok=True)
+    rel_prefix = os.path.relpath(images_dir_abs, start=out_dir)
+
+    if not files:
+        rows = "<p>No figures were found in the images directory.</p>"
+    else:
+        rows = "\n".join(
+            f'''<figure style="margin:18px 0;">
+  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">{html.escape(f)}</figcaption>
+  <img loading="lazy" src="{html.escape(os.path.join(rel_prefix, f))}" style="max-width:100%;border:1px solid #333;"/>
+</figure>'''
+            for f in files
+        )
+
+    html_doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>{html.escape(title)}</title>
+<style>
+  :root {{ color-scheme: dark; }}
+  body {{
+    background:#121212; color:#E0E0E0; font-family:'Segoe UI',Tahoma,Verdana,sans-serif; margin:20px;
+  }}
+  h2 {{ margin: 0 0 12px; }}
+</style>
+</head>
+<body>
+<h2>{html.escape(title)}</h2>
+{rows}
+</body>
+</html>"""
     with open(output_html, "w", encoding="utf-8") as f:
         f.write(html_doc)
     print(f"[html] wrote: {output_html}")
     return output_html
+
 
 
 
@@ -368,6 +404,16 @@ if __name__ == "__main__":
     # clusters table
     out2 = os.path.join(TABLES_RES, "protein_clusters_table.html")
     gen_html_from_cluster_detailed_table(detailed_csv=None, output_html=out2)
+
+
+    # Also build the global plots gallery (optional but handy when running this script directly)
+    try:
+        out_global = gen_html_for_global_plots(
+            images_dir=FIGURE_RES_DIR,
+            output_html=os.path.join(TABLES_RES, "pairs_global_analysis.html"),
+            title="Global Comparison Plots For All Protein Pairs")
+    except Exception as e:
+        print(f"[html] WARN: could not build global plots page: {e}")
 
 
     print("OK:\n ", out1, "\n ", out2)
