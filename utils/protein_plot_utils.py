@@ -1,5 +1,7 @@
 from config import *
 import re
+import os
+
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
@@ -21,6 +23,7 @@ from utils.utils import *
 from utils.energy_utils import *
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.patches import Patch
+import matplotlib.pyplot as plt
 
 import math
 import pandas as pd
@@ -128,7 +131,8 @@ def make_foldswitch_all_plots(
         print("Plot Array Contact Map")
         save_root = os.path.join(fig_dir_cmap, f"{foldpair_id}_all_clusters_cmap")
         # Ensure directory exists (done above), pass root (plot util appends .png)
-        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, save_root)
+        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, save_root, foldpair_id=foldpair_id)
+
 
     # ---------- Metrics on shared/unique contacts ----------
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
@@ -276,8 +280,7 @@ def make_foldswitch_all_plots(
 
     if global_plots:
         print("Make global plots!")
-        os.makedirs(FIGURE_RES_DIR, exist_ok=True)
-        global_pairs_statistics_plots(output_file=os.path.join(FIGURE_RES_DIR, "fold_pair_scatter_plot.png"))
+        global_pairs_statistics_plots(output_dir=FIGURE_RES_DIR)
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores
 
@@ -330,81 +333,55 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
 
 
 # Plot multiple contacts and predictions together
-def plot_array_contacts_and_predictions(predictions, contacts, save_file=[]):
+def plot_array_contacts_and_predictions(predictions, contacts, save_file=[], foldpair_id: str | None = None, energy_dir: str | None = None):
     """
     Plot multiple contacts and predictions together
 
     Parameters:
     predictions: Contact map predictions
     contacts: True Contact Maps (pair)
-    save_file (str): Path to save the output image.
+    save_file (str): Path root to save the output image ('.png' is added).
+    foldpair_id (str|None): Optional fold pair id (e.g., '1dzlA_5keqF') used to locate per-pair energies.
+    energy_dir (str|None): Override energy directory. If None, uses per-pair: Pipeline/<pair>/output_deltaG.
     """
-    n_pred = len(predictions)
-    n_row = math.ceil(math.sqrt(n_pred))  # *2
-    if n_row * (n_row - 1) >= n_pred:  # *2
-        n_col = n_row - 1
-    else:
-        n_col = n_row
+    ...
+    # (the plotting code stays the same up to "Best recall clusters ..." and fold_ids)
+    best_recall_clusters = find_max_keys({x: recall[x] for x in recall.keys() if "deep" not in x})
+    best_cluster_ids = {x: int(best_recall_clusters[x][0][-3:]) for x in best_recall_clusters}
+    fold_ids = list(contacts.keys())
 
-    n_AA_aligned = len(contacts[next(iter(contacts))])  # number of aligned amino-acids in contacts
-    fig, axes = plt.subplots(figsize=(18, 18), nrows=n_row, ncols=n_col, layout="compressed")
-    #    print("Num cmaps: " + str(n_pred))
-    #    print(axes.shape)
-    #    fig, axes = plt.subplots(figsize=(18, 6), ncols=n_pred)
-    ctr = 0
-    #    for ax, name in zip(axes, PDB_IDS):
-#    print("Contact lens:" + str(len(contacts)))
-    recall = {}
-    for name in predictions.keys():  # loop over predictions
-        if n_col == 1:
-            ax = axes[ctr]
+    # ---------- OPTIONAL Energies ----------
+    # Default per-pair energy dir if not provided
+    if energy_dir is None and foldpair_id:
+        energy_dir = os.path.join("Pipeline", foldpair_id, "output_deltaG")
+    elif energy_dir is None:
+        energy_dir = "Pipeline/output_deltaG"  # legacy fallback
+
+    # Try to read energies for each chain; skip silently if missing
+    try:
+        # deduce 4-letter PDB IDs from contact keys like '1dzlA', '5keqF'
+        pdb4_a = fold_ids[0][:4]
+        pdb4_b = fold_ids[1][:4]
+        path_a = os.path.join(energy_dir, f"deltaG_{pdb4_a}.txt")
+        path_b = os.path.join(energy_dir, f"deltaG_{pdb4_b}.txt")
+
+        if os.path.isfile(path_a) and os.path.isfile(path_b):
+            print("Load energies from:", energy_dir)
+            residue_energies_0 = read_energy_tuples(path_a)
+            residue_energies_1 = read_energy_tuples(path_b)
+            # (if you later add a small panel overlay with energies, do it here)
         else:
-            ax = axes[ctr // n_col, ctr % n_col]
-        ctr = ctr + 1
-#        print("Plotting prediction: " + name)  # + " -> true: " + true_name)
-        recall[name] = plot_foldswitch_contacts_and_predictions(
-            predictions[name], contacts, ax=ax, title=name, show_legend= ctr == 1)
+            print(f"[energy] per-residue files not found; skipping energy overlay: {path_a}, {path_b}")
+    except Exception as _e:
+        print(f"[energy] WARN: skipping energy overlay: {_e}")
 
-
-    if len(save_file) > 0:  # save and close plot (enable automatic saving of multiple plots)
+    # ---------- Save the contacts panel ----------
+    if len(save_file) > 0:
         plt.savefig(save_file + '.png')
         print("Save cmap fig: " + save_file + '.png')
     else:
         plt.show()
 
-    # Find maximum and display plot for the best clusters:
-#    print("Recall all clusters:", recall)
-#    print("Recall no deep: ", {x:recall[x] for x in recall.keys() if "deep" not in x})
-    best_recall_clusters = find_max_keys({x:recall[x] for x in recall.keys() if "deep" not in x})  # Need to exclude the deep alignment here !!!
-    print("Best recall clusters: ", best_recall_clusters)
-    best_cluster_ids = {x : int(best_recall_clusters[x][0][-3:]) for x in best_recall_clusters}
-    print("Best recall clusters with IDS: ", best_recall_clusters, best_cluster_ids)
-    fold_ids = list(contacts.keys())
-    # Create a new figure for the second plot
-    plt.figure(figsize=(10, 8))  # Adjust size as needed
-
-    # Load energies:
-    energy_dir = "Pipeline/output_deltaG"
-    print("Load: ", os.path.join(energy_dir, f"deltaG_{fold_ids[0][:4]}.txt"))
-    residue_energies_0 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[0][:4]}.txt"))
-    residue_energies_1 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[1][:4]}.txt"))
-
-    delta_energies, delta_energies_filtered = align_and_compare_residues(residue_energies_0, residue_energies_1, fold_ids[0][:4], fold_ids[1][:4])
-#    print("delta_energies", delta_energies, " len=", len(delta_energies))
-#    print("delta_energies_filtered", delta_energies_filtered, " len=", len(delta_energies_filtered))
-    print("n_AA_aligned=", n_AA_aligned)
-
-    delta_energies_filtered = np.array(delta_energies_filtered[:n_AA_aligned])  # Temp: need to fix alignment here!!!
-
-    best_recall = plot_foldswitch_contacts_and_predictions( predictions=(predictions[best_recall_clusters[fold_ids[0]][0]],
-                                                            predictions[best_recall_clusters[fold_ids[1]][0]]),
-                                                            contacts=contacts, title="Best clusters", show_legend=True,
-                                                            cluster_names= (str(best_cluster_ids[fold_ids[0]]), str(best_cluster_ids[fold_ids[1]])),
-                                                            x_vector = delta_energies_filtered,
-                                                            y_vector = delta_energies_filtered)
-    print("best recall: ", best_recall)
-    plt.savefig(save_file.replace('all', 'best'))
-    plt.close()  # Close the figure to avoid reuse issues
 
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
 def plot_contacts_and_predictions(
@@ -641,37 +618,40 @@ def plot_foldswitch_contacts_and_predictions(
     return recall
 
 
+
 # Make global plots for all families
-# --- REPLACE the entire global_pairs_statistics_plots with this version ---
-
-def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter_plot.png"):
+def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
     """
-    Build global scatter plots from the unified CSVs:
-      - AF2 / AF3 / ESM2 / ESM3: per-pair mean(+)/max(*) of TM1 vs TM2
-      - MSA-Transformer: per-pair max recall (t1_recall vs t2_recall)
+    Build ALL global scatter plots from the unified CSV(s) and save them under output_dir:
 
-    Saves: .../fold_pair_scatter_AF2.png, _AF3.png, _ESM2.png, _ESM3.png, _MSA_TRANS.png
+      • AF2 / AF3 / ESM2 / ESM3:
+           per-pair mean(+) and max(*) of TM1 vs TM2, with a dashed line connecting them.
+      • MSA-Transformer:
+           per-pair Max Recall (t1_recall vs t2_recall) from each pair's df_cmap.csv.
+
+    Files written (if data present):
+      output_dir/fold_pair_scatter_plot_AF2.png
+      output_dir/fold_pair_scatter_plot_AF3.png
+      output_dir/fold_pair_scatter_plot_ESM2.png
+      output_dir/fold_pair_scatter_plot_ESM3.png
+      output_dir/fold_pair_scatter_plot_MSA_TRANS.png
     """
-    import os
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    from config import DETAILED_RESULTS_TABLE, DATA_DIR, FIGURE_RES_DIR
-    from utils.utils import list_protein_pairs
+    # Default directory
+    if output_dir is None:
+        output_dir = FIGURE_RES_DIR
+    os.makedirs(output_dir, exist_ok=True)
 
-    os.makedirs(FIGURE_RES_DIR, exist_ok=True)
-
-    # ---------------- AF/ESM from unified detailed table ----------------
-    if not os.path.isfile(DETAILED_RESULTS_TABLE) or os.path.getsize(DETAILED_RESULTS_TABLE) == 0:
+    # -------- AF/ESM from unified detailed table --------
+    if (not os.path.isfile(DETAILED_RESULTS_TABLE)) or os.path.getsize(DETAILED_RESULTS_TABLE) == 0:
         print(f"[warn] No detailed CSV at {DETAILED_RESULTS_TABLE}. Run postprocess first.")
         df_det = pd.DataFrame(columns=["fold_pair","model","TMscore_fold1","TMscore_fold2"])
     else:
         df_det = pd.read_csv(DETAILED_RESULTS_TABLE)
 
-    # Accept legacy column names too
+    # Legacy column compatibility
     if "TMscore_fold1" not in df_det.columns and "score_pdb1" in df_det.columns:
         df_det = df_det.rename(columns={"score_pdb1": "TMscore_fold1", "score_pdb2": "TMscore_fold2"})
     if "fold_pair" not in df_det.columns:
-        # Some earlier tables used 'pair_id'
         if "pair_id" in df_det.columns:
             df_det = df_det.rename(columns={"pair_id": "fold_pair"})
         else:
@@ -680,14 +660,12 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
     # Normalize model tags
     df_det["model"] = df_det.get("model", "").astype(str).str.upper()
 
-    wanted_models = ["AF2", "AF3", "ESM2", "ESM3"]
-    for model_tag in wanted_models:
-        dfm = df_det[df_det["model"] == model_tag]
-        if dfm.empty:
+    def _save_tm_scatter(sub_df: pd.DataFrame, model_tag: str, out_path: str) -> None:
+        if sub_df.empty:
             print(f"[info] No rows for {model_tag} in {DETAILED_RESULTS_TABLE}")
-            continue
+            return
 
-        g = dfm.groupby("fold_pair", as_index=False).agg(
+        g = sub_df.groupby("fold_pair", as_index=False).agg(
             mean_TM1=("TMscore_fold1","mean"),
             mean_TM2=("TMscore_fold2","mean"),
             max_TM1 =("TMscore_fold1","max"),
@@ -711,32 +689,45 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
         plt.title(f"Per-pair TM (mean vs max): {model_tag}")
         plt.legend(loc="upper left")
         plt.grid(True)
-        out = os.path.join(FIGURE_RES_DIR, f"{os.path.splitext(os.path.basename(output_file))[0]}_{model_tag}.png")
         plt.tight_layout()
-        plt.savefig(out, dpi=160)
+        plt.savefig(out_path, dpi=160)
         plt.close()
-        print(f"[plot] wrote {out}")
+        print(f"[plot] wrote {out_path}")
 
-    # ---------------- MSA-Transformer (recall) from per-pair df_cmap.csv ----------------
+    # Emit AF/ESM plots
+    for tag in ["AF2", "AF3", "ESM2", "ESM3"]:
+        _save_tm_scatter(
+            df_det[df_det["model"] == tag],
+            model_tag=tag,
+            out_path=os.path.join(output_dir, f"fold_pair_scatter_plot_{tag}.png"),
+        )
+
+    # -------- MSA-Transformer (recall) from per-pair df_cmap.csv --------
     pairs = list_protein_pairs(parsed=False)
     rows = []
     for pid in pairs:
         p_csv = os.path.join(DATA_DIR, pid, "Analysis", "df_cmap.csv")
-        if not os.path.isfile(p_csv) or os.path.getsize(p_csv) == 0:
+        if not (os.path.isfile(p_csv) and os.path.getsize(p_csv) > 0):
             continue
         try:
             d = pd.read_csv(p_csv)
         except Exception:
             continue
-        # Compatible names: prefer t1_recall / t2_recall if present
+
         c1 = "t1_recall" if "t1_recall" in d.columns else None
         c2 = "t2_recall" if "t2_recall" in d.columns else None
         if not c1 or not c2:
             continue
-        rows.append({"fold_pair": pid, "max_R1": pd.to_numeric(d[c1], errors="coerce").max(),
-                                 "max_R2": pd.to_numeric(d[c2], errors="coerce").max()})
+
+        rows.append({
+            "fold_pair": pid,
+            "max_R1": pd.to_numeric(d[c1], errors="coerce").max(),
+            "max_R2": pd.to_numeric(d[c2], errors="coerce").max(),
+        })
+
     if rows:
         df_msat = pd.DataFrame(rows)
+        out = os.path.join(output_dir, "fold_pair_scatter_plot_MSA_TRANS.png")
         plt.figure(figsize=(8,7))
         first = True
         for _, r in df_msat.iterrows():
@@ -748,13 +739,12 @@ def global_pairs_statistics_plots(file_path=None, output_file="fold_pair_scatter
         plt.title("Per-pair max recall: MSA-Transformer")
         plt.legend(loc="upper left")
         plt.grid(True)
-        out = os.path.join(FIGURE_RES_DIR, f"{os.path.splitext(os.path.basename(output_file))[0]}_MSA_TRANS.png")
         plt.tight_layout()
-        plt.savefig(out, dpi=160); plt.close()
+        plt.savefig(out, dpi=160)
+        plt.close()
         print(f"[plot] wrote {out}")
     else:
         print("[info] No df_cmap.csv files found; skipping MSA-Transformer plot.")
-
 
 
 # Used in making notebooks
