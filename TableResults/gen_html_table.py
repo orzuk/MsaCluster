@@ -5,7 +5,7 @@ import argparse
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
-from config import TABLES_RES, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, GITHUB_URL_HTML
+from config import *
 from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
 
 
