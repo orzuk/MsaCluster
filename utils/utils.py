@@ -164,6 +164,8 @@ def pair_str_to_tuple(s: str) -> tuple[str, str]:
     """
     '1dzlA_5keqF' -> ('1dzlA','5keqF')
     """
+    if isinstance(s, tuple): # ready correct format
+        return s
     s = s.strip()
     if "_" not in s:
         raise ValueError(f"Pair must look like PDBidChain_PDBidChain, got: {s}")

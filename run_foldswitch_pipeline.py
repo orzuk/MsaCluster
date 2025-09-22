@@ -1097,22 +1097,19 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
     """
     scope = getattr(args, "plot_scope", "both")
     plot_trees = getattr(args, "plot_trees", False)
-    ONLY_GLOBAL = (scope == "global")
-    ONLY_PAIR   = (scope == "pair")
 
     # === 1) GLOBAL-ONLY: run ONCE and RETURN ===
-    if ONLY_GLOBAL:
+    if scope in ["global", "both"]:
         os.makedirs(FIGURE_RES_DIR, exist_ok=True)
         print("[plot] Generating global plots…")
         # write all global scatter plots (AF2, AF3, ESM2, ESM3, MSA-Trans, etc.)
         global_pairs_statistics_plots(output_dir=FIGURE_RES_DIR)
         print("[plot] Global plots written to", FIGURE_RES_DIR)
-        return
-
-    # Discover pairs if needed
-    pairs = list_protein_pairs() if (pair_id in (None, "ALL")) else [pair_id]
+        if scope == "global":  # global only
+            return
 
     # === 2) Per-pair plots ===
+    pairs = list_protein_pairs() if (pair_id in (None, "ALL")) else [pair_id]
     for pid in pairs:
         pA, pB = pair_str_to_tuple(pid)
         pdbids    = [pA[:-1], pB[:-1]]
@@ -1128,12 +1125,6 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
             global_plots=False,   # global is handled outside this loop
         )
 
-    # === 3) Global plots (after per-pair), for scope == both ===
-    if not ONLY_PAIR:
-        os.makedirs(FIGURE_RES_DIR, exist_ok=True)
-        print("[plot] Generating global plots…")
-        global_pairs_statistics_plots(output_dir=FIGURE_RES_DIR)
-        print("[plot] Global plots written to", FIGURE_RES_DIR)
 
 def task_deltaG(pair_id: str) -> None:
     # Import PyRosetta-consuming code only here
@@ -1501,9 +1492,6 @@ def main():
 
     # resolve list of pairs
     if args.foldpair_ids == ["ALL"]:
-        # read the same list your current script reads
-#        with open("data/foldswitch_PDB_IDs_full.txt", "r") as f:
-#            raw = [line.rstrip("\n") for line in f if line.strip()]
         foldpairs = list_protein_pairs() # [s.replace("\t", "_") for s in raw]
     else:
         foldpairs = args.foldpair_ids
@@ -1570,18 +1558,6 @@ def main():
         elif args.run_mode == "compute_deltaG":
             task_deltaG(pair_id)
 
-        elif args.run_mode == "plot":
-            scope = getattr(args, "plot_scope", "both")
-            if scope == "global":
-                task_plot(pair_id=None, args=args)        # ONCE
-            else:
-                # Drive per-pair plots
-                norm_pairs = args.foldpair_ids if isinstance(args.foldpair_ids, list) else [args.foldpair_ids]
-                if norm_pairs == ["ALL"]:
-                    norm_pairs = list_protein_pairs()
-                for pid in norm_pairs:
-                    task_plot(pair_id=pid, args=args)
-
         elif args.run_mode == "clean":  # Remove existing files to run the pipeline clean
             task_clean(pair_id, args)
 
@@ -1595,6 +1571,12 @@ def main():
 
         else:
             raise ValueError(args.run_mode)
+
+
+    # Ended loop on pairs. Run once for all pairs
+    scope = getattr(args, "plot_scope", "both")
+    if args.run_mode == "plot":
+        task_plot(pair_id=foldpairs, args=args)        # Run global plots ONCE
 
 
 
