@@ -333,54 +333,109 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
 
 
 # Plot multiple contacts and predictions together
-def plot_array_contacts_and_predictions(predictions, contacts, save_file=[], foldpair_id: str | None = None, energy_dir: str | None = None):
+def plot_array_contacts_and_predictions(
+    predictions,
+    contacts,
+    save_file="",
+    *,
+    foldpair_id: str | None = None
+):
     """
-    Plot multiple contacts and predictions together
+    Plot multiple contact-map predictions against truth, and then a separate
+    panel for the best-recall clusters. If per-residue ΔG files exist for the
+    pair, overlay them as vectors; otherwise skip that overlay.
 
-    Parameters:
-    predictions: Contact map predictions
-    contacts: True Contact Maps (pair)
-    save_file (str): Path root to save the output image ('.png' is added).
-    foldpair_id (str|None): Optional fold pair id (e.g., '1dzlA_5keqF') used to locate per-pair energies.
-    energy_dir (str|None): Override energy directory. If None, uses per-pair: Pipeline/<pair>/output_deltaG.
+    Parameters
+    ----------
+    predictions : dict[str, np.ndarray]
+        Map: cluster-name -> predicted contact matrix (NxN).
+    contacts : dict[str, np.ndarray]
+        Map: fold_id -> true contacts (NxN) for the two folds.
+    save_file : str
+        Root path (without extension) to save the 'all clusters' figure.
+    foldpair_id : str | None
+        Pair id like '1dzlA_5keqF'; used to locate DeltaG files under
+        Pipeline/<pair>/output_deltaG. If None, ΔG overlay is skipped.
     """
-    ...
-    # (the plotting code stays the same up to "Best recall clusters ..." and fold_ids)
-    best_recall_clusters = find_max_keys({x: recall[x] for x in recall.keys() if "deep" not in x})
-    best_cluster_ids = {x: int(best_recall_clusters[x][0][-3:]) for x in best_recall_clusters}
-    fold_ids = list(contacts.keys())
+    n_pred = len(predictions)
+    # grid shape for the 'all clusters' panel
+    n_row = math.ceil(math.sqrt(n_pred))
+    n_col = n_row - 1 if n_row * (n_row - 1) >= n_pred else n_row
 
-    # ---------- OPTIONAL Energies ----------
-    # Default per-pair energy dir if not provided
-    if energy_dir is None and foldpair_id:
-        energy_dir = os.path.join("Pipeline", foldpair_id, "output_deltaG")
-    elif energy_dir is None:
-        energy_dir = "Pipeline/output_deltaG"  # legacy fallback
+    # ---- draw all clusters and collect per-cluster recall ----
+    n_AA_aligned = len(contacts[next(iter(contacts))])
+    fig, axes = plt.subplots(figsize=(18, 18), nrows=n_row, ncols=n_col, layout="compressed")
 
-    # Try to read energies for each chain; skip silently if missing
-    try:
-        # deduce 4-letter PDB IDs from contact keys like '1dzlA', '5keqF'
-        pdb4_a = fold_ids[0][:4]
-        pdb4_b = fold_ids[1][:4]
-        path_a = os.path.join(energy_dir, f"deltaG_{pdb4_a}.txt")
-        path_b = os.path.join(energy_dir, f"deltaG_{pdb4_b}.txt")
+    ctr = 0
+    recall: dict[str, dict[str, float]] = {}  # cluster -> {foldA: rA, foldB: rB}
+    for name in predictions.keys():
+        ax = axes if n_col == 1 else axes[ctr // n_col, ctr % n_col]
+        if n_col == 1:
+            ax = axes[ctr]
+        ctr += 1
 
-        if os.path.isfile(path_a) and os.path.isfile(path_b):
-            print("Load energies from:", energy_dir)
-            residue_energies_0 = read_energy_tuples(path_a)
-            residue_energies_1 = read_energy_tuples(path_b)
-            # (if you later add a small panel overlay with energies, do it here)
-        else:
-            print(f"[energy] per-residue files not found; skipping energy overlay: {path_a}, {path_b}")
-    except Exception as _e:
-        print(f"[energy] WARN: skipping energy overlay: {_e}")
+        # plot and receive per-fold recall for this cluster
+        recall[name] = plot_foldswitch_contacts_and_predictions(
+            predictions[name], contacts, ax=ax, title=name, show_legend=(ctr == 1)
+        )
 
-    # ---------- Save the contacts panel ----------
-    if len(save_file) > 0:
-        plt.savefig(save_file + '.png')
-        print("Save cmap fig: " + save_file + '.png')
+    if save_file:
+        plt.savefig(save_file + ".png")
+        print("Save cmap fig:", save_file + ".png")
     else:
         plt.show()
+
+    # ---- choose the best-recall cluster for each fold and render a focused panel ----
+    if not recall:
+        # nothing rendered above; just return early
+        return
+
+    # exclude "deep" clusters from best-cluster selection (your original logic)
+    filtered = {k: v for k, v in recall.items() if "deep" not in k.lower()}
+    # if filtering makes it empty, fall back to all clusters so we don't crash
+    pick_from = filtered if filtered else recall
+
+    best_recall_clusters = find_max_keys(pick_from)  # {'foldA': (bestCluster, maxVal), 'foldB': (...)}
+    print("Best recall clusters:", best_recall_clusters)
+
+    fold_ids = list(contacts.keys())
+    best_cluster_ids = {f: best_recall_clusters[f][0] for f in fold_ids}
+    print("Best recall cluster names:", best_cluster_ids)
+
+    # ---- Optional ΔG overlay: read per-pair energy files if available ----
+    xvec = yvec = None
+    if foldpair_id:
+        energy_dir = os.path.join("Pipeline", foldpair_id, "output_deltaG")
+        try:
+            e0 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[0][:4]}.txt"))
+            e1 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[1][:4]}.txt"))
+            delta_energies, delta_energies_filtered = align_and_compare_residues(
+                e0, e1, fold_ids[0][:4], fold_ids[1][:4]
+            )
+            print("n_AA_aligned=", n_AA_aligned)
+            delta_energies_filtered = np.array(delta_energies_filtered[:n_AA_aligned])
+            xvec = yvec = delta_energies_filtered
+        except Exception as e:
+            # Make this non-fatal; just skip ΔG overlay if files not found or alignment fails
+            print(f"[plot] NOTE: ΔG overlay skipped for {foldpair_id}: {e}")
+
+    # ---- render 'best clusters' focused panel ----
+    plt.figure(figsize=(10, 8))
+    best = plot_foldswitch_contacts_and_predictions(
+        predictions=(predictions[best_cluster_ids[fold_ids[0]]], predictions[best_cluster_ids[fold_ids[1]]]),
+        contacts=contacts,
+        title="Best clusters",
+        show_legend=True,
+        cluster_names=(best_cluster_ids[fold_ids[0]], best_cluster_ids[fold_ids[1]]),
+        x_vector=xvec,
+        y_vector=yvec,
+    )
+    print("best recall:", best)
+
+    if save_file:
+        plt.savefig(save_file.replace("all", "best"))
+    plt.close()
+
 
 
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
