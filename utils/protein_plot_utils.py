@@ -29,7 +29,7 @@ import pandas as pd
 
 
 # Map ete leaves to cluster metrics; accept several cluster-key aliases
-def _resolve_cluster_key(raw_key: str) -> str | None:
+def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
     # Examples of incoming raw_key from seqs_ids_to_cluster_ids:
     #   "ShallowMsa_000", "MSA_deep", "DeepMsa", "000", etc.
     cands = []
@@ -201,7 +201,7 @@ def make_foldswitch_all_plots(
         cid = ete_leaves_cluster_ids.get(n.name)
         if not cid or cid == 'p':
             continue
-        key = _resolve_cluster_key(cid)
+        key = _resolve_cluster_key(cid, cluster_node_values)
         if key is None:
             print(f"[tree] WARN: no metrics for leaf '{n.name}' with cid='{cid}' → skipping")
             continue
@@ -305,7 +305,7 @@ def make_foldswitch_all_plots(
 
         # Save figure
         out_root = os.path.join(fig_dir_tree_cl, f"{foldpair_id}_phytree_cluster")
-        visualize_tree_with_heatmap(clusters_subtree, concat_scores, out_root)
+        visualize_tree_with_heatmap(ete_tree, concat_scores, out_root)
     else:
         out_root = os.path.join(fig_dir_tree, f"{foldpair_id}_phytree")
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, out_root)
