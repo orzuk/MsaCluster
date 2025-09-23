@@ -56,11 +56,9 @@ if user == 'steveabecassis':
         MAIN_DIR = '/sci/labs/orzuk/steveabecassis/MsaCluster'
     else:
         MAIN_DIR = '/Users/steveabecassis/Desktop'
-    DATA_DIR = MAIN_DIR + '/Pipeline'
     CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
     LOCAL_RUN = True
 
-    TMALIGN_EXE = MAIN_DIR + '/TMalign'
 
     # File create by the script cmap_analysis.py (in the analysis folder)
     CMAP_ANALYSIS_FILE = DATA_DIR + '/cmap_exact_analysis_tol0_2510.parq'
@@ -83,15 +81,14 @@ if user in ['zuk_laptop', 'orzuk']:
             # Scripts for running different tools
             ESM_PATH = "/mnt/c/Code/Github/esm"
 
-    DATA_DIR = MAIN_DIR + '/Pipeline'
-    TABLES_DIR = MAIN_DIR + '/data'
-    FIGURE_RES_DIR = DATA_DIR + '/Results/Figures'
+DATA_DIR = MAIN_DIR + '/Pipeline'
     CMAP_RES_PATH = DATA_DIR + '/data/df_cmap_all.csv'
     AF_MODEL_FILE = TABLES_DIR + '/df_af_all.csv'
     ESMF_MODEL_FILE = TABLES_DIR + '/df_esmfold_all.csv'
     MSA_TRANS_MODEL_FILE = TABLES_DIR + '/df_cmap_all.csv'
-    TMALIGN_EXE = MAIN_DIR + '/TMalign'
 
+
+TMALIGN_EXE = MAIN_DIR + '/TMalign'
 USE_TMALIGN_BINARY = (os.path.isfile(TMALIGN_EXE) and os.access(TMALIGN_EXE, os.X_OK))
 
 
@@ -109,6 +106,15 @@ ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
 ENERGY_DIR = DATA_DIR + '/output_deltaG'
 ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
 
+# Local figures dir
+FIGURE_RES_DIR = DATA_DIR + '/Results/Figures'
+
+# Where to publish images for GitHub Pages (under docs/...)
+FIGURE_PUBLISH_DIR = os.path.join(TABLES_RES, 'figures', 'global')   # docs/figures/global
+PER_PAIR_PUBLISH_SUBDIR = os.path.join('HTML', 'figs')               # docs/HTML/figs/<pair_id> (per-pair)
+
+# Whether to auto-copy figures from compute dirs to publish dirs when building HTML
+PUBLISH_FIGURES = True
 
 LOCAL_RUN = False
 

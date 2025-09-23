@@ -324,6 +324,21 @@ def gen_html_for_global_plots(
     os.makedirs(out_dir, exist_ok=True)
     rel_prefix = os.path.relpath(images_dir_abs, start=out_dir)
 
+    # Copy figures to output figs dir
+    os.makedirs(FIGURE_PUBLISH_DIR, exist_ok=True)
+    src_files = [f for f in os.listdir(images_dir_abs) if f.lower().endswith(('.png','.jpg','.jpeg','.webp','.svg'))]
+    published = []
+    for f in sorted(src_files):
+        src = os.path.join(images_dir_abs, f)
+        dst = os.path.join(FIGURE_PUBLISH_DIR, f)
+        if PUBLISH_FIGURES:
+            shutil.copy2(src, dst)
+        if os.path.isfile(dst):  # only link files present in publish dir
+            published.append(f)
+
+    rel_prefix = os.path.relpath(os.path.abspath(FIGURE_PUBLISH_DIR), start=out_dir)
+
+
     if not files:
         rows = "<p>No figures were found in the images directory.</p>"
     else:
