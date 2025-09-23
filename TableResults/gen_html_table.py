@@ -1,5 +1,5 @@
 # File: TableResults/gen_html_table.py
-import os, sys, re, html
+import os, sys, re, html, shutil
 import pandas as pd
 import argparse
 
