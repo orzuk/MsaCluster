@@ -422,13 +422,12 @@ if __name__ == "__main__":
 
 
     # Also build the global plots gallery (optional but handy when running this script directly)
-    try:
-        out_global = gen_html_for_global_plots(
-            images_dir=FIGURE_RES_DIR,
-            output_html=os.path.join(TABLES_RES, "pairs_global_analysis.html"),
-            title="Global Comparison Plots For All Protein Pairs")
-    except Exception as e:
-        print(f"[html] WARN: could not build global plots page: {e}")
+    out_global = gen_html_for_global_plots(
+        images_dir=FIGURE_RES_DIR,
+        output_html=os.path.join(TABLES_RES, "pairs_global_analysis.html"),
+        title="Global Comparison Plots For All Protein Pairs")
+#    except Exception as e:
+#        print(f"[html] WARN: could not build global plots page: {e}")
 
 
     print("OK:\n ", out1, "\n ", out2)
