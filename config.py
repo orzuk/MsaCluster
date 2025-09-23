@@ -82,6 +82,7 @@ if user in ['zuk_laptop', 'orzuk']:
             ESM_PATH = "/mnt/c/Code/Github/esm"
 
 DATA_DIR = MAIN_DIR + '/Pipeline'
+TABLES_DIR = MAIN_DIR + '/data'
 CMAP_RES_PATH = DATA_DIR + '/data/df_cmap_all.csv'
 AF_MODEL_FILE = TABLES_DIR + '/df_af_all.csv'
 ESMF_MODEL_FILE = TABLES_DIR + '/df_esmfold_all.csv'
