@@ -794,6 +794,7 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     pdbids     = [foldA[:-1], foldB[:-1]]            # ['1dzl','5keq']
     pdbchains  = [foldA[-1],  foldB[-1]]             # ['A','F']
     ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
+    print("Making fasta chain files: ")
     ensure_chain_fastas(pair_dir, pdbids, pdbchains)
 
     # Build BOTH-chains seed alignment once

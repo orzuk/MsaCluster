@@ -2,7 +2,6 @@
 import os
 from pathlib import Path
 from argparse import ArgumentParser
-
 from colabfold.batch import get_msa_and_templates, msa_to_str
 
 
