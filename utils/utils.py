@@ -116,7 +116,7 @@ def get_fasta_chain_seq(pdb_file, fold_name, output_dir):
         for chain in model:
             sequence = ""
             for residue in chain:
-                if residue.id[0] == ' ':
+                if residue.id[0] == ' ' and 'CA' in residue:  # <-- match pdb_to_contact_map selection
                     sequence += seq1(residue.resname)
 
     with open(f"./{output_dir}/fasta_chain_files/{fold_name}.fasta", "w") as output_handle:
@@ -164,7 +164,7 @@ def pair_str_to_tuple(s: str) -> tuple[str, str]:
     """
     '1dzlA_5keqF' -> ('1dzlA','5keqF')
     """
-    print("Stripping to tupple: ", s)
+    print("Stripping to tuple: ", s)
     if isinstance(s, tuple) or isinstance(s, list): # ready correct format
         return s
     s = s.strip()

@@ -148,6 +148,16 @@ def make_foldswitch_all_plots(
             for i in range(2)
         }
 
+    # ---------- Check length match between fasta seq and cmaps ----------
+    for key in (pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]):
+        n_seq = len(seqs[key])
+        n_map = true_cmap[key].shape[0]
+        if n_seq != n_map:
+            raise ValueError(
+                f"[{foldpair_id}] FASTA length {n_seq} != contact-map size {n_map} for {key}. "
+                "Regenerate the FASTA using CA-only residues (see get_fasta_chain_seq).")
+
+
     # ---------- Align truth/pred indices ----------
     pairwise_alignment = Align.PairwiseAligner().align(
         seqs[pdbids[0] + pdbchains[0]],
