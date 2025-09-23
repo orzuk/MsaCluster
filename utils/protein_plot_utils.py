@@ -88,13 +88,9 @@ def make_foldswitch_all_plots(
     """
     print("Plot for foldpair_id: " + foldpair_id)
 
-    # ---------- Paths & ensure figure dirs exist ----------
-    fig_dir_cmap = os.path.join(fasta_dir, "Results", "Figures", "Cmap_MSA")
-    fig_dir_tree = os.path.join(fasta_dir, "Results", "Figures", "PhyTree")
-    fig_dir_tree_cl = os.path.join(fasta_dir, "Results", "Figures", "PhyTreeCluster")
-    os.makedirs(fig_dir_cmap, exist_ok=True)
-    os.makedirs(fig_dir_tree, exist_ok=True)
-    os.makedirs(fig_dir_tree_cl, exist_ok=True)
+    # ---------- Paths & ensure a single per-pair figure dir ----------
+    fig_dir_root = os.path.join("Pipeline", foldpair_id, "output_figs")
+    os.makedirs(fig_dir_root, exist_ok=True)
 
     # ---------- Inputs ----------
     fasta_file_names = {
@@ -165,7 +161,7 @@ def make_foldswitch_all_plots(
     # ---------- Plot CMAPs ----------
     if plot_contacts:
         print("Plot Array Contact Map")
-        save_root = os.path.join(fig_dir_cmap, f"{foldpair_id}_all_clusters_cmap")
+        save_root = os.path.join(fig_dir_root, f"{foldpair_id}_all_clusters_cmap")
         # Ensure directory exists (done above), pass root (plot util appends .png)
         plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, save_root, foldpair_id=foldpair_id)
 
@@ -304,10 +300,10 @@ def make_foldswitch_all_plots(
         concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
 
         # Save figure
-        out_root = os.path.join(fig_dir_tree_cl, f"{foldpair_id}_phytree_cluster")
+        out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
         visualize_tree_with_heatmap(ete_tree, concat_scores, out_root)
     else:
-        out_root = os.path.join(fig_dir_tree, f"{foldpair_id}_phytree")
+        out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree")
         visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, out_root)
         concat_scores = []
 
@@ -318,13 +314,11 @@ def make_foldswitch_all_plots(
 
     # Optional 3D-align plot (only on non-Linux in your original code)
     if not platform.system() == "Linux":
-        out_3d = os.path.join(fasta_dir, "Results", "Figures", "3d_struct", f"{foldpair_id}_3d_aligned.png")
-        os.makedirs(os.path.dirname(out_3d), exist_ok=True)
+        out_3d = os.path.join(fig_dir_root, f"{foldpair_id}_3d_aligned.png")
         align_and_visualize_proteins(
             os.path.join('Pipeline', foldpair_id, f"{pdbids[0]}.pdb"),
             os.path.join('Pipeline', foldpair_id, f"{pdbids[1]}.pdb"),
-            out_3d, False
-        )
+            out_3d, False)
 
     if global_plots:
         print("Make global plots!")
