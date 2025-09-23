@@ -93,11 +93,12 @@ def make_foldswitch_all_plots(
     os.makedirs(fig_dir_root, exist_ok=True)
 
     # ---------- Inputs ----------
-    fasta_file_names = {
+    fasta_file_names = {  # Take just generated chain files
         pdbids[i] + pdbchains[i]:
-            os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}.fasta")
+            os.path.join(fasta_dir, foldpair_id, "fasta_chain_files", f"{pdbids[i]}{pdbchains[i]}.fasta")
         for i in range(2)
     }
+
     msa_pred_files = glob(os.path.join(fasta_dir, foldpair_id, "output_cmaps", "msa_transformer", "*.npy"))
     msa_files = glob(os.path.join(fasta_dir, foldpair_id, "output_msa_cluster", "*.a3m"))
     msa_clusters = {os.path.basename(fp)[:-4]: read_msa(fp) for fp in msa_files}

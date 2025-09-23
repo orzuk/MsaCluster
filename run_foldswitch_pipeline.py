@@ -25,6 +25,8 @@ from Analysis.postprocess_unified import post_processing_analysis, build_unified
 from TableResults.gen_html_table import *
 
 from Bio import Align  # PairwiseAligner (modern replacement)
+from Bio.PDB import PDBParser
+from Bio.SeqUtils import seq1
 
 
 RUN_MODE_DESCRIPTIONS = {
@@ -47,6 +49,22 @@ RUN_MODE_DESCRIPTIONS = {
 
 # ------------------------- helpers -------------------------
 
+
+def _extract_seq_ca_only(pdb_path: str, chain: str) -> str:
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure("x", pdb_path)
+    aa = []
+    for model in structure:
+        for ch in model:
+            if ch.id != chain:
+                continue
+            for res in ch:
+                # only standard residues with a CA atom
+                if res.id[0] == " " and "CA" in res:
+                    aa.append(seq1(res.get_resname()))
+            break
+        break
+    return "".join(aa)
 
 
 def _has_deltaG(pair_id: str) -> bool:
@@ -365,25 +383,15 @@ def ensure_chain_fastas(pair_dir: str, pdbids: list[str], pdbchains: list[str]) 
     fasta_dir = os.path.join(pair_dir, "fasta_chain_files")
     os.makedirs(fasta_dir, exist_ok=True)
 
+
     for pdb, ch in zip(pdbids, pdbchains):
         tag = f"{pdb}{ch}"
         out_fa = os.path.join(fasta_dir, f"{tag}.fasta")
         if os.path.isfile(out_fa) and os.path.getsize(out_fa) > 0:
             continue
 
-        # Try to reuse the root FASTA if it's single-record
-        root_fa = os.path.join(pair_dir, f"{pdb}.fasta")
-        seq = None
-        if os.path.isfile(root_fa):
-            ids, seqs = load_fasta(root_fa)
-            if len(seqs) == 1:
-                seq = seqs[0]
-
-        # Otherwise extract chain from the PDB (sequence-based folding anyway)
-        if not seq:
-            pdb_path = os.path.join(pair_dir, f"{pdb}.pdb")
-            seq = extract_protein_sequence(pdb_path, chain=ch)
-
+        pdb_path = os.path.join(pair_dir, f"{pdb}.pdb")
+        seq = _extract_seq_ca_only(pdb_path, ch)
         write_fasta([tag], [seq], out_fa)
 
 def _in_slurm_session() -> bool:
