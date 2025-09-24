@@ -238,7 +238,6 @@ def make_foldswitch_all_plots(
                                    columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])
 
 
-                # --- REPLACE the legacy CSV/glob-based filling of tmscores_df with this unified-table version ---
 
         # Fill TM scores per cluster from the unified detailed table
         from config import DETAILED_RESULTS_TABLE
@@ -310,7 +309,7 @@ def make_foldswitch_all_plots(
         concat_scores = pd.concat([tmscores_df, cluster_node_values_df], ignore_index=True, axis=1)
         concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
 
-        # Save figure
+        # Make and save figure
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
         visualize_tree_with_heatmap(ete_tree, concat_scores, out_root)
     else:
