@@ -1095,12 +1095,38 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     for ver in versions:
         _export_canonical_best_pdbs(pair_id, ver)
 
-
-def task_tree(pair_id: str, run_job_mode: str) -> None:
+def task_tree(pair_id: str, args: argparse.Namespace) -> None:
     msa_file = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
     out = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
     ensure_dir(os.path.dirname(out))
-    phytree_from_msa(msa_file, output_tree_file=out)
+
+    # Effective cap: default 500; <=0 → no cap (use all).
+    cap = getattr(args, "tree_max_seqs", 500)
+    if cap is not None and int(cap) <= 0:
+        cap = None  # all sequences -> no stratification
+
+    # Use stratified sampling when capped: ensure ≥1 per ShallowMsa_###, then fill random.
+    cluster_dir = f"Pipeline/{pair_id}/output_msa_cluster" if cap is not None else None
+
+    # If there are more clusters than the cap, bump the cap to #clusters
+    eff_cap = cap
+    if cluster_dir and os.path.isdir(cluster_dir):
+        n_clusters = len([fn for fn in os.listdir(cluster_dir)
+                          if fn.startswith("ShallowMsa_") and fn.endswith(".a3m")])
+        if eff_cap is None:
+            pass
+        else:
+            eff_cap = max(int(eff_cap), n_clusters)
+
+    # Build tree (phytree_utils.phytree_from_msa has the stratified logic)
+    phytree_from_msa(
+        msa_file,
+        output_tree_file=out,
+        max_seqs=eff_cap,                 # None → all; int → capped (stratified)
+        cluster_msa_dir=cluster_dir,      # used only when capped
+        seed=getattr(args, "tree_seed", 123),
+    )
+
 
 def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
     """
@@ -1344,7 +1370,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
         if force_all or not tree_path.exists():
             print("[pipeline] tree → running")
-            task_tree(pair_id, "inline")
+            task_tree(pair_id, args)
         else:
             print("[pipeline] tree → skip (exists)")
     except Exception as e:
@@ -1440,6 +1466,15 @@ def main():
                    help="Path to CCMpred binary")
     p.add_argument("--ccmpred_threads", type=int, default=8,
                    help="Threads for CCMpred (-t)")
+
+    # --- Tree options ---
+    p.add_argument("--tree_max_seqs", type=int, default=500,
+                   help="Max sequences to include in the Deep tree. If stratified, "
+                        "it’s bumped up to the number of represented clusters when needed.")
+    p.add_argument("--tree_use_clusters", type=str2bool, nargs="?", const=True, default=True,
+                   help="If TRUE, do stratified sampling: ≥1 seq per ShallowMsa_### cluster "
+                        "that overlaps the Deep MSA, then fill the rest at random.")
+    p.add_argument("--tree_seed", type=int, default=123, help="Random seed for tree sampling.")
 
     # Post-processing options, computing metrics
     p.add_argument("--postprocess", default="FALSE", help="If TRUE, run post-processing after the selected task(s).")
@@ -1577,7 +1612,8 @@ def main():
             task_af(pair_id, args)
 
         elif args.run_mode == "tree":
-            task_tree(pair_id, args.run_job_mode)
+            task_tree(pair_id, args)
+#            task_tree(pair_id, args.run_job_mode)
 
         elif args.run_mode == "compute_deltaG":
             task_deltaG(pair_id)

@@ -34,6 +34,75 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
+# ----- Helper functions -----
+
+# --- helpers for stratified sampling (place once in phytree_utils.py) ---
+import re, random
+
+def _norm_id(header: str) -> str:
+    """
+    Normalize FASTA headers so Deep/Cluster IDs match better:
+    - keep first token before whitespace
+    - strip trailing '/start-end' spans (e.g., '/12-345')
+    """
+    h = (header or "").strip()
+    if not h:
+        return h
+    tok = h.split()[0]
+    tok = re.sub(r"/\d+-\d+$", "", tok)
+    return tok
+
+def _load_cluster_norm_ids(cluster_msa_dir: str) -> dict[str, set[str]]:
+    """
+    Read all ShallowMsa_###.a3m files and return:
+        cluster_name -> set(normalized IDs)
+    Uses load_fasta() that already exists in your codebase.
+    """
+    clusters: dict[str, set[str]] = {}
+    for fn in sorted(os.listdir(cluster_msa_dir)):
+        if not fn.endswith(".a3m"):
+            continue
+        cl = fn[:-4]  # strip .a3m
+        if not cl.startswith("ShallowMsa_"):
+            continue
+        ids, _seqs = load_fasta(os.path.join(cluster_msa_dir, fn))
+        clusters[cl] = { _norm_id(i) for i in ids }
+    return clusters
+
+
+
+
+def prune_tree_to_leaves(ete_tree, keep_leaves: list[str]):
+    """
+    Keep-only pruning. Repeatedly:
+      1) drop any leaf not in keep_leaves,
+      2) drop now-empty internal nodes.
+
+    After this returns, every leaf name is in keep_leaves.
+    """
+    keep = set(keep_leaves)
+    changed = True
+    while changed:
+        changed = False
+
+        # 1) remove leaves not in keep set
+        to_detach = [leaf for leaf in ete_tree.iter_leaves() if leaf.name not in keep]
+        if to_detach:
+            for leaf in to_detach:
+                leaf.detach()
+            changed = True
+
+        # 2) remove now-empty internal nodes
+        # (postorder so we clear bottom-up)
+        for n in list(ete_tree.iter_descendants(strategy="postorder")):
+            if not n.children:  # became leaf
+                if n.name not in keep:   # synthetic leaf not requested
+                    n.detach()
+                    changed = True
+
+    return ete_tree
+
+
 
 def resolve_duplicated_ids(ids_list):
         """
@@ -65,59 +134,129 @@ def resolve_duplicated_ids(ids_list):
 # msa_file - file with MSA in a3m format
 # output_tree_file - where to save
 # max_seqs - sample sequences if too many
-def phytree_from_msa(msa_file, output_tree_file=[], max_seqs = 100):
-    # Load the multiple sequence alignment from a file
+def phytree_from_msa(
+    msa_file,
+    output_tree_file: str | list = [],
+    max_seqs: int | None = 100,
+    *,
+    cluster_msa_dir: str | None = None,
+    seed: int | None = 123
+):
+    """
+    Build a UPGMA tree from an A3M alignment.
+    - If max_seqs is None -> use ALL sequences (no sampling; cluster_msa_dir is ignored).
+    - If max_seqs is set and num_seqs > max_seqs:
+        * If cluster_msa_dir is provided -> STRATIFIED sampling:
+              ensure >=1 sequence per shallow cluster that also appears in the deep MSA (by normalized ID),
+              then fill the remaining quota at random.
+              If max_seqs < #represented-clusters, it is bumped up.
+        * Else -> uniform random sampling (previous behavior).
 
+    Returns
+    -------
+    Biopython tree (also written to output_tree_file).
+    """
+    if seed is not None:
+        random.seed(int(seed))
+
+    # --- load the (aligned) MSA ---
     seqs_IDs, seqs = load_fasta(msa_file)
-    seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
-
+    # keep only uppercase & '-' (like before)
+    seqs = [''.join([ch for ch in s if ch.isupper() or ch == '-']) for s in seqs]
     num_seqs = len(seqs)
-#    print(seqs)
-#    print(num_seqs)
-#    print(max_seqs)
-    if num_seqs > max_seqs:  # too many sequences! sample!!!
-        rand_inds = random.sample(range(num_seqs), max_seqs)
-        seqs = [seqs[i] for i in rand_inds]  # random.sample(seqs, max_seqs)  # [1:max_seqs]  # sample randomly
-        seqs_IDs = [seqs_IDs[i] for i in rand_inds]
-        # Need to match also seq IDs!!!
 
-    seqs_IDs = resolve_duplicated_ids(seqs_IDs)  # resolve duplicate ids:
+    # Early: no sampling wanted -> keep all
+    if (max_seqs is None) or (num_seqs <= int(max_seqs)):
+        pass  # keep all sequences
+    else:
+        # --- sampling is needed ---
+        if cluster_msa_dir:
+            # build Deep (orig <-> normalized) maps on the *original* IDs
+            deep_orig_ids = list(seqs_IDs)
+            deep_norm_to_indices: dict[str, list[int]] = {}
+            for i, rid in enumerate(deep_orig_ids):
+                nid = _norm_id(rid)
+                deep_norm_to_indices.setdefault(nid, []).append(i)
 
-    seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]  # Here must give correct names to sequences!
+            # load shallow cluster membership (normalized IDs)
+            clusters = _load_cluster_norm_ids(cluster_msa_dir)
+            shallow = sorted([c for c in clusters if c.startswith("ShallowMsa_")])
 
-    # Create a MultipleSeqAlignment object from the SeqRecord objects
+            # choose one representative index per cluster that intersects the Deep MSA
+            chosen_idx: list[int] = []
+            represented: list[str] = []
+            missing: list[str] = []
+
+            for cl in shallow:
+                cand_norm = list(clusters[cl] & set(deep_norm_to_indices.keys()))
+                if cand_norm:
+                    # pick a normalized ID, then pick one deep index for it
+                    nid = random.choice(cand_norm)
+                    idx = random.choice(deep_norm_to_indices[nid])
+                    chosen_idx.append(idx)
+                    represented.append(cl)
+                else:
+                    missing.append(cl)
+
+            mandatory = len(chosen_idx)
+            if mandatory == 0:
+                print(f"[warn] No shallow clusters matched Deep IDs; falling back to uniform sampling.")
+                chosen_idx = []
+
+            # bump max_seqs up if needed
+            if mandatory > 0 and max_seqs < mandatory:
+                print(f"[info] Bumping max_seqs from {max_seqs} to {mandatory} "
+                      f"to cover all represented clusters.")
+                max_seqs = mandatory
+
+            # fill remaining quota with random Deep sequences (excluding chosen)
+            remaining = int(max_seqs) - len(chosen_idx)
+            pool = [i for i in range(num_seqs) if i not in set(chosen_idx)]
+            random.shuffle(pool)
+            extra = pool[:max(0, remaining)]
+            sel_idx = chosen_idx + extra
+
+            print(f"[stratify] deep={num_seqs}  shallow_clusters={len(shallow)}  "
+                  f"represented={len(represented)}  missing={len(missing)}  "
+                  f"final_sample={len(sel_idx)}  "
+                  f"(mand={len(chosen_idx)} + rand={len(extra)})")
+            if missing:
+                # show only a few to avoid spam
+                print("[stratify] example missing clusters:", missing[:10])
+
+            # apply selection
+            seqs = [seqs[i] for i in sel_idx]
+            seqs_IDs = [seqs_IDs[i] for i in sel_idx]
+
+        else:
+            # previous behavior: uniform random sample of max_seqs
+            rand_inds = random.sample(range(num_seqs), int(max_seqs))
+            seqs     = [seqs[i] for i in rand_inds]
+            seqs_IDs = [seqs_IDs[i] for i in rand_inds]
+            print(f"[sample] uniform random: picked {len(seqs)} / {num_seqs}")
+
+    # Make IDs unique if needed (same as before)
+    seqs_IDs = resolve_duplicated_ids(seqs_IDs)
+
+    # Build alignment object
+    seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]
     alignment = MultipleSeqAlignment(seq_records)
 
-    # Calculate a distance matrix from the alignment
+    # Distances + UPGMA
     calculator = DistanceCalculator('identity')
-
     distance_matrix = calculator.get_distance(alignment)
-
-    # Build a phylogenetic tree using the UPGMA (Unweighted Pair Group Method with Arithmetic Mean) method
     constructor = DistanceTreeConstructor()
-    tree = constructor.upgma(distance_matrix)  # , names = seqs_IDs)  # New: Add leave names !!!
+    tree = constructor.upgma(distance_matrix)
 
-    # Print or save the resulting tree
+    # Save (same as before)
     if len(output_tree_file) == 0:
         output_tree_file = msa_file.replace(".a3m", "_tree.nwk")
     if not os.path.exists(os.path.dirname(output_tree_file)):
         os.makedirs(os.path.dirname(output_tree_file))
-    #    tree_file = "phylogenetic_tree.nwk"  # Replace with your desired output file
-
-    # Add quotes to node names (needed?):
-##    for clade in tree.find_clades():
-#        clade.name = "'" + clade.name + "'"
-##        clade.name = "\"" + clade.name + "\""
-
-#    ctr = 0
-#    for node in tree.find_clades():
-#        print(node.name)
-#        node.name = "leaf" + str(ctr)
-#        ctr += 1
-    # write_newick_with_quotes(tree, output_tree_file)
-    Phylo.write(tree, output_tree_file, "newick")  # This is different from write_newick_with_quotes !!!!
+    Phylo.write(tree, output_tree_file, "newick")
 
     return tree
+
 
 
 def convert_biopython_to_ete3(biopy_tree, parent_ete_node=None):
@@ -206,80 +345,92 @@ def visualize_tree_with_heatmap(
     output_file: str,
     group_titles: list[str] | None = None,
     *,
-    figsize=(20, 12),
-    tree_width_ratio=1.2,
-    heatmap_width_ratio=4.0,
-    cbar_width_ratio=0.28,
+    figsize=(22, 12),
+    tree_width_ratio=1.0,
+    heatmap_width_ratio=6.5,
+    cbar_width_ratio=0.18,
+    cbar_stack_vertical=True,
     x_tick_rotation=90,
-    x_tick_fontsize=9,
+    x_tick_fontsize=8,
     y_tick_fontsize=7,
-    nan_rgba=(0.92, 0.92, 0.92, 1.0),  # light gray for NaNs
+    nan_rgba=(0.92, 0.92, 0.92, 1.0),
 ):
     """
-    Render a dendrogram (ETE tree) + grouped heatmap + per-group colorbars.
-    Expects node_values_matrix indexed by leaf names (exactly as in the tree).
+    Render an ETE tree + grouped heatmap + group colorbars (slim, stacked).
+    `node_values_matrix` must be indexed by EXACT leaf names present in `phylo_tree`.
     """
-    import matplotlib.pyplot as plt
     import matplotlib as mpl
+    import matplotlib.pyplot as plt
     import numpy as np
 
-    # --- validate leaves and matrix alignment ---
+    # --- validate / order rows by tree leaves (tree is already pruned by caller) ---
     tree_leaves = [n.name for n in phylo_tree.iter_leaves()]
     missing = [idx for idx in node_values_matrix.index if idx not in tree_leaves]
     if missing:
         raise ValueError(f"Matrix includes leaf names not in tree: {missing[:10]}{'...' if len(missing)>10 else ''}")
 
-    # Reindex to tree order (in case it’s not)
     M = node_values_matrix.reindex(tree_leaves)
 
-    # Flatten column groups to know full column order
+    # Flatten column groups to the exact order
     cols = [c for group in col_groups for c in group if c in M.columns]
     M = M[cols]
 
-    # --- figure layout: tree | heatmap | (cbar for each group) ---
-    n_cbars = len(col_groups) if col_groups else 0
-    width_ratios = [tree_width_ratio, heatmap_width_ratio] + [cbar_width_ratio] * n_cbars
+    # ------------- layout -------------
+    if cbar_stack_vertical:
+        # main (tree + heatmap) + one thin column for stacked colorbars
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(
+            nrows=1, ncols=3,
+            width_ratios=[tree_width_ratio, heatmap_width_ratio, cbar_width_ratio],
+            left=0.04, right=0.98, bottom=0.12, top=0.98, wspace=0.25
+        )
+        ax_tree = fig.add_subplot(gs[0, 0])
+        ax_hm = fig.add_subplot(gs[0, 1])
+        # stack cbars vertically within the third column
+        from matplotlib.gridspec import GridSpecFromSubplotSpec
+        n_cb = len(col_groups) if col_groups else 0
+        if n_cb > 0:
+            gs_cbar = GridSpecFromSubplotSpec(n_cb, 1, subplot_spec=gs[0, 2],
+                                              hspace=0.4, height_ratios=[1]*n_cb)
+            ax_cbars = [fig.add_subplot(gs_cbar[i, 0]) for i in range(n_cb)]
+        else:
+            ax_cbars = []
+    else:
+        # side-by-side cbars (thin)
+        n_cb = len(col_groups) if col_groups else 0
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(
+            nrows=1, ncols=2 + n_cb,
+            width_ratios=[tree_width_ratio, heatmap_width_ratio] + [cbar_width_ratio]*n_cb,
+            left=0.04, right=0.98, bottom=0.12, top=0.98, wspace=0.3
+        )
+        ax_tree = fig.add_subplot(gs[0, 0])
+        ax_hm = fig.add_subplot(gs[0, 1])
+        ax_cbars = [fig.add_subplot(gs[0, 2 + i]) for i in range(n_cb)]
 
-    fig = plt.figure(figsize=figsize)
-    gs = fig.add_gridspec(
-        nrows=1, ncols=2 + n_cbars, width_ratios=width_ratios,
-        left=0.04, right=0.98, bottom=0.08, top=0.98, wspace=0.3
-    )
-
-    ax_tree = fig.add_subplot(gs[0, 0])
-    ax_hm   = fig.add_subplot(gs[0, 1])
-    ax_cbars = [fig.add_subplot(gs[0, 2 + i]) for i in range(n_cbars)]
-
-    # --- draw the tree (ETE via matplotlib) ---
-    # convert ETE to a simple dendrogram-like plot:
-    # we’ll do a left-oriented “phylogram” using the branch lengths if present.
-    # If you already have a helper to plot the ete_tree into an axis, call it here.
-    try:
-        from ete3 import TreeStyle, NodeStyle
-        # If you have an existing routine, use it; else, a minimal fallback:
-        # (We draw a simple outline by walking nodes; omitted here for brevity.)
-    except Exception:
-        pass
-    # Minimal placeholder: hide ticks/frame (your project likely has a proper tree renderer already)
+    # ------------- tree -------------
+    # If you already have a dedicated ETE→matplotlib renderer, call it here.
+    # For now: hide axis so only branches (drawn elsewhere) are visible.
     ax_tree.set_axis_off()
+    # (Your project previously drew the ETE tree onto ax_tree; keep that call if exists.)
 
-    # --- heatmap ---
+    # ------------- heatmap -------------
     data = M.values.astype(float)
-    # A single colormap for all data (recommended when groups are compatible in scale)
+
+    # single cmap for all columns (consistent aesthetics)
     cmap = mpl.cm.viridis.copy()
     cmap.set_bad(nan_rgba)
 
     im = ax_hm.imshow(data, aspect='auto', interpolation='nearest', cmap=cmap)
-    # Align ticks to columns
+
+    # ticks
     ax_hm.set_xticks(np.arange(data.shape[1]))
     ax_hm.set_xticklabels(M.columns, rotation=x_tick_rotation, ha='right', fontsize=x_tick_fontsize)
     ax_hm.set_yticks(np.arange(data.shape[0]))
     ax_hm.set_yticklabels(M.index, fontsize=y_tick_fontsize)
-
     ax_hm.tick_params(axis='x', pad=6)
-    ax_hm.tick_params(axis='y', labelsize=y_tick_fontsize)
 
-    # draw vertical lines separating groups & assign group colorbars
+    # group separators + group-specific colorbars (scaled to that group)
     col_start = 0
     for gi, group in enumerate(col_groups):
         gcols = [c for c in group if c in M.columns]
@@ -287,24 +438,28 @@ def visualize_tree_with_heatmap(
             continue
         gsize = len(gcols)
 
-        # subtle separator lines
-        ax_hm.axvline(col_start - 0.5, color='k', lw=0.5, alpha=0.2)
-        ax_hm.axvline(col_start + gsize - 0.5, color='k', lw=0.5, alpha=0.2)
+        # thin vertical separators
+        ax_hm.axvline(col_start - 0.5, color='k', lw=0.5, alpha=0.25)
+        ax_hm.axvline(col_start + gsize - 0.5, color='k', lw=0.5, alpha=0.25)
 
-        # colorbar per group using the group's data slice (consistent cmap)
+        # colorbar per group using that group's min/max
         gdat = data[:, col_start:col_start + gsize]
-        mappable = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(
-            vmin=np.nanmin(gdat), vmax=np.nanmax(gdat)
-        ), cmap=cmap)
-        if gi < len(ax_cbars):
-            cb = plt.colorbar(mappable, cax=ax_cbars[gi])
-            if group_titles and gi < len(group_titles):
-                ax_cbars[gi].set_title(group_titles[gi], fontsize=12, pad=6)
-        col_start += gsize
+        if np.isnan(gdat).all():
+            vmin, vmax = 0.0, 1.0
+        else:
+            vmin = np.nanmin(gdat)
+            vmax = np.nanmax(gdat)
+            if not np.isfinite(vmin) or not np.isfinite(vmax) or vmin == vmax:
+                vmin, vmax = 0.0, 1.0
 
-    # --- final touches ---
-    # Make heatmap occupy more width visually by shrinking tree a bit
-    ax_tree.set_xlim(0, 1)  # placeholder; your tree renderer should set proper limits
+        sm = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=vmin, vmax=vmax), cmap=cmap)
+        if gi < len(ax_cbars):
+            cb = plt.colorbar(sm, cax=ax_cbars[gi])
+            title = group_titles[gi] if group_titles and gi < len(group_titles) else ""
+            ax_cbars[gi].set_title(title, fontsize=11, pad=4)
+            cb.ax.tick_params(labelsize=8)
+
+        col_start += gsize
 
     # save
     png_path = output_file if output_file.lower().endswith(".png") else output_file + ".png"
@@ -491,6 +646,241 @@ def visualize_tree_with_heatmap_old(phylo_tree, node_values_matrix, output_file=
         print("Did tree render!!! ")
     else:
         tree.show(tree_style=ts, layout=layout)
+
+
+
+def render_tree_to_png(
+    ete_tree,
+    out_png: str,
+    *,
+    width_px: int = 1400,
+    height_px: int = 2000,
+    leaf_fontsize: int = 10,
+    show_scale: bool = False,
+    margin: int = 20,
+):
+    """
+    Use ETE3's renderer to export the tree to a PNG. We then place this PNG
+    inside a Matplotlib figure so layout with the heatmap is trivial & robust.
+    """
+    from ete3 import TreeStyle, NodeStyle, faces, AttrFace, TextFace
+
+    ts = TreeStyle()
+    ts.show_leaf_name = True
+    ts.scale =  120  # making branches visible; tweak if needed
+    ts.show_scale = show_scale
+    ts.margin_left = ts.margin_right = ts.margin_top = ts.margin_bottom = margin
+    ts.title.add_face(TextFace("", fsize=1), column=0)
+
+    # leaf font
+    def _style_node(n):
+        ns = NodeStyle()
+        ns["hz_line_width"] = 1
+        ns["vt_line_width"] = 1
+        n.set_style(ns)
+        if n.is_leaf():
+            n.add_face(AttrFace("name", fsize=leaf_fontsize), column=0, position="aligned")
+    for n in ete_tree.traverse():
+        _style_node(n)
+
+    ete_tree.render(out_png, tree_style=ts, w=width_px, h=height_px)
+    return out_png
+
+
+def draw_grouped_heatmap(
+    ax_hm, df_leaf, col_groups,
+    *, group_titles=None, nan_rgba=(0.92,0.92,0.92,1.0),
+    x_tick_rotation=90, x_tick_fontsize=8, y_tick_fontsize=7,
+    cmap_name="viridis", return_group_scalars=False
+):
+    import numpy as np, matplotlib as mpl
+
+    cols = [c for g in col_groups for c in g if c in df_leaf.columns]
+    M = df_leaf[cols].to_numpy(dtype=float)
+
+    cmap = mpl.cm.get_cmap(cmap_name).copy()
+    cmap.set_bad(nan_rgba)
+
+    im = ax_hm.imshow(M, aspect="auto", interpolation="nearest", cmap=cmap)
+    ax_hm.set_yticks(np.arange(df_leaf.shape[0]))
+    ax_hm.set_yticklabels(df_leaf.index, fontsize=y_tick_fontsize)
+
+    ax_hm.set_xticks(np.arange(len(cols)))
+    ax_hm.set_xticklabels(cols, rotation=x_tick_rotation, ha="right", fontsize=x_tick_fontsize)
+    ax_hm.tick_params(axis="x", pad=6)
+
+    col_start, group_scalars = 0, []
+    for gi, grp in enumerate(col_groups):
+        gcols = [c for c in grp if c in df_leaf.columns]
+        if not gcols:
+            continue
+        gsize = len(gcols)
+        ax_hm.axvline(col_start - 0.5, color="k", lw=0.5, alpha=0.25)
+        ax_hm.axvline(col_start + gsize - 0.5, color="k", lw=0.5, alpha=0.25)
+
+        gdat = M[:, col_start:col_start + gsize]
+        if np.isnan(gdat).all():
+            vmin, vmax = 0.0, 1.0
+        else:
+            vmin, vmax = np.nanmin(gdat), np.nanmax(gdat)
+            if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmin == vmax:
+                vmin, vmax = 0.0, 1.0
+        group_scalars.append((vmin, vmax))
+        col_start += gsize
+
+    return (cmap, group_scalars) if return_group_scalars else None
+
+
+def draw_tree_aligned(ax, ete_tree, leaf_order):
+    import numpy as np
+
+    y_pos = {name: i for i, name in enumerate(leaf_order)}
+
+    # distance-from-root x
+    root = ete_tree.get_tree_root()
+    x_pos = {root: 0.0}
+    def edge_len(child):
+        bl = child.dist
+        return float(bl) if bl is not None and bl == bl else 1.0
+    for node in root.traverse("preorder"):
+        for child in node.children:
+            x_pos[child] = x_pos[node] + edge_len(child)
+
+    # compute y with guards
+    def compute_y(n):
+        if n.is_leaf():
+            if n.name in y_pos:
+                return float(y_pos[n.name])
+            # leaf not in mapping -> ignore by returning NaN
+            return np.nan
+        vals = [compute_y(c) for c in n.children]
+        vals = [v for v in vals if v == v]  # drop NaNs
+        return float(np.mean(vals)) if vals else np.nan
+
+    def y(n):
+        v = compute_y(n)
+        return v
+
+    # draw edges; skip segments with NaN y
+    for node in root.traverse("preorder"):
+        for child in node.children:
+            x0, y0 = x_pos[node], y(node)
+            x1, y1 = x_pos[child], y(child)
+            if not (np.isfinite(y0) and np.isfinite(y1)):
+                continue
+            ax.plot([x0, x1], [y1, y1], color="#666666", lw=1.0, solid_capstyle="butt")
+            ax.plot([x0, x0], [y0, y1], color="#666666", lw=1.0, solid_capstyle="butt")
+
+    n = len(leaf_order)
+    ax.set_ylim(n - 0.5, -0.5)
+    xmin, xmax = min(x_pos.values()), max(x_pos.values())
+    ax.set_xlim(xmin - 0.05 * (xmax - xmin + 1e-9), xmax + 0.02)
+    ax.axis("off")
+
+
+def compose_tree_and_heatmap(
+    ete_tree,
+    df_leaf,                 # index = leaf names (already pruned/ordered)
+    col_groups,
+    output_file,
+    *,
+    group_titles=None,
+    base_figsize=(22, 12),
+    cbar_width_ratio=0.22,   # fixed slim column for stacked colorbars
+    x_tick_rotation=90, x_tick_fontsize=8, y_tick_fontsize=7,
+    nan_rgba=(0.92,0.92,0.92,1.0),
+    ylabels_override=None,    # if provided, replaces df_leaf.index on the heatmap
+    lock_scales_to_unit=False
+):
+    import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
+    from matplotlib.gridspec import GridSpecFromSubplotSpec
+
+    # ----- compute dynamic widths -----
+    n_cols = sum(len([c for c in g if c in df_leaf.columns]) for g in col_groups)
+    heatmap_ratio = 0.06 + 0.03 * n_cols
+    # keep right column fixed for stacked colorbars
+    tree_ratio = max(0.01, 1.0 - heatmap_ratio - 0.04)  # leave ~4% margin
+    width_ratios = [tree_ratio, heatmap_ratio, 0.04]     # last small gap column
+    # colorbars stacked in a nested gridspec inside the gap column, with fixed width later
+
+    # scale figsize so it looks nice regardless of ratios (keep height)
+    fig = plt.figure(figsize=base_figsize)
+    gs = fig.add_gridspec(
+        nrows=1, ncols=3, width_ratios=width_ratios,
+        left=0.035, right=0.985, bottom=0.10, top=0.98, wspace=0.06
+    )
+    ax_tree = fig.add_subplot(gs[0, 0])
+    ax_hm   = fig.add_subplot(gs[0, 1])
+    gap_ax  = fig.add_subplot(gs[0, 2])
+    gap_ax.axis("off")
+
+    # stacked colorbars within the right margin (fixed physical width)
+    # we make a new inset_axes inside gap_ax using axes coordinates
+    # stacked colorbars within the right margin (fixed physical width)
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    n_cb = len(col_groups) if col_groups else 0
+    cbar_axes = []
+    if n_cb > 0:
+        total_h = 0.94
+        pad = 0.02
+        cbar_h = (total_h - (n_cb - 1) * pad) / max(1, n_cb)
+        y0 = (1 - total_h) / 2.0
+        for i in range(n_cb):
+            ax_c = inset_axes(
+                gap_ax, width="80%", height=f"{cbar_h*100:.1f}%",
+                bbox_to_anchor=(0.10, y0 + i*(cbar_h+pad), 0.80, cbar_h),
+                bbox_transform=gap_ax.transAxes, borderpad=0
+            )
+            cbar_axes.append(ax_c)
+
+    # ----- ensure heatmap y-labels are cluster numbers -----
+    if ylabels_override is not None:
+        df_plot = df_leaf.copy()
+        df_plot.index = ylabels_override
+    else:
+        df_plot = df_leaf
+
+    # ----- draw heatmap (get group scalars & cmap) -----
+    cmap, group_scalars = draw_grouped_heatmap(
+        ax_hm, df_plot, col_groups,
+        group_titles=group_titles,
+        nan_rgba=nan_rgba,
+        x_tick_rotation=x_tick_rotation,
+        x_tick_fontsize=x_tick_fontsize,
+        y_tick_fontsize=y_tick_fontsize,
+        return_group_scalars=True
+    )
+
+    # ----- draw tree aligned to SAME y-coordinates -----
+    # Use the original leaf order (df_leaf.index order) for alignment
+    draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index))
+
+    # ----- colorbars -----
+    cols = [c for g in col_groups for c in g if c in df_leaf.columns]
+    M = df_leaf[cols].to_numpy(dtype=float)
+    col_start = 0
+    for gi, grp in enumerate(col_groups):
+        gcols = [c for c in grp if c in df_leaf.columns]
+        if not gcols:
+            continue
+        gsize = len(gcols)
+        if lock_scales_to_unit:
+            vmin, vmax = 0.0, 1.0
+        else:
+            vmin, vmax = group_scalars[gi]
+        sm = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=vmin, vmax=vmax), cmap=cmap)
+        if gi < len(cbar_axes):
+            cb = plt.colorbar(sm, cax=cbar_axes[gi])
+            title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
+            cbar_axes[gi].set_title(title, fontsize=11, pad=4)
+            cb.ax.tick_params(labelsize=8)
+        col_start += gsize
+
+    out_png = output_file if output_file.lower().endswith(".png") else output_file + ".png"
+    fig.savefig(out_png, dpi=200)
+    plt.close(fig)
+    return out_png
+
 
 
 # Perform ancestral reconstruction of sequences in the phylogenetic tree

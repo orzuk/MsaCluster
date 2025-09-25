@@ -61,72 +61,127 @@ def _normalize_cluster_tag(s: str) -> str:
 
 def _build_tmscores_from_pair_csvs(df_af, df_esm, cluster_index: list[str]) -> pd.DataFrame:
     """
-    Build a TM-score table with columns present (subset of):
-      ['TM-AF1','TM-AF2','TM-ESM1','TM-ESM2'].
-    Rows are in the order of `cluster_index`.
-    We use max over models (AF2/AF3, ESM2/ESM3) per cluster & fold.
+    Build columns (subset of): TM-AF1, TM-AF2, TM-ESM1, TM-ESM2
+    Assumes the CSVs have: 'cluster_num', 'TMscore_fold1', 'TMscore_fold2'
     """
-    cols = []
+    import pandas as pd
     out = pd.DataFrame(index=cluster_index)
 
-    def _fill_from(df, prefix):
-        nonlocal out, cols
+    def _pick(df, prefix):
         if df is None or df.empty:
             return
-        # expected columns: cluster_num (or cluster), TMscore_fold1, TMscore_fold2
         d = df.copy()
+        # accept either 'cluster_num' or 'cluster'
         if "cluster_num" not in d.columns and "cluster" in d.columns:
             d = d.rename(columns={"cluster": "cluster_num"})
-        # normalize tags
-        d["_cluster_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
-        # protect dtypes
-        t1 = pd.to_numeric(d.get("TMscore_fold1", pd.Series(dtype=float)), errors="coerce")
-        t2 = pd.to_numeric(d.get("TMscore_fold2", pd.Series(dtype=float)), errors="coerce")
-        # take max TM per cluster across rows
-        agg = d.assign(TM1=t1, TM2=t2).groupby("_cluster_tag", as_index=True)[["TM1","TM2"]].max()
+        d["_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
+        t1 = pd.to_numeric(d["TMscore_fold1"], errors="coerce")
+        t2 = pd.to_numeric(d["TMscore_fold2"], errors="coerce")
+        agg = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
+        out[f"TM-{prefix}1"] = agg.reindex(out.index).TM1
+        out[f"TM-{prefix}2"] = agg.reindex(out.index).TM2
 
-        # reindex to cluster_index; missing -> 0.0
-        out[f"TM-{prefix}1"] = agg.reindex(out.index).TM1.fillna(0.0)
-        out[f"TM-{prefix}2"] = agg.reindex(out.index).TM2.fillna(0.0)
-        cols.extend([f"TM-{prefix}1", f"TM-{prefix}2"])
+    _pick(df_af,  "AF")
+    _pick(df_esm, "ESM")
+    keep = [c for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2"] if c in out.columns]
+    return out[keep]
 
-    # AF (AF2/AF3 aggregated have already been summarized in df_af)
-    _fill_from(df_af, "AF")
-    # ESM (ESM2/ESM3 aggregated in df_esm)
-    _fill_from(df_esm, "ESM")
-
-    # keep only columns that exist
-    return out[[c for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2"] if c in out.columns]]
 
 def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.DataFrame:
     """
-    Build MSA-Transformer recall columns:
-      ['RE-MSAT-COM','RE-MSAT1','RE-MSAT2']
-    using per-cluster t1_recall / t2_recall when available.
+    Build MSAT recall block using the exact column names in df_cmap.csv:
+      cluster, t1_recall, t2_recall, common_recall
+    If 't2_recall' is missing, fall back to 'uniq2_recall'.
     """
+    import pandas as pd
     out = pd.DataFrame(index=cluster_index)
     if df_cmap is None or df_cmap.empty:
-        # no columns -> return empty frame (caller will merge robustly)
         return out
 
     d = df_cmap.copy()
-    # column compatibility
-    # expected: cluster_num (or cluster), t1_recall, t2_recall (per cluster)
-    if "cluster_num" not in d.columns and "cluster" in d.columns:
-        d = d.rename(columns={"cluster": "cluster_num"})
-    for req in ("t1_recall","t2_recall"):
-        if req not in d.columns:
-            d[req] = np.nan
 
-    d["_cluster_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
-    # take max recall per cluster (best cluster)
-    agg = d.groupby("_cluster_tag", as_index=True)[["t1_recall", "t2_recall"]].max()
-    agg["RE-MSAT1"] = pd.to_numeric(agg["t1_recall"], errors="coerce")
-    agg["RE-MSAT2"] = pd.to_numeric(agg["t2_recall"], errors="coerce")
-    agg["RE-MSAT-COM"] = (agg["RE-MSAT1"] + agg["RE-MSAT2"]) / 2.0
+    # unify cluster id column
+    if "cluster_num" in d.columns:
+        d["_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
+    elif "cluster" in d.columns:
+        d["_tag"] = d["cluster"].astype(str).map(_normalize_cluster_tag)
+    else:
+        return out  # nothing we can do
 
-    out = agg.reindex(cluster_index)[["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]]
-    return out
+    # strict names with one light fallback
+    c1 = "t1_recall" if "t1_recall" in d.columns else None
+    c2 = "t2_recall" if "t2_recall" in d.columns else ("uniq2_recall" if "uniq2_recall" in d.columns else None)
+    cC = "common_recall" if "common_recall" in d.columns else None
+
+    cols = {}
+    if c1: cols["RE-MSAT1"]     = pd.to_numeric(d[c1], errors="coerce")
+    if c2: cols["RE-MSAT2"]     = pd.to_numeric(d[c2], errors="coerce")
+    if cC: cols["RE-MSAT-COM"]  = pd.to_numeric(d[cC], errors="coerce")
+
+    if not cols:
+        return out
+
+    dd = pd.DataFrame(cols)
+    dd["_tag"] = d["_tag"]
+    agg = dd.groupby("_tag").max()
+
+    # If combined not in CSV, compute as mean of 1 & 2 (when present)
+    if "RE-MSAT-COM" not in agg.columns:
+        have = [c for c in ["RE-MSAT1","RE-MSAT2"] if c in agg.columns]
+        if have:
+            agg["RE-MSAT-COM"] = agg[have].mean(axis=1)
+
+    keep = [c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in agg.columns]
+    return agg.reindex(cluster_index)[keep]
+
+
+def _cluster_short_label_from_leaf(leaf_name, ete_leaves_cluster_ids):
+    """Return a compact cluster label (e.g., '3' for ShallowMsa_003, 'D' for Deep)."""
+    raw = ete_leaves_cluster_ids.get(leaf_name)
+    if not raw or raw == 'p':
+        return ""  # unknown
+    tag = _normalize_cluster_tag(raw)
+    if tag.lower().startswith("deep"):
+        return "D"
+    m = re.search(r"(\d+)$", tag)
+    if m:
+        return str(int(m.group(1)))  # no leading zeros
+    return tag
+
+
+def _cluster_tag_from_leaf(leaf_name, ete_leaves_cluster_ids):
+    raw = ete_leaves_cluster_ids.get(leaf_name)
+    if not raw or raw == "p":
+        return None
+    return _normalize_cluster_tag(raw)
+
+def _group_leaves_by_cluster(ete_tree, ete_leaves_cluster_ids):
+    """Return {cluster_tag: [leaf1, leaf2, ...]} using only leaves present in the tree."""
+    groups = {}
+    for leaf in ete_tree.iter_leaves():
+        tag = _cluster_tag_from_leaf(leaf.name, ete_leaves_cluster_ids)
+        if not tag:
+            continue
+        groups.setdefault(tag, []).append(leaf.name)
+    return groups
+
+def _choose_representative_leaves(cluster_to_leaves):
+    """
+    Choose exactly ONE leaf per cluster. For now, just pick the first;
+    swap to a heuristic later (e.g., shortest branch, etc.) if you like.
+    """
+    reps = {tag: leaves[0] for tag, leaves in cluster_to_leaves.items() if leaves}
+    return reps  # {cluster_tag: rep_leaf_name}
+
+def _cluster_short_label_from_tag(tag):
+    if not tag:
+        return ""
+    if tag.lower().startswith("deep"):
+        return "D"
+    m = re.search(r"(\d+)$", tag)
+    return str(int(m.group(1))) if m else tag
+
+
 
 def _collect_cluster_index_from_tree(ete_tree, ete_leaves_cluster_ids, cluster_node_values_keys) -> list[str]:
     """
@@ -156,37 +211,43 @@ def _collect_cluster_index_from_tree(ete_tree, ete_leaves_cluster_ids, cluster_n
 
 
 def _cluster_metrics_to_leaf_df(
-    df_cluster, ete_tree, ete_leaves_cluster_ids, fillna_with=None
+    df_cluster,
+    ete_tree,
+    ete_leaves_cluster_ids,
+    *,
+    fillna_with=None,          # keep None to preserve NaNs; set 0.0 to fill
+    drop_all_nan_rows=True     # drop leaves whose row is all-NaN
 ):
     """
-    Expand a cluster-indexed metrics table into a leaf-indexed table that matches the
-    phylogenetic tree leaves. For each leaf, we look up its cluster and copy that row.
-    Leaves without a valid cluster get NaNs (or 'fillna_with' if provided).
-
-    fillna_with:
-        - None => keep NaNs (use Patch B to color them nicely)
-        - number => replace NaNs with this value (e.g., 0.0)
+    Map a cluster-indexed table -> leaf-indexed table (tree order).
+    Optionally fill NaNs and/or drop leaves whose entire row is NaN.
     """
     import pandas as pd
     import numpy as np
 
     leaf_names = [n.name for n in ete_tree.iter_leaves()]
     rows = []
+    keep = []
     for leaf in leaf_names:
         raw_cid = ete_leaves_cluster_ids.get(leaf, None)
-        if not raw_cid or raw_cid == "p":
-            rows.append(pd.Series(index=df_cluster.columns, dtype=float))  # all NaN
-            continue
-        tag = _normalize_cluster_tag(raw_cid)
-        if tag in df_cluster.index:
-            rows.append(df_cluster.loc[tag])
+        tag = _normalize_cluster_tag(raw_cid) if raw_cid and raw_cid != "p" else None
+        if tag and tag in df_cluster.index:
+            s = df_cluster.loc[tag]
         else:
-            rows.append(pd.Series(index=df_cluster.columns, dtype=float))  # unknown cluster -> NaN
+            s = pd.Series(index=df_cluster.columns, dtype=float)  # all NaN
+        rows.append(s)
+        keep.append(leaf)
 
-    df_leaf = pd.DataFrame(rows, index=leaf_names)
-    df_leaf = df_leaf[df_cluster.columns]  # preserve col order
+    df_leaf = pd.DataFrame(rows, index=keep)
+    df_leaf = df_leaf[df_cluster.columns]  # preserve column order
+
+    if drop_all_nan_rows:
+        mask = ~df_leaf.isna().all(axis=1)
+        df_leaf = df_leaf.loc[mask]
+
     if fillna_with is not None:
         df_leaf = df_leaf.fillna(fillna_with)
+
     return df_leaf
 
 
@@ -426,27 +487,62 @@ def make_foldswitch_all_plots(
         ete_leaves_cluster_ids=ete_leaves_cluster_ids,
         cluster_node_values=cluster_node_values)
 
-    # Convert cluster-indexed metrics to leaf-indexed metrics for the plotter
     if heat_df is not None and not heat_df.empty and col_groups:
+        # build leaf-indexed matrix (may contain many leaves per cluster)
         heat_df_leaf = _cluster_metrics_to_leaf_df(
             df_cluster=heat_df,
             ete_tree=ete_tree,
             ete_leaves_cluster_ids=ete_leaves_cluster_ids,
-            fillna_with=None  # keep NaNs; we’ll color them via Patch B
+            fillna_with=None,
+            drop_all_nan_rows=True
         )
 
-        # ---------- define out_root for clustered tree case ----------
+        # === NEW: one row per CLUSTER ===
+        # 1) group leaves by cluster, 2) pick one representative leaf per cluster,
+        # 3) reduce the matrix to those representatives (reindex),
+        # 4) rename row labels to the CLUSTER TAGS (not leaf names).
+        cluster_to_leaves = _group_leaves_by_cluster(ete_tree, ete_leaves_cluster_ids)
+        reps = _choose_representative_leaves(cluster_to_leaves)   # {tag: rep_leaf}
+        # keep only tags that exist in the cluster-indexed data (avoid orphan clusters)
+        valid_tags = [t for t in reps if t in heat_df.index]
+
+        # prune the tree to the representative leaves, then order rows by tree order
+        rep_leaves = [reps[t] for t in valid_tags]
+        prune_tree_to_leaves(ete_tree, keep_leaves=rep_leaves)
+        leaf_order = [n.name for n in ete_tree.iter_leaves()]
+
+        # map leaf order -> their cluster tags
+        leaf_to_tag = {v: k for k, v in reps.items()}
+        ordered_tags = [leaf_to_tag[l] for l in leaf_order if l in leaf_to_tag]
+
+        # build the final matrix: one row per cluster-tag in tree order
+        df_cluster_ordered = heat_df.loc[ordered_tags]
+        print("[debug] columns:", df_cluster_ordered.columns.tolist())
+        print("[debug] NaNs per column:\n", df_cluster_ordered.isna().sum())
+
+        # ---- NEW: remap index back to the representative leaf names (for the tree) ----
+        df_by_leaf = df_cluster_ordered.copy()
+        df_by_leaf.index = leaf_order
+
+        # override y tick labels with short cluster numbers (e.g., '3', 'D')
+        ylabels_override = [_cluster_short_label_from_tag(t) for t in ordered_tags]
+
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
-
-        # visualize_tree_with_heatmap requires grouped columns (list-of-lists)
-        visualize_tree_with_heatmap(
-            phylo_tree=ete_tree,
-            node_values_matrix=heat_df_leaf,  # leaf-indexed
+        compose_tree_and_heatmap(
+            ete_tree=ete_tree,
+            df_leaf=df_by_leaf,  # <-- use LEAF names here
             col_groups=col_groups,
+            group_titles=group_titles,
             output_file=out_root,
-            group_titles=group_titles
+            base_figsize=(22, 12),
+            x_tick_rotation=90, x_tick_fontsize=9, y_tick_fontsize=9,
+            nan_rgba=(0.92, 0.92, 0.92, 1.0),
+            ylabels_override=ylabels_override,
         )
-        concat_scores = heat_df_leaf
+
+        print(f"[ok] saved tree heatmap -> {out_root}.png")
+        concat_scores = df_cluster_ordered
+
     else:
         # Fallback: plot a simple tree with per-leaf metrics if group layout is unavailable
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree")

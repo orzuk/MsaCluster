@@ -1,3 +1,58 @@
+# count_deep_vs_tree.py
+from Bio import SeqIO
+from ete3 import Tree
+import os
+
+pair = "2qqjA_4qdsA"
+pair_dir = f"Pipeline/{pair}"
+
+msa = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
+nwk = os.path.join(pair_dir, "output_phytree", "DeepMsa_tree.nwk")
+
+n_msa = sum(1 for _ in SeqIO.parse(msa, "fasta"))
+n_leaves = len(Tree(nwk, format=1).get_leaves())
+
+print(f"DeepMsa.a3m sequences: {n_msa}")
+print(f"DeepMsa_tree.nwk leaves: {n_leaves}")
+
+from ete3 import Tree
+import os
+from utils.msa_utils import load_fasta
+
+pair_id = "2qqjA_4qdsA"
+pair_dir = f"Pipeline/{pair_id}"
+
+# --- load Deep tree ---
+tree_file = os.path.join(pair_dir, "output_phytree", "DeepMsa_tree.nwk")
+ete_tree = Tree(tree_file, format=1)
+leaf_names = [lf.name for lf in ete_tree.get_leaves()]
+print(f"[INFO] Deep tree leaves: {len(leaf_names)}")
+
+# --- load cluster membership from all .a3m files ---
+msa_dir = os.path.join(pair_dir, "output_msa_cluster")
+cluster_map = {}  # seq_id -> cluster_name
+for fn in sorted(os.listdir(msa_dir)):
+    if not fn.endswith(".a3m"):
+        continue
+    cluster = fn.replace(".a3m", "")
+    ids, seqs = load_fasta(os.path.join(msa_dir, fn))
+    for sid in ids:
+        cluster_map[sid] = cluster
+print(f"[INFO] Loaded {len(cluster_map)} sequence IDs from {len(os.listdir(msa_dir))} clusters")
+
+# --- map tree leaves to clusters ---
+leaf_to_cluster = {lf: cluster_map.get(lf, None) for lf in leaf_names}
+clusters_in_tree = {c for c in leaf_to_cluster.values() if c is not None}
+print(f"[RESULT] Clusters represented in tree: {len(clusters_in_tree)} / {len(set(cluster_map.values()))}")
+
+# Debug print (first 10 leaves)
+for lf, cl in list(leaf_to_cluster.items())[:10]:
+    print(f"  {lf} -> {cl}")
+
+
+exit(8888)
+
+
 from utils.utils import *
 from utils.protein_plot_utils import *
 from utils.phytree_utils import *
