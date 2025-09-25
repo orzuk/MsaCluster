@@ -5,6 +5,9 @@ import requests
 from io import StringIO
 from typing import List, Tuple, Dict
 import re, os
+from collections import Counter
+# ...
+
 
 _HAS_PARASAIL = True # Assume import parasail will work
 
@@ -170,6 +173,25 @@ def get_align_indexes(
 
     return idxA, idxB
 
+
+
+
+def clean_a3m_line(s: str) -> str:
+    """
+    Make A3M lines alignment-consistent:
+    - remove lowercase inserts
+    - treat '.' and '*' as gaps
+    - keep A–Z, '-', '.','*' semantics
+    """
+    if not s:
+        return ""
+    # normalize known gap/stop symbols to '-'
+    s = s.replace('.', '-').replace('*', '-')
+    # remove all lowercase letters (inserts)
+    s = re.sub(r'[a-z]', '', s)
+    # keep uppercase letters and '-' only
+    s = ''.join(ch for ch in s if (ch == '-') or ('A' <= ch <= 'Z'))
+    return s
 
 
 

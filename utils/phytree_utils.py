@@ -3,7 +3,7 @@ import copy
 
 # for phylogenetic trees
 from Bio import Phylo, AlignIO
-from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor, ParsimonyScorer, NNITreeSearcher, ParsimonyTreeConstructor
+from Bio.Phylo.TreeConstruction import *
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
@@ -16,8 +16,7 @@ from pylab import *
 from ete3 import Tree
 from ete3.treeview import TreeStyle, NodeStyle, faces
 
-from .msa_utils import *
-import random
+from utils.msa_utils import *
 import os
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 os.environ["XDG_RUNTIME_DIR"] = "/tmp"
@@ -30,14 +29,13 @@ from matplotlib.colors import Normalize, to_hex
 from matplotlib.colorbar import ColorbarBase
 # from matplotlib.transforms import Bbox
 
-import matplotlib
 import matplotlib.pyplot as plt
+import re, random
 
 
 # ----- Helper functions -----
 
 # --- helpers for stratified sampling (place once in phytree_utils.py) ---
-import re, random
 
 def _norm_id(header: str) -> str:
     """
@@ -161,9 +159,30 @@ def phytree_from_msa(
 
     # --- load the (aligned) MSA ---
     seqs_IDs, seqs = load_fasta(msa_file)
+
+    # CLEAN A3M LINES ROBUSTLY
     # keep only uppercase & '-' (like before)
-    seqs = [''.join([ch for ch in s if ch.isupper() or ch == '-']) for s in seqs]
+    #    seqs = [''.join([ch for ch in s if ch.isupper() or ch == '-']) for s in seqs]
+    seqs = [clean_a3m_line(s) for s in seqs]
+    # After sampling (uniform or stratified), do this length harmonization
     num_seqs = len(seqs)
+    lengths = [len(s) for s in seqs]
+    if not lengths or min(lengths) == 0:
+        raise RuntimeError("Empty sequences after A3M cleaning — check input.")
+
+    if len(set(lengths)) != 1:  # different lengths!
+        cnt = Counter(lengths)
+        mode_len, mode_n = cnt.most_common(1)[0]
+        # keep only sequences with the modal aligned length
+        keep = [i for i, L in enumerate(lengths) if L == mode_len]
+        drop = [i for i, L in enumerate(lengths) if L != mode_len]
+        if len(keep) < 2:
+            raise RuntimeError(f"A3M lengths are inconsistent and left <2 sequences (mode_len={mode_len}).")
+        if drop:
+            print(f"[clean] A3M columns not uniform: kept {len(keep)}/{len(seqs)} at length={mode_len}; "
+                  f"dropped {len(drop)} outliers.")
+        seqs = [seqs[i] for i in keep]
+        seqs_IDs = [seqs_IDs[i] for i in keep]
 
     # Early: no sampling wanted -> keep all
     if (max_seqs is None) or (num_seqs <= int(max_seqs)):
