@@ -776,23 +776,30 @@ def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
     match_true_cmap = {}  # [None]*2
     match_pred_cmap = {}  # [None]*n_pred
 
+    to_idx = lambda blocks: np.concatenate([np.arange(s, e) for s, e in blocks]).astype(int) if len(
+        blocks) else np.empty(0, int)
+    idxs = [to_idx(blocks) for blocks in pairwise_alignment[0].aligned]  # [idxA, idxB]
+
+    for (fold, cmap), idx in zip(true_cmap.items(), idxs):
+        match_true_cmap[fold] = cmap[np.ix_(idx, idx)]
+
+    for (fold, cmap), idx in zip(pred_cmap.items(), idxs):
+        match_pred_cmap[fold] = cmap[np.ix_(idx, idx)]
+
+
     # good_inds = np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1])
-    good_inds = np.where(np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1]) >= 0)[0]
-
-    ctr = 0
-    for fold in true_cmap.keys():  # get true (these are dictionaries !!)
-        match_true_cmap[fold] = true_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
-                                                       pairwise_alignment[0].indices[ctr][good_inds])]
-        ctr = ctr + 1
-    #        cur_ind = pairwise_alignment[0].indices[i][pairwise_alignment[0].indices[i] >= 0]
-    #        print(true_cmap[i])
-    #        print(true_cmap[i].shape)
-    #        print(true_cmap[i][cur_ind,cur_ind])
-
-    ctr = 0
-    for fold in pred_cmap.keys():  # range(n_pred):  # get predicted
-        match_pred_cmap[fold] = pred_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
-                                                       pairwise_alignment[0].indices[ctr][good_inds])]
+#    good_inds = np.where(np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1]) >= 0)[0]
+#
+#    ctr = 0
+#    for fold in true_cmap.keys():  # get true (these are dictionaries !!)
+#        match_true_cmap[fold] = true_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
+#                                                       pairwise_alignment[0].indices[ctr][good_inds])]
+#        ctr = ctr + 1
+#
+#    ctr = 0
+#    for fold in pred_cmap.keys():  # range(n_pred):  # get predicted
+#        match_pred_cmap[fold] = pred_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
+#                                                       pairwise_alignment[0].indices[ctr][good_inds])]
     return match_true_cmap, match_pred_cmap
 
 

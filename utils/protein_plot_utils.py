@@ -1,11 +1,9 @@
 from config import *
-import re
-import os
+import re, os
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
 #if not platform.system() == "Linux":  # Plotting doesn't work on unix
-
 PYMOL_AVAILABLE = False
 try:
     import pymol
@@ -26,6 +24,235 @@ import matplotlib.pyplot as plt
 
 import math
 import pandas as pd
+import numpy as np
+
+
+# === CSV loaders & builders ===
+
+def _pair_analysis_dir(pair_id: str) -> str:
+    return os.path.join("Pipeline", pair_id, "Analysis")
+
+def _load_pair_csvs(pair_id: str):
+    """Load per-pair analysis CSVs; return (df_af, df_esm, df_cmap) or None if missing."""
+    anal = _pair_analysis_dir(pair_id)
+    df_af   = load_csv_or_none(os.path.join(anal, "df_af.csv"))
+    df_esm  = load_csv_or_none(os.path.join(anal, "df_esm.csv"))
+    df_cmap = load_csv_or_none(os.path.join(anal, "df_cmap.csv"))
+    return df_af, df_esm, df_cmap
+
+def _normalize_cluster_tag(s: str) -> str:
+    """
+    Normalize cluster tag into canonical labels used across the code:
+    - 'DeepMsa', 'MSA_deep' -> 'DeepMsa'
+    - Shallow numbers -> 'ShallowMsa_###' (zero-padded)
+    """
+    if not isinstance(s, str):
+        s = str(s)
+    t = s.strip()
+    if "deep" in t.lower():
+        return "DeepMsa"
+    m = re.search(r"(\d+)$", t)
+    if m:
+        return f"ShallowMsa_{int(m.group(1)):03d}"
+    # already canonical? keep
+    if t.startswith("ShallowMsa_"):
+        return t
+    return t
+
+def _build_tmscores_from_pair_csvs(df_af, df_esm, cluster_index: list[str]) -> pd.DataFrame:
+    """
+    Build a TM-score table with columns present (subset of):
+      ['TM-AF1','TM-AF2','TM-ESM1','TM-ESM2'].
+    Rows are in the order of `cluster_index`.
+    We use max over models (AF2/AF3, ESM2/ESM3) per cluster & fold.
+    """
+    cols = []
+    out = pd.DataFrame(index=cluster_index)
+
+    def _fill_from(df, prefix):
+        nonlocal out, cols
+        if df is None or df.empty:
+            return
+        # expected columns: cluster_num (or cluster), TMscore_fold1, TMscore_fold2
+        d = df.copy()
+        if "cluster_num" not in d.columns and "cluster" in d.columns:
+            d = d.rename(columns={"cluster": "cluster_num"})
+        # normalize tags
+        d["_cluster_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
+        # protect dtypes
+        t1 = pd.to_numeric(d.get("TMscore_fold1", pd.Series(dtype=float)), errors="coerce")
+        t2 = pd.to_numeric(d.get("TMscore_fold2", pd.Series(dtype=float)), errors="coerce")
+        # take max TM per cluster across rows
+        agg = d.assign(TM1=t1, TM2=t2).groupby("_cluster_tag", as_index=True)[["TM1","TM2"]].max()
+
+        # reindex to cluster_index; missing -> 0.0
+        out[f"TM-{prefix}1"] = agg.reindex(out.index).TM1.fillna(0.0)
+        out[f"TM-{prefix}2"] = agg.reindex(out.index).TM2.fillna(0.0)
+        cols.extend([f"TM-{prefix}1", f"TM-{prefix}2"])
+
+    # AF (AF2/AF3 aggregated have already been summarized in df_af)
+    _fill_from(df_af, "AF")
+    # ESM (ESM2/ESM3 aggregated in df_esm)
+    _fill_from(df_esm, "ESM")
+
+    # keep only columns that exist
+    return out[[c for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2"] if c in out.columns]]
+
+def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.DataFrame:
+    """
+    Build MSA-Transformer recall columns:
+      ['RE-MSAT-COM','RE-MSAT1','RE-MSAT2']
+    using per-cluster t1_recall / t2_recall when available.
+    """
+    out = pd.DataFrame(index=cluster_index)
+    if df_cmap is None or df_cmap.empty:
+        # no columns -> return empty frame (caller will merge robustly)
+        return out
+
+    d = df_cmap.copy()
+    # column compatibility
+    # expected: cluster_num (or cluster), t1_recall, t2_recall (per cluster)
+    if "cluster_num" not in d.columns and "cluster" in d.columns:
+        d = d.rename(columns={"cluster": "cluster_num"})
+    for req in ("t1_recall","t2_recall"):
+        if req not in d.columns:
+            d[req] = np.nan
+
+    d["_cluster_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
+    # take max recall per cluster (best cluster)
+    agg = d.groupby("_cluster_tag", as_index=True)[["t1_recall", "t2_recall"]].max()
+    agg["RE-MSAT1"] = pd.to_numeric(agg["t1_recall"], errors="coerce")
+    agg["RE-MSAT2"] = pd.to_numeric(agg["t2_recall"], errors="coerce")
+    agg["RE-MSAT-COM"] = (agg["RE-MSAT1"] + agg["RE-MSAT2"]) / 2.0
+
+    out = agg.reindex(cluster_index)[["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]]
+    return out
+
+def _collect_cluster_index_from_tree(ete_tree, ete_leaves_cluster_ids, cluster_node_values_keys) -> list[str]:
+    """
+    Build a *canonical* cluster index to index rows (ShallowMsa_### or DeepMsa)
+    by scanning:
+      - leaves present in the tree (preferred order),
+      - and any additional keys we computed metrics for (to not drop data).
+    """
+    order = []
+    seen = set()
+
+    # from leaves
+    for n in ete_tree.iter_leaves():
+        cid = ete_leaves_cluster_ids.get(n.name)
+        if not cid or cid == "p":
+            continue
+        tag = _normalize_cluster_tag(cid)
+        if tag not in seen:
+            order.append(tag); seen.add(tag)
+
+    # include any extra computed keys (e.g. when leaf names are partial)
+    for k in cluster_node_values_keys:
+        tag = _normalize_cluster_tag(k)
+        if tag not in seen:
+            order.append(tag); seen.add(tag)
+    return order
+
+
+def _cluster_metrics_to_leaf_df(
+    df_cluster, ete_tree, ete_leaves_cluster_ids, fillna_with=None
+):
+    """
+    Expand a cluster-indexed metrics table into a leaf-indexed table that matches the
+    phylogenetic tree leaves. For each leaf, we look up its cluster and copy that row.
+    Leaves without a valid cluster get NaNs (or 'fillna_with' if provided).
+
+    fillna_with:
+        - None => keep NaNs (use Patch B to color them nicely)
+        - number => replace NaNs with this value (e.g., 0.0)
+    """
+    import pandas as pd
+    import numpy as np
+
+    leaf_names = [n.name for n in ete_tree.iter_leaves()]
+    rows = []
+    for leaf in leaf_names:
+        raw_cid = ete_leaves_cluster_ids.get(leaf, None)
+        if not raw_cid or raw_cid == "p":
+            rows.append(pd.Series(index=df_cluster.columns, dtype=float))  # all NaN
+            continue
+        tag = _normalize_cluster_tag(raw_cid)
+        if tag in df_cluster.index:
+            rows.append(df_cluster.loc[tag])
+        else:
+            rows.append(pd.Series(index=df_cluster.columns, dtype=float))  # unknown cluster -> NaN
+
+    df_leaf = pd.DataFrame(rows, index=leaf_names)
+    df_leaf = df_leaf[df_cluster.columns]  # preserve col order
+    if fillna_with is not None:
+        df_leaf = df_leaf.fillna(fillna_with)
+    return df_leaf
+
+
+def _prepare_tree_heatmap_inputs(
+    foldpair_id: str,
+    ete_tree,
+    ete_leaves_cluster_ids: dict[str,str],
+    cluster_node_values: dict[str, tuple] | None = None
+):
+    """
+    Build the DataFrame and grouping for visualize_tree_with_heatmap() *robustly*.
+    We try CSV first; if missing, we fall back to in-memory computed metrics
+    (cluster_node_values with shape (shared, foldA, foldB)).
+    Returns: (df_for_heatmap, col_groups: list[list[str]], group_titles: list[str])
+    """
+    df_af, df_esm, df_cmap = _load_pair_csvs(foldpair_id)
+
+    # row index (canonical cluster tags)
+    cluster_index = _collect_cluster_index_from_tree(
+        ete_tree, ete_leaves_cluster_ids,
+        list(cluster_node_values.keys()) if cluster_node_values else []
+    )
+
+    # 1) TM blocks from AF/ESM CSVs
+    tm_df = _build_tmscores_from_pair_csvs(df_af, df_esm, cluster_index)
+
+    # 2) MSAT block from df_cmap
+    ms_df = _build_msat_metrics_from_df_cmap(df_cmap, cluster_index)
+
+    # 3) (optional) add RE-MSAT from computed contact overlap if CSV missing
+    if ms_df.empty and cluster_node_values:
+        # cluster_node_values: key -> (shared, foldA, foldB)
+        tmp = pd.DataFrame({ _normalize_cluster_tag(k): v for k, v in cluster_node_values.items() }).T
+        tmp.columns = ["RE-MSAT-COM", "RE-MSAT1", "RE-MSAT2"]
+        ms_df = tmp.reindex(cluster_index)
+
+    # Merge whatever exists
+    blocks = []
+    col_groups: list[list[str]] = []
+    group_titles: list[str] = []
+
+    if not tm_df.empty:
+        blocks.append(tm_df)
+        # derive which TM columns exist to set labels
+        tm_cols = [c for c in ["TM-AF1","TM-AF2"] if c in tm_df.columns]
+        if tm_cols:
+            col_groups.append(tm_cols)
+            group_titles.append("AF")
+        tm_cols2 = [c for c in ["TM-ESM1","TM-ESM2"] if c in tm_df.columns and c.startswith("TM-ESM")]
+        if tm_cols2:
+            col_groups.append(tm_cols2)
+            group_titles.append("ESM")
+
+    if not ms_df.empty:
+        blocks.append(ms_df)
+        col_groups.append([c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in ms_df.columns])
+        group_titles.append("MSAT")
+
+    if not blocks:
+        # return an empty-but-valid frame so the caller can decide to skip
+        return pd.DataFrame(index=cluster_index), [], []
+
+    df = pd.concat(blocks, axis=1)
+    # keep only finite values; leave NaN where missing (visualize fills with nan_color)
+    df = df.apply(pd.to_numeric, errors="coerce")
+    return df, col_groups, group_titles
 
 
 # Map ete leaves to cluster metrics; accept several cluster-key aliases
@@ -65,19 +292,14 @@ def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
     return None
 
 
-# Make all plots
-# Input:
-# pdbids - IDs of pdb proteins
-# fasta_dir - directory of fasta file
-# foldpair_id - ID of protein pair
-# pdbchains - IDs of pdb proteins chains
-# plot_tree_clusters
-#
-# Output:
-# Three figures for each fold-switch pair:
-# 1. Phylogenetic tree with matching scores to each of the fold switches
-# 2. Cmap of each cluster and its match to the two folds
-# 3. Two folds aligned
+def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id):
+    print("Plot Array Contact Map")
+    save_root = os.path.join(fig_dir_root, f"{foldpair_id}_all_clusters_cmap")
+    plot_array_contacts_and_predictions(
+        match_predicted_cmaps, match_true_cmap, save_file=save_root, foldpair_id=foldpair_id
+    )
+
+
 def make_foldswitch_all_plots(
     pdbids, fasta_dir, foldpair_id, pdbchains,
     plot_tree_clusters: bool = False, plot_contacts: bool = True, global_plots: bool = False
@@ -158,7 +380,6 @@ def make_foldswitch_all_plots(
                 f"[{foldpair_id}] FASTA length {n_seq} != contact-map size {n_map} for {key}. "
                 "Regenerate the FASTA using CA-only residues (see get_fasta_chain_seq).")
 
-
     # ---------- Align truth/pred indices ----------
     pairwise_alignment = Align.PairwiseAligner().align(
         seqs[pdbids[0] + pdbchains[0]],
@@ -166,21 +387,17 @@ def make_foldswitch_all_plots(
     )
     print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
     match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
-        pairwise_alignment, true_cmap, msa_transformer_pred
-    )
+        pairwise_alignment, true_cmap, msa_transformer_pred)
 
     # ---------- Plot CMAPs ----------
     if plot_contacts:
-        print("Plot Array Contact Map")
-        save_root = os.path.join(fig_dir_root, f"{foldpair_id}_all_clusters_cmap")
-        # Ensure directory exists (done above), pass root (plot util appends .png)
-        plot_array_contacts_and_predictions(match_predicted_cmaps, match_true_cmap, save_root, foldpair_id=foldpair_id)
-
+        _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id)
 
     # ---------- Metrics on shared/unique contacts ----------
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
         match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
 
+    # Keep this dict in case df_cmap.csv is missing; values = (shared, fold1, fold2)
     cluster_node_values = {
         ctype: (
             shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
@@ -202,127 +419,89 @@ def make_foldswitch_all_plots(
         [n.name for n in ete_tree])
     print("Converted seq ids to cluster ids:")
 
-    # Build a dict of leaf-name -> (shared, foldA, foldB) metrics
-    entries = {}
-    for n in ete_tree.iter_leaves():  # leaves only
-        cid = ete_leaves_cluster_ids.get(n.name)
-        if not cid or cid == 'p':
-            continue
-        key = _resolve_cluster_key(cid, cluster_node_values)
-        if key is None:
-            print(f"[tree] WARN: no metrics for leaf '{n.name}' with cid='{cid}' → skipping")
-            continue
-        entries[n.name] = cluster_node_values[key]
+    # === Build inputs for the heatmap robustly (CSV-first; fallback to computed) ===
+    heat_df, col_groups, group_titles = _prepare_tree_heatmap_inputs(
+        foldpair_id=foldpair_id,
+        ete_tree=ete_tree,
+        ete_leaves_cluster_ids=ete_leaves_cluster_ids,
+        cluster_node_values=cluster_node_values)
 
-    if not entries:
-        # nothing to plot; keep a minimal frame to avoid downstream crashes
-        ete_leaves_node_values = pd.DataFrame(columns=["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]])
-    else:
-        ete_leaves_node_values = pd.DataFrame(entries).T
-        ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
+    # Convert cluster-indexed metrics to leaf-indexed metrics for the plotter
+    if heat_df is not None and not heat_df.empty and col_groups:
+        heat_df_leaf = _cluster_metrics_to_leaf_df(
+            df_cluster=heat_df,
+            ete_tree=ete_tree,
+            ete_leaves_cluster_ids=ete_leaves_cluster_ids,
+            fillna_with=None  # keep NaNs; we’ll color them via Patch B
+        )
 
-
-    if plot_tree_clusters:
-        print("Plot Tree Clusters:")
-        cluster_node_values_df = pd.DataFrame(cluster_node_values).T
-
-        representative_cluster_leaves = unique_values_dict({
-            n.name: ete_leaves_cluster_ids[n.name] for n in ete_tree if ete_leaves_cluster_ids[n.name] != 'p'
-        })
-
-        # Parse compact cluster keys for indexing
-        new_indices = [m.group() for s in cluster_node_values_df.index for m in re.finditer(r'M[sS][aA][a-zA-Z0-9_].*', s)]
-        print("Parsed shortened indices: ", new_indices)
-
-        tmscores_df = pd.DataFrame(index=new_indices,
-                                   columns=['AF_TMscore_fold1', 'AF_TMscore_fold2', 'ESMF_TMscore_fold1', 'ESMF_TMscore_fold2'])
-
-
-
-        # Fill TM scores per cluster from the unified detailed table
-        from config import DETAILED_RESULTS_TABLE
-        if os.path.isfile(DETAILED_RESULTS_TABLE) and os.path.getsize(DETAILED_RESULTS_TABLE) > 0:
-            det = pd.read_csv(DETAILED_RESULTS_TABLE)
-        else:
-            det = pd.DataFrame(columns=["fold_pair","model","cluster_num","TMscore_fold1","TMscore_fold2"])
-
-        # Accept legacy column names if present
-        if "TMscore_fold1" not in det.columns and "score_pdb1" in det.columns:
-            det = det.rename(columns={"score_pdb1": "TMscore_fold1", "score_pdb2": "TMscore_fold2"})
-        if "fold_pair" not in det.columns and "pair_id" in det.columns:
-            det = det.rename(columns={"pair_id": "fold_pair"})
-
-        # Normalize cluster id to something like "ShallowMsa_007" or "DeepMsa"
-        det["_cluster_tag"] = det.get("cluster_num", det.get("cluster", "")).astype(str)
-
-        # Keep only rows for this pair
-        det = det[det["fold_pair"] == foldpair_id].copy()
-        det["model"] = det.get("model", "").astype(str).str.upper()
-
-        # helper to map a displayed index like 'MSA_deep' or 'ShallowMsa_007' back to det._cluster_tag
-        def _match_cluster(row_index: str) -> str | None:
-            idx = row_index
-            # our 'new_indices' already extracted compact names (e.g., 'ShallowMsa_007', maybe lower/upper)
-            # make a case-insensitive match
-            hits = det[det["_cluster_tag"].astype(str).str.lower() == idx.lower()]
-            if len(hits):
-                return str(hits["_cluster_tag"].iloc[0])
-            # also tolerate bare numbers (e.g., '007')
-            m = re.search(r"(\d+)$", idx)
-            if m is not None:
-                hits = det[det["_cluster_tag"].astype(str).str.contains(m.group(1))]
-                if len(hits):
-                    return str(hits["_cluster_tag"].iloc[0])
-            # finally, try DeepMsa aliasing
-            if "deep" in idx.lower():
-                hits = det[det["_cluster_tag"].astype(str).str.contains("Deep", case=False, regex=False)]
-                if len(hits):
-                    return str(hits["_cluster_tag"].iloc[0])
-            return None
-
-        # Fill per cluster: AF_* from AF2/AF3 best (choose max over AF2/AF3), ESM_* from ESM2/ESM3 best (max)
-        for c in range(len(tmscores_df.index)):
-            clus_key = _match_cluster(tmscores_df.index[c])
-            if clus_key is None:
-                tmscores_df.iloc[c, :] = 0.0
-                continue
-
-            # AF best for this cluster (max over AF2/AF3)
-            af_rows = det[(det["_cluster_tag"] == clus_key) & (det["model"].isin(["AF2","AF3"]))]
-            if len(af_rows):
-                tmscores_df.iloc[c, 0] = pd.to_numeric(af_rows["TMscore_fold1"], errors="coerce").max()
-                tmscores_df.iloc[c, 1] = pd.to_numeric(af_rows["TMscore_fold2"], errors="coerce").max()
-            else:
-                tmscores_df.iloc[c, 0] = 0.0
-                tmscores_df.iloc[c, 1] = 0.0
-
-            # ESM best for this cluster (max over ESM2/ESM3)
-            es_rows = det[(det["_cluster_tag"] == clus_key) & (det["model"].isin(["ESM2","ESM3"]))]
-            if len(es_rows):
-                tmscores_df.iloc[c, 2] = pd.to_numeric(es_rows["TMscore_fold1"], errors="coerce").max()
-                tmscores_df.iloc[c, 3] = pd.to_numeric(es_rows["TMscore_fold2"], errors="coerce").max()
-            else:
-                tmscores_df.iloc[c, 2] = 0.0
-                tmscores_df.iloc[c, 3] = 0.0
-
-
-        concat_scores = pd.concat([tmscores_df, cluster_node_values_df], ignore_index=True, axis=1)
-        concat_scores.columns = ['TM-AF1', 'TM-AF2', 'TM-ESM1', 'TM-ESM2', 'RE-MSAT-COM', 'RE-MSAT1', 'RE-MSAT2']
-
-        # Make and save figure
+        # ---------- define out_root for clustered tree case ----------
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
-        visualize_tree_with_heatmap(ete_tree, concat_scores, out_root)
-    else:
-        out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree")
-        visualize_tree_with_heatmap(phytree_file, ete_leaves_node_values, out_root)
-        concat_scores = []
 
-    # ---------- Global summaries ----------
-    cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)
-    seqs_dists_vec = np.mean(compute_seq_distances(msa_clusters))
+        # visualize_tree_with_heatmap requires grouped columns (list-of-lists)
+        visualize_tree_with_heatmap(
+            phylo_tree=ete_tree,
+            node_values_matrix=heat_df_leaf,  # leaf-indexed
+            col_groups=col_groups,
+            output_file=out_root,
+            group_titles=group_titles
+        )
+        concat_scores = heat_df_leaf
+    else:
+        # Fallback: plot a simple tree with per-leaf metrics if group layout is unavailable
+        out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree")
+        # Build a minimal leaf->values frame from the MSA leaf mapping (may be empty)
+        entries = {}
+        for n in ete_tree.iter_leaves():
+            cid = ete_leaves_cluster_ids.get(n.name)
+            if not cid or cid == 'p':
+                continue
+            # prefer exact key; otherwise try normalized
+            tag = _normalize_cluster_tag(cid)
+            key = tag if tag in cluster_node_values else (cid if cid in cluster_node_values else None)
+            if key is None:
+                continue
+            entries[n.name] = cluster_node_values[key]
+        if entries:
+            ete_leaves_node_values = pd.DataFrame(entries).T
+            ete_leaves_node_values.columns = ["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]]
+        else:
+            ete_leaves_node_values = pd.DataFrame(columns=["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]])
+
+        # Here we pass a single flat list of columns for the minimal figure
+        visualize_tree_with_heatmap(
+            phylo_tree=ete_tree,
+            node_values_matrix=ete_leaves_node_values,
+            col_groups=[list(ete_leaves_node_values.columns)],
+            output_file=out_root,
+            group_titles=["Scores"]
+        )
+        concat_scores = ete_leaves_node_values
+
+
+    # ---------- Pair summaries ----------
+    # cmap distances: only if we actually have predicted cmaps
+    if match_predicted_cmaps and len(match_predicted_cmaps) > 0:
+        try:
+            cmap_dists_vec = compute_cmap_distances(match_predicted_cmaps)
+        except Exception as e:
+            print(f"[warn] compute_cmap_distances failed: {e!r}")
+            cmap_dists_vec = None
+    else:
+        print("[warn] No predicted cmaps after alignment; skipping cmap distance calc.")
+        cmap_dists_vec = None
+
+    # seq distances: protect against empty MSA dict just in case
+    try:
+        seqs_dists = compute_seq_distances(msa_clusters)
+        seqs_dists_vec = float(np.mean(seqs_dists)) if len(seqs_dists) else None
+    except Exception as e:
+        print(f"[warn] compute_seq_distances failed: {e!r}")
+        seqs_dists_vec = None
+
     num_seqs_msa_vec = len(seqs)
 
-    # Optional 3D-align plot (only on non-Linux in your original code)
+    # --------- Optional 3D-align plot (only on non-Linux in your original code)  --------------
     if not platform.system() == "Linux":
         out_3d = os.path.join(fig_dir_root, f"{foldpair_id}_3d_aligned.png")
         align_and_visualize_proteins(

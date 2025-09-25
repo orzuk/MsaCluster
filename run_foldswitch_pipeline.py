@@ -18,7 +18,11 @@ from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
-from utils.phytree_utils import phytree_from_msa
+try:
+    from utils.phytree_utils import phytree_from_msa
+except Exception:
+    phytree_from_msa = None
+    print("[phytree ERROR] Can't import phytree!", flush=True)
 from utils.protein_plot_utils import make_foldswitch_all_plots, global_pairs_statistics_plots
 
 from Analysis.postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs

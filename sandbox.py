@@ -1,5 +1,5 @@
 from utils.utils import *
-from utils.protein_utils import *
+from utils.protein_plot_utils import *
 from utils.phytree_utils import *
 import re
 # import colabfold
@@ -15,7 +15,24 @@ import re
 
 # exit(99)
 
+pair_id = "2qqjA_4qdsA" #  "1jfkA_2nxqB" ## "2qqjA_4qdsA" # "1jfkA_2nxqB"
+pdbids = pair_str_to_tuple(pair_id)
+pdbchains = [pdbids[0][-1], pdbids[1][-1]]
+pdbids = [pdbids[0][:-1], pdbids[1][:-1]]
 
+print("Tuple: ", pair_str_to_tuple(pair_id), " no chain : ", pdbids)
+# Example for a single pair (tree only):
+make_foldswitch_all_plots(
+    pdbids=pdbids, #["1jfk","2nxq"],
+    fasta_dir="Pipeline",
+    foldpair_id=pair_id,
+    pdbchains=pdbchains,
+    plot_tree_clusters=True,   # <-- IMPORTANT (builds 7-col table)
+    plot_contacts=False,       # focus on the tree for now
+    global_plots=False)
+
+
+exit(99)
 with (open('tree_clusters.pkl', 'rb') as f):  # Python 3: open(..., 'rb')
      clusters_subtree, concat_scores, out_tree_file, tmscores_df, phytree_file, representative_cluster_leaves, \
      ete_leaves_node_values, ete_leaves_cluster_ids = pickle.load(f)
@@ -42,7 +59,15 @@ ll.sort()
 print("representative_cluster_leaves values sorted: ", ll)
 
 
-visualize_tree_with_heatmap(clusters_subtree, concat_scores, 'temp_local_tree.png')
+col_groups = [
+    ["TM-AF1", "TM-AF2"],
+    ["TM-ESM1", "TM-ESM2"],
+    ["RE-MSAT-COM", "RE-MSAT1", "RE-MSAT2"],
+]
+group_titles = ["AF", "ESMF", "MSAT"]
+
+
+visualize_tree_with_heatmap(clusters_subtree, concat_scores, col_groups, group_titles, 'temp_local_tree.png')
 
 # esmf_df = pd.read_csv(ESMF_MODEL_FILE)
 # print("ESM DF: ", esmf_df)
