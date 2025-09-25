@@ -160,97 +160,86 @@ def phytree_from_msa(
     # --- load the (aligned) MSA ---
     seqs_IDs, seqs = load_fasta(msa_file)
 
-    # CLEAN A3M LINES ROBUSTLY
-    # keep only uppercase & '-' (like before)
-    #    seqs = [''.join([ch for ch in s if ch.isupper() or ch == '-']) for s in seqs]
+    # 1) CLEAN A3M LINES ROBUSTLY (lowercase inserts removed; '.' and '*' → '-')
     seqs = [clean_a3m_line(s) for s in seqs]
-    # After sampling (uniform or stratified), do this length harmonization
-    num_seqs = len(seqs)
+
+    # 2) ENFORCE A SINGLE ALIGNED LENGTH (keep modal length; drop outliers)
+    from collections import Counter
+    raw_n = len(seqs)
     lengths = [len(s) for s in seqs]
     if not lengths or min(lengths) == 0:
         raise RuntimeError("Empty sequences after A3M cleaning — check input.")
 
-    if len(set(lengths)) != 1:  # different lengths!
-        cnt = Counter(lengths)
-        mode_len, mode_n = cnt.most_common(1)[0]
-        # keep only sequences with the modal aligned length
-        keep = [i for i, L in enumerate(lengths) if L == mode_len]
-        drop = [i for i, L in enumerate(lengths) if L != mode_len]
-        if len(keep) < 2:
-            raise RuntimeError(f"A3M lengths are inconsistent and left <2 sequences (mode_len={mode_len}).")
-        if drop:
-            print(f"[clean] A3M columns not uniform: kept {len(keep)}/{len(seqs)} at length={mode_len}; "
-                  f"dropped {len(drop)} outliers.")
-        seqs = [seqs[i] for i in keep]
-        seqs_IDs = [seqs_IDs[i] for i in keep]
+    cnt = Counter(lengths)
+    mode_len, _ = cnt.most_common(1)[0]
+    if len(set(lengths)) != 1:
+        keep_idx = [i for i, L in enumerate(lengths) if L == mode_len]
+        drop_idx = [i for i, L in enumerate(lengths) if L != mode_len]
+        if len(keep_idx) < 2:
+            raise RuntimeError(f"A3M lengths inconsistent; fewer than 2 sequences at mode length {mode_len}.")
+        print(f"[clean] A3M columns not uniform: kept {len(keep_idx)}/{raw_n} at length={mode_len}; "
+              f"dropped {len(drop_idx)} outliers.")
+        seqs = [seqs[i] for i in keep_idx]
+        seqs_IDs = [seqs_IDs[i] for i in keep_idx]
 
-    # Early: no sampling wanted -> keep all
+    # 3) UPDATE num_seqs AFTER CLEANING/FILTERING
+    num_seqs = len(seqs)
+
+    # 4) SAMPLING (none / stratified / uniform) NOW USES CURRENT ARRAYS
     if (max_seqs is None) or (num_seqs <= int(max_seqs)):
         pass  # keep all sequences
     else:
-        # --- sampling is needed ---
         if cluster_msa_dir:
-            # build Deep (orig <-> normalized) maps on the *original* IDs
-            deep_orig_ids = list(seqs_IDs)
+            # Build mapping on CURRENT seqs_IDs (post-clean)
             deep_norm_to_indices: dict[str, list[int]] = {}
-            for i, rid in enumerate(deep_orig_ids):
+            for i, rid in enumerate(seqs_IDs):
                 nid = _norm_id(rid)
                 deep_norm_to_indices.setdefault(nid, []).append(i)
 
-            # load shallow cluster membership (normalized IDs)
             clusters = _load_cluster_norm_ids(cluster_msa_dir)
             shallow = sorted([c for c in clusters if c.startswith("ShallowMsa_")])
 
-            # choose one representative index per cluster that intersects the Deep MSA
             chosen_idx: list[int] = []
-            represented: list[str] = []
-            missing: list[str] = []
-
+            represented = 0
+            missing = 0
             for cl in shallow:
                 cand_norm = list(clusters[cl] & set(deep_norm_to_indices.keys()))
                 if cand_norm:
-                    # pick a normalized ID, then pick one deep index for it
                     nid = random.choice(cand_norm)
                     idx = random.choice(deep_norm_to_indices[nid])
                     chosen_idx.append(idx)
-                    represented.append(cl)
+                    represented += 1
                 else:
-                    missing.append(cl)
+                    missing += 1
 
-            mandatory = len(chosen_idx)
-            if mandatory == 0:
-                print(f"[warn] No shallow clusters matched Deep IDs; falling back to uniform sampling.")
+            mand = len(set(chosen_idx))
+            if mand == 0:
+                print("[warn] No shallow clusters matched Deep IDs after cleaning; falling back to uniform sampling.")
                 chosen_idx = []
 
-            # bump max_seqs up if needed
-            if mandatory > 0 and max_seqs < mandatory:
-                print(f"[info] Bumping max_seqs from {max_seqs} to {mandatory} "
-                      f"to cover all represented clusters.")
-                max_seqs = mandatory
+            # bump cap if needed
+            if mand > 0 and max_seqs < mand:
+                print(f"[info] Bumping max_seqs from {max_seqs} to {mand} to cover all represented clusters.")
+                max_seqs = mand
 
-            # fill remaining quota with random Deep sequences (excluding chosen)
-            remaining = int(max_seqs) - len(chosen_idx)
+            remaining = int(max_seqs) - len(set(chosen_idx))
             pool = [i for i in range(num_seqs) if i not in set(chosen_idx)]
             random.shuffle(pool)
             extra = pool[:max(0, remaining)]
-            sel_idx = chosen_idx + extra
+            sel_idx = list(dict.fromkeys(chosen_idx + extra))  # dedup while preserving order
 
             print(f"[stratify] deep={num_seqs}  shallow_clusters={len(shallow)}  "
-                  f"represented={len(represented)}  missing={len(missing)}  "
-                  f"final_sample={len(sel_idx)}  "
-                  f"(mand={len(chosen_idx)} + rand={len(extra)})")
-            if missing:
-                # show only a few to avoid spam
-                print("[stratify] example missing clusters:", missing[:10])
+                  f"represented={represented}  missing={missing}  "
+                  f"final_sample={len(sel_idx)}  (mand={mand} + rand={len(extra)})")
 
-            # apply selection
+            # apply selection on CURRENT arrays
             seqs = [seqs[i] for i in sel_idx]
             seqs_IDs = [seqs_IDs[i] for i in sel_idx]
 
         else:
-            # previous behavior: uniform random sample of max_seqs
+            # uniform sample from CURRENT arrays
             rand_inds = random.sample(range(num_seqs), int(max_seqs))
-            seqs     = [seqs[i] for i in rand_inds]
+            seqs = [seqs[i] for i in rand_inds]
             seqs_IDs = [seqs_IDs[i] for i in rand_inds]
             print(f"[sample] uniform random: picked {len(seqs)} / {num_seqs}")
 
