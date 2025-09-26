@@ -89,9 +89,10 @@ def _build_tmscores_from_pair_csvs(df_af, df_esm, cluster_index: list[str]) -> p
 
 def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.DataFrame:
     """
-    Build MSAT recall block using the exact column names in df_cmap.csv:
-      cluster, t1_recall, t2_recall, common_recall
-    If 't2_recall' is missing, fall back to 'uniq2_recall'.
+    Build the MSAT block from df_cmap.csv.
+
+    We prefer MCC columns (common_mcc, uniq1_mcc, uniq2_mcc) and fall back to
+    F1/recall/jaccard when MCC is missing. Rows are indexed by canonical cluster tags.
     """
     import pandas as pd
     out = pd.DataFrame(index=cluster_index)
@@ -100,37 +101,33 @@ def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.Da
 
     d = df_cmap.copy()
 
-    # unify cluster id column
+    # unify cluster id column to canonical tags
     if "cluster_num" in d.columns:
         d["_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
     elif "cluster" in d.columns:
         d["_tag"] = d["cluster"].astype(str).map(_normalize_cluster_tag)
     else:
-        return out  # nothing we can do
-
-    # strict names with one light fallback
-    c1 = "t1_recall" if "t1_recall" in d.columns else None
-    c2 = "t2_recall" if "t2_recall" in d.columns else ("uniq2_recall" if "uniq2_recall" in d.columns else None)
-    cC = "common_recall" if "common_recall" in d.columns else None
-
-    cols = {}
-    if c1: cols["RE-MSAT1"]     = pd.to_numeric(d[c1], errors="coerce")
-    if c2: cols["RE-MSAT2"]     = pd.to_numeric(d[c2], errors="coerce")
-    if cC: cols["RE-MSAT-COM"]  = pd.to_numeric(d[cC], errors="coerce")
-
-    if not cols:
         return out
 
+    def pick(colnames):
+        """Return the first present column as numeric series, else NaNs."""
+        for c in colnames:
+            if c in d.columns:
+                return pd.to_numeric(d[c], errors="coerce")
+        return pd.Series(index=d.index, dtype=float)
+
+    cols = {
+        "RE-MSAT-COM": pick(["common_mcc", "common_f1", "common_recall", "common_jaccard"]),
+        "RE-MSAT1":    pick(["uniq1_mcc", "t1_mcc", "t1_f1", "t1_recall", "uniq1_recall", "t1_jaccard"]),
+        "RE-MSAT2":    pick(["uniq2_mcc", "t2_mcc", "t2_f1", "t2_recall", "uniq2_recall", "t2_jaccard"]),
+    }
     dd = pd.DataFrame(cols)
     dd["_tag"] = d["_tag"]
+
+    # group by canonical cluster tag and take max (each cluster appears once anyway)
     agg = dd.groupby("_tag").max()
 
-    # If combined not in CSV, compute as mean of 1 & 2 (when present)
-    if "RE-MSAT-COM" not in agg.columns:
-        have = [c for c in ["RE-MSAT1","RE-MSAT2"] if c in agg.columns]
-        if have:
-            agg["RE-MSAT-COM"] = agg[have].mean(axis=1)
-
+    # keep only the columns that actually exist and reindex to heatmap row order
     keep = [c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in agg.columns]
     return agg.reindex(cluster_index)[keep]
 
@@ -528,6 +525,7 @@ def make_foldswitch_all_plots(
         ylabels_override = [_cluster_short_label_from_tag(t) for t in ordered_tags]
 
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
+        print("Making tree heatmap plot with column groups...", col_groups, flush=True)
         compose_tree_and_heatmap(
             ete_tree=ete_tree,
             df_leaf=df_by_leaf,  # <-- use LEAF names here

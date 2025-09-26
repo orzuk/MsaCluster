@@ -47,9 +47,13 @@ def generate_html_for_pair(
         "--to", "html",
         "--execute", str(template_notebook),
         f"--ExecutePreprocessor.timeout={timeout_seconds}",
+        "--TemplateExporter.exclude_input=True",  # Hide code
+        "--TemplateExporter.exclude_output_prompt=True",  # Hide output prompts
+        "--TemplateExporter.exclude_input_prompt=True",   # Hide input prompts
         "--output", output_html.stem,
         "--output-dir", str(output_html.parent),
     ]
+
     if kernel_name:
         cmd.append(f"--ExecutePreprocessor.kernel_name={kernel_name}")
 

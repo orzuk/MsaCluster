@@ -786,7 +786,181 @@ def draw_tree_aligned(ax, ete_tree, leaf_order):
     ax.axis("off")
 
 
+
 def compose_tree_and_heatmap(
+    ete_tree,
+    df_leaf,                 # index = leaf names (already pruned/ordered)
+    col_groups,
+    output_file,
+    *,
+    group_titles=None,
+    base_figsize=(22, 12),
+    cbar_width_ratio=0.22,   # fixed slim column for stacked colorbars
+    x_tick_rotation=90, x_tick_fontsize=8, y_tick_fontsize=7,
+    nan_rgba=(0.92,0.92,0.92,1.0),
+    ylabels_override=None,    # if provided, replaces df_leaf.index on the heatmap
+    lock_scales_to_unit=False,
+    split_groups=True,        # NEW: draw one mini-heatmap per group with a small gap
+    group_gap_frac=0.08       # NEW: ~8% of a group's width used as inter-group gap
+):
+    import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
+    from matplotlib.gridspec import GridSpecFromSubplotSpec
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+    # ----- prepare plotting frame (labels vs leaf names) -----
+    if ylabels_override is not None:
+        df_plot = df_leaf.copy()
+        df_plot.index = ylabels_override
+    else:
+        df_plot = df_leaf
+
+    # flatten the column order and filter to present columns
+    flat_cols = [c for g in col_groups for c in g if c in df_leaf.columns]
+    if not flat_cols:
+        # nothing to draw
+        out_png = output_file if output_file.lower().endswith(".png") else output_file + ".png"
+        fig = plt.figure(figsize=base_figsize); fig.savefig(out_png, dpi=200); plt.close(fig)
+        return out_png
+
+    # ----- layout: tree | heatmap area | stacked colorbars
+    # Estimate width for heatmaps from number of columns so the whole figure looks stable
+    n_cols = sum(len([c for c in g if c in df_leaf.columns]) for g in col_groups)
+    heatmap_ratio = 0.06 + 0.03 * n_cols
+    tree_ratio = max(0.01, 1.0 - heatmap_ratio - 0.05)  # reserve ~5% for cbar column
+    width_ratios = [tree_ratio, heatmap_ratio, 0.05]
+
+    fig = plt.figure(figsize=base_figsize)
+    gs = fig.add_gridspec(
+        nrows=1, ncols=3, width_ratios=width_ratios,
+        left=0.035, right=0.985, bottom=0.10, top=0.98, wspace=0.06
+    )
+    ax_tree = fig.add_subplot(gs[0, 0])
+    ax_heat_region = fig.add_subplot(gs[0, 1])  # container for mini-heatmaps (we'll add sub-axes)
+    ax_heat_region.axis("off")
+    cbar_host = fig.add_subplot(gs[0, 2]); cbar_host.axis("off")
+
+    # stack slim colorbars in the right column (narrower + ~2× longer + moved left)
+    n_cb = len(col_groups) if col_groups else 0
+    cbar_axes = []
+    if n_cb > 0:
+        # take almost the full column height for the bars (~98%)
+        total_h = 0.98  # ↑ was 0.94; makes bars longer
+        pad = 0.006  # smaller spacing between bars
+        left_margin = 0.01  # ← move bars left inside the cbar column (was 0.20)
+        width_frac = 0.68  # keep them slim (0.68 of the column width)
+
+        cbar_h = (total_h - (n_cb - 1) * pad) / max(1, n_cb)
+        y0 = (1 - total_h) / 2.0
+
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+        for i in range(n_cb):
+            ax_c = inset_axes(
+                cbar_host,
+                width="50%", height=f"{cbar_h * 200:.1f}%",
+                bbox_to_anchor=(left_margin, y0 + i * (cbar_h + pad), width_frac, cbar_h),
+                bbox_transform=cbar_host.transAxes, borderpad=0
+            )
+            cbar_axes.append(ax_c)
+
+    # ----- draw the tree aligned to df_leaf row order -----
+    draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index))
+
+    # ----- draw the heatmaps -----
+    # shared colormap (with NaN color); per-group vmin/vmax
+    cmap = mpl.cm.viridis.copy()
+    cmap.set_bad(nan_rgba)
+
+    # compute grouped widths and gaps inside the heat region
+    groups_present = [ [c for c in g if c in df_leaf.columns] for g in col_groups ]
+    groups_present = [g for g in groups_present if g]  # drop empties
+    n_groups = len(groups_present)
+    if n_groups == 0:
+        out_png = output_file if output_file.lower().endswith(".png") else output_file + ".png"
+        fig.savefig(out_png, dpi=200); plt.close(fig); return out_png
+
+    # relative widths proportional to number of columns; include small gaps
+    widths = [len(g) for g in groups_present]
+    gap = group_gap_frac  # relative to a group's width
+    # convert relative to absolute in axis coordinates (0..1)
+    total_units = sum(widths) + gap * sum(widths[:-1])
+    unit = 1.0 / max(total_units, 1e-9)
+
+    left = 0.00
+    group_axes, scalars = [], []
+    for gi, gcols in enumerate(groups_present):
+        w = unit * len(gcols)
+        # add a sub-axes for this group inside ax_heat_region
+        bb = ax_heat_region.get_position()
+        ax = fig.add_axes([bb.x0 + left * bb.width, bb.y0, w * bb.width, bb.height])
+        group_axes.append((ax, gcols))
+        left += w
+        if gi < n_groups - 1:
+            left += unit * gap * len(gcols)  # small gap proportional to group width
+
+    # render each group
+    for gi, (ax, gcols) in enumerate(group_axes):
+        M = df_plot[gcols].to_numpy(dtype=float)
+        if lock_scales_to_unit:
+            vmin, vmax = 0.0, 1.0
+        else:
+            # robust min/max for this group (ignore all-NaN)
+            if np.isnan(M).all():
+                vmin, vmax = 0.0, 1.0
+            else:
+                vmin = np.nanmin(M); vmax = np.nanmax(M)
+                if not np.isfinite(vmin) or not np.isfinite(vmax) or vmin == vmax:
+                    vmin, vmax = 0.0, 1.0
+        scalars.append((vmin, vmax))
+
+        im = ax.imshow(M, aspect="auto", interpolation="nearest", cmap=cmap, vmin=vmin, vmax=vmax)
+
+        # y-ticks only on the first group
+        if gi == 0:
+            ax.set_yticks(np.arange(df_plot.shape[0]))
+            ax.set_yticklabels(df_plot.index, fontsize=y_tick_fontsize)
+        else:
+            ax.set_yticks([])
+            ax.set_yticklabels([])
+
+        # x-ticks for that group's columns
+        ax.set_xticks(np.arange(len(gcols)))
+        ax.set_xticklabels(gcols, rotation=x_tick_rotation, ha="right", fontsize=x_tick_fontsize)
+        ax.tick_params(axis="x", pad=6)
+
+        # thin bounding lines to make groups visually distinct
+        ax.axvline(-0.5, color="k", lw=0.5, alpha=0.25)
+        ax.axvline(len(gcols) - 0.5, color="k", lw=0.5, alpha=0.25)
+
+    # ----- colorbars: one per group (narrow & long), extremes shown -----
+    from matplotlib.ticker import FixedLocator, FixedFormatter  # put with other imports above
+    for gi, (vmin, vmax) in enumerate(scalars):
+        if gi < len(cbar_axes):
+            sm = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=vmin, vmax=vmax), cmap=cmap)
+            cb = plt.colorbar(sm, cax=cbar_axes[gi], extend="both")
+
+            # ticks at extremes + middle
+            ticks = [vmin, 0.5 * (vmin + vmax), vmax]
+
+            # round to 2 decimals and avoid "-0.00"
+            labels = [("0.00" if abs(t) < 5e-6 else f"{t:.2f}") for t in ticks]
+
+            # <<< THIS is the key: set on the colorbar, not the axis >>>
+            cb.locator = FixedLocator(ticks)
+            cb.formatter = FixedFormatter(labels)
+            cb.update_ticks()
+
+            title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
+            cbar_axes[gi].set_title(title, fontsize=11, pad=4)
+            cb.ax.tick_params(labelsize=8, pad=1)  # small pad so text doesn’t overflow
+
+
+    out_png = output_file if output_file.lower().endswith(".png") else output_file + ".png"
+    fig.savefig(out_png, dpi=200)
+    plt.close(fig)
+    return out_png
+
+
+def compose_tree_and_heatmap_old(
     ete_tree,
     df_leaf,                 # index = leaf names (already pruned/ordered)
     col_groups,

@@ -50,7 +50,7 @@ for lf, cl in list(leaf_to_cluster.items())[:10]:
     print(f"  {lf} -> {cl}")
 
 
-exit(8888)
+# exit(8888)
 
 
 from utils.utils import *

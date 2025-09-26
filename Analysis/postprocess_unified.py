@@ -384,6 +384,105 @@ def _read_cmap(pair_id: str) -> pd.DataFrame:
     csv = _pair_dir(pair_id) / "Analysis" / "df_cmap.csv"
     return pd.read_csv(csv) if csv.is_file() else pd.DataFrame()
 
+# New: function for computing TM-score between the two true structures chains
+def compute_tmscore_all_pairs():
+    all_pairs = list_protein_pairs()
+    num_pairs = len(all_pairs)
+    tm_pairs_scores = {pair_id: [0.0, 0.0] for pair_id in all_pairs}  # Prepare empty dict
+    for pair_id in all_pairs:
+        pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+        tm_pairs_scores[pair_id][0] = compute_tmscore_align(pdb1, pdb2, chain1=c1, chain2=c2)
+        tm_pairs_scores[pair_id][1] = compute_tmscore_align(pdb2, pdb1, chain1=c2, chain2=c1)
+        print(f"{pair_id}: {tm_pairs_scores[pair_id][0]:.3f} | {tm_pairs_scores[pair_id][1]:.3f}")
+
+    return tm_pairs_scores
+
+
+def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
+    """
+    Return a tidy cluster table for this pair with columns:
+      cluster, TM-AF1, TM-AF2, TM-ESM1, TM-ESM2, RE-MSAT-COM, RE-MSAT1, RE-MSAT2
+    Values may be NaN if a modality is missing for a cluster.
+    """
+    anal = _ensure_pair_analysis(pair_id)
+    df_af   = _safe_read_csv(str(anal / "df_af.csv"))
+    df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
+    df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
+
+    def _norm_tag(s: str) -> str:
+        if not isinstance(s, str): s = str(s)
+        t = s.strip()
+        if "deep" in t.lower(): return "DeepMsa"
+        m = re.search(r"(\d+)$", t)
+        if m: return f"ShallowMsa_{int(m.group(1)):03d}"
+        if t.startswith("ShallowMsa_"): return t
+        return t
+
+    # ---- TM block ----
+    tm = pd.DataFrame()
+    def _pick_tm(df, prefix):
+        if df is None or df.empty: return
+        d = df.copy()
+        if "cluster_num" not in d.columns and "cluster" in d.columns:
+            d = d.rename(columns={"cluster": "cluster_num"})
+        d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
+        t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
+        t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
+        agg = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
+        for col, src in (("TM-AF1","TM1"),("TM-AF2","TM2")) if prefix=="AF" else (("TM-ESM1","TM1"),("TM-ESM2","TM2")):
+            tm[col] = agg[src]
+    _pick_tm(df_af, "AF")
+    _pick_tm(df_esm, "ESM")
+    if tm.empty:
+        tm.index = []
+
+    # ---- MSAT block ----
+    ms = pd.DataFrame()
+    if df_cmap is not None and not df_cmap.empty:
+        d = df_cmap.copy()
+        if "cluster_num" in d.columns:
+            d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
+        elif "cluster" in d.columns:
+            d["_tag"] = d["cluster"].astype(str).map(_norm_tag)
+        else:
+            d["_tag"] = None
+
+        def pick(cands):
+            for c in cands:
+                if c in d.columns:
+                    return pd.to_numeric(d[c], errors="coerce")
+            return pd.Series(index=d.index, dtype=float)
+        ms = pd.DataFrame({
+            "RE-MSAT-COM": pick(["common_mcc","common_f1","common_recall","common_jaccard"]),
+            "RE-MSAT1":    pick(["uniq1_mcc","t1_mcc","t1_f1","t1_recall","uniq1_recall","t1_jaccard"]),
+            "RE-MSAT2":    pick(["uniq2_mcc","t2_mcc","t2_f1","t2_recall","uniq2_recall","t2_jaccard"]),
+            "_tag": d["_tag"]
+        }).groupby("_tag").max()
+
+    # ---- merge blocks on index (cluster tag) ----
+    idx = sorted(set(tm.index) | set(ms.index))
+    out = pd.DataFrame(index=idx)
+    for block in (tm, ms):
+        if not block.empty:
+            out = out.join(block, how="left")
+
+    out = out.reset_index().rename(columns={"index": "cluster"})
+    # prefer compact labels: "DeepMsa" -> "Deep", "ShallowMsa_007" -> "7"
+    def _short(s):
+        if not s: return s
+        if str(s).lower().startswith("deep"): return "Deep"
+        m = re.search(r"(\d+)$", str(s))
+        return m.group(1) if m else s
+    out["cluster"] = out["cluster"].map(_short)
+
+    # nice rounding
+    for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]:
+        if c in out.columns:
+            out[c] = out[c].round(2)
+    return out[["cluster"] + [c for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in out.columns]]
+
+
+# Main post-processing function:
 def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str]] = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     - Computes (or reads cached) AF/ESM TM tables and cmap metrics.
@@ -431,7 +530,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             det["fold_pair"] = pair_id
             all_detailed.append(det)
 
-        max_len = _pair_max_len(pair_id)
+        max_len = _pair_max_len_from_truth(pair_id)
         # Summary row (pair-level)
         summary_rows.append({
             "fold_pair": pair_id,
@@ -446,6 +545,10 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
 
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
+
+    # New: add tm-scores for true structures pairs
+    tm_pairs_scores = compute_tmscore_all_pairs()
+    summary_df['True_TM12'] = summary_df.apply(lambda row: tm_pairs_scores[row['fold_pair']][0], axis=1)
 
     return summary_df, detailed_df
 
