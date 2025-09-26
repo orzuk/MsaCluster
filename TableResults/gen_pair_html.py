@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gen_pair_html.py
-Build per-pair HTML pages using paths from config.py.
+gen_pair_html.py — config-aware per‑pair HTML renderer
 
-Images can be embedded inline (base64) or linked/copied into a publish directory
-defined by config.TABLES_RES/config.PER_PAIR_PUBLISH_SUBDIR.
+Fixes requested:
+1) Smaller phylogenetic tree figure (max-height)
+2) Deep vs Best CMAPs shown side‑by‑side with matched visual dimensions
+3) "All clusters" now shows both the mosaic (if present) and a grid of per‑cluster CMAPs (if available)
+4) 3D structure panels: attempt to show all requested overlays (AF2/AF3/ESM2/ESM3, per fold). If a figure is missing, emit a bold callout
+5) Narrower table layout (max width, smaller font, wrapping cells)
+6) Order: 3D structures first, then CMAPs, then table, finally tree
 
-Usage examples:
-  # Inline-embed (self-contained HTML):
+Modes:
+  --mode inline  : embed images as base64 (self‑contained HTML; best for GitHub Pages)
+  --mode copy    : copy figures to publish dir (config.TABLES_RES/config.PER_PAIR_PUBLISH_SUBDIR) and link them
+  --mode link    : just link to already‑published figures
+
+Usage:
   python TableResults/gen_pair_html.py --pairs 2qqjA_4qdsA --mode inline
-
-  # Copy images to publish dir (docs/HTML/figs/<pair>) and link them:
-  python TableResults/gen_pair_html.py --pairs 2qqjA_4qdsA --mode copy
-
-  # Link only (assumes images already copied):
-  python TableResults/gen_pair_html.py --pairs ALL --mode link
+  python TableResults/gen_pair_html.py --pairs ALL --mode copy
 """
 import os, sys, html, base64, argparse, shutil, re
 from pathlib import Path
 
-# --- Locate repo root (script expected under TableResults/) and import config.py ---
+# --- Import config from repo root ---
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 try:
@@ -29,26 +32,51 @@ except Exception as e:
     print("[gen_pair_html] ERROR: cannot import config.py from repo root:", e, file=sys.stderr)
     sys.exit(2)
 
-# --- Pull paths from config.py ---
-# Required:
+# --- Paths from config.py ---
 DATA_DIR = Path(getattr(CFG, "DATA_DIR"))
 OUTPUT_PATH_NOTEBOOKS = Path(getattr(CFG, "OUTPUT_PATH_NOTEBOOKS"))
 TABLES_RES = Path(getattr(CFG, "TABLES_RES"))
+PAIR_DIR_RE = getattr(CFG, "PAIR_DIR_RE", re.compile(r"^.+_.+$"))
+if not hasattr(PAIR_DIR_RE, "match"):
+    PAIR_DIR_RE = re.compile(str(PAIR_DIR_RE))
 
-# Optional (with sensible defaults):
-_PER_PAIR_PUBLISH_SUBDIR = getattr(CFG, "PER_PAIR_PUBLISH_SUBDIR", os.path.join("HTML","figs"))
-PUBLISH_FIGURES_DEFAULT = bool(getattr(CFG, "PUBLISH_FIGURES", False))
+PER_PAIR_PUBLISH_SUBDIR = getattr(CFG, "PER_PAIR_PUBLISH_SUBDIR", os.path.join("HTML","figs"))
+PUBLISH_FIGURES = bool(getattr(CFG, "PUBLISH_FIGURES", True))
+PUBLISH_BASE = TABLES_RES / Path(PER_PAIR_PUBLISH_SUBDIR)  # e.g., docs/HTML/figs
 
-# PAIR_DIR_RE can be a compiled regex or a string pattern; default matches "a_b"
-_pair_re = getattr(CFG, "PAIR_DIR_RE", r"^.+_.+$")
-if hasattr(_pair_re, "match"):
-    PAIR_DIR_RE = _pair_re
-else:
-    PAIR_DIR_RE = re.compile(str(_pair_re))
+# Optional knobs
+MAX_TREE_HEIGHT = 520    # px
+MAX_TWOCOL_HEIGHT = 520  # px, deep vs best height cap
 
-PUBLISH_BASE = TABLES_RES / Path(_PER_PAIR_PUBLISH_SUBDIR)  # e.g., docs/HTML/figs
+# Optional cluster CMAP filename patterns (loose, to pick any naming)
+CLUSTER_TILE_PATTERNS = [
+    "*cluster*_*cmap*.png",
+    "*cluster*_*CMAP*.png",
+    "*cluster*_*contact*.png",
+]
 
-# --- Optional per-pair table helper (import from either path) ---
+# 3D structure figure patterns by label
+STRUCT_PATTERNS = {
+    "two_structures": [
+        "*two*structures*.png", "*two_structures*.png", "*2struct*.png",
+        "*true*vs*true*.png", "*native*vs*native*.png"
+    ],
+    "two_structures_aligned": [
+        "*aligned_two_structures*.png", "*two*structures*aligned*.png",
+        "*overlay*true*true*.png", "*overlay*native*native*.png", "*3d_aligned*.png"
+    ],
+    # Fold1/Fold2 vs best model variants
+    "fold1_vs_best_AF2": ["*fold1*best*AF2*.png", "*AF2*best*fold1*.png", "*fold1*AF2*best*.png"],
+    "fold2_vs_best_AF2": ["*fold2*best*AF2*.png", "*AF2*best*fold2*.png", "*fold2*AF2*best*.png"],
+    "fold1_vs_best_AF3": ["*fold1*best*AF3*.png", "*AF3*best*fold1*.png", "*fold1*AF3*best*.png"],
+    "fold2_vs_best_AF3": ["*fold2*best*AF3*.png", "*AF3*best*fold2*.png", "*fold2*AF3*best*.png"],
+    "fold1_vs_best_ESM2": ["*fold1*best*ESM2*.png", "*ESM2*best*fold1*.png", "*fold1*ESM2*best*.png"],
+    "fold2_vs_best_ESM2": ["*fold2*best*ESM2*.png", "*ESM2*best*fold2*.png", "*fold2*ESM2*best*.png"],
+    "fold1_vs_best_ESM3": ["*fold1*best*ESM3*.png", "*ESM3*best*fold1*.png", "*fold1*ESM3*best*.png"],
+    "fold2_vs_best_ESM3": ["*fold2*best*ESM3*.png", "*ESM3*best*fold2*.png", "*fold2*ESM3*best*.png"],
+}
+
+# --- Optional per-pair table helper ---
 build_pair_cluster_table = None
 try:
     from Analysis.postprocess_unified import build_pair_cluster_table  # type: ignore
@@ -81,6 +109,17 @@ def _find_first(fig_dir: Path, patterns: list[str]) -> Path | None:
     return None
 
 
+def _find_all(fig_dir: Path, patterns: list[str]) -> list[Path]:
+    import glob
+    seen = []
+    for pat in patterns:
+        for f in sorted(glob.glob(str(fig_dir / pat))):
+            p = Path(f)
+            if p.is_file() and p not in seen:
+                seen.append(p)
+    return seen
+
+
 def _data_uri_for_file(p: Path) -> str | None:
     try:
         data = p.read_bytes()
@@ -103,24 +142,42 @@ class PageBuilder:
         self.parts: list[str] = []
 
     def css(self) -> str:
-        return """
+        return f"""
 <style>
-  :root { color-scheme: dark; }
-  body { background:#121212; color:#E0E0E0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:20px; }
-  h1 { margin: 0 0 4px; }
-  h2 { margin: 18px 0 10px; }
-  .sub { color:#B0BEC5; margin-bottom:10px; }
-  .two-up { display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
-  figure { margin: 0 0 16px 0; }
-  figcaption { text-align:center; font-style:italic; color:#9aa5ad; margin-top:6px; }
-  img { max-width:100%; height:auto; display:block; border:1px solid #333; }
-  .warn { color:#ff6f6f; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th, td { border: 1px solid #333; padding: 8px 10px; text-align: left; white-space: nowrap; }
-  th { background:#b71c1c; color:#fff; position: sticky; top: 0; }
-  tr:nth-child(even) { background: #2b2b2b; }
-  tr:hover { background: #3a3a3a; }
-  a { color:#64B5F6; text-decoration:none; } a:hover { text-decoration:underline; }
+  :root {{ color-scheme: dark; }}
+  body {{ background:#121212; color:#E0E0E0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:20px; }}
+  h1 {{ margin: 0 0 4px; }}
+  h2 {{ margin: 18px 0 10px; }}
+  .sub {{ color:#B0BEC5; margin-bottom:10px; }}
+
+  /* Two-up panels: enforce a shared max-height so Deep/Best look the same size */
+  .two-up {{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }}
+  .two-up figure, .two-up .imgbox {{ height:{MAX_TWOCOL_HEIGHT}px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:transparent; margin:0; }}
+  .two-up img {{ max-height:{MAX_TWOCOL_HEIGHT}px; width:auto; height:auto; object-fit:contain; display:block; border:1px solid #333; }}
+
+  /* Tree: cap its height and center it, keep width auto */
+  .tree figure, .tree .imgbox {{ max-height:{MAX_TREE_HEIGHT}px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin: 0 auto 16px auto; }}
+  .tree img {{ max-height:{MAX_TREE_HEIGHT}px; width:auto; height:auto; border:1px solid #333; display:block; }}
+
+  figure {{ margin: 0 0 12px 0; }}
+  figcaption {{ text-align:center; font-style:italic; color:#9aa5ad; margin-top:6px; }}
+  img {{ max-width:100%; height:auto; display:block; border:1px solid #333; }}
+
+  .warn {{ color:#ff6f6f; }}
+  .callout-missing {{ color:#ff8080; font-weight:700; font-size:1.05em; margin:10px 0; }}
+
+  /* Table container: limit width so it doesn't span full page */
+  .table-wrap {{ max-width: 960px; margin: 10px auto 18px auto; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 0.95em; }}
+  th, td {{ border: 1px solid #333; padding: 6px 8px; text-align: left; white-space: normal; }}
+  th {{ background:#b71c1c; color:#fff; position: sticky; top: 0; }}
+  tr:nth-child(even) {{ background: #2b2b2b; }}
+  tr:hover {{ background: #3a3a3a; }}
+
+  /* Grid of per-cluster thumbnails */
+  .thumb-grid {{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }}
+  .thumb-grid figure {{ margin:0; }}
+  .thumb-grid img {{ width:100%; height:auto; border:1px solid #333; }}
 </style>
 """
 
@@ -131,14 +188,17 @@ class PageBuilder:
 <div class="sub"><b>{html.escape(a)}</b> vs <b>{html.escape(b)}</b></div>
 """
 
-    def fig_html(self, img_src: str, caption: str) -> str:
-        """img_src is either a data: URI or a relative path (for published mode)."""
+    def fig_html(self, img_src: str, caption: str, extra_class: str = "") -> str:
         self.fig_idx += 1
         cap = f"Figure {self.fig_idx}. {html.escape(caption)}"
-        return f"""<figure><img src="{img_src}"/><figcaption>{cap}</figcaption></figure>"""
+        cls = f' class="{extra_class}"' if extra_class else ""
+        return f"""<div{cls}><figure class="imgbox"><img src="{img_src}"/></figure><figcaption>{cap}</figcaption></div>"""
 
     def missing_html(self, label: str) -> str:
         return f"""<div class="warn">[missing] {html.escape(label)}</div>"""
+
+    def callout_missing(self, label: str) -> str:
+        return f"""<div class="callout-missing">{html.escape(label)}</div>"""
 
     def two_up_html(self, left_html: str, right_html: str) -> str:
         return f"""<div class="two-up">{left_html}{right_html}</div>"""
@@ -153,12 +213,6 @@ class PageBuilder:
 
 
 def _to_img_src(png_path: Path, mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
-    """
-    Return img src for the chosen mode:
-      - inline: data: URI (base64)
-      - copy:   copy to publish_dir_for_pair and return relative path from html_out_dir
-      - link:   assume already present in publish_dir_for_pair; just return relative path
-    """
     if mode == "inline":
         return _data_uri_for_file(png_path)
     publish_dir_for_pair.mkdir(parents=True, exist_ok=True)
@@ -168,13 +222,13 @@ def _to_img_src(png_path: Path, mode: str, publish_dir_for_pair: Path, html_out_
             shutil.copy2(png_path, dest_path)
         except Exception:
             return None
-    # relative URL from HTML output dir to dest_path
     rel_src = os.path.relpath(dest_path, start=html_out_dir).replace("\\", "/")
     return rel_src
 
 
 def _figure_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], caption: str,
-                          mode: str, publish_dir_for_pair: Path, html_out_dir: Path):
+                          mode: str, publish_dir_for_pair: Path, html_out_dir: Path,
+                          extra_class: str = ""):
     import glob
     png_path = None
     for pat in patterns:
@@ -187,7 +241,7 @@ def _figure_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], c
     src = _to_img_src(png_path, mode, publish_dir_for_pair, html_out_dir)
     if src is None:
         pb.push(pb.missing_html(f"{caption} (unreadable: {png_path.name})")); return
-    pb.push(pb.fig_html(src, caption))
+    pb.push(pb.fig_html(src, caption, extra_class=extra_class))
 
 
 def _two_figures(pb: PageBuilder, fig_dir: Path, left_patterns: list[str], left_caption: str,
@@ -210,18 +264,32 @@ def _two_figures(pb: PageBuilder, fig_dir: Path, left_patterns: list[str], left_
     right_html = pb.missing_html(right_caption)
     if lp is not None:
         lsrc = _to_img_src(lp, mode, publish_dir_for_pair, html_out_dir)
-        if lsrc: left_html = pb.fig_html(lsrc, left_caption + ("" if lp.name.find("all_clusters") == -1 else " (fallback)"))
+        if lsrc: left_html = pb.fig_html(lsrc, left_caption)
     if rp is not None:
         rsrc = _to_img_src(rp, mode, publish_dir_for_pair, html_out_dir)
-        if rsrc: right_html = pb.fig_html(rcsrc := rsrc, right_caption + ("" if rp.name.find("all_clusters") == -1 else " (fallback)"))
+        if rsrc: right_html = pb.fig_html(rsrc, right_caption)
 
     pb.push(pb.two_up_html(left_html, right_html))
 
 
+def _thumb_grid(pb: PageBuilder, fig_dir: Path, patterns: list[str], mode: str,
+                publish_dir_for_pair: Path, html_out_dir: Path, title: str):
+    thumbs = _find_all(fig_dir, patterns)
+    if not thumbs:
+        return False
+    pb.push(f"<h2>{html.escape(title)}</h2>")
+    items = []
+    for p in thumbs:
+        src = _to_img_src(p, mode, publish_dir_for_pair, html_out_dir)
+        if not src: continue
+        items.append(f'<figure><img src="{src}" alt="{html.escape(p.name)}"></figure>')
+    if not items:
+        return False
+    pb.push(f'<div class="thumb-grid">{"".join(items)}</div>')
+    return True
+
+
 def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Path:
-    """
-    mode: 'inline' (default), 'copy', or 'link'
-    """
     assert mode in ("inline", "copy", "link")
     fig_dir = _fig_dir_for_pair(pair_id)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -231,13 +299,33 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     pb = PageBuilder(title=f"Analysis of {pair_id}")
     pb.push(pb.header(pair_id))
 
-    # 1) Tree + heatmap (exactly once)
-    _figure_from_patterns(pb, fig_dir,
-                          [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
-                          "Phylogenetic tree with per-cluster heatmap.",
+    # ===== ORDER 1: 3D STRUCTURES FIRST =====
+    # Two-structures (un-aligned) and aligned
+    _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures"], "Two structures (Fold1 & Fold2)",
+                          mode, publish_dir_for_pair, output_dir)
+    _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures_aligned"], "Two structures aligned",
                           mode, publish_dir_for_pair, output_dir)
 
-    # 2) Side-by-side: Deep-only cmaps vs Best clusters (fallbacks to 'all')
+    # Fold1/Fold2 vs best models (AF2/AF3/ESM2/ESM3)
+    for tag, nice in [
+        ("fold1_vs_best_AF2", "Fold1 vs best AF2"),
+        ("fold2_vs_best_AF2", "Fold2 vs best AF2"),
+        ("fold1_vs_best_AF3", "Fold1 vs best AF3"),
+        ("fold2_vs_best_AF3", "Fold2 vs best AF3"),
+        ("fold1_vs_best_ESM2", "Fold1 vs best ESM2"),
+        ("fold2_vs_best_ESM2", "Fold2 vs best ESM2"),
+        ("fold1_vs_best_ESM3", "Fold1 vs best ESM3"),
+        ("fold2_vs_best_ESM3", "Fold2 vs best ESM3"),
+    ]:
+        p = _find_first(fig_dir, STRUCT_PATTERNS[tag])
+        if p and p.is_file():
+            src = _to_img_src(p, mode, publish_dir_for_pair, output_dir)
+            if src: pb.push(pb.fig_html(src, nice))
+        else:
+            # Bold callout for missing items (as requested)
+            pb.push(pb.callout_missing(f"Missing: {nice}"))
+
+    # ===== ORDER 2: CMAPS (Deep vs Best side-by-side, then ALL) =====
     _two_figures(pb, fig_dir,
                  left_patterns=[f"{pair_id}_deep_clusters_cmap.png", "*deep*clusters*cmap*.png", "*Deep*cmaps*.png"],
                  left_caption="Deep-MSA contact map panel",
@@ -247,47 +335,17 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
                  fallback_right=[f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
                  mode=mode, publish_dir_for_pair=publish_dir_for_pair, html_out_dir=output_dir)
 
-    # 3) All clusters mosaic (below)
+    # All clusters mosaic if present
     _figure_from_patterns(pb, fig_dir,
                           [f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
                           "All clusters contact-map mosaic (small multiples).",
                           mode, publish_dir_for_pair, output_dir)
 
-    # 4) Native structures (up to 2), self-alignment, fold1↔fold2 overlay
-    shown_native = 0
-    for pat in [f"{pair_id}_true_*.png", f"{pair_id}_native_*.png", "*true*.png", "*native*.png"]:
-        p = _find_first(fig_dir, [pat])
-        if p and p.is_file():
-            src = _to_img_src(p, mode, publish_dir_for_pair, output_dir)
-            if src:
-                shown_native += 1
-                pb.push(pb.fig_html(src, f"Native/true structure {shown_native}"))
-                if shown_native >= 2: break
-    if shown_native == 0:
-        pb.push(pb.missing_html("Native/true structures"))
+    # Grid of per-cluster tiles (if saved as many small images)
+    _thumb_grid(pb, fig_dir, CLUSTER_TILE_PATTERNS, mode, publish_dir_for_pair, output_dir,
+                title="Per-cluster contact maps")
 
-    p_self = _find_first(fig_dir, [f"{pair_id}_fold1_self.png", "*self*align*.png", "*self*.png"])
-    if p_self and p_self.is_file():
-        src = _to_img_src(p_self, mode, publish_dir_for_pair, output_dir)
-        if src: pb.push(pb.fig_html(src, "Sanity check: self-alignment ~ TM≈1"))
-    else:
-        pb.push(pb.missing_html("Self-alignment (sanity)"))
-
-    p_f12 = _find_first(fig_dir, [f"{pair_id}_3d_aligned.png", "*fold1*to*fold2*.png", "*f1*f2*align*.png", "*overlay*fold*1*2*.png"])
-    if p_f12 and p_f12.is_file():
-        src = _to_img_src(p_f12, mode, publish_dir_for_pair, output_dir)
-        if src: pb.push(pb.fig_html(src, "Fold1 aligned to Fold2 (3D overlay)."))
-    else:
-        pb.push(pb.missing_html("Fold1↔Fold2 alignment image"))
-
-    # 5) AF/ESM diagnostics
-    for tag in ["AF2","AF3","ESM2","ESM3","AF","ESM"]:
-        p = _find_first(fig_dir, [f"{pair_id}_fold_pair_scatter_plot_{tag}.png", f"fold_pair_scatter_plot_{tag}.png", f"*{tag}*scatter*plot*.png"])
-        if p and p.is_file():
-            src = _to_img_src(p, mode, publish_dir_for_pair, output_dir)
-            if src: pb.push(pb.fig_html(src, f"{tag} diagnostic scatter vs. truth"))
-
-    # 6) Per-pair cluster table
+    # ===== ORDER 3: TABLE (narrow container) =====
     if build_pair_cluster_table:
         try:
             df = build_pair_cluster_table(pair_id)
@@ -295,11 +353,9 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
             df = None
             pb.push(f"""<div class="warn">[warn] Could not build per-pair cluster table: {html.escape(str(e))}</div>""")
         if df is not None and not df.empty:
-            # Round numerical columns
             for c in df.columns:
                 try: df[c] = df[c].astype(float).round(2)
                 except Exception: pass
-            pb.push("<h2>Cluster metrics table</h2>")
             thead = "<tr>" + "".join(f"<th>{html.escape(str(c))}</th>" for c in df.columns) + "</tr>"
             rows = []
             for _, r in df.iterrows():
@@ -309,18 +365,24 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
                     s = "-" if v is None or (isinstance(v, float) and (v != v)) else str(v)
                     tds.append(f"<td>{html.escape(s)}</td>")
                 rows.append("<tr>" + "".join(tds) + "</tr>")
-            pb.push(f"<table>{thead}{''.join(rows)}</table>")
+            pb.push(f'<div class="table-wrap"><h2>Cluster metrics table</h2><table>{thead}{"".join(rows)}</table></div>')
         else:
-            pb.push("""<div class="warn">No per-pair cluster table available.</div>""")
+            pb.push('<div class="warn">No per-pair cluster table available.</div>')
     else:
-        pb.push("""<div class="warn">build_pair_cluster_table not importable; table omitted.</div>""")
+        pb.push('<div class="warn">build_pair_cluster_table not importable; table omitted.</div>')
+
+    # ===== ORDER 4: TREE LAST (smaller) =====
+    _figure_from_patterns(pb, fig_dir,
+                          [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
+                          "Phylogenetic tree with per-cluster heatmap.",
+                          mode, publish_dir_for_pair, output_dir,
+                          extra_class="tree")
 
     out_html.write_text(pb.build(), encoding="utf-8")
     return out_html
 
 
 def _discover_pairs() -> list[str]:
-    """Find pair directories under DATA_DIR that match the configured regex and contain output_figs/."""
     pairs = []
     pipedir = Path(DATA_DIR)
     if not pipedir.is_dir():
@@ -353,8 +415,7 @@ def main():
     if not pairs:
         print("[gen_pair_html] No pairs to render.", file=sys.stderr); sys.exit(1)
 
-    # Warn if copying/linking while config says not to publish (not fatal)
-    if args.mode in ("copy","link") and not PUBLISH_FIGURES_DEFAULT:
+    if args.mode in ("copy","link") and not PUBLISH_FIGURES:
         print("[gen_pair_html] WARNING: config.PUBLISH_FIGURES is False; proceeding anyway.", file=sys.stderr)
 
     output_dir.mkdir(parents=True, exist_ok=True)
