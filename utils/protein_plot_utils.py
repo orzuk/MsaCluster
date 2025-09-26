@@ -3,7 +3,6 @@ import re, os
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
-#if not platform.system() == "Linux":  # Plotting doesn't work on unix
 PYMOL_AVAILABLE = False
 try:
     import pymol
@@ -351,11 +350,141 @@ def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
 
 
 def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id):
+    """
+    Save three images into fig_dir_root:
+      1) {pair}_all_clusters_cmap.png   (grid of all clusters)
+      2) {pair}_best_clusters_cmap.png  (focused, picked by recall)  [done inside plot_array_contacts_and_predictions]
+      3) {pair}_deep_clusters_cmap.png  (focused deep-MSA panel, if a deep key exists)
+    """
     print("Plot Array Contact Map")
+
+    # --- 1+2) 'all' grid + 'best' focused panel (this call saves both) ---
     save_root = os.path.join(fig_dir_root, f"{foldpair_id}_all_clusters_cmap")
     plot_array_contacts_and_predictions(
-        match_predicted_cmaps, match_true_cmap, save_file=save_root, foldpair_id=foldpair_id
+        match_predicted_cmaps,
+        match_true_cmap,
+        save_file=save_root,          # saves ..._all_clusters_cmap.png
+        foldpair_id=foldpair_id       # also saves ..._best_clusters_cmap.png inside
     )
+
+    # --- 3) Deep-only focused panel (if we have a deep-/DeepMsa key) ---
+    deep_key = None
+    # try a simple substring match first
+    for k in match_predicted_cmaps.keys():
+        if "deep" in str(k).lower():
+            deep_key = k
+            break
+    # or normalize into canonical 'DeepMsa'
+    if deep_key is None:
+        try:
+            deep_key = next(k for k in match_predicted_cmaps.keys()
+                            if _normalize_cluster_tag(str(k)) == "DeepMsa")
+        except StopIteration:
+            deep_key = None
+
+    if deep_key is None:
+        print("[plot] no 'deep' cluster found -> skipping deep panel")
+        return
+
+    # Render deep panel for the two folds (matched layout to 'best')
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 8))
+    plot_foldswitch_contacts_and_predictions(
+        predictions=match_predicted_cmaps[deep_key],  # tuple/list of [pred_f1, pred_f2]
+        contacts=match_true_cmap,
+        title="Deep-MSA",
+        show_legend=True
+    )
+    out = os.path.join(fig_dir_root, f"{foldpair_id}_deep_clusters_cmap.png")
+    plt.savefig(out, dpi=200)
+    plt.close()
+    print("[plot] wrote", out)
+
+
+def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
+    """Save (1) two_structures.png (unaligned) and (2) two_structures_aligned.png."""
+    if not PYMOL_AVAILABLE:
+        return
+    import pymol
+    from pymol import cmd
+    pymol.finish_launching(['pymol', '-cq'])
+    try:
+        cmd.delete('all')
+        cmd.load(os.path.join(pair_dir, pdb1), 'fold1')
+        cmd.load(os.path.join(pair_dir, pdb2), 'fold2')
+        cmd.color('red',  'fold1')
+        cmd.color('blue', 'fold2')
+        cmd.zoom('all', buffer=10)
+        cmd.png(os.path.join(out_dir, f"{out_prefix}_two_structures.png"))
+        cmd.align('fold2', 'fold1')
+        cmd.png(os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png"))
+    finally:
+        cmd.quit()
+
+
+def _best_cluster_from_df(pair_id: str, model_ver: str, fold_idx: int) -> str | None:
+    """
+    Return canonical cluster tag ('DeepMsa' or 'ShallowMsa_###') for the best TMscore
+    in Pipeline/<pair>/Analysis/df_af.csv for AF{model_ver} and fold_idx in {0,1}.
+    """
+    import pandas as pd, numpy as np, re
+    df_path = os.path.join('Pipeline', pair_id, 'Analysis', 'df_af.csv')
+    if not os.path.isfile(df_path):
+        return None
+    d = pd.read_csv(df_path)
+
+    # If there's a 'model' column, keep rows for AF2/AF3 accordingly
+    if 'model' in d.columns:
+        want = f"AF{model_ver}"
+        d = d[d['model'].astype(str).str.upper() == want.upper()]
+        if d.empty:
+            return None
+
+    # choose score column for fold1/fold2
+    score_col = 'TMscore_fold1' if fold_idx == 0 else 'TMscore_fold2'
+    if score_col not in d.columns:
+        return None
+
+    # choose cluster col
+    ccol = 'cluster_num' if 'cluster_num' in d.columns else ('cluster' if 'cluster' in d.columns else None)
+    if ccol is None:
+        return None
+
+    row = d.loc[d[score_col].astype(float).fillna(-np.inf).idxmax()]
+    tag = str(row[ccol]).strip()
+    # normalize canonical tag
+    if tag.lower().startswith('deep'):
+        return 'DeepMsa'
+    m = re.fullmatch(r'\d+', tag)
+    if m:
+        return f"ShallowMsa_{int(m.group(0)):03d}"
+    return tag
+
+
+def _render_true_vs_best_models(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str, model_ver='2'):
+    """For each fold, overlay true structure vs best AF{ver} prediction."""
+    if not PYMOL_AVAILABLE:
+        return
+    for idx in (0, 1):
+        cluster = _best_cluster_from_df(pair_id, model_ver, idx)
+        if not cluster:
+            print(f"[3D] no best cluster in df_af.csv for AF{model_ver}, fold{idx+1}")
+            continue
+        true_pdb = os.path.join('Pipeline', pair_id, f"{pdbids[idx]}.pdb")
+        pred_pdb = os.path.join('Pipeline', pair_id,
+                                f"output_AF/AF{model_ver}/{cluster}__{pdbids[idx]+pdbchains[idx]}.pdb")
+        if not (os.path.isfile(true_pdb) and os.path.isfile(pred_pdb)):
+            print(f"[3D] missing PDB for AF{model_ver}: {true_pdb} / {pred_pdb}")
+            continue
+        out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_AF{model_ver}.png")
+        try:
+            align_and_visualize_proteins(true_pdb, pred_pdb, out, open_environment=True)
+        except Exception as e:
+            print(f"[3D] AF{model_ver} fold{idx+1} overlay failed: {e}")
+
+
+
+# ----------- Plots Generation Functions -----------
 
 
 def make_foldswitch_all_plots(
@@ -595,13 +724,34 @@ def make_foldswitch_all_plots(
 
     num_seqs_msa_vec = len(seqs)
 
+
+    # ---------- 3D PANELS (PyMOL headless) ----------
     # --------- Optional 3D-align plot (only on non-Linux in your original code)  --------------
-    if not platform.system() == "Linux":
-        out_3d = os.path.join(fig_dir_root, f"{foldpair_id}_3d_aligned.png")
-        align_and_visualize_proteins(
-            os.path.join('Pipeline', foldpair_id, f"{pdbids[0]}.pdb"),
-            os.path.join('Pipeline', foldpair_id, f"{pdbids[1]}.pdb"),
-            out_3d, False)
+    if PYMOL_AVAILABLE:
+        try:
+            _render_true_structures(
+                pair_dir=os.path.join('Pipeline', foldpair_id),
+                pdb1=f"{pdbids[0]}.pdb",
+                pdb2=f"{pdbids[1]}.pdb",
+                out_dir=fig_dir_root,
+                out_prefix=foldpair_id
+            )
+        except Exception as e:
+            print(f"[3D] true-true render failed: {e}")
+
+        # AF2
+        try:
+            _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2')
+        except Exception as e:
+            print(f"[3D] AF2 overlays failed: {e}")
+
+        # AF3
+        try:
+            _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3')
+        except Exception as e:
+            print(f"[3D] AF3 overlays failed: {e}")
+    else:
+        print("[3D] PyMOL not available; skipping 3D panels.")
 
     if global_plots:
         print("Make global plots!")
@@ -653,8 +803,11 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
     if open_environment:  # Initialize PyMOL
         cmd.quit()
 
-# Example usage
-# align_and_visualize_proteins('path/to/pdb1.pdb', 'path/to/pdb2.pdb', 'output.png')
+    # Example usage
+    # align_and_visualize_proteins('path/to/pdb1.pdb', 'path/to/pdb2.pdb', 'output.png')
+
+
+
 
 
 # Plot multiple contacts and predictions together
