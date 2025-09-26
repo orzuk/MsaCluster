@@ -1,13 +1,54 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, sys, html, base64, argparse
+"""
+gen_pair_html.py
+Build per-pair HTML pages using paths from config.py.
+
+Images can be embedded inline (base64) or linked/copied into a publish directory
+defined by config.TABLES_RES/config.PER_PAIR_PUBLISH_SUBDIR.
+
+Usage examples:
+  # Inline-embed (self-contained HTML):
+  python TableResults/gen_pair_html.py --pairs 2qqjA_4qdsA --mode inline
+
+  # Copy images to publish dir (docs/HTML/figs/<pair>) and link them:
+  python TableResults/gen_pair_html.py --pairs 2qqjA_4qdsA --mode copy
+
+  # Link only (assumes images already copied):
+  python TableResults/gen_pair_html.py --pairs ALL --mode link
+"""
+import os, sys, html, base64, argparse, shutil, re
 from pathlib import Path
 
-# Repo root = parent of this file's parent (we expect this file at TableResults/gen_pair_html.py)
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+# --- Locate repo root (script expected under TableResults/) and import config.py ---
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+try:
+    import config as CFG
+except Exception as e:
+    print("[gen_pair_html] ERROR: cannot import config.py from repo root:", e, file=sys.stderr)
+    sys.exit(2)
 
-# Try to import the per-pair table helper
+# --- Pull paths from config.py ---
+# Required:
+DATA_DIR = Path(getattr(CFG, "DATA_DIR"))
+OUTPUT_PATH_NOTEBOOKS = Path(getattr(CFG, "OUTPUT_PATH_NOTEBOOKS"))
+TABLES_RES = Path(getattr(CFG, "TABLES_RES"))
+
+# Optional (with sensible defaults):
+_PER_PAIR_PUBLISH_SUBDIR = getattr(CFG, "PER_PAIR_PUBLISH_SUBDIR", os.path.join("HTML","figs"))
+PUBLISH_FIGURES_DEFAULT = bool(getattr(CFG, "PUBLISH_FIGURES", False))
+
+# PAIR_DIR_RE can be a compiled regex or a string pattern; default matches "a_b"
+_pair_re = getattr(CFG, "PAIR_DIR_RE", r"^.+_.+$")
+if hasattr(_pair_re, "match"):
+    PAIR_DIR_RE = _pair_re
+else:
+    PAIR_DIR_RE = re.compile(str(_pair_re))
+
+PUBLISH_BASE = TABLES_RES / Path(_PER_PAIR_PUBLISH_SUBDIR)  # e.g., docs/HTML/figs
+
+# --- Optional per-pair table helper (import from either path) ---
 build_pair_cluster_table = None
 try:
     from Analysis.postprocess_unified import build_pair_cluster_table  # type: ignore
@@ -16,8 +57,6 @@ except Exception:
         from postprocess_unified import build_pair_cluster_table  # type: ignore
     except Exception:
         build_pair_cluster_table = None
-
-DEFAULT_OUTPUT_DIR = ROOT / "docs" / "HTML"
 
 
 def _pair_tokens(pair_id: str) -> tuple[str, str]:
@@ -29,7 +68,8 @@ def _pair_tokens(pair_id: str) -> tuple[str, str]:
 
 
 def _fig_dir_for_pair(pair_id: str) -> Path:
-    return ROOT / "Pipeline" / pair_id / "output_figs"
+    # DATA_DIR/<pair>/output_figs
+    return Path(DATA_DIR) / pair_id / "output_figs"
 
 
 def _find_first(fig_dir: Path, patterns: list[str]) -> Path | None:
@@ -91,10 +131,11 @@ class PageBuilder:
 <div class="sub"><b>{html.escape(a)}</b> vs <b>{html.escape(b)}</b></div>
 """
 
-    def fig_html(self, data_uri: str, caption: str) -> str:
+    def fig_html(self, img_src: str, caption: str) -> str:
+        """img_src is either a data: URI or a relative path (for published mode)."""
         self.fig_idx += 1
         cap = f"Figure {self.fig_idx}. {html.escape(caption)}"
-        return f"""<figure><img src="{data_uri}"/><figcaption>{cap}</figcaption></figure>"""
+        return f"""<figure><img src="{img_src}"/><figcaption>{cap}</figcaption></figure>"""
 
     def missing_html(self, label: str) -> str:
         return f"""<div class="warn">[missing] {html.escape(label)}</div>"""
@@ -111,49 +152,90 @@ class PageBuilder:
 </body></html>"""
 
 
-def _figure_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], caption: str):
-    p = _find_first(fig_dir, patterns)
-    if not p or not p.is_file():
-        pb.push(pb.missing_html(caption))
-        return
-    data_uri = _data_uri_for_file(p)
-    if data_uri is None:
-        pb.push(pb.missing_html(f"{caption} (unreadable: {p.name})"))
-        return
-    pb.push(pb.fig_html(data_uri, caption))
+def _to_img_src(png_path: Path, mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
+    """
+    Return img src for the chosen mode:
+      - inline: data: URI (base64)
+      - copy:   copy to publish_dir_for_pair and return relative path from html_out_dir
+      - link:   assume already present in publish_dir_for_pair; just return relative path
+    """
+    if mode == "inline":
+        return _data_uri_for_file(png_path)
+    publish_dir_for_pair.mkdir(parents=True, exist_ok=True)
+    dest_path = publish_dir_for_pair / png_path.name
+    if mode == "copy":
+        try:
+            shutil.copy2(png_path, dest_path)
+        except Exception:
+            return None
+    # relative URL from HTML output dir to dest_path
+    rel_src = os.path.relpath(dest_path, start=html_out_dir).replace("\\", "/")
+    return rel_src
+
+
+def _figure_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], caption: str,
+                          mode: str, publish_dir_for_pair: Path, html_out_dir: Path):
+    import glob
+    png_path = None
+    for pat in patterns:
+        cands = sorted(glob.glob(str(fig_dir / pat)))
+        if cands:
+            png_path = Path(cands[0])
+            break
+    if not png_path or not png_path.is_file():
+        pb.push(pb.missing_html(caption)); return
+    src = _to_img_src(png_path, mode, publish_dir_for_pair, html_out_dir)
+    if src is None:
+        pb.push(pb.missing_html(f"{caption} (unreadable: {png_path.name})")); return
+    pb.push(pb.fig_html(src, caption))
 
 
 def _two_figures(pb: PageBuilder, fig_dir: Path, left_patterns: list[str], left_caption: str,
-                 right_patterns: list[str], right_caption: str, fallback_right: list[str] | None = None,
-                 fallback_left: list[str] | None = None):
-    lp = _find_first(fig_dir, left_patterns)
-    rp = _find_first(fig_dir, right_patterns)
+                 right_patterns: list[str], right_caption: str, fallback_right: list[str] | None,
+                 fallback_left: list[str] | None, mode: str, publish_dir_for_pair: Path, html_out_dir: Path):
+    import glob
+    def find_one(pats):
+        for pat in (pats or []):
+            cands = sorted(glob.glob(str(fig_dir / pat)))
+            if cands: return Path(cands[0])
+        return None
 
-    if lp is None and fallback_left:
-        lp = _find_first(fig_dir, fallback_left)
-        if lp: left_caption += " (fallback)"
+    lp = find_one(left_patterns) or find_one(fallback_left)
+    rp = find_one(right_patterns) or find_one(fallback_right)
 
-    if rp is None and fallback_right:
-        rp = _find_first(fig_dir, fallback_right)
-        if rp: right_caption += " (fallback)"
+    if lp is None and rp is None:
+        pb.push(pb.missing_html(left_caption + " / " + right_caption)); return
 
-    left_html = pb.missing_html(left_caption) if lp is None else pb.fig_html(_data_uri_for_file(lp) or "", left_caption)
-    right_html = pb.missing_html(right_caption) if rp is None else pb.fig_html(_data_uri_for_file(rp) or "", right_caption)
+    left_html = pb.missing_html(left_caption)
+    right_html = pb.missing_html(right_caption)
+    if lp is not None:
+        lsrc = _to_img_src(lp, mode, publish_dir_for_pair, html_out_dir)
+        if lsrc: left_html = pb.fig_html(lsrc, left_caption + ("" if lp.name.find("all_clusters") == -1 else " (fallback)"))
+    if rp is not None:
+        rsrc = _to_img_src(rp, mode, publish_dir_for_pair, html_out_dir)
+        if rsrc: right_html = pb.fig_html(rcsrc := rsrc, right_caption + ("" if rp.name.find("all_clusters") == -1 else " (fallback)"))
+
     pb.push(pb.two_up_html(left_html, right_html))
 
 
-def render_pair_html(pair_id: str, output_dir: Path) -> Path:
+def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Path:
+    """
+    mode: 'inline' (default), 'copy', or 'link'
+    """
+    assert mode in ("inline", "copy", "link")
     fig_dir = _fig_dir_for_pair(pair_id)
     output_dir.mkdir(parents=True, exist_ok=True)
     out_html = output_dir / f"{pair_id}.html"
 
+    publish_dir_for_pair = PUBLISH_BASE / pair_id  # e.g., docs/HTML/figs/<pair>
     pb = PageBuilder(title=f"Analysis of {pair_id}")
     pb.push(pb.header(pair_id))
 
     # 1) Tree + heatmap (exactly once)
     _figure_from_patterns(pb, fig_dir,
                           [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
-                          "Phylogenetic tree with per-cluster heatmap.")
+                          "Phylogenetic tree with per-cluster heatmap.",
+                          mode, publish_dir_for_pair, output_dir)
 
     # 2) Side-by-side: Deep-only cmaps vs Best clusters (fallbacks to 'all')
     _two_figures(pb, fig_dir,
@@ -163,35 +245,38 @@ def render_pair_html(pair_id: str, output_dir: Path) -> Path:
                  right_caption="Best clusters contact map panel",
                  fallback_left=[f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
                  fallback_right=[f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
-                 )
+                 mode=mode, publish_dir_for_pair=publish_dir_for_pair, html_out_dir=output_dir)
 
     # 3) All clusters mosaic (below)
     _figure_from_patterns(pb, fig_dir,
                           [f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
-                          "All clusters contact-map mosaic (small multiples).")
+                          "All clusters contact-map mosaic (small multiples).",
+                          mode, publish_dir_for_pair, output_dir)
 
     # 4) Native structures (up to 2), self-alignment, fold1↔fold2 overlay
     shown_native = 0
     for pat in [f"{pair_id}_true_*.png", f"{pair_id}_native_*.png", "*true*.png", "*native*.png"]:
         p = _find_first(fig_dir, [pat])
         if p and p.is_file():
-            data_uri = _data_uri_for_file(p)
-            if data_uri:
+            src = _to_img_src(p, mode, publish_dir_for_pair, output_dir)
+            if src:
                 shown_native += 1
-                pb.push(pb.fig_html(data_uri, f"Native/true structure {shown_native}"))
+                pb.push(pb.fig_html(src, f"Native/true structure {shown_native}"))
                 if shown_native >= 2: break
     if shown_native == 0:
         pb.push(pb.missing_html("Native/true structures"))
 
     p_self = _find_first(fig_dir, [f"{pair_id}_fold1_self.png", "*self*align*.png", "*self*.png"])
     if p_self and p_self.is_file():
-        pb.push(pb.fig_html(_data_uri_for_file(p_self) or "", "Sanity check: self-alignment ~ TM≈1"))
+        src = _to_img_src(p_self, mode, publish_dir_for_pair, output_dir)
+        if src: pb.push(pb.fig_html(src, "Sanity check: self-alignment ~ TM≈1"))
     else:
         pb.push(pb.missing_html("Self-alignment (sanity)"))
 
     p_f12 = _find_first(fig_dir, [f"{pair_id}_3d_aligned.png", "*fold1*to*fold2*.png", "*f1*f2*align*.png", "*overlay*fold*1*2*.png"])
     if p_f12 and p_f12.is_file():
-        pb.push(pb.fig_html(_data_uri_for_file(p_f12) or "", "Fold1 aligned to Fold2 (3D overlay)."))
+        src = _to_img_src(p_f12, mode, publish_dir_for_pair, output_dir)
+        if src: pb.push(pb.fig_html(src, "Fold1 aligned to Fold2 (3D overlay)."))
     else:
         pb.push(pb.missing_html("Fold1↔Fold2 alignment image"))
 
@@ -199,7 +284,8 @@ def render_pair_html(pair_id: str, output_dir: Path) -> Path:
     for tag in ["AF2","AF3","ESM2","ESM3","AF","ESM"]:
         p = _find_first(fig_dir, [f"{pair_id}_fold_pair_scatter_plot_{tag}.png", f"fold_pair_scatter_plot_{tag}.png", f"*{tag}*scatter*plot*.png"])
         if p and p.is_file():
-            pb.push(pb.fig_html(_data_uri_for_file(p) or "", f"{tag} diagnostic scatter vs. truth"))
+            src = _to_img_src(p, mode, publish_dir_for_pair, output_dir)
+            if src: pb.push(pb.fig_html(src, f"{tag} diagnostic scatter vs. truth"))
 
     # 6) Per-pair cluster table
     if build_pair_cluster_table:
@@ -209,11 +295,10 @@ def render_pair_html(pair_id: str, output_dir: Path) -> Path:
             df = None
             pb.push(f"""<div class="warn">[warn] Could not build per-pair cluster table: {html.escape(str(e))}</div>""")
         if df is not None and not df.empty:
+            # Round numerical columns
             for c in df.columns:
-                try:
-                    df[c] = df[c].astype(float).round(2)
-                except Exception:
-                    pass
+                try: df[c] = df[c].astype(float).round(2)
+                except Exception: pass
             pb.push("<h2>Cluster metrics table</h2>")
             thead = "<tr>" + "".join(f"<th>{html.escape(str(c))}</th>" for c in df.columns) + "</tr>"
             rows = []
@@ -235,26 +320,31 @@ def render_pair_html(pair_id: str, output_dir: Path) -> Path:
 
 
 def _discover_pairs() -> list[str]:
+    """Find pair directories under DATA_DIR that match the configured regex and contain output_figs/."""
     pairs = []
-    pipedir = ROOT / "Pipeline"
+    pipedir = Path(DATA_DIR)
     if not pipedir.is_dir():
         return pairs
     for d in pipedir.iterdir():
         if not d.is_dir(): continue
-        if (d / "output_figs").is_dir():
+        if not (d / "output_figs").is_dir(): continue
+        if PAIR_DIR_RE.match(d.name):
             pairs.append(d.name)
     return sorted(pairs)
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Generate per-pair HTML pages (self-contained with inline images).")
+    ap = argparse.ArgumentParser(description="Generate per-pair HTML pages using config paths.")
     ap.add_argument("--pairs", type=str, required=True,
                     help="Comma-separated pair IDs (e.g., 2qqjA_4qdsA,1abcX_2defY) or 'ALL'.")
-    ap.add_argument("--output_dir", type=str, default=str(DEFAULT_OUTPUT_DIR),
-                    help="Directory to write HTML pages (default: docs/HTML).")
+    ap.add_argument("--mode", choices=["inline","copy","link"], default="inline",
+                    help="How to include images in HTML. 'inline' embeds base64; 'copy' copies to docs/HTML/figs/<pair>; 'link' assumes already copied.")
+    ap.add_argument("--output_dir", type=str, default=str(OUTPUT_PATH_NOTEBOOKS),
+                    help="Directory to write HTML pages (default: config.OUTPUT_PATH_NOTEBOOKS).")
     args = ap.parse_args()
 
     output_dir = Path(args.output_dir).resolve()
+
     if args.pairs.strip().upper() == "ALL":
         pairs = _discover_pairs()
     else:
@@ -263,12 +353,16 @@ def main():
     if not pairs:
         print("[gen_pair_html] No pairs to render.", file=sys.stderr); sys.exit(1)
 
+    # Warn if copying/linking while config says not to publish (not fatal)
+    if args.mode in ("copy","link") and not PUBLISH_FIGURES_DEFAULT:
+        print("[gen_pair_html] WARNING: config.PUBLISH_FIGURES is False; proceeding anyway.", file=sys.stderr)
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     ok, bad = [], []
     for pair_id in pairs:
         try:
-            out = render_pair_html(pair_id, output_dir)
+            out = render_pair_html(pair_id, output_dir, mode=args.mode)
             print(f"[gen_pair_html] wrote: {out}")
             ok.append(pair_id)
         except Exception as e:
@@ -278,7 +372,6 @@ def main():
     if bad:
         print(f"[gen_pair_html] Completed with {len(bad)} errors: {', '.join(bad)}", file=sys.stderr)
         sys.exit(2)
-
 
 if __name__ == "__main__":
     main()
