@@ -1268,28 +1268,60 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[reports] WARN building global plots page: {e}")
 
-    # 3) Per-pair HTML notebook pages
+    # 3) Per-pair HTML pages (new generator)
     if args.reports in ("html", "all"):
         try:
             # keep only pairs that already have per-pair postprocess outputs
             ready = []
-            for p in (norm_pairs if pairs_arg is not None else [d.name for d in Path(DATA_DIR).iterdir() if d.is_dir()]):
+            for p in (
+            norm_pairs if pairs_arg is not None else [d.name for d in Path(DATA_DIR).iterdir() if d.is_dir()]):
                 if os.path.isfile(f"Pipeline/{p}/Analysis/df_af.csv"):
                     ready.append(p)
                 else:
                     print(f"[html] skip {p}: missing Pipeline/{p}/Analysis/df_af.csv")
 
             if not ready:
-                print("[html] no ready pairs; skipping notebook generation")
+                print("[html] no ready pairs; skipping per-pair HTML generation")
             else:
+                mode = getattr(args, "html_mode", "inline")
+                outdir = OUTPUT_PATH_NOTEBOOKS  # from config.py
+                script = Path("TableResults/gen_pair_html.py")
+
+                # If user said ALL at CLI we respect that; otherwise pass explicit list
+                pairs_arg_str = "ALL" if pairs_arg is None else ",".join(ready)
+
+                cmd = (
+                    f"{shlex.quote(sys.executable)} {shlex.quote(str(script))} "
+                    f"--pairs {shlex.quote(pairs_arg_str)} "
+                    f"--mode {shlex.quote(mode)} "
+                    f"--output_dir {shlex.quote(str(outdir))}"
+                )
+
                 if args.run_job_mode == "sbatch":
-                    for p in ready:
-                        _submit_notebook_job(p, kernel="python3", args=args)
-                    print(f"[html] submitted {len(ready)} notebook jobs via sbatch")
+                    jobs_dir = Path("Pipeline/jobs");
+                    jobs_dir.mkdir(parents=True, exist_ok=True)
+                    log = jobs_dir / f"genhtml_{mode}.out"
+                    cpus = getattr(args, "html_cpus", 2)
+                    mem = getattr(args, "html_mem", "4G")
+                    time = getattr(args, "html_time", "02:00:00")
+                    part = getattr(args, "html_partition", None)
+
+                    sbatch = [
+                        "sbatch",
+                        f"--job-name=genhtml",
+                        f"--cpus-per-task={cpus}",
+                        f"--mem={mem}",
+                        f"--time={time}",
+                        f"--output={log}",
+                        "--parsable",
+                        "--wrap", shlex.quote(cmd),
+                    ]
+                    if part: sbatch.insert(1, f"--partition={part}")
+                    subprocess.run(" ".join(sbatch), shell=True, check=True)
+                    print(f"[html] submitted gen_pair_html job for {pairs_arg_str} (mode={mode})")
                 else:
-                    pairs_arg_str = " ".join(ready)
-                    cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {pairs_arg_str} --kernel python3"
-                    subprocess.run(cmd, shell=True, check=True, env=_jupyter_env_for_scratch())
+                    subprocess.run(cmd, shell=True, check=True)
+                    print(f"[html] generated pages for {pairs_arg_str} (mode={mode})")
         except Exception as e:
             print(f"[reports] WARN per-pair HTML generation: {e}")
 
@@ -1444,6 +1476,7 @@ def main():
 
     p.add_argument("--run_job_mode", default="inline", choices=["inline", "sbatch"])
 
+
     # AlphaFold options
     p.add_argument("--allow_inline_af", action="store_true",
                     help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
@@ -1492,6 +1525,12 @@ def main():
                    help="Post-run reporting: 'tables' builds CSV+HTML tables, 'html' builds per-pair pages, 'all' does both.")
     p.add_argument("--html_pairs", nargs="+", default=["ALL"],
                    help="Pairs to render per-pair HTML for (defaults to ALL).")
+    p.add_argument("--html_mode", choices=["inline", "copy", "link"], default="inline",
+                   help=(
+                       "How per-pair HTML includes images: "
+                       "'inline' = base64 embed (single self-contained file), "
+                       "'copy' = copy PNGs to publish dir and link them, "
+                       "'link' = assume figures already published (no copying)."))
 
 
     # Pipeline-wide force flag
