@@ -410,28 +410,38 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
 
 def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
     """Save (1) two_structures.png (unaligned) and (2) two_structures_aligned.png."""
-
-    out_two_structures_fig_file = os.path.join(out_dir, f"{out_prefix}_two_structures.png")
-    out_two_structures_aligned_fig_file = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png")
+    out_two = os.path.join(out_dir, f"{out_prefix}_two_structures.png")
+    out_aln = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png")
+    os.makedirs(out_dir, exist_ok=True)
 
     if not PYMOL_AVAILABLE:
         if PYMOL_BIN:
-            # CLI fallback: build a short .pml and call _pymol_cli_render(...)
+            p1 = os.path.join(pair_dir, pdb1)
+            p2 = os.path.join(pair_dir, pdb2)
             script = f"""
-                load {pdb1}, fold1
-                load {pdb2}, fold2
-                color red, fold1
-                color blue, fold2
-                zoom all, 10
-                png {out_two_structures_fig_file}, dpi=200
-                align fold2, fold1
-                png {out_two_structures_aligned_fig_file}, dpi=200
-                """
+reinitialize
+load "{p1}", fold1
+load "{p2}", fold2
+color red, fold1
+color blue, fold2
+bg_color white
+zoom all, 10
+png {out_two}, dpi=200
+align fold2, fold1
+png {out_aln}, dpi=200
+quit
+""".lstrip()
             _pymol_cli_render(script)
+            # sanity check (PyMOL may return 0 even if png failed)
+            for p in (out_two, out_aln):
+                if not (os.path.isfile(p) and os.path.getsize(p) > 1000):
+                    print(f"[3D] WARN: expected output not written: {p}")
+            return
         else:
             print("[PyMOL] skipped (neither import nor CLI available)")
             return
 
+    # ---- Python API path ----
     pymol.finish_launching(['pymol', '-cq'])
     try:
         cmd.delete('all')
@@ -439,12 +449,14 @@ def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
         cmd.load(os.path.join(pair_dir, pdb2), 'fold2')
         cmd.color('red',  'fold1')
         cmd.color('blue', 'fold2')
+        cmd.bg_color('white')
         cmd.zoom('all', buffer=10)
-        cmd.png(out_two_structures_fig_file)
+        cmd.png(out_two, dpi=200)
         cmd.align('fold2', 'fold1')
-        cmd.png(out_two_structures_aligned_fig_file)
+        cmd.png(out_aln, dpi=200)
     finally:
         cmd.quit()
+
 
 
 def _best_cluster_from_df(pair_id: str, model_ver: str, fold_idx: int) -> str | None:
@@ -811,89 +823,63 @@ def make_foldswitch_all_plots(
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores
 
 
-
-# Align two pdb structures from two pdb files
 # Align two pdb structures from two pdb files
 def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environment=True):
     """
     Align two protein structures and save the visualization as an image.
     Uses PyMOL Python API if available; otherwise falls back to PyMOL CLI via PYMOL_BIN.
-
-    Args:
-        pdb_file1 (str): Path to the first PDB file (reference).
-        pdb_file2 (str): Path to the second PDB file (will be aligned to the first).
-        output_file (str): Path to save the output PNG image.
-        open_environment (bool): If True and PyMOL API is used, start/quit a PyMOL session.
     """
-    # Ensure output directory exists
     out_dir = os.path.dirname(os.path.abspath(output_file)) or "."
     os.makedirs(out_dir, exist_ok=True)
 
     if PYMOL_AVAILABLE:
-        # ---- Python API path ----
         try:
             if open_environment:
-                # '-c' = no GUI, '-q' = quiet
                 pymol.finish_launching(['pymol', '-cq'])
-
-            # Clean slate
             cmd.delete('all')
-
-            # Load files
             cmd.load(pdb_file1, 'protein1')
             cmd.load(pdb_file2, 'protein2')
-
-            # Align and style
             cmd.align('protein2', 'protein1')
             cmd.color('red', 'protein1')
             cmd.color('blue', 'protein2')
             cmd.bg_color('white')
             cmd.zoom('all', buffer=10)
-
-            # Save PNG (dpi ~ publication-ish; avoid ray here to keep it fast)
             cmd.png(output_file, dpi=200)
-
         finally:
             if open_environment:
-                try:
-                    cmd.quit()
-                except Exception:
-                    pass
+                try: cmd.quit()
+                except Exception: pass
         return
 
-    # ---- CLI fallback path ----
+    # ---- CLI fallback ----
     PYMOL_BIN = os.environ.get("PYMOL_BIN")
     if not PYMOL_BIN:
-        raise RuntimeError(
-            "PyMOL module not available and PYMOL_BIN not set. "
-            "Set PYMOL_BIN to your pymol executable (e.g., /sci/.../pymol-venv/bin/pymol)."
-        )
+        raise RuntimeError("PyMOL module not available and PYMOL_BIN not set.")
 
-    # Build a small PML script; quote paths to be safe
-    def _q(p):  # quote
-        return '"' + str(p).replace('"', '\\"') + '"'
+    p1 = os.path.abspath(pdb_file1)
+    p2 = os.path.abspath(pdb_file2)
+    out = os.path.abspath(output_file)
 
+    # Keep quotes for load paths (safe), but **no quotes** for png target.
     script = f"""
 reinitialize
-load {_q(pdb_file1)}, protein1
-load {_q(pdb_file2)}, protein2
+load "{p1}", protein1
+load "{p2}", protein2
 align protein2, protein1
 color red, protein1
 color blue, protein2
 bg_color white
 zoom all, 10
 set antialias, 2
-png {_q(output_file)}, dpi=200
+png {out}, dpi=200
 quit
 """.lstrip()
 
-    # Prefer your shared helper if it exists; otherwise run here
     if '_pymol_cli_render' in globals() and callable(globals()['_pymol_cli_render']):
         _pymol_cli_render(script)
     else:
         with tempfile.NamedTemporaryFile("w", suffix=".pml", delete=False) as tf:
-            tf.write(script)
-            tf.flush()
+            tf.write(script); tf.flush()
             cmdline = f"{shlex.quote(PYMOL_BIN)} -cq {shlex.quote(tf.name)}"
             subprocess.run(cmdline, shell=True, check=True)
 
