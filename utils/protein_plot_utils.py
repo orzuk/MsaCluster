@@ -499,9 +499,24 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
 
     # --- 3) Deep-only panel ---
     deep_key = None
-    for k in (match_predicted_cmaps or {}).keys():
-        if "deep" in str(k).lower() or _normalize_cluster_tag(str(k)) == "DeepMsa":
-            deep_key = k; break
+    # exact key first (your files produce 'MSA_deep')
+    if "MSA_deep" in match_predicted_cmaps:
+        deep_key = "MSA_deep"
+    else:
+        # simple substring match
+        for k in match_predicted_cmaps.keys():
+            if "deep" in str(k).lower():
+                deep_key = k
+                break
+        # or canonical 'DeepMsa'
+        if deep_key is None:
+            try:
+                deep_key = next(
+                    k for k in match_predicted_cmaps.keys()
+                    if _normalize_cluster_tag(str(k)) == "DeepMsa"
+                )
+            except StopIteration:
+                deep_key = None
 
     if deep_key is None:
         print("[plot] no 'deep' cluster found -> skipping deep panel")
@@ -613,6 +628,77 @@ def _best_cluster_from_df(pair_id: str, model_ver: str, fold_idx: int) -> str | 
     if m:
         return f"ShallowMsa_{int(m.group(0)):03d}"
     return tag
+
+
+
+def _best_esm_from_df(pair_id: str, model_ver: str, fold_idx: int):
+    """
+    Return (cluster_tag, sample_idx) for the best TMscore in df_esm.csv
+    for ESM{model_ver} and fold_idx in {0,1}.
+    """
+    import pandas as pd, numpy as np, re
+    df_path = os.path.join('Pipeline', pair_id, 'Analysis', 'df_esm.csv')
+    if not os.path.isfile(df_path):
+        return None
+    d = pd.read_csv(df_path)
+
+    # Keep only this ESM model if a 'model' column exists
+    want = f"ESM{model_ver}".upper()
+    if 'model' in d.columns:
+        d = d[d['model'].astype(str).str.upper() == want]
+        if d.empty:
+            return None
+
+    # Score column for fold1/fold2
+    score_col = 'TMscore_fold1' if fold_idx == 0 else 'TMscore_fold2'
+    if score_col not in d.columns or d[score_col].isna().all():
+        return None
+
+    row = d.loc[d[score_col].astype(float).fillna(-np.inf).idxmax()]
+
+    # Cluster tag -> canonical form (e.g. 'ShallowMsa_019')
+    if 'cluster_num' in d.columns and pd.notna(row['cluster_num']):
+        tag_raw = str(row['cluster_num']).strip()
+    elif 'cluster' in d.columns and pd.notna(row['cluster']):
+        tag_raw = str(row['cluster']).strip()
+    else:
+        return None
+    cluster_tag = _normalize_cluster_tag(tag_raw)
+
+    # Sample index (expect one of these columns; default to 1 if absent)
+    sample_col = next((c for c in ('sample', 'sample_id', 'sample_num') if c in d.columns), None)
+    sample_idx = int(row[sample_col]) if sample_col and pd.notna(row[sample_col]) else 1
+
+    return cluster_tag, sample_idx
+
+
+def _render_true_vs_best_esm(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str, model_ver='2'):
+    """
+    For each fold, overlay true structure vs best ESM{ver} prediction.
+    ESM PDBs live in: Pipeline/<pair>/output_esm_fold/esm{ver}/ShallowMsa_XXX__sample_YYY_esm{ver}.pdb
+    """
+    for idx in (0, 1):
+        picked = _best_esm_from_df(pair_id, model_ver, idx)
+        if not picked:
+            print(f"[3D] no best row in df_esm.csv for ESM{model_ver}, fold{idx+1}")
+            continue
+        cluster_tag, sample_idx = picked
+
+        true_pdb = os.path.join('Pipeline', pair_id, f"{pdbids[idx]}.pdb")
+        pred_pdb = os.path.join(
+            'Pipeline', pair_id, 'output_esm_fold', f"esm{model_ver}",
+            f"{cluster_tag}__sample_{sample_idx:03d}_esm{model_ver}.pdb"
+        )
+        if not (os.path.isfile(true_pdb) and os.path.isfile(pred_pdb)):
+            print(f"[3D] missing PDB for ESM{model_ver}: {true_pdb} / {pred_pdb}")
+            continue
+
+        out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_ESM{model_ver}.png")
+        try:
+            align_and_visualize_proteins(true_pdb, pred_pdb, out, open_environment=True)
+            print(f"[3D] wrote {out}")
+        except Exception as e:
+            print(f"[3D] ESM{model_ver} fold{idx+1} overlay failed: {e}")
 
 
 def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchains: list[str],
@@ -929,9 +1015,21 @@ def make_foldswitch_all_plots(
     _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='2')
     _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='3')
 
-    # ESM2 / ESM3  (NEW)
-    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='2')
-    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='3')
+#    # ESM2 / ESM3  (NEW)
+#    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='2')
+#    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='3')
+
+    # ESM2
+    try:
+        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2')
+    except Exception as e:
+        print(f"[3D] ESM2 overlays failed: {e}")
+
+    # ESM3
+    try:
+        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3')
+    except Exception as e:
+        print(f"[3D] ESM3 overlays failed: {e}")
 
 
 
