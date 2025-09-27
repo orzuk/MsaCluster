@@ -1166,6 +1166,7 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
             plot_tree_clusters=bool(plot_trees),
             plot_contacts=True,
             global_plots=False,   # global is handled outside this loop
+            plot3dformat=args.plot3dformat  # allow interactive 3D plots
         )
 
 
@@ -1519,6 +1520,8 @@ def main():
     p.add_argument("--plot_trees",   type=str2bool, nargs="?", const=True, default=False)
     p.add_argument("--plot_scope", choices=["pair", "global", "both"], default="both",
                 help="In --run_mode plot: generate pair-specific plots only, global plots only, or both.")
+    p.add_argument('--plot3dformat', default='static', choices = ['static', 'interactive', 'both'],
+                help = '3D figure format: PNG (static), HTML (interactive), or both')
 
     # Output html tables and pages
     p.add_argument("--reports", default="none", choices=["none", "tables", "html", "all"],

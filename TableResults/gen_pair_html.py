@@ -76,6 +76,21 @@ STRUCT_PATTERNS = {
     "fold2_vs_best_ESM3": ["*fold2*best*ESM3*.png", "*ESM3*best*fold2*.png", "*fold2*ESM3*best*.png"],
 }
 
+# Interactive 3D viewer patterns (.html saved by the plotting code)
+HTML_STRUCT_PATTERNS = {
+    "two_structures_aligned_html": ["*two*structures*aligned*.html", "*aligned*true*true*.html", "*aligned*.html"],
+    "fold1_vs_best_AF2_html": ["*fold1*best*AF2*.html"],
+    "fold2_vs_best_AF2_html": ["*fold2*best*AF2*.html"],
+    "fold1_vs_best_AF3_html": ["*fold1*best*AF3*.html"],
+    "fold2_vs_best_AF3_html": ["*fold2*best*AF3*.html"],
+    "fold1_vs_best_ESM2_html": ["*fold1*best*ESM2*.html"],
+    "fold2_vs_best_ESM2_html": ["*fold2*best*ESM2*.html"],
+    "fold1_vs_best_ESM3_html": ["*fold1*best*ESM3*.html"],
+    "fold2_vs_best_ESM3_html": ["*fold2*best*ESM3*.html"],
+}
+
+
+
 # --- Optional per-pair table helper ---
 build_pair_cluster_table = None
 try:
@@ -85,6 +100,7 @@ except Exception:
         from postprocess_unified import build_pair_cluster_table  # type: ignore
     except Exception:
         build_pair_cluster_table = None
+
 
 
 def _pair_tokens(pair_id: str) -> tuple[str, str]:
@@ -135,6 +151,27 @@ def _data_uri_for_file(p: Path) -> str | None:
         return None
 
 
+def _data_uri_for_html_file(p: Path) -> str | None:
+    try:
+        b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+        return f"data:text/html;base64,{b64}"
+    except Exception:
+        return None
+
+def _to_html_src(html_path: Path, mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
+    if mode == "inline":
+        return _data_uri_for_html_file(html_path)
+    publish_dir_for_pair.mkdir(parents=True, exist_ok=True)
+    dest_path = publish_dir_for_pair / html_path.name
+    if mode == "copy":
+        try:
+            shutil.copy2(html_path, dest_path)
+        except Exception:
+            return None
+    rel_src = os.path.relpath(dest_path, start=html_out_dir).replace("\\", "/")
+    return rel_src
+
+
 class PageBuilder:
     def __init__(self, title: str):
         self.title = title
@@ -174,6 +211,9 @@ class PageBuilder:
   tr:nth-child(even) {{ background: #2b2b2b; }}
   tr:hover {{ background: #3a3a3a; }}
 
+ .iframebox {{ width: 100%; height: 820px; border:1px solid #333; background:#fff; }}
+  iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
+
   /* Grid of per-cluster thumbnails */
   .thumb-grid {{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }}
   .thumb-grid figure {{ margin:0; }}
@@ -210,6 +250,25 @@ class PageBuilder:
 <title>{html.escape(self.title)}</title>{self.css()}</head><body>
 {''.join(self.parts)}
 </body></html>"""
+
+    def fig_iframe(self, iframe_src: str, caption: str) -> str:
+        self.fig_idx += 1
+        cap = f"Figure {self.fig_idx}. {html.escape(caption)}"
+        return f"""<div><div class="iframebox">
+<iframe class="viewer" src="{iframe_src}"></iframe>
+</div><figcaption>{cap}</figcaption></div>"""
+
+
+def _iframe_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], caption: str,
+                          mode: str, publish_dir_for_pair: Path, html_out_dir: Path):
+    p = _find_first(fig_dir, patterns)
+    if not p or not p.is_file():
+        pb.push(pb.missing_html(caption)); return
+    src = _to_html_src(p, mode, publish_dir_for_pair, html_out_dir)
+    if src is None:
+        pb.push(pb.missing_html(f"{caption} (unreadable: {p.name})")); return
+    pb.push(pb.fig_iframe(src, caption))
+
 
 
 def _to_img_src(png_path: Path, mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
@@ -325,9 +384,26 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
             # Bold callout for missing items (as requested)
             pb.push(pb.callout_missing(f"Missing: {nice}"))
 
+    # 3D INTERACTIVE VIEWERS (if present)
+    _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS["two_structures_aligned_html"],
+                          "Two structures aligned — interactive", mode, publish_dir_for_pair, output_dir)
+
+    for tag, nice in [
+        ("fold1_vs_best_AF2_html", "Fold1 vs best AF2 — interactive"),
+        ("fold2_vs_best_AF2_html", "Fold2 vs best AF2 — interactive"),
+        ("fold1_vs_best_AF3_html", "Fold1 vs best AF3 — interactive"),
+        ("fold2_vs_best_AF3_html", "Fold2 vs best AF3 — interactive"),
+        ("fold1_vs_best_ESM2_html", "Fold1 vs best ESM2 — interactive"),
+        ("fold2_vs_best_ESM2_html", "Fold2 vs best ESM2 — interactive"),
+        ("fold1_vs_best_ESM3_html", "Fold1 vs best ESM3 — interactive"),
+        ("fold2_vs_best_ESM3_html", "Fold2 vs best ESM3 — interactive"),
+    ]:
+        _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS[tag], nice, mode, publish_dir_for_pair, output_dir)
+
     # ===== ORDER 2: CMAPS (Deep vs Best side-by-side, then ALL) =====
     _two_figures(pb, fig_dir,
-                 left_patterns=[f"{pair_id}_deep_clusters_cmap.png", "*deep*clusters*cmap*.png", "*Deep*cmaps*.png"],
+                 left_patterns=[f"{pair_id}_deep_cmap.png", f"{pair_id}_deep_clusters_cmap.png",
+                                "*deep*_cmap*.png", "*deep*clusters*cmap*.png", "*Deep*cmaps*.png"],
                  left_caption="Deep-MSA contact map panel",
                  right_patterns=[f"{pair_id}_best_clusters_cmap.png", "*best*clusters*cmap*.png", "*best*cmaps*.png"],
                  right_caption="Best clusters contact map panel",

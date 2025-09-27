@@ -536,7 +536,7 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
     print("[plot] wrote", out)
 
 
-def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
+def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix, make_interactive: bool = False):
     """Save (1) two_structures.png and (2) two_structures_aligned.png, with legends."""
     out_two = os.path.join(out_dir, f"{out_prefix}_two_structures.png")
     out_aln = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png")
@@ -589,6 +589,21 @@ quit
         cmd.quit()
     _add_png_legend(out_two,  label_red, label_blue, title=None)
     _add_png_legend(out_aln,  label_red, label_blue, title=None)
+
+    # Optional interactive viewer (aligned)
+    if make_interactive:
+        try:
+            html_out = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.html")
+            write_py3dmol_overlay_html(
+                os.path.join(pair_dir, pdb1),
+                os.path.join(pair_dir, pdb2),
+                html_out,
+                left_label=label_red, right_label=label_blue,
+                title="True vs True (aligned)"
+            )
+            print(f"[3D] wrote {html_out}")
+        except Exception as e:
+            print(f"[3D] true-true interactive failed: {e}")
 
 
 
@@ -672,7 +687,8 @@ def _best_esm_from_df(pair_id: str, model_ver: str, fold_idx: int):
     return cluster_tag, sample_idx
 
 
-def _render_true_vs_best_esm(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str, model_ver='2'):
+def _render_true_vs_best_esm(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str,
+                             model_ver='2', make_interactive: bool=False):
     """
     For each fold, overlay true structure vs best ESM{ver} prediction.
     ESM PDBs live in: Pipeline/<pair>/output_esm_fold/esm{ver}/ShallowMsa_XXX__sample_YYY_esm{ver}.pdb
@@ -700,9 +716,23 @@ def _render_true_vs_best_esm(pair_id: str, pdbids: list[str], pdbchains: list[st
         except Exception as e:
             print(f"[3D] ESM{model_ver} fold{idx+1} overlay failed: {e}")
 
+        if make_interactive:
+            title = f"ESM{model_ver} (best): {_cluster_short_disp(cluster_tag)} sample {sample_idx:03d}"
+            html_out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_ESM{model_ver}.html")
+            try:
+                write_py3dmol_overlay_html(
+                    true_pdb, pred_pdb, html_out,
+                    left_label=f"{pdbids[idx]}{pdbchains[idx]}",
+                    right_label=f"ESM{model_ver}",
+                    title=title, color_left="red", color_right="blue"
+                )
+                print(f"[3D] wrote {html_out}")
+            except Exception as e:
+                print(f"[3D] ESM{model_ver} interactive failed: {e}")
+
 
 def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchains: list[str],
-                                        fig_dir_root: str, *, family: str, ver: str):
+                                        fig_dir_root: str, *, family: str, ver: str,  make_interactive: bool = False):
     """
     family='AF' or 'ESM'; ver='2' or '3'
     For each fold, overlay true structure vs best {family}{ver} prediction (CLI/API) and add legend/title.
@@ -743,6 +773,19 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
         except Exception as e:
             print(f"[3D] {model_tag} fold{idx+1} overlay failed: {e}")
 
+        if make_interactive:
+            html_out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_{model_tag}.html")
+            try:
+                write_py3dmol_overlay_html(
+                   true_pdb, pred_pdb, html_out,
+                    left_label=f"{pdbids[idx]}{pdbchains[idx]}",
+                    right_label=model_tag,
+                    title=title, color_left="red", color_right="blue"
+                )
+                print(f"[3D] wrote {html_out}")
+            except Exception as e:
+                print(f"[3D] {model_tag} interactive failed: {e}")
+
 
 # ----------- Plots Generation Functions -----------
 def write_py3dmol_overlay_html(pdb1: str, pdb2: str, out_html: str,
@@ -757,11 +800,34 @@ def write_py3dmol_overlay_html(pdb1: str, pdb2: str, out_html: str,
     v.zoomTo()
     with open(out_html, "w") as f: f.write(v._make_html())
 
+def write_py3dmol_overlay_html(pdb1: str, pdb2: str, out_html: str,
+    *, left_label: str = "Fold1", right_label: str = "Fold2",
+    title: str | None = None, color_left="red", color_right="blue",
+    width: int = 1000, height: int = 760
+):
+    import py3Dmol, html
+    v = py3Dmol.view(width=width, height=height)
+    with open(pdb1) as f: v.addModel(f.read(), 'pdb')
+    v.setStyle({'model': 0}, {'cartoon': {'color': color_left}})
+    with open(pdb2) as f: v.addModel(f.read(), 'pdb')
+    v.setStyle({'model': 1}, {'cartoon': {'color': color_right}})
+    v.setBackgroundColor('white')
+    v.zoomTo()
+    # simple legend labels in-scene
+    v.addLabel(f"Red: {left_label}",  {'fontColor':'black','backgroundColor':'white','fontSize':14})
+    v.addLabel(f"Blue: {right_label}", {'y':20,'fontColor':'black','backgroundColor':'white','fontSize':14})
+    html_body = v._make_html()
+    # wrap with a lightweight title bar (keeps page embedding simple)
+    header = f"<h3 style='font-family:sans-serif'>{html.escape(title) if title else ''}</h3>"
+    with open(out_html, "w") as f:
+        f.write(header + html_body)
+
+
 
 
 def make_foldswitch_all_plots(
     pdbids, fasta_dir, foldpair_id, pdbchains,
-    plot_tree_clusters: bool = False, plot_contacts: bool = True, global_plots: bool = False
+    plot_tree_clusters: bool = False, plot_contacts: bool = True, global_plots: bool = False, plot3dformat: str = 'static'
 ):
     """
     Create per-pair plots (contact maps, tree heatmaps, etc.)
@@ -1006,28 +1072,33 @@ def make_foldswitch_all_plots(
             pdb1=f"{pdbids[0]}.pdb",
             pdb2=f"{pdbids[1]}.pdb",
             out_dir=fig_dir_root,
-            out_prefix=foldpair_id
+            out_prefix=foldpair_id,
+            make_interactive=make_interactive
         )
     except Exception as e:
         print(f"[3D] true-true render failed: {e}")
 
+    make_interactive = plot3dformat in ('interactive', 'both')
+
     # AF2 / AF3
-    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='2')
-    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='3')
+#    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='2')
+#    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='3')
+
+    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF', ver='2',
+                                        make_interactive = make_interactive)
+    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF', ver='3',
+                                        make_interactive = make_interactive)
 
 #    # ESM2 / ESM3  (NEW)
-#    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='2')
-#    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='3')
-
     # ESM2
     try:
-        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2')
+        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2', make_interactive=make_interactive)
     except Exception as e:
         print(f"[3D] ESM2 overlays failed: {e}")
 
     # ESM3
     try:
-        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3')
+        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3', make_interactive=make_interactive)
     except Exception as e:
         print(f"[3D] ESM3 overlays failed: {e}")
 
