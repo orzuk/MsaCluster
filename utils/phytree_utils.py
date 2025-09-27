@@ -12,16 +12,26 @@ import pickle
 from pylab import *
 
 # Use ete3 package for visualization
-# from ete3 import *
-from ete3 import Tree
-from ete3.treeview import TreeStyle, NodeStyle, faces
+# from ete3 import Tree, TreeStyle, TextFace, RectFace, NodeStyle
+from ete3 import Tree, TreeStyle, NodeStyle, faces, AttrFace, TextFace, RectFace
+
+import os
+os.environ["XDG_RUNTIME_DIR"] = "/tmp"
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen") # os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+ETE_TREEVIEW_AVAILABLE = False
+try:
+    # Qt-dependent viewer/renderer
+    from ete3.treeview import TreeStyle, NodeStyle, faces
+    ETE_TREEVIEW_AVAILABLE = True
+except Exception as _e:
+    TreeStyle = NodeStyle = faces = None
+    print(f"[phytree] treeview unavailable ({_e}); tree plots will be skipped.")
+#except Exception as e:
+#    Tree = None
+#    print(f"[phytree] ETE3 import failed: {e}")
 
 from utils.msa_utils import *
-import os
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-os.environ["XDG_RUNTIME_DIR"] = "/tmp"
-
-from ete3 import TreeStyle, TextFace, RectFace, NodeStyle
 import numpy as np
 import pandas as pd
 from matplotlib.colors import Normalize, to_hex
@@ -31,6 +41,9 @@ from matplotlib.colorbar import ColorbarBase
 
 import matplotlib.pyplot as plt
 import re, random
+
+
+
 
 
 # ----- Helper functions -----
@@ -154,6 +167,10 @@ def phytree_from_msa(
     -------
     Biopython tree (also written to output_tree_file).
     """
+    if not ETE_TREEVIEW_AVAILABLE:
+        print("[phytree] skipping tree from msa render: PyQt5/Qt not available")
+        return
+
     if seed is not None:
         random.seed(int(seed))
 
@@ -671,7 +688,10 @@ def render_tree_to_png(
     Use ETE3's renderer to export the tree to a PNG. We then place this PNG
     inside a Matplotlib figure so layout with the heatmap is trivial & robust.
     """
-    from ete3 import TreeStyle, NodeStyle, faces, AttrFace, TextFace
+    if not ETE_TREEVIEW_AVAILABLE:
+        print("[phytree] skipping tree from msa render: PyQt5/Qt not available")
+        return
+
 
     ts = TreeStyle()
     ts.show_leaf_name = True
