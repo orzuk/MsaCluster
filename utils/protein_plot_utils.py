@@ -1,5 +1,6 @@
 from config import *
 import re, os
+import subprocess, shlex, tempfile
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
@@ -25,8 +26,20 @@ import math
 import pandas as pd
 import numpy as np
 
+# at top, near the PYMOL_AVAILABLE detection
+PYMOL_BIN = os.environ.get("PYMOL_BIN")  # path like /sci/.../pymol-venv/bin/pymol
+
 
 # === CSV loaders & builders ===
+def _pymol_cli_render(script_text: str):
+    if not PYMOL_BIN:
+        raise RuntimeError("PYMOL_BIN not set; cannot render via CLI.")
+    with tempfile.NamedTemporaryFile("w", suffix=".pml", delete=False) as tf:
+        tf.write(script_text)
+        tf.flush()
+        cmd = f"{shlex.quote(PYMOL_BIN)} -cq {shlex.quote(tf.name)}"
+        subprocess.run(cmd, shell=True, check=True)
+
 
 def _pair_analysis_dir(pair_id: str) -> str:
     return os.path.join("Pipeline", pair_id, "Analysis")
@@ -63,7 +76,6 @@ def _build_tmscores_from_pair_csvs(df_af, df_esm, cluster_index: list[str]) -> p
     Build columns (subset of): TM-AF1, TM-AF2, TM-ESM1, TM-ESM2
     Assumes the CSVs have: 'cluster_num', 'TMscore_fold1', 'TMscore_fold2'
     """
-    import pandas as pd
     out = pd.DataFrame(index=cluster_index)
 
     def _pick(df, prefix):
@@ -93,7 +105,6 @@ def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.Da
     We prefer MCC columns (common_mcc, uniq1_mcc, uniq2_mcc) and fall back to
     F1/recall/jaccard when MCC is missing. Rows are indexed by canonical cluster tags.
     """
-    import pandas as pd
     out = pd.DataFrame(index=cluster_index)
     if df_cmap is None or df_cmap.empty:
         return out
@@ -218,9 +229,6 @@ def _cluster_metrics_to_leaf_df(
     Map a cluster-indexed table -> leaf-indexed table (tree order).
     Optionally fill NaNs and/or drop leaves whose entire row is NaN.
     """
-    import pandas as pd
-    import numpy as np
-
     leaf_names = [n.name for n in ete_tree.iter_leaves()]
     rows = []
     keep = []
@@ -387,7 +395,6 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
         return
 
     # Render deep panel for the two folds (matched layout to 'best')
-    import matplotlib.pyplot as plt
     plt.figure(figsize=(10, 8))
     plot_foldswitch_contacts_and_predictions(
         predictions=match_predicted_cmaps[deep_key],  # tuple/list of [pred_f1, pred_f2]
@@ -403,10 +410,28 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
 
 def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
     """Save (1) two_structures.png (unaligned) and (2) two_structures_aligned.png."""
+
+    out_two_structures_fig_file = os.path.join(out_dir, f"{out_prefix}_two_structures.png")
+    out_two_structures_aligned_fig_file = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png")
+
     if not PYMOL_AVAILABLE:
-        return
-    import pymol
-    from pymol import cmd
+        if PYMOL_BIN:
+            # CLI fallback: build a short .pml and call _pymol_cli_render(...)
+            script = f"""
+                load {pdb1}, fold1
+                load {pdb2}, fold2
+                color red, fold1
+                color blue, fold2
+                zoom all, 10
+                png {out_two_structures_fig_file}, dpi=200
+                align fold2, fold1
+                png {out_two_structures_aligned_fig_file}, dpi=200
+                """
+            _pymol_cli_render(script)
+        else:
+            print("[PyMOL] skipped (neither import nor CLI available)")
+            return
+
     pymol.finish_launching(['pymol', '-cq'])
     try:
         cmd.delete('all')
@@ -415,9 +440,9 @@ def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
         cmd.color('red',  'fold1')
         cmd.color('blue', 'fold2')
         cmd.zoom('all', buffer=10)
-        cmd.png(os.path.join(out_dir, f"{out_prefix}_two_structures.png"))
+        cmd.png(out_two_structures_fig_file)
         cmd.align('fold2', 'fold1')
-        cmd.png(os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png"))
+        cmd.png(out_two_structures_aligned_fig_file)
     finally:
         cmd.quit()
 
@@ -427,7 +452,6 @@ def _best_cluster_from_df(pair_id: str, model_ver: str, fold_idx: int) -> str | 
     Return canonical cluster tag ('DeepMsa' or 'ShallowMsa_###') for the best TMscore
     in Pipeline/<pair>/Analysis/df_af.csv for AF{model_ver} and fold_idx in {0,1}.
     """
-    import pandas as pd, numpy as np, re
     df_path = os.path.join('Pipeline', pair_id, 'Analysis', 'df_af.csv')
     if not os.path.isfile(df_path):
         return None
@@ -461,30 +485,59 @@ def _best_cluster_from_df(pair_id: str, model_ver: str, fold_idx: int) -> str | 
     return tag
 
 
-def _render_true_vs_best_models(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str, model_ver='2'):
-    """For each fold, overlay true structure vs best AF{ver} prediction."""
-    if not PYMOL_AVAILABLE:
+def _render_true_vs_best_models(pair_id: str, pdbids: list[str], pdbchains: list[str],
+                                fig_dir_root: str, model_ver='2'):
+    """For each fold, overlay true structure vs best AF{ver} prediction.
+       Works with PyMOL Python API, or falls back to PyMOL CLI via PYMOL_BIN."""
+    PYMOL_BIN = os.environ.get("PYMOL_BIN")
+    if not PYMOL_AVAILABLE and not PYMOL_BIN:
+        print("[3D] Skipping: neither PyMOL module nor PYMOL_BIN (CLI) available")
         return
+
+    os.makedirs(fig_dir_root, exist_ok=True)
+
     for idx in (0, 1):
         cluster = _best_cluster_from_df(pair_id, model_ver, idx)
         if not cluster:
             print(f"[3D] no best cluster in df_af.csv for AF{model_ver}, fold{idx+1}")
             continue
+
         true_pdb = os.path.join('Pipeline', pair_id, f"{pdbids[idx]}.pdb")
-        pred_pdb = os.path.join('Pipeline', pair_id,
-                                f"output_AF/AF{model_ver}/{cluster}__{pdbids[idx]+pdbchains[idx]}.pdb")
+        pred_pdb = os.path.join(
+            'Pipeline', pair_id,
+            f"output_AF/AF{model_ver}/{cluster}__{pdbids[idx]+pdbchains[idx]}.pdb"
+        )
+
         if not (os.path.isfile(true_pdb) and os.path.isfile(pred_pdb)):
             print(f"[3D] missing PDB for AF{model_ver}: {true_pdb} / {pred_pdb}")
             continue
+
         out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_AF{model_ver}.png")
+
         try:
-            align_and_visualize_proteins(true_pdb, pred_pdb, out, open_environment=True)
+            # open_environment only matters for the Python API branch
+            align_and_visualize_proteins(true_pdb, pred_pdb, out,
+                                         open_environment=bool(PYMOL_AVAILABLE))
+            print(f"[3D] wrote {out}")
         except Exception as e:
             print(f"[3D] AF{model_ver} fold{idx+1} overlay failed: {e}")
 
 
 
+
 # ----------- Plots Generation Functions -----------
+def write_py3dmol_overlay_html(pdb1: str, pdb2: str, out_html: str,
+                               color1="red", color2="blue",
+                               width=900, height=700):
+    import py3Dmol
+    v = py3Dmol.view(width=width, height=height)
+    with open(pdb1) as f: v.addModel(f.read(), 'pdb')
+    v.setStyle({'model': 0}, {'cartoon': {'color': color1}})
+    with open(pdb2) as f: v.addModel(f.read(), 'pdb')
+    v.setStyle({'model': 1}, {'cartoon': {'color': color2}})
+    v.zoomTo()
+    with open(out_html, "w") as f: f.write(v._make_html())
+
 
 
 def make_foldswitch_all_plots(
@@ -727,31 +780,29 @@ def make_foldswitch_all_plots(
 
     # ---------- 3D PANELS (PyMOL headless) ----------
     # --------- Optional 3D-align plot (only on non-Linux in your original code)  --------------
-    if PYMOL_AVAILABLE:
-        try:
-            _render_true_structures(
-                pair_dir=os.path.join('Pipeline', foldpair_id),
-                pdb1=f"{pdbids[0]}.pdb",
-                pdb2=f"{pdbids[1]}.pdb",
-                out_dir=fig_dir_root,
-                out_prefix=foldpair_id
-            )
-        except Exception as e:
-            print(f"[3D] true-true render failed: {e}")
+    try:
+        _render_true_structures(
+            pair_dir=os.path.join('Pipeline', foldpair_id),
+            pdb1=f"{pdbids[0]}.pdb",
+            pdb2=f"{pdbids[1]}.pdb",
+            out_dir=fig_dir_root,
+            out_prefix=foldpair_id
+        )
+    except Exception as e:
+        print(f"[3D] true-true render failed: {e}")
 
-        # AF2
-        try:
-            _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2')
-        except Exception as e:
-            print(f"[3D] AF2 overlays failed: {e}")
+    # AF2
+    try:
+        _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2')
+    except Exception as e:
+        print(f"[3D] AF2 overlays failed: {e}")
 
-        # AF3
-        try:
-            _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3')
-        except Exception as e:
-            print(f"[3D] AF3 overlays failed: {e}")
-    else:
-        print("[3D] PyMOL not available; skipping 3D panels.")
+    # AF3
+    try:
+        _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3')
+    except Exception as e:
+        print(f"[3D] AF3 overlays failed: {e}")
+
 
     if global_plots:
         print("Make global plots!")
@@ -762,52 +813,92 @@ def make_foldswitch_all_plots(
 
 
 # Align two pdb structures from two pdb files
+# Align two pdb structures from two pdb files
 def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environment=True):
     """
     Align two protein structures and save the visualization as an image.
+    Uses PyMOL Python API if available; otherwise falls back to PyMOL CLI via PYMOL_BIN.
 
     Args:
-    pdb_file1 (str): Path to the first PDB file.
-    pdb_file2 (str): Path to the second PDB file.
-    output_file (str): Path to save the output image.
+        pdb_file1 (str): Path to the first PDB file (reference).
+        pdb_file2 (str): Path to the second PDB file (will be aligned to the first).
+        output_file (str): Path to save the output PNG image.
+        open_environment (bool): If True and PyMOL API is used, start/quit a PyMOL session.
     """
+    # Ensure output directory exists
+    out_dir = os.path.dirname(os.path.abspath(output_file)) or "."
+    os.makedirs(out_dir, exist_ok=True)
 
-    if not PYMOL_AVAILABLE:
-        raise RuntimeError("PyMOL is not installed/available. Install it or run this on a machine with PyMOL.")
+    if PYMOL_AVAILABLE:
+        # ---- Python API path ----
+        try:
+            if open_environment:
+                # '-c' = no GUI, '-q' = quiet
+                pymol.finish_launching(['pymol', '-cq'])
 
-    if open_environment:  # Initialize PyMOL
-#        pymol.cmd.set("quiet", 1)
-        pymol.finish_launching(['pymol', '-cq'])  # '-c' for command line (no GUI)
+            # Clean slate
+            cmd.delete('all')
 
-    # Delete existing objects
-    cmd.delete('all')
+            # Load files
+            cmd.load(pdb_file1, 'protein1')
+            cmd.load(pdb_file2, 'protein2')
 
-    # Load the PDB files
-    cmd.load(pdb_file1, 'protein1')
-    cmd.load(pdb_file2, 'protein2')
+            # Align and style
+            cmd.align('protein2', 'protein1')
+            cmd.color('red', 'protein1')
+            cmd.color('blue', 'protein2')
+            cmd.bg_color('white')
+            cmd.zoom('all', buffer=10)
 
-    # Align the structures
-    cmd.align('protein2', 'protein1')
+            # Save PNG (dpi ~ publication-ish; avoid ray here to keep it fast)
+            cmd.png(output_file, dpi=200)
 
-    # Set different colors for visualization
-    cmd.color('red', 'protein1')
-    cmd.color('blue', 'protein2')
+        finally:
+            if open_environment:
+                try:
+                    cmd.quit()
+                except Exception:
+                    pass
+        return
 
-    # Set the view (optional, you can customize this)
-    cmd.zoom('all', buffer=10)
+    # ---- CLI fallback path ----
+    PYMOL_BIN = os.environ.get("PYMOL_BIN")
+    if not PYMOL_BIN:
+        raise RuntimeError(
+            "PyMOL module not available and PYMOL_BIN not set. "
+            "Set PYMOL_BIN to your pymol executable (e.g., /sci/.../pymol-venv/bin/pymol)."
+        )
 
-    # Save the image
-    cmd.png(output_file)
+    # Build a small PML script; quote paths to be safe
+    def _q(p):  # quote
+        return '"' + str(p).replace('"', '\\"') + '"'
 
-    # Quit PyMOL
-    if open_environment:  # Initialize PyMOL
-        cmd.quit()
+    script = f"""
+reinitialize
+load {_q(pdb_file1)}, protein1
+load {_q(pdb_file2)}, protein2
+align protein2, protein1
+color red, protein1
+color blue, protein2
+bg_color white
+zoom all, 10
+set antialias, 2
+png {_q(output_file)}, dpi=200
+quit
+""".lstrip()
+
+    # Prefer your shared helper if it exists; otherwise run here
+    if '_pymol_cli_render' in globals() and callable(globals()['_pymol_cli_render']):
+        _pymol_cli_render(script)
+    else:
+        with tempfile.NamedTemporaryFile("w", suffix=".pml", delete=False) as tf:
+            tf.write(script)
+            tf.flush()
+            cmdline = f"{shlex.quote(PYMOL_BIN)} -cq {shlex.quote(tf.name)}"
+            subprocess.run(cmdline, shell=True, check=True)
 
     # Example usage
     # align_and_visualize_proteins('path/to/pdb1.pdb', 'path/to/pdb2.pdb', 'output.png')
-
-
-
 
 
 # Plot multiple contacts and predictions together
