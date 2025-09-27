@@ -1,5 +1,5 @@
 from config import *
-import re, os
+import os, re, math, shutil  # make sure shutil is imported
 import subprocess, shlex, tempfile
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
@@ -23,7 +23,6 @@ from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFont  # NEW
 
-import math
 import pandas as pd
 import numpy as np
 
@@ -33,6 +32,27 @@ PYMOL_BIN = os.environ.get("PYMOL_BIN")  # path like /sci/.../pymol-venv/bin/pym
 
 
 # === CSV loaders & builders ===
+def _detect_pymol_bin() -> str | None:
+    # 1) explicit env
+    cand = os.environ.get("PYMOL_BIN")
+    if cand and os.path.isfile(cand):
+        return cand
+    # 2) known per-user install (adjust if you move it)
+    known = "/sci/labs/orzuk/orzuk/pymol-venv/bin/pymol"
+    if os.path.isfile(known):
+        return known
+    # 3) in PATH
+    for name in ("pymol", "pymol-open-source"):
+        path = shutil.which(name)
+        if path:
+            return path
+    return None
+
+# cache at import time, but functions will re-check env so you can override per-run
+_PYMOL_BIN_CACHED = _detect_pymol_bin()
+
+
+
 def _pred_pdb_path(pair_id: str, family: str, ver: str, cluster: str, pdbid: str, chain: str) -> str:
     """family = 'AF' or 'ESM'; ver e.g. '2' or '3'."""
     tag = _normalize_cluster_tag(cluster)
@@ -127,15 +147,15 @@ def _add_png_legend(img_path: str, left_label: str, right_label: str, *,
     except Exception as e:
         print(f"[3D] legend save failed: {e}")
 
-
-def _pymol_cli_render(script_text: str):
-    if not PYMOL_BIN:
-        raise RuntimeError("PYMOL_BIN not set; cannot render via CLI.")
+def _pymol_cli_render(script_text: str, exe: str | None = None):
+    exe = exe or os.environ.get("PYMOL_BIN") or _PYMOL_BIN_CACHED
+    if not exe or not os.path.isfile(exe):
+        raise RuntimeError("PyMOL CLI not found. Set PYMOL_BIN or install pymol in PATH.")
     with tempfile.NamedTemporaryFile("w", suffix=".pml", delete=False) as tf:
         tf.write(script_text)
         tf.flush()
-        cmd = f"{shlex.quote(PYMOL_BIN)} -cq {shlex.quote(tf.name)}"
-        subprocess.run(cmd, shell=True, check=True)
+        cmdline = f"{shlex.quote(exe)} -cq {shlex.quote(tf.name)}"
+        subprocess.run(cmdline, shell=True, check=True)
 
 
 def _pair_analysis_dir(pair_id: str) -> str:
@@ -511,7 +531,8 @@ def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
     label_blue = os.path.splitext(pdb2)[0]  # e.g., 4qds
 
     if not PYMOL_AVAILABLE:
-        if PYMOL_BIN:
+        exe = os.environ.get("PYMOL_BIN") or _PYMOL_BIN_CACHED
+        if exe: #if PYMOL_BIN:
             p1 = os.path.join(pair_dir, pdb1)
             p2 = os.path.join(pair_dir, pdb2)
             script = f"""
@@ -600,8 +621,8 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
     family='AF' or 'ESM'; ver='2' or '3'
     For each fold, overlay true structure vs best {family}{ver} prediction (CLI/API) and add legend/title.
     """
-    PYMOL_BIN = os.environ.get("PYMOL_BIN")
-    if not PYMOL_AVAILABLE and not PYMOL_BIN:
+    exe = os.environ.get("PYMOL_BIN") or _PYMOL_BIN_CACHED
+    if not PYMOL_AVAILABLE and not exe:
         print(f"[3D] Skipping {family}{ver}: no PyMOL")
         return
 
@@ -950,9 +971,9 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
         return
 
     # ---- CLI fallback ----
-    PYMOL_BIN = os.environ.get("PYMOL_BIN")
-    if not PYMOL_BIN:
-        raise RuntimeError("PyMOL module not available and PYMOL_BIN not set.")
+    exe = os.environ.get("PYMOL_BIN") or _PYMOL_BIN_CACHED
+    if not exe:
+        raise RuntimeError("PyMOL module not available and no CLI found.")
 
     p1 = os.path.abspath(pdb_file1)
     p2 = os.path.abspath(pdb_file2)
