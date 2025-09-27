@@ -21,6 +21,7 @@ from utils.energy_utils import *
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw, ImageFont  # NEW
 
 import math
 import pandas as pd
@@ -30,7 +31,103 @@ import numpy as np
 PYMOL_BIN = os.environ.get("PYMOL_BIN")  # path like /sci/.../pymol-venv/bin/pymol
 
 
+
 # === CSV loaders & builders ===
+def _pred_pdb_path(pair_id: str, family: str, ver: str, cluster: str, pdbid: str, chain: str) -> str:
+    """family = 'AF' or 'ESM'; ver e.g. '2' or '3'."""
+    tag = _normalize_cluster_tag(cluster)
+    base = f"output_{family}/{family}{ver}/{tag}__{pdbid}{chain}.pdb"
+    return os.path.join("Pipeline", pair_id, base)
+
+def _best_cluster_from_table(pair_id: str, table: str, model_tag: str, fold_idx: int) -> tuple[str,float] | None:
+    """
+    Generic best-cluster picker from df_{table}.csv.
+    Returns (canonical_cluster_tag, TMscore) for fold_idx {0,1}.
+    """
+    df_path = os.path.join('Pipeline', pair_id, 'Analysis', f'df_{table}.csv')
+    if not os.path.isfile(df_path):
+        return None
+    try:
+        d = pd.read_csv(df_path)
+    except Exception:
+        return None
+
+    if 'model' in d.columns:
+        d = d[d['model'].astype(str).str.upper() == model_tag.upper()]
+        if d.empty:
+            return None
+
+    score_col = 'TMscore_fold1' if fold_idx == 0 else 'TMscore_fold2'
+    ccol = 'cluster_num' if 'cluster_num' in d.columns else ('cluster' if 'cluster' in d.columns else None)
+    if (score_col not in d.columns) or (ccol is None):
+        return None
+
+    d = d.copy()
+    d['_score'] = pd.to_numeric(d[score_col], errors='coerce')
+    d = d.dropna(subset=['_score'])
+    if d.empty:
+        return None
+
+    row = d.loc[d['_score'].idxmax()]
+    tag = _normalize_cluster_tag(str(row[ccol]).strip())
+    return tag, float(row['_score'])
+
+
+def _cluster_short_disp(tag: str) -> str:
+    """ShallowMsa_019 -> C#19 ; DeepMsa/MSA_deep -> D; else pass-through."""
+    t = _normalize_cluster_tag(tag or "")
+    if "deep" in t.lower():
+        return "D"
+    m = re.search(r"(\d+)$", t)
+    return f"C#{int(m.group(1))}" if m else t
+
+def _add_png_legend(img_path: str, left_label: str, right_label: str, *,
+                    title: str | None = None,
+                    left_rgb=(255, 0, 0), right_rgb=(0, 80, 255)) -> None:
+    """Append a white strip with a red/blue legend (and optional title) at the bottom of a PNG."""
+    try:
+        im = Image.open(img_path).convert("RGB")
+    except Exception as e:
+        print(f"[3D] legend skipped (open failed): {e}")
+        return
+
+    W, H = im.size
+    extra = max(70, int(H * 0.12))
+    out = Image.new("RGB", (W, H + extra), (255, 255, 255))
+    out.paste(im, (0, 0))
+    draw = ImageDraw.Draw(out)
+
+    # font (fallback friendly)
+    try:
+        f_big = ImageFont.truetype("DejaVuSans-Bold.ttf", 20)
+        f = ImageFont.truetype("DejaVuSans.ttf", 18)
+    except Exception:
+        f_big = f = ImageFont.load_default()
+
+    y = H + (extra - 20) // 2
+    pad = 18
+    box = 16
+
+    # left (red)
+    x = pad
+    draw.rectangle((x, y, x + box, y + box), fill=left_rgb)
+    draw.text((x + box + 8, y - 2), f"Red: {left_label}", fill=(0, 0, 0), font=f)
+
+    # right (blue)
+    x2 = x + 360
+    draw.rectangle((x2, y, x2 + box, y + box), fill=right_rgb)
+    draw.text((x2 + box + 8, y - 2), f"Blue: {right_label}", fill=(0, 0, 0), font=f)
+
+    # optional title (above legend, aligned left)
+    if title:
+        draw.text((pad, H - 26), title, fill=(0, 0, 0), font=f_big)
+
+    try:
+        out.save(img_path)
+    except Exception as e:
+        print(f"[3D] legend save failed: {e}")
+
+
 def _pymol_cli_render(script_text: str):
     if not PYMOL_BIN:
         raise RuntimeError("PYMOL_BIN not set; cannot render via CLI.")
@@ -361,13 +458,18 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
     """
     Save three images into fig_dir_root:
       1) {pair}_all_clusters_cmap.png   (grid of all clusters)
-      2) {pair}_best_clusters_cmap.png  (focused, picked by recall)  [done inside plot_array_contacts_and_predictions]
-      3) {pair}_deep_clusters_cmap.png  (focused deep-MSA panel, if a deep key exists)
+      2) {pair}_best_clusters_cmap.png  (focused 1-panel with the best cluster per fold)
+      3) {pair}_deep_cmap.png           (Deep-MSA focused panel, if Deep exists)
     """
     print("Plot Array Contact Map")
+    os.makedirs(fig_dir_root, exist_ok=True)
 
-    # --- 1+2) 'all' grid + 'best' focused panel (this call saves both) ---
+    # --- 1+2) 'all' grid + 'best' focused panel ---
     save_root = os.path.join(fig_dir_root, f"{foldpair_id}_all_clusters_cmap")
+    n_pred = len(match_predicted_cmaps or {})
+    if n_pred == 0:
+        print("[plot] WARN: no predicted cmaps found after alignment; skipping cmap panels.")
+        return
     plot_array_contacts_and_predictions(
         match_predicted_cmaps,
         match_true_cmap,
@@ -375,44 +477,38 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
         foldpair_id=foldpair_id       # also saves ..._best_clusters_cmap.png inside
     )
 
-    # --- 3) Deep-only focused panel (if we have a deep-/DeepMsa key) ---
+    # --- 3) Deep-only panel ---
     deep_key = None
-    # try a simple substring match first
-    for k in match_predicted_cmaps.keys():
-        if "deep" in str(k).lower():
-            deep_key = k
-            break
-    # or normalize into canonical 'DeepMsa'
-    if deep_key is None:
-        try:
-            deep_key = next(k for k in match_predicted_cmaps.keys()
-                            if _normalize_cluster_tag(str(k)) == "DeepMsa")
-        except StopIteration:
-            deep_key = None
+    for k in (match_predicted_cmaps or {}).keys():
+        if "deep" in str(k).lower() or _normalize_cluster_tag(str(k)) == "DeepMsa":
+            deep_key = k; break
 
     if deep_key is None:
         print("[plot] no 'deep' cluster found -> skipping deep panel")
         return
 
-    # Render deep panel for the two folds (matched layout to 'best')
     plt.figure(figsize=(10, 8))
     plot_foldswitch_contacts_and_predictions(
-        predictions=match_predicted_cmaps[deep_key],  # tuple/list of [pred_f1, pred_f2]
+        predictions=match_predicted_cmaps[deep_key],  # [pred_f1, pred_f2]
         contacts=match_true_cmap,
         title="Deep-MSA",
-        show_legend=True
+        show_legend=True,
+        cluster_names=("D", "D"),
     )
-    out = os.path.join(fig_dir_root, f"{foldpair_id}_deep_clusters_cmap.png")
+    out = os.path.join(fig_dir_root, f"{foldpair_id}_deep_cmap.png")  # <-- name as requested
     plt.savefig(out, dpi=200)
     plt.close()
     print("[plot] wrote", out)
 
 
 def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix):
-    """Save (1) two_structures.png (unaligned) and (2) two_structures_aligned.png."""
+    """Save (1) two_structures.png and (2) two_structures_aligned.png, with legends."""
     out_two = os.path.join(out_dir, f"{out_prefix}_two_structures.png")
     out_aln = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png")
     os.makedirs(out_dir, exist_ok=True)
+
+    label_red  = os.path.splitext(pdb1)[0]  # e.g., 2qqj
+    label_blue = os.path.splitext(pdb2)[0]  # e.g., 4qds
 
     if not PYMOL_AVAILABLE:
         if PYMOL_BIN:
@@ -425,23 +521,21 @@ load "{p2}", fold2
 color red, fold1
 color blue, fold2
 bg_color white
+set orthoscopic, on
+viewport 1200, 900
 zoom all, 10
-png {out_two}, dpi=200
+png {out_two}, dpi=220, width=1200, height=900
 align fold2, fold1
-png {out_aln}, dpi=200
+png {out_aln}, dpi=220, width=1200, height=900
 quit
 """.lstrip()
             _pymol_cli_render(script)
-            # sanity check (PyMOL may return 0 even if png failed)
-            for p in (out_two, out_aln):
-                if not (os.path.isfile(p) and os.path.getsize(p) > 1000):
-                    print(f"[3D] WARN: expected output not written: {p}")
+            _add_png_legend(out_two,  label_red, label_blue, title=None)
+            _add_png_legend(out_aln,  label_red, label_blue, title=None)
             return
-        else:
-            print("[PyMOL] skipped (neither import nor CLI available)")
-            return
+        print("[PyMOL] skipped (neither import nor CLI available)")
+        return
 
-    # ---- Python API path ----
     pymol.finish_launching(['pymol', '-cq'])
     try:
         cmd.delete('all')
@@ -450,12 +544,15 @@ quit
         cmd.color('red',  'fold1')
         cmd.color('blue', 'fold2')
         cmd.bg_color('white')
+        cmd.set('orthoscopic', 1)
         cmd.zoom('all', buffer=10)
-        cmd.png(out_two, dpi=200)
+        cmd.png(out_two, dpi=220, width=1200, height=900)
         cmd.align('fold2', 'fold1')
-        cmd.png(out_aln, dpi=200)
+        cmd.png(out_aln, dpi=220, width=1200, height=900)
     finally:
         cmd.quit()
+    _add_png_legend(out_two,  label_red, label_blue, title=None)
+    _add_png_legend(out_aln,  label_red, label_blue, title=None)
 
 
 
@@ -497,44 +594,47 @@ def _best_cluster_from_df(pair_id: str, model_ver: str, fold_idx: int) -> str | 
     return tag
 
 
-def _render_true_vs_best_models(pair_id: str, pdbids: list[str], pdbchains: list[str],
-                                fig_dir_root: str, model_ver='2'):
-    """For each fold, overlay true structure vs best AF{ver} prediction.
-       Works with PyMOL Python API, or falls back to PyMOL CLI via PYMOL_BIN."""
+def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchains: list[str],
+                                        fig_dir_root: str, *, family: str, ver: str):
+    """
+    family='AF' or 'ESM'; ver='2' or '3'
+    For each fold, overlay true structure vs best {family}{ver} prediction (CLI/API) and add legend/title.
+    """
     PYMOL_BIN = os.environ.get("PYMOL_BIN")
     if not PYMOL_AVAILABLE and not PYMOL_BIN:
-        print("[3D] Skipping: neither PyMOL module nor PYMOL_BIN (CLI) available")
+        print(f"[3D] Skipping {family}{ver}: no PyMOL")
         return
 
     os.makedirs(fig_dir_root, exist_ok=True)
+    table = 'af' if family == 'AF' else 'esm'
+    model_tag = f"{family}{ver}"
 
     for idx in (0, 1):
-        cluster = _best_cluster_from_df(pair_id, model_ver, idx)
-        if not cluster:
-            print(f"[3D] no best cluster in df_af.csv for AF{model_ver}, fold{idx+1}")
+        pick = _best_cluster_from_table(pair_id, table=table, model_tag=model_tag, fold_idx=idx)
+        if not pick:
+            print(f"[3D] no best cluster in df_{table}.csv for {model_tag}, fold{idx+1}")
             continue
 
+        cluster, tm = pick
         true_pdb = os.path.join('Pipeline', pair_id, f"{pdbids[idx]}.pdb")
-        pred_pdb = os.path.join(
-            'Pipeline', pair_id,
-            f"output_AF/AF{model_ver}/{cluster}__{pdbids[idx]+pdbchains[idx]}.pdb"
-        )
+        pred_pdb = _pred_pdb_path(pair_id, family, ver, cluster, pdbids[idx], pdbchains[idx])
 
         if not (os.path.isfile(true_pdb) and os.path.isfile(pred_pdb)):
-            print(f"[3D] missing PDB for AF{model_ver}: {true_pdb} / {pred_pdb}")
+            print(f"[3D] missing PDB for {model_tag}: {true_pdb} / {pred_pdb}")
             continue
 
-        out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_AF{model_ver}.png")
-
+        out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_{model_tag}.png")
         try:
-            # open_environment only matters for the Python API branch
-            align_and_visualize_proteins(true_pdb, pred_pdb, out,
-                                         open_environment=bool(PYMOL_AVAILABLE))
+            # render
+            align_and_visualize_proteins(true_pdb, pred_pdb, out, open_environment=bool(PYMOL_AVAILABLE))
+            # annotate
+            title = f"{model_tag}: TM={tm:.2f} ({_cluster_short_disp(cluster)})"
+            left = f"{pdbids[idx]}{pdbchains[idx]}"
+            right = f"{model_tag}"
+            _add_png_legend(out, left, right, title=title)
             print(f"[3D] wrote {out}")
         except Exception as e:
-            print(f"[3D] AF{model_ver} fold{idx+1} overlay failed: {e}")
-
-
+            print(f"[3D] {model_tag} fold{idx+1} overlay failed: {e}")
 
 
 # ----------- Plots Generation Functions -----------
@@ -792,6 +892,7 @@ def make_foldswitch_all_plots(
 
     # ---------- 3D PANELS (PyMOL headless) ----------
     # --------- Optional 3D-align plot (only on non-Linux in your original code)  --------------
+    # 3D PANELS
     try:
         _render_true_structures(
             pair_dir=os.path.join('Pipeline', foldpair_id),
@@ -803,17 +904,14 @@ def make_foldswitch_all_plots(
     except Exception as e:
         print(f"[3D] true-true render failed: {e}")
 
-    # AF2
-    try:
-        _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2')
-    except Exception as e:
-        print(f"[3D] AF2 overlays failed: {e}")
+    # AF2 / AF3
+    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='2')
+    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='3')
 
-    # AF3
-    try:
-        _render_true_vs_best_models(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3')
-    except Exception as e:
-        print(f"[3D] AF3 overlays failed: {e}")
+    # ESM2 / ESM3  (NEW)
+    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='2')
+    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='ESM', ver='3')
+
 
 
     if global_plots:
@@ -844,7 +942,7 @@ def align_and_visualize_proteins(pdb_file1, pdb_file2, output_file, open_environ
             cmd.color('blue', 'protein2')
             cmd.bg_color('white')
             cmd.zoom('all', buffer=10)
-            cmd.png(output_file, dpi=200)
+            cmd.png(output_file, dpi=220, width=1200, height=900)
         finally:
             if open_environment:
                 try: cmd.quit()
@@ -869,9 +967,10 @@ align protein2, protein1
 color red, protein1
 color blue, protein2
 bg_color white
+viewport 1200, 900
 zoom all, 10
 set antialias, 2
-png {out}, dpi=200
+png {out}, dpi=220, width=1200, height=900
 quit
 """.lstrip()
 
@@ -896,101 +995,81 @@ def plot_array_contacts_and_predictions(
     foldpair_id: str | None = None
 ):
     """
-    Plot multiple contact-map predictions against truth, and then a separate
-    panel for the best-recall clusters. If per-residue ΔG files exist for the
-    pair, overlay them as vectors; otherwise skip that overlay.
-
-    Parameters
-    ----------
-    predictions : dict[str, np.ndarray]
-        Map: cluster-name -> predicted contact matrix (NxN).
-    contacts : dict[str, np.ndarray]
-        Map: fold_id -> true contacts (NxN) for the two folds.
-    save_file : str
-        Root path (without extension) to save the 'all clusters' figure.
-    foldpair_id : str | None
-        Pair id like '1dzlA_5keqF'; used to locate DeltaG files under
-        Pipeline/<pair>/output_deltaG. If None, ΔG overlay is skipped.
+    Draw:
+      • Grid of ALL clusters found in `predictions` -> {save_file}.png
+      • One-panel BEST clusters (one cluster chosen per fold) -> {save_file.replace('all','best')}.png
     """
-    n_pred = len(predictions)
-    # grid shape for the 'all clusters' panel
-    n_row = math.ceil(math.sqrt(n_pred))
-    n_col = n_row - 1 if n_row * (n_row - 1) >= n_pred else n_row
-
-    # ---- draw all clusters and collect per-cluster recall ----
-    n_AA_aligned = len(contacts[next(iter(contacts))])
-    fig, axes = plt.subplots(figsize=(18, 18), nrows=n_row, ncols=n_col, layout="compressed")
-
-    ctr = 0
-    recall: dict[str, dict[str, float]] = {}  # cluster -> {foldA: rA, foldB: rB}
-    for name in predictions.keys():
-        ax = axes if n_col == 1 else axes[ctr // n_col, ctr % n_col]
-        if n_col == 1:
-            ax = axes[ctr]
-        ctr += 1
-
-        # plot and receive per-fold recall for this cluster
-        recall[name] = plot_foldswitch_contacts_and_predictions(
-            predictions[name], contacts, ax=ax, title=name, show_legend=(ctr == 1)
-        )
-
-    if save_file:
-        plt.savefig(save_file + ".png")
-        print("Save cmap fig:", save_file + ".png")
-    else:
-        plt.show()
-
-    # ---- choose the best-recall cluster for each fold and render a focused panel ----
-    if not recall:
-        # nothing rendered above; just return early
+    preds = dict(predictions or {})
+    n_pred = len(preds)
+    if n_pred == 0:
+        print("[plot] no predictions to plot.")
         return
 
-    # exclude "deep" clusters from best-cluster selection (your original logic)
+    # choose a near-square grid
+    n_row = int(math.ceil(math.sqrt(n_pred)))
+    n_col = n_row - 1 if n_row * (n_row - 1) >= n_pred else n_row
+
+    fig, axes = plt.subplots(n_row, n_col, figsize=(18, 18), layout="compressed")
+    axes = np.array(axes).reshape(-1)  # flatten safely for any 1D/2D case
+
+    # ---- draw all clusters and collect per-fold recall ----
+    fold_ids = list(contacts.keys())
+    recall: dict[str, dict[str, float]] = {}
+    for i, name in enumerate(preds.keys()):
+        ax = axes[i]
+        recall[name] = plot_foldswitch_contacts_and_predictions(
+            preds[name], contacts, ax=ax, title=_cluster_short_disp(name), show_legend=(i == 0)
+        )
+
+    # hide leftover cells
+    for j in range(n_pred, len(axes)):
+        axes[j].axis("off")
+
+    if save_file:
+        plt.savefig(save_file + ".png", dpi=200)
+        print("Save cmap fig:", save_file + ".png")
+    plt.close(fig)
+
+    if not recall:
+        return
+
+    # exclude deep from the "best" picker (as before)
     filtered = {k: v for k, v in recall.items() if "deep" not in k.lower()}
-    # if filtering makes it empty, fall back to all clusters so we don't crash
     pick_from = filtered if filtered else recall
 
-    best_recall_clusters = find_max_keys(pick_from)  # {'foldA': (bestCluster, maxVal), 'foldB': (...)}
-    print("Best recall clusters:", best_recall_clusters)
+    best = find_max_keys(pick_from)  # {'foldA': (cluster, val), 'foldB': (...)}
+    print("Best recall clusters:", best)
+    best_names = {fold_ids[0]: best[fold_ids[0]][0], fold_ids[1]: best[fold_ids[1]][0]}
+    print("Best recall cluster names:", best_names)
 
-    fold_ids = list(contacts.keys())
-    best_cluster_ids = {f: best_recall_clusters[f][0] for f in fold_ids}
-    print("Best recall cluster names:", best_cluster_ids)
-
-    # ---- Optional ΔG overlay: read per-pair energy files if available ----
+    # optional ΔG overlay
     xvec = yvec = None
     if foldpair_id:
         energy_dir = os.path.join("Pipeline", foldpair_id, "output_deltaG")
         try:
             e0 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[0][:4]}.txt"))
             e1 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[1][:4]}.txt"))
-            delta_energies, delta_energies_filtered = align_and_compare_residues(
-                e0, e1, fold_ids[0][:4], fold_ids[1][:4]
-            )
-            print("n_AA_aligned=", n_AA_aligned)
-            delta_energies_filtered = np.array(delta_energies_filtered[:n_AA_aligned])
-            xvec = yvec = delta_energies_filtered
+            _, delta_energies_filtered = align_and_compare_residues(e0, e1, fold_ids[0][:4], fold_ids[1][:4])
+            xvec = yvec = np.array(delta_energies_filtered[:len(contacts[next(iter(contacts))])])
         except Exception as e:
-            # Make this non-fatal; just skip ΔG overlay if files not found or alignment fails
             print(f"[plot] NOTE: ΔG overlay skipped for {foldpair_id}: {e}")
 
-    # ---- render 'best clusters' focused panel ----
+    # render BEST single panel
     plt.figure(figsize=(10, 8))
-    best = plot_foldswitch_contacts_and_predictions(
-        predictions=(predictions[best_cluster_ids[fold_ids[0]]], predictions[best_cluster_ids[fold_ids[1]]]),
+    plot_foldswitch_contacts_and_predictions(
+        predictions=(preds[best_names[fold_ids[0]]], preds[best_names[fold_ids[1]]]),
         contacts=contacts,
         title="Best clusters",
         show_legend=True,
-        cluster_names=(best_cluster_ids[fold_ids[0]], best_cluster_ids[fold_ids[1]]),
-        x_vector=xvec,
-        y_vector=yvec,
+        cluster_names=(
+            _cluster_short_disp(best_names[fold_ids[0]]),
+            _cluster_short_disp(best_names[fold_ids[1]]),
+        ),
+        x_vector=xvec, y_vector=yvec,
     )
-    print("best recall:", best)
-
     if save_file:
-        plt.savefig(save_file.replace("all", "best"))
+        plt.savefig(save_file.replace("all", "best") + ".png", dpi=200)
     plt.close()
-
 
 
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
@@ -1212,12 +1291,16 @@ def plot_foldswitch_contacts_and_predictions(
 
     ax.axis("square")
 #    print("Recall is: ", {k:round(recall[k], 4) for k in recall}, " fold ids is: ", fold_ids)
+
     if cluster_names is None:
-        ax.set_xlabel(fold_ids[0] + ", recall=" + str(round(recall[fold_ids[0]], 4)) , fontsize=14)
-        ax.set_ylabel(fold_ids[1] + ", recall=" + str(round(recall[fold_ids[1]], 4)), fontsize=14)
+        ax.set_xlabel(f"{fold_ids[0]}, recall={round(recall[fold_ids[0]], 4)}", fontsize=12)
+        ax.set_ylabel(f"{fold_ids[1]}, recall={round(recall[fold_ids[1]], 4)}", fontsize=12)
     else:
-        ax.set_xlabel(fold_ids[0] + ", recall=" + str(round(recall[fold_ids[0]], 4)) + ", cluster " + cluster_names[0], fontsize=14)
-        ax.set_ylabel(fold_ids[1] + ", recall=" + str(round(recall[fold_ids[1]], 4)) + ", cluster " + cluster_names[0], fontsize=14)
+        cx = _cluster_short_disp(cluster_names[0])
+        cy = _cluster_short_disp(cluster_names[1])
+        ax.set_xlabel(f"{fold_ids[0]}, recall={round(recall[fold_ids[0]], 4)} — {cx}", fontsize=12)
+        ax.set_ylabel(f"{fold_ids[1]}, recall={round(recall[fold_ids[1]], 4)} — {cy}", fontsize=12)
+
 
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
