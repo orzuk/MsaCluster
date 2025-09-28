@@ -450,9 +450,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     # decide AMP dtype (optional)
     use_cuda = (device == "cuda")
     amp_dtype = None
-    if args.esm_dtype == "bf16" or (args.esm_dtype == "auto" and use_cuda and torch.cuda.is_bf16_supported()):
+    if args.esm_dtype == "bf16":
         amp_dtype = torch.bfloat16
-    elif args.esm_dtype == "fp16" or (args.esm_dtype == "auto" and use_cuda):
+    elif args.esm_dtype in ("fp16", "auto") and use_cuda:
         amp_dtype = torch.float16
 
     dev_str = device

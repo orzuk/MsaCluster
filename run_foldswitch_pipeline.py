@@ -957,27 +957,22 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
                     continue
                 max_len = max(max_len, len(line.strip()))
 
-    device = (args.esm_device or "auto")
-    if device == "auto" and getattr(args, "esm_gpu_len_threshold", None):
-        if max_len >= int(args.esm_gpu_len_threshold):
-            print(f"[esm] max L={max_len} ≥ {args.esm_gpu_len_threshold} → using CPU")
-            device = "cpu"
+    # Prefer GPU by default; only use 'cuda' unless the user explicitly says otherwise
+    device = args.esm_device or "cuda"
 
     ensure_dir(f"Pipeline/{pair_id}/output_esm_fold/{args.esm_model}")
-    cmd = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device {device}"
+
+    # Always require a GPU when device is 'cuda' or 'auto'
+    require_cuda_flag = " --require_cuda" if device in ("cuda", "auto") else ""
+
+    cmd = (f"python3 ./ESMFoldHF.py -input {pair_id} "
+        f"--model {args.esm_model} --device {device}{require_cuda_flag}")
+    _run(cmd, args.run_job_mode)
+
     try:
         _run(cmd, args.run_job_mode)
     except Exception as e:
-        # Best-effort retry on CPU if we weren’t already on CPU
-        if device != "cpu":
-            print(f"[esm] WARN ({e}). Retrying on CPU…")
-            cmd_cpu = f"python3 ./ESMFoldHF.py -input {pair_id} --model {args.esm_model} --device cpu"
-            try:
-                _run(cmd_cpu, args.run_job_mode)
-            except Exception as e2:
-                print(f"[esm] ERROR retry on CPU failed: {e2}")
-        else:
-            print(f"[esm] ERROR: {e}")
+        print(f"[esm] ERROR on GPU: {e}")
 
 
 
