@@ -770,9 +770,9 @@ def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
     #    n_true = len(true_cmap)  # always 2 !!
     #    n_pred = len(pred_cmap)  # variable number !!
 
-    print("Pairwise alignment: ")
-    print(pairwise_alignment)
-#    print("Cmap sizes: ", true_cmap.shape, pred_cmap.shape)
+#    print("Pairwise alignment: ")
+#    print(pairwise_alignment)
+    print("Inside get_matching_indices_two_cmaps: Cmap sizes: ", true_cmap.shape, pred_cmap.shape)
     match_true_cmap = {}  # [None]*2
     match_pred_cmap = {}  # [None]*n_pred
 
@@ -780,10 +780,16 @@ def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
         blocks) else np.empty(0, int)
     idxs = [to_idx(blocks) for blocks in pairwise_alignment[0].aligned]  # [idxA, idxB]
 
+    ctr = 0
     for (fold, cmap), idx in zip(true_cmap.items(), idxs):
+        print("Set true_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
+        ctr += 1
         match_true_cmap[fold] = cmap[np.ix_(idx, idx)]
 
+    ctr = 0
     for (fold, cmap), idx in zip(pred_cmap.items(), idxs):
+        print("Set pred_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
+        ctr += 1
         match_pred_cmap[fold] = cmap[np.ix_(idx, idx)]
 
     return match_true_cmap, match_pred_cmap
