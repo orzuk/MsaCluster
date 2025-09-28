@@ -1357,7 +1357,9 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     # 2) get_msa
     if force_all or not _has_deep_msa(pair_id):
         print("[pipeline] get_msa → running")
-        task_get_msa(pair_id, "inline")
+#        task_get_msa(pair_id, "inline")
+        task_get_msa(pair_id, args.run_job_mode)
+
     else:
         print("[pipeline] get_msa → skip (DeepMsa exists)")
 
