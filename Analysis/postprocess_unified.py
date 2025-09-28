@@ -212,6 +212,15 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         n_clusters = _count_shallow_clusters_fast(pair_id)
         row["MSA DEPTH (#Clusters)"] = f"{msa_depth} ({n_clusters})"
 
+        # --- TRUE TM between the two known folds (symmetric max) ---
+        pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+        # note: compute both directions; TM-score is length-normalized
+        tm12 = compute_tmscore_align(pdb1, pdb2, chain1=c1, chain2=c2)
+        tm21 = compute_tmscore_align(pdb2, pdb1, chain1=c2, chain2=c1)
+#        row["TRUE_TM12"] = tm12
+#        row["TRUE_TM21"] = tm21
+        row["PAIR_TM"] = max(tm12, tm21)  # single symmetric number to display
+
         # AF: Clust + Deep, per fold
         for tag, up in (("af2","AF2"), ("af3","AF3")):
             row[f"{up}Clust_TM1"] = _pick_best(tm_all, tag, "clust", 1)
@@ -547,8 +556,8 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
     summary_df  = pd.DataFrame(summary_rows)
 
     # New: add tm-scores for true structures pairs
-    tm_pairs_scores = compute_tmscore_all_pairs()
-    summary_df['True_TM12'] = summary_df.apply(lambda row: tm_pairs_scores[row['fold_pair']][0], axis=1)
+#    tm_pairs_scores = compute_tmscore_all_pairs()
+#    summary_df['PAIR_TM'] = summary_df.apply(lambda row: tm_pairs_scores[row['fold_pair']][0], axis=1)
 
     return summary_df, detailed_df
 

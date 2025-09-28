@@ -967,7 +967,6 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
 
     cmd = (f"python3 ./ESMFoldHF.py -input {pair_id} "
         f"--model {args.esm_model} --device {device}{require_cuda_flag}")
-    _run(cmd, args.run_job_mode)
 
     try:
         _run(cmd, args.run_job_mode)
@@ -1238,7 +1237,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
             # Summary (main comparison page)
             out_summary = os.path.join(TABLES_RES, "protein_comparison_table.html")
             preferred = [
-                "pair_id", "#RES", "MSA DEPTH (#Clusters)",
+                "pair_id", "#RES", "MSA DEPTH (#Clusters)", "PAIR_TM",
                 "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
                 "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
                 "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
@@ -1247,6 +1246,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
             explanations = {
                 "#RES": "Number of residues in the longer chain of the pair.",
                 "MSA DEPTH (#Clusters)": "Sequences in DeepMsa.a3m; in parentheses, the number of ShallowMsa_* clusters.",
+                "TRUE_TM": "TM-score between the two ground-truth folds (max of Fold1→Fold2 and Fold2→Fold1).",
             }
             gen_html_from_summary_table(
                 summary_csv=SUMMARY_RESULTS_TABLE,
