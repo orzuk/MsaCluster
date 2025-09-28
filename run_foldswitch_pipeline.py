@@ -788,41 +788,46 @@ def task_load(pair_id: str, args: argparse.Namespace) -> None:
         force_rerun=force)
 
 
+
 def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     """
     Build a 2-sequence seed A3M from BOTH chains of the pair, then run get_msa to
     produce Pipeline/<pair>/output_get_msa/DeepMsa.a3m.
     """
-    # Ensure the two chain FASTAs exist (reuses root FASTAs or extracts from PDBs)
-    pair_dir = f"Pipeline/{pair_id}"
-    foldA, foldB = pair_str_to_tuple(pair_id)        # e.g. '1dzlA', '5keqF'
-    pdbids     = [foldA[:-1], foldB[:-1]]            # ['1dzl','5keq']
-    pdbchains  = [foldA[-1],  foldB[-1]]             # ['A','F']
+    pair_dir  = f"Pipeline/{pair_id}"
+    foldA, foldB = pair_str_to_tuple(pair_id)
+    pdbids    = [foldA[:-1], foldB[:-1]]
+    pdbchains = [foldA[-1],  foldB[-1]]
     ensure_dir(os.path.join(pair_dir, "fasta_chain_files"))
     print("Making fasta chain files: ")
     ensure_chain_fastas(pair_dir, pdbids, pdbchains)
 
-    # Build BOTH-chains seed alignment once
     seed_a3m = build_pair_seed_a3m_from_pair(pair_id, data_dir="Pipeline")
     out_dir  = f"{pair_dir}/output_get_msa"
     ensure_dir(out_dir)
 
-    # Pick the python to run get_msa.py (allows a different venv just for this step)
+    # Resolve repo root and sbatch script absolutely
+    repo_root = Path(__file__).resolve().parent
+    sbatch_script = repo_root / "Pipeline" / "get_msa_params.sh"
+    sbatch_exists = sbatch_script.is_file()
+    print(f"[get_msa] run_job_mode={run_job_mode} sbatch_script={sbatch_script} exists={sbatch_exists}")
+
+    # Interpreter to use for INLINE fallback (if sbatch not used/available)
     python_for_msa = os.environ.get("GET_MSA_PYTHON", sys.executable)
     print(f"[get_msa] using interpreter: {python_for_msa}")
 
-    # Prefer sbatch wrapper if it exists; else run python inline
-    sbatch_script = "./Pipeline/get_msa_params.sh"
-    if run_job_mode == "sbatch" and os.path.exists(sbatch_script):
+    if run_job_mode == "sbatch" and sbatch_exists:
         log = f"{pair_dir}/get_msa_for_{pair_id}.out"
-        # Pass the interpreter to the sbatch script via env if you want to support it there too
-        cmd = f"GET_MSA_PYTHON={shlex.quote(python_for_msa)} sbatch -o {shlex.quote(log)} {shlex.quote(sbatch_script)} {shlex.quote(seed_a3m)} {shlex.quote(pair_id)}"
+        cmd = (
+            f"sbatch -o {shlex.quote(log)} "
+            f"{shlex.quote(str(sbatch_script))} "
+            f"{shlex.quote(seed_a3m)} {shlex.quote(pair_id)}"
+        )
         _run(cmd, "sbatch")
     else:
-        # Force remote ColabFold unless you override; also set a user agent
+        # Safety net: if we’re here, run inline but with the ColabFold python if provided
         os.environ.setdefault("COLABFOLD_USE_LOCAL_MMSEQS", "0")
-        os.environ.setdefault("COLABFOLD_USER_AGENT", "MsaCluster/0.1 orzuk@your-email")
-
+        os.environ.setdefault("COLABFOLD_USER_AGENT", "MsaCluster/0.1 or.zuk@mail.huji.ac.il")
         cmd = (
             f"{shlex.quote(python_for_msa)} ./get_msa.py "
             f"{shlex.quote(seed_a3m)} {shlex.quote(out_dir)} --pair {shlex.quote(pair_id)}"
