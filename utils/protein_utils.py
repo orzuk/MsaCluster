@@ -772,7 +772,7 @@ def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
 
 #    print("Pairwise alignment: ")
 #    print(pairwise_alignment)
-    print("Inside get_matching_indices_two_cmaps: Cmap sizes: ", true_cmap.shape, pred_cmap.shape)
+    print("Inside get_matching_indices_two_cmaps: Cmap sizes: ", len(true_cmap), len(pred_cmap))
     match_true_cmap = {}  # [None]*2
     match_pred_cmap = {}  # [None]*n_pred
 
