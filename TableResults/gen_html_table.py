@@ -8,6 +8,39 @@ sys.path.insert(0, ROOT)
 from config import *
 from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
 
+# --- add near the top (after imports / _ensure_unified_csvs) ---
+
+# Single source of truth for the main comparison table
+DEFAULT_PREFERRED_COLS = [
+    "pair_id", "#RES", "MSA DEPTH (#Clusters)", "PAIR_TM",
+    "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
+    "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
+    "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
+    "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2",
+]
+
+DEFAULT_EXPLANATIONS = {
+    "#RES": "Number of residues in the longer chain of the pair.",
+    "MSA DEPTH (#Clusters)": "Number of sequences in DeepMsa.a3m (before clustering), and in parentheses the number of ShallowMsa_* clusters found.",
+    "PAIR_TM": "TM-score between the two ground-truth folds (max of the two directions).",
+    "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
+    "AF2Clust_TM2": "Best TM-score to Fold2 among AF2 predictions from shallow clusters.",
+    "AF2Deep_TM1":  "Best TM-score to Fold1 among AF2 predictions built from the DeepMsa alignment.",
+    "AF2Deep_TM2":  "Best TM-score to Fold2 among AF2 predictions from DeepMsa.",
+    "AF3Clust_TM1": "Best TM-score to Fold1 among AF3 predictions from shallow clusters.",
+    "AF3Clust_TM2": "Best TM-score to Fold2 among AF3 predictions from shallow clusters.",
+    "AF3Deep_TM1":  "Best TM-score to Fold1 among AF3 predictions from DeepMsa.",
+    "AF3Deep_TM2":  "Best TM-score to Fold2 among AF3 predictions from DeepMsa.",
+    "ESM2_TM1": "Best TM-score to Fold1 among all ESMFold(ESM2) predictions (across all sampled sequences from all clusters; no MSA used).",
+    "ESM2_TM2": "Best TM-score to Fold2 among all ESMFold(ESM2) predictions.",
+    "ESM3_TM1": "Best TM-score to Fold1 among all ESMFold(ESM3) predictions.",
+    "ESM3_TM2": "Best TM-score to Fold2 among all ESMFold(ESM3) predictions.",
+    "MSATrans_CMAP_PR1": "Maximum precision of MSA-Transformer contact map vs Fold1 truth (threshold=0.4; |i−j|≥6).",
+    "MSATrans_CMAP_PR2": "Maximum precision vs Fold2 truth (same settings).",
+    "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
+    "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
+}
+
 
 # === NEW: ensure unified CSVs exist (or rebuild on demand) ===
 def _ensure_unified_csvs(force_rerun: bool = False):
@@ -20,6 +53,30 @@ def _ensure_unified_csvs(force_rerun: bool = False):
         except Exception as e:
             print(f"[gen_html] WARN: could not build unified CSVs automatically: {e}")
 
+def write_global_tables(*, force_rerun_csv: bool = False,
+                        fade_min_clusters: int = 2) -> tuple[str, str]:
+    """
+    Build both global HTML tables (summary + cluster-level) using the single
+    source-of-truth column order and explanations. Returns (summary_html, clusters_html).
+    """
+    _ensure_unified_csvs(force_rerun=force_rerun_csv)
+
+    out_summary = os.path.join(TABLES_RES, "protein_comparison_table.html")
+    gen_html_from_summary_table(
+        summary_csv=SUMMARY_RESULTS_TABLE,
+        output_html=out_summary,
+        preferred_column_order=DEFAULT_PREFERRED_COLS,
+        column_explanations=DEFAULT_EXPLANATIONS,
+        fade_min_clusters=fade_min_clusters,  # << NEW
+    )
+
+    out_clusters = os.path.join(TABLES_RES, "protein_clusters_table.html")
+    gen_html_from_cluster_detailed_table(
+        detailed_csv=DETAILED_RESULTS_TABLE,
+        output_html=out_clusters,
+    )
+    return out_summary, out_clusters
+
 
 def gen_html_from_summary_table(
     summary_csv: str | None = None,
@@ -28,6 +85,7 @@ def gen_html_from_summary_table(
     base_pair_url: str | None = GITHUB_URL_HTML + "/{pair_id}.html",
     preferred_column_order: list[str] | None = None,
     column_explanations: dict[str, str] | None = None,
+    fade_min_clusters: int | None = None,   # << NEW
 ) -> str:
     if summary_csv is None:
         summary_csv = SUMMARY_RESULTS_TABLE
@@ -48,6 +106,27 @@ def gen_html_from_summary_table(
             f.write(f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title></head>"
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
+
+    # Identify the column that carries cluster count in parentheses
+    cluster_col = None
+    for c in df.columns:
+        if "(#Clusters)" in c:
+            cluster_col = c
+            break
+
+    # Helper to parse "(N)" from the “MSA DEPTH (#Clusters)” cell
+    import re as _re
+    _paren = _re.compile(r"\((\d+)\)")
+
+    def _clusters_in_row(row) -> int | None:
+        if cluster_col is None:
+            return None
+        val = row.get(cluster_col)
+        if pd.isna(val):
+            return None
+        m = _paren.search(str(val))
+        return int(m.group(1)) if m else None
+
 
     # --- Normalize pair id column name to 'pair_id' (for display & linking) ---
     if "pair_id" in df.columns:
@@ -96,18 +175,22 @@ def gen_html_from_summary_table(
         m = num_re.match(s)
         return m.group(1) if m else s
 
-    # --- Rows ---
+    # --- Rows. When building rows: choose row class based on cluster count ---
     rows = []
     for _, r in df.iterrows():
         pair = str(r["pair_id"])
         link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
-        # First cell: linked pair id (never duplicated in later columns)
         tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
         for col in df.columns[1:]:
             val = r[col]
             disp = "-" if pd.isna(val) else str(val)
             tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
-        rows.append("<tr>" + "".join(tds) + "</tr>")
+        row_cls = ""
+        if fade_min_clusters is not None:
+            ncl = _clusters_in_row(r)
+            if ncl is not None and ncl < fade_min_clusters:
+                row_cls = ' class="lowclust"'
+        rows.append(f"<tr{row_cls}>" + "".join(tds) + "</tr>")
 
     # --- Explanations (only for existing columns) ---
     expl_lines = []
@@ -115,6 +198,13 @@ def gen_html_from_summary_table(
         for c in df.columns:
             if c in column_explanations:
                 expl_lines.append(f"<p><b>{html.escape(c)}</b>: {html.escape(column_explanations[c])}</p>")
+
+
+    # --- update the legend block build (append a note if fading is active) ---
+    if fade_min_clusters is not None:
+        expl_lines.append(
+            f"<p><i>Note:</i> rows shown dimmed have fewer than {fade_min_clusters} clusters in the shallow MSA and are de-emphasized.</p>"
+        )
     expl_html = ("\n".join(expl_lines)) if expl_lines else ""
 
     # --- HTML doc ---
@@ -140,6 +230,8 @@ def gen_html_from_summary_table(
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
   .legend {{ width: 98%; margin: 20px auto; line-height: 1.4; }}
+    tr.lowclust{opacity: .45; background - color:  # 1b1b1b; }
+    tr.lowclust:hover{opacity: .65; background - color:  # 272727; }
 </style>
 </head>
 <body>
@@ -374,61 +466,15 @@ def gen_html_for_global_plots(
     return output_html
 
 
-
-
 if __name__ == "__main__":
-
     ap = argparse.ArgumentParser()
-    ap.add_argument("--force_rerun", action="store_true", help="Recompute unified CSVs from per-pair cluster CSVs before building HTML.")
+    ap.add_argument("--force_rerun", action="store_true",
+                    help="Recompute unified CSVs from per-pair cluster CSVs before building HTML.")
+    ap.add_argument("--min_clusters_fade", type=int, default=2,
+                    help="Fade rows whose (#Clusters) is below this number. Set <=0 to disable.")
     args = ap.parse_args()
 
-    _ensure_unified_csvs(force_rerun=args.force_rerun)
+    write_global_tables(force_rerun_csv=args.force_rerun,
+                        fade_min_clusters=None if args.min_clusters_fade <= 0 else args.min_clusters_fade)
 
-
-    # Your main comparison table (to docs/protein_comparison_table.html)
-    out1 = os.path.join(TABLES_RES, "protein_comparison_table.html")
-    preferred = [
-        "pair_id", "#RES", "MSA DEPTH (#Clusters)", "PAIR_TM",
-        "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
-        "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
-        "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
-        "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2"]
-
-    explanations = {
-        "#RES": "Number of residues in the longer chain of the pair.",
-        "MSA DEPTH (#Clusters)": "Number of sequences in DeepMsa.a3m (before clustering), and in parentheses the number of ShallowMsa_* clusters found.",
-        "TRUE_TM": "TM-score between the two ground-truth folds (max of the two directions).",
-        "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
-        "AF2Clust_TM2": "Best TM-score to Fold2 among AF2 predictions from shallow clusters.",
-        "AF2Deep_TM1":  "Best TM-score to Fold1 among AF2 predictions built from the DeepMsa alignment.",
-        "AF2Deep_TM2":  "Best TM-score to Fold2 among AF2 predictions from DeepMsa.",
-        "AF3Clust_TM1": "Best TM-score to Fold1 among AF3 predictions from shallow clusters.",
-        "AF3Clust_TM2": "Best TM-score to Fold2 among AF3 predictions from shallow clusters.",
-        "AF3Deep_TM1":  "Best TM-score to Fold1 among AF3 predictions from DeepMsa.",
-        "AF3Deep_TM2":  "Best TM-score to Fold2 among AF3 predictions from DeepMsa.",
-        "ESM2_TM1": "Best TM-score to Fold1 among all ESMFold(ESM2) predictions (across all sampled sequences from all clusters; no MSA used).",
-        "ESM2_TM2": "Best TM-score to Fold2 among all ESMFold(ESM2) predictions.",
-        "ESM3_TM1": "Best TM-score to Fold1 among all ESMFold(ESM3) predictions.",
-        "ESM3_TM2": "Best TM-score to Fold2 among all ESMFold(ESM3) predictions.",
-        "MSATrans_CMAP_PR1": "Maximum precision of MSA-Transformer contact map vs Fold1 truth (threshold=0.4; |i−j|≥6).",
-        "MSATrans_CMAP_PR2": "Maximum precision vs Fold2 truth (same settings).",
-        "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
-        "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
-    }
-
-    gen_html_from_summary_table(summary_csv=None, output_html=out1, preferred_column_order=preferred, column_explanations=explanations)
-    # clusters table
-    out2 = os.path.join(TABLES_RES, "protein_clusters_table.html")
-    gen_html_from_cluster_detailed_table(detailed_csv=None, output_html=out2)
-
-
-    # Also build the global plots gallery (optional but handy when running this script directly)
-    out_global = gen_html_for_global_plots(
-        images_dir=FIGURE_RES_DIR,
-        output_html=os.path.join(TABLES_RES, "pairs_global_analysis.html"),
-        title="Global Comparison Plots For All Protein Pairs")
-#    except Exception as e:
-#        print(f"[html] WARN: could not build global plots page: {e}")
-
-
-    print("OK:\n ", out1, "\n ", out2)
+    print("[OK main html] done.")

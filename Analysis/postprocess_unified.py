@@ -219,7 +219,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         tm21 = compute_tmscore_align(pdb2, pdb1, chain1=c2, chain2=c1)
 #        row["TRUE_TM12"] = tm12
 #        row["TRUE_TM21"] = tm21
-        row["PAIR_TM"] = max(tm12, tm21)  # single symmetric number to display
+        row["PAIR_TM"] = round(max(tm12, tm21), 3)  # single symmetric number to display
 
         # AF: Clust + Deep, per fold
         for tag, up in (("af2","AF2"), ("af3","AF3")):
