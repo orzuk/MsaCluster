@@ -786,20 +786,6 @@ def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
     for (fold, cmap), idx in zip(pred_cmap.items(), idxs):
         match_pred_cmap[fold] = cmap[np.ix_(idx, idx)]
 
-
-    # good_inds = np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1])
-#    good_inds = np.where(np.minimum(pairwise_alignment[0].indices[0], pairwise_alignment[0].indices[1]) >= 0)[0]
-#
-#    ctr = 0
-#    for fold in true_cmap.keys():  # get true (these are dictionaries !!)
-#        match_true_cmap[fold] = true_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
-#                                                       pairwise_alignment[0].indices[ctr][good_inds])]
-#        ctr = ctr + 1
-#
-#    ctr = 0
-#    for fold in pred_cmap.keys():  # range(n_pred):  # get predicted
-#        match_pred_cmap[fold] = pred_cmap[fold][np.ix_(pairwise_alignment[0].indices[ctr][good_inds],
-#                                                       pairwise_alignment[0].indices[ctr][good_inds])]
     return match_true_cmap, match_pred_cmap
 
 

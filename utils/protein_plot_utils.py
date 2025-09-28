@@ -923,12 +923,15 @@ def make_foldswitch_all_plots(
         seqs[pdbids[1] + pdbchains[1]],
     )
     print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
+    print("true_cmap type and len, and len([0]):", type(true_cmap), len(true_cmap), len(true_cmap[pdbids[0] + pdbchains[0]]))
+    print("msa_transformer_pred type and len, and len([0]):", type(msa_transformer_pred), len(msa_transformer_pred),
+          len(msa_transformer_pred["ShallowMsa_000"]))
     match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
-        pairwise_alignment, true_cmap, msa_transformer_pred)
+        pairwise_alignment, true_cmap, msa_transformer_pred) # Works for only pair???
 
     # ---------- Plot CMAPs ----------
     if plot_contacts:
-        print("All match_predicted_cmaps len:", len(match_predicted_cmaps))
+        print("All match_true len and match_predicted_cmaps len:",  len(match_true_cmap), len(match_predicted_cmaps))
         _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id)
 
     # ---------- Metrics on shared/unique contacts ----------
