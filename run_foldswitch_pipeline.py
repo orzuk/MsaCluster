@@ -787,6 +787,7 @@ def task_load(pair_id: str, args: argparse.Namespace) -> None:
         [foldA[-1],  foldB[-1]],
         force_rerun=force)
 
+
 def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     """
     Build a 2-sequence seed A3M from BOTH chains of the pair, then run get_msa to
@@ -806,15 +807,26 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     out_dir  = f"{pair_dir}/output_get_msa"
     ensure_dir(out_dir)
 
+    # Pick the python to run get_msa.py (allows a different venv just for this step)
+    python_for_msa = os.environ.get("GET_MSA_PYTHON", sys.executable)
+    print(f"[get_msa] using interpreter: {python_for_msa}")
+
     # Prefer sbatch wrapper if it exists; else run python inline
     sbatch_script = "./Pipeline/get_msa_params.sh"
     if run_job_mode == "sbatch" and os.path.exists(sbatch_script):
         log = f"{pair_dir}/get_msa_for_{pair_id}.out"
-        cmd = f"sbatch -o '{log}' {sbatch_script} '{seed_a3m}' {pair_id}"
+        # Pass the interpreter to the sbatch script via env if you want to support it there too
+        cmd = f"GET_MSA_PYTHON={shlex.quote(python_for_msa)} sbatch -o {shlex.quote(log)} {shlex.quote(sbatch_script)} {shlex.quote(seed_a3m)} {shlex.quote(pair_id)}"
         _run(cmd, "sbatch")
     else:
-        cmd = f"python3 ./get_msa.py '{seed_a3m}' '{out_dir}' --pair {pair_id}"
+        # Force remote ColabFold unless you override; also set a user agent
+        os.environ.setdefault("COLABFOLD_USE_LOCAL_MMSEQS", "0")
+        os.environ.setdefault("COLABFOLD_USER_AGENT", "MsaCluster/0.1 orzuk@your-email")
 
+        cmd = (
+            f"{shlex.quote(python_for_msa)} ./get_msa.py "
+            f"{shlex.quote(seed_a3m)} {shlex.quote(out_dir)} --pair {shlex.quote(pair_id)}"
+        )
         _run(cmd, "inline")
 
 
