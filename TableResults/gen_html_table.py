@@ -230,8 +230,8 @@ def gen_html_from_summary_table(
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
   .legend {{ width: 98%; margin: 20px auto; line-height: 1.4; }}
-    tr.lowclust{opacity: .45; background - color:  # 1b1b1b; }
-    tr.lowclust:hover{opacity: .65; background - color:  # 272727; }
+    tr.lowclust{{opacity: .45; background - color:  # 1b1b1b; }}
+    tr.lowclust:hover{{opacity: .65; background - color:  # 272727; }}
 </style>
 </head>
 <body>

@@ -220,6 +220,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 #        row["TRUE_TM12"] = tm12
 #        row["TRUE_TM21"] = tm21
         row["PAIR_TM"] = round(max(tm12, tm21), 3)  # single symmetric number to display
+        print("TM12:", tm12, "TM21:", tm21, "MAX-rounded:", row["PAIR_TM"])
 
         # AF: Clust + Deep, per fold
         for tag, up in (("af2","AF2"), ("af3","AF3")):
