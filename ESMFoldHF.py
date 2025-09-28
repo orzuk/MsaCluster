@@ -247,6 +247,11 @@ def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None):
                             pdb_str = model.infer_pdb(seq)
                     else:
                         pdb_str = model.infer_pdb(seq)
+
+                    # New: dump PDBs to files
+                    p = write_one_pdb(outdir, name, model_tag, pdb_str)
+                    print(f"[esm2] wrote {p}", flush=True)
+
                 break  # success
             except torch.cuda.OutOfMemoryError as e:
                 # free what we can
@@ -353,6 +358,61 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
                 pass
     return {"backend": "esm3-subprocess", "chains": outputs}
 
+
+def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Path, model_tag: str) -> Dict:
+    if not ESM_PATH:
+        raise RuntimeError("ESM_PATH is not set in config.py or environment.")
+    script = Path(ESM_PATH) / ESM3_INFER_SCRIPT
+    if not script.exists():
+        raise FileNotFoundError(f"ESM3 inference script not found: {script}")
+
+    outputs = []
+    index_rows = []
+    for name, seq in seqs:
+        orig_len = len(seq)
+        seq = process_sequence(seq)
+        if not seq:
+            print(f"[esm3] skip {name}: empty after sanitization (was {orig_len} aa)")
+            continue
+        if len(seq) != orig_len:
+            print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
+
+        import tempfile, os, subprocess, sys
+        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
+            tf.write(f">{name}\n{seq}\n")
+            fasta_path = tf.name
+        try:
+            env = os.environ.copy()
+            repo_root = Path(__file__).resolve().parent
+            env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
+            cmd = [sys.executable, str(script), "--fasta", fasta_path, "--device", device]
+            res = subprocess.run(cmd, capture_output=True, text=True,
+                                 cwd=str(Path(script).parent), env=env)
+            if res.returncode != 0:
+                raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
+
+            pdb_str = res.stdout
+            # STREAM WRITE NOW:
+            p = write_one_pdb(outdir, name, model_tag, pdb_str)
+            print(f"[esm3] wrote {p}", flush=True)
+
+            outputs.append({
+                "name": name,
+                "pdb": pdb_str,
+                "plddt": None,
+                "pae": None,
+                "residue_index": list(range(1, len(seq) + 1)),
+            })
+            index_rows.append((name, str(p)))
+        finally:
+            try:
+                os.unlink(fasta_path)
+            except Exception:
+                pass
+
+    # return standard shape; write_normalized_outputs will still create combined + index
+    return {"backend": "esm3-subprocess", "chains": outputs}
+
 # --------------------------------------------------------------------------------------
 # Normalization to ESM2-style layout
 # --------------------------------------------------------------------------------------
@@ -412,6 +472,13 @@ def write_normalized_outputs(result, outdir: Path, pair_id: str, model_tag: str,
                  f"backend={result.get('backend')} device={device} "
                  f"n={len(index_rows)}\n")
 
+
+def write_one_pdb(outdir: Path, name: str, model_tag: str, pdb_txt: str):
+    outdir.mkdir(parents=True, exist_ok=True)
+    p = outdir / f"{name}_{model_tag}.pdb"
+    with open(p, "w") as f:
+        f.write(pdb_txt if pdb_txt.endswith("\n") else pdb_txt + "\n")
+    return p
 
 
 # --------------------------------------------------------------------------------------
@@ -480,7 +547,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             amp_dtype=amp_dtype,
         )
     else:
-        result = run_esm3_fold(sequences, device)
+#        result = run_esm3_fold(sequences, device)
+        result = run_esm3_fold_streaming(sequences, device, outdir, model_tag)
     t3 = time.time()
 
     write_normalized_outputs(result, outdir, args.pair_id, model_tag, sequences, device)
