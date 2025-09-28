@@ -498,25 +498,35 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
     )
 
     # --- 3) Deep-only panel ---
+    # Show what keys we actually got (handy for debugging)
+    try:
+        klist = [str(k) for k in (match_predicted_cmaps or {}).keys()]
+        print("[plot] cmap keys:", klist)
+    except Exception:
+        pass
+
     deep_key = None
-    # exact key first (your files produce 'MSA_deep')
-    if "MSA_deep" in match_predicted_cmaps:
-        deep_key = "MSA_deep"
-    else:
-        # simple substring match
+    # 1) exact common filenames
+    if isinstance(match_predicted_cmaps, dict):
+        if "MSA_deep" in match_predicted_cmaps:
+            deep_key = "MSA_deep"
+
+    # 2) any key that *mentions* 'deep'
+    if deep_key is None:
         for k in match_predicted_cmaps.keys():
             if "deep" in str(k).lower():
                 deep_key = k
                 break
-        # or canonical 'DeepMsa'
-        if deep_key is None:
+
+    # 3) normalize aliases to 'DeepMsa'
+    if deep_key is None:
+        for k in match_predicted_cmaps.keys():
             try:
-                deep_key = next(
-                    k for k in match_predicted_cmaps.keys()
-                    if _normalize_cluster_tag(str(k)) == "DeepMsa"
-                )
-            except StopIteration:
-                deep_key = None
+                if _normalize_cluster_tag(str(k)) == "DeepMsa":
+                    deep_key = k
+                    break
+            except Exception:
+                continue
 
     if deep_key is None:
         print("[plot] no 'deep' cluster found -> skipping deep panel")
@@ -524,16 +534,16 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
 
     plt.figure(figsize=(10, 8))
     plot_foldswitch_contacts_and_predictions(
-        predictions=match_predicted_cmaps[deep_key],  # [pred_f1, pred_f2]
+        predictions=match_predicted_cmaps[deep_key],  # accepts 1 or 2 maps
         contacts=match_true_cmap,
-        title="Deep-MSA",
+        title=f"Deep-MSA ({deep_key})",
         show_legend=True,
         cluster_names=("D", "D"),
     )
-    out = os.path.join(fig_dir_root, f"{foldpair_id}_deep_cmap.png")  # <-- name as requested
+    out = os.path.join(fig_dir_root, f"{foldpair_id}_deep_cmap.png")
     plt.savefig(out, dpi=200)
     plt.close()
-    print("[plot] wrote", out)
+    print("[plot] wrote cmaps", out)
 
 
 def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix, make_interactive: bool = False):
