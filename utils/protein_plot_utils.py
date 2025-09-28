@@ -881,6 +881,7 @@ def make_foldswitch_all_plots(
 
     # ---------- Load predicted CMAPs (shallow + deep) ----------
     # Keys: "ShallowMsa_XXX" or "MSA_deep"
+    print("msa_pred_files:", msa_pred_files, " num=", len(msa_pred_files))
     msa_transformer_pred = {}
     for path in msa_pred_files:
         base = os.path.splitext(os.path.basename(path))[0]  # e.g., "msa_t__ShallowMsa_008"
@@ -889,6 +890,7 @@ def make_foldswitch_all_plots(
             msa_transformer_pred[key] = np.load(path, allow_pickle=True)
         except Exception:
             msa_transformer_pred[key] = np.genfromtxt(path)
+    print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), " num=", len(msa_transformer_pred))
 
     # ---------- Truth contacts ----------
     try:
@@ -926,6 +928,7 @@ def make_foldswitch_all_plots(
 
     # ---------- Plot CMAPs ----------
     if plot_contacts:
+        print("All match_predicted_cmaps len:", len(match_predicted_cmaps))
         _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id)
 
     # ---------- Metrics on shared/unique contacts ----------
