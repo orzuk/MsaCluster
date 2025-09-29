@@ -1271,17 +1271,22 @@ def plot_array_contacts_and_predictions(
     # hide leftover cells
     for j in range(n_pred, len(axes)):
         axes[j].axis("off")
-    # hide leftovers...
-    # Add one global legend (5 items in a single row) below the mosaic
-    legend_elements = [
-        Line2D([0], [0], marker='s', color='lightgray', label='Shared Contacts', markersize=10, linestyle='None'),
-        Line2D([0], [0], marker='s', color='darkgray', label='Unique Contacts', markersize=10, linestyle='None'),
-        Line2D([0], [0], marker='o', color='red', label='False Positives', markersize=6, linestyle='None'),
-        Line2D([0], [0], marker='o', color='blue', label='True Shared Positives', markersize=6, linestyle='None'),
-        Line2D([0], [0], marker='o', color='green', label='True Unique Positives', markersize=6, linestyle='None'),
+
+    # ---- single global legend below the mosaic (one narrow row) ----
+    legend_handles = [
+        Patch(facecolor='lightgray', edgecolor='#444', label='Shared Contacts'),
+        Patch(facecolor='darkgray', edgecolor='#444', label='Unique Contacts'),
+        Line2D([0], [0], marker='o', linestyle='None', color='red', label='False Positives', markersize=6),
+        Line2D([0], [0], marker='o', linestyle='None', color='blue', label='True Shared Positives', markersize=6),
+        Line2D([0], [0], marker='o', linestyle='None', color='green', label='True Unique Positives', markersize=6),
     ]
-    fig.legend(legend_elements, loc='lower center', bbox_to_anchor=(0.5, -0.02), ncol=5, frameon=False, fontsize=8)
-    fig.subplots_adjust(bottom=0.14)
+    legend_labels = [h.get_label() for h in legend_handles]
+
+    # put legend just below the axes area
+    fig.legend(handles=legend_handles, labels=legend_labels, loc='lower center', bbox_to_anchor=(0.5, -0.02),
+        ncol=5, frameon=False, fontsize=8)
+    # leave a bit more room for the legend
+    fig.subplots_adjust(bottom=0.18)
 
 
     if save_file:
