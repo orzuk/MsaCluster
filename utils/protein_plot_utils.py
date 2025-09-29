@@ -928,7 +928,7 @@ def make_foldswitch_all_plots(
 #    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
 #        pairwise_alignment, true_cmap, msa_transformer_pred) # Works for only pair???
 
-    msa_a3m_path = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
+    msa_a3m_path = os.path.join("Pipeline", foldpair_id, "output_get_msa", "DeepMsa.a3m")
     print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
     print(" pred_cmaps sizes: ", [cmap.shape for cmap in msa_transformer_pred.values()])
 
