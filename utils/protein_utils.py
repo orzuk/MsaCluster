@@ -16,13 +16,13 @@ import Bio
 import Bio.PDB
 import Bio.SeqRecord
 from Bio import SeqIO, PDB, AlignIO
+from Bio.PDB import *
 
 import pickle
 import os
 import sys
 # import urllib
 import mdtraj as md
-from Bio.PDB import *
 # import biotite.structure as bs
 
 from biotite.structure.io.pdb import PDBFile
@@ -30,9 +30,10 @@ from biotite.database import rcsb
 # from biotite.structure.io.pdbx import get_structure
 from biotite.structure import filter_amino_acids, distance, AtomArray
 # from biotite.structure.residues import get_residues
-from biotite.structure import get_residues
+from biotite.structure import get_residues, AtomArray
 
 from Bio.PDB.MMCIFParser import MMCIFParser
+
 
 # Biotite provides a mapping of residue codes to single-letter amino acid codes
 # from biotite.sequence.residues import RESIDUE_CODES_3TO1
@@ -471,78 +472,49 @@ def load_structure_to_atom_array(local_pdb_file):
     bio_structure = parser.get_structure("structure", local_pdb_file)
     # Convert the Biopython structure into a Biotite AtomArray (structured NumPy array)
     atom_array = biopython_to_biotite_atom_array(bio_structure)
-    return atom_array.view(np.recarray)
+    return atom_array   # <- do NOT .view(np.recarray) return atom_array.view(np.recarray)
 
-
-#def load_structure_to_atom_array(local_cif_file):
-#    from Bio.PDB import MMCIFParser
-#    parser = MMCIFParser(QUIET=True)
-#    bio_structure = parser.get_structure("structure", local_cif_file)
-#    atom_array = biopython_to_biotite_atom_array(bio_structure)
-#    return atom_array
 
 def biopython_to_biotite_atom_array(bio_structure):
     """
-    Convert a Biopython Structure object to a proper Biotite AtomArray (a structured NumPy array)
-    with the fields required by Biotite's functions, including get_residues.
-
-    The returned AtomArray will have the following fields:
-      - chain_id : a Unicode string of length 1 (e.g. "A")
-      - res_id   : a 32-bit integer (residue sequence number)
-      - res_name : a Unicode string of length 3 (three-letter residue code, e.g. "GLY")
-      - atom_name: a Unicode string of length 4 (e.g. "CA")
-      - ins_code : a Unicode string of length 1 (insertion code)
-      - coord    : a 3-element float32 array (coordinates)
+    Convert a Biopython Structure to a Biotite AtomArray.
+    Fields populated: chain_id, res_id, res_name, atom_name, ins_code, coord
     """
-    chain_ids = []
-    atom_names = []
-    coords = []
-    res_ids = []
-    res_names = []
-    ins_codes = []
+    chain_ids, atom_names, coords = [], [], []
+    res_ids, res_names, ins_codes = [], [], []
 
-    for atom in bio_structure.get_atoms():
-        # Get chain id: go from atom -> residue -> chain
-        chain_ids.append(atom.get_parent().get_parent().get_id())
-        # Get atom name (e.g. "CA", "CB", etc.)
-        atom_names.append(atom.get_name())
-        # Get coordinates (3-element vector)
-        coords.append(atom.get_coord())
-        # Get residue information
-        res_id_tuple = atom.get_parent().get_id()  # typically (hetfield, resseq, icode)
-        res_ids.append(res_id_tuple[1])
-        # Normalize the residue name: strip whitespace and convert to uppercase
-        res_names.append(atom.get_parent().get_resname().strip().upper())
-        ins_codes.append(res_id_tuple[2])
+    for model in bio_structure:
+        for chain in model:
+            ch_id = chain.get_id() if isinstance(chain.get_id(), str) else str(chain.get_id())
+            # Biopython chain id can occasionally be longer; keep first char for AtomArray
+            ch_id = (ch_id or " ")[:1]
 
-    # Convert lists to numpy arrays with proper types
-    chain_ids = np.array(chain_ids, dtype="U1")
-    atom_names = np.array(atom_names, dtype="U4")
-    coords = np.array(coords, dtype="f4")
-    res_ids = np.array(res_ids, dtype="i4")
-    res_names = np.array(res_names, dtype="U3")
-    ins_codes = np.array(ins_codes, dtype="U1")
+            for residue in chain:
+                resname = residue.get_resname().upper().strip()
+                res_id_tuple = residue.get_id()  # (hetero flag, seq id, ins code)
+                resseq = int(res_id_tuple[1])
+                icode  = res_id_tuple[2] if isinstance(res_id_tuple[2], str) else " "
 
-    # Define the structured dtype for a Biotite AtomArray
-    atom_dtype = np.dtype([
-        ("chain_id", "U1"),
-        ("res_id", "i4"),
-        ("res_name", "U3"),
-        ("atom_name", "U4"),
-        ("ins_code", "U1"),
-        ("coord", "f4", (3,))
-    ])
+                for atom in residue:
+                    chain_ids.append(ch_id)
+                    atom_names.append(atom.get_name().upper().strip()[:4])
+                    coords.append(atom.get_coord().astype(np.float32))
+                    res_ids.append(resseq)
+                    res_names.append(resname[:3])      # 3-letter
+                    ins_codes.append((icode or " ")[:1])
 
-    n_atoms = len(chain_ids)
-    atom_array = np.empty(n_atoms, dtype=atom_dtype)
-    atom_array["chain_id"] = chain_ids
-    atom_array["atom_name"] = atom_names
-    atom_array["coord"] = coords
-    atom_array["res_id"] = res_ids
-    atom_array["res_name"] = res_names
-    atom_array["ins_code"] = ins_codes
+        break  # model 0 only
 
-    return atom_array
+    n = len(atom_names)
+    arr = AtomArray(n)
+    arr.chain_id  = np.array(chain_ids, dtype="U1")
+    arr.atom_name = np.array(atom_names, dtype="U4")
+    arr.coord     = np.array(coords, dtype="f4")
+    arr.res_id    = np.array(res_ids, dtype="i4")
+    arr.res_name  = np.array(res_names, dtype="U3")
+    arr.ins_code  = np.array(ins_codes, dtype="U1")
+    return arr
+
 
 
 def load_pdb_structure(pdb_file):
