@@ -158,16 +158,19 @@ def _data_uri_for_html_file(p: Path) -> str | None:
     except Exception:
         return None
 
+
+
 def _to_html_src(html_path: Path, mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
-    if mode == "inline":
-        return _data_uri_for_html_file(html_path)
+    # Force file-based src for interactivity (data: URIs can disable JS)
     publish_dir_for_pair.mkdir(parents=True, exist_ok=True)
     dest_path = publish_dir_for_pair / html_path.name
-    if mode == "copy":
+
+    if mode in ("inline", "copy"):
         try:
             shutil.copy2(html_path, dest_path)
         except Exception:
             return None
+    # link mode just points to existing published file
     rel_src = os.path.relpath(dest_path, start=html_out_dir).replace("\\", "/")
     return rel_src
 
@@ -377,6 +380,12 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
         ("fold2_vs_best_ESM3", "Fold2 vs best ESM3"),
     ]:
         p = _find_first(fig_dir, STRUCT_PATTERNS[tag])
+        # Skip static if interactive version exists
+        html_tag = f"{tag}_html"
+        if html_tag in HTML_STRUCT_PATTERNS:
+            interp = _find_first(fig_dir, HTML_STRUCT_PATTERNS[html_tag])
+            if interp and interp.is_file():
+                continue
         if p and p.is_file():
             src = _to_img_src(p, mode, publish_dir_for_pair, output_dir)
             if src: pb.push(pb.fig_html(src, nice))

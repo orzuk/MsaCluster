@@ -99,6 +99,7 @@ REPO_NAME = os.path.basename(MAIN_DIR.rstrip('/\\'))
 SITE_BASE  = f"/{REPO_NAME}"
 GITHUB_URL_HTML = f"{SITE_BASE}/HTML"
 
+
 OUTPUT_PATH_NOTEBOOKS = TABLES_RES + '/HTML'
 SUMMARY_RESULTS_TABLE = TABLES_RES + '/summary_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
 DETAILED_RESULTS_TABLE = TABLES_RES + '/detailed_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
@@ -123,3 +124,9 @@ PAIR_DIR_RE = re.compile(r'^([0-9A-Za-z]{4}[A-Za-z0-9])_([0-9A-Za-z]{4}[A-Za-z0-
 
 # Which of the five AF2 models to use for prediction
 AF2_MODEL = 2
+
+
+# ------------ RENAME: USED IN SOME CODE PLACES ! -------------------- #
+PIPELINE_DIR = DATA_DIR
+DOCS_DIR = TABLES_RES
+# ------------ END RENAME: USED IN SOME CODE PLACES ! -------------------- #
