@@ -342,8 +342,13 @@ def _thumb_grid(pb: PageBuilder, fig_dir: Path, patterns: list[str], mode: str,
     pb.push(f"<h2>{html.escape(title)}</h2>")
     items = []
     for p in thumbs:
+        name = p.name.lower()
+        # Skip panels that are already shown elsewhere
+        if any(k in name for k in ("best", "deep", "all")):
+            continue
         src = _to_img_src(p, mode, publish_dir_for_pair, html_out_dir)
-        if not src: continue
+        if not src:
+            continue
         items.append(f'<figure><img src="{src}" alt="{html.escape(p.name)}"></figure>')
     if not items:
         return False

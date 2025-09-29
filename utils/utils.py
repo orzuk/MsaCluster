@@ -164,7 +164,6 @@ def pair_str_to_tuple(s: str) -> tuple[str, str]:
     """
     '1dzlA_5keqF' -> ('1dzlA','5keqF')
     """
-    print("Stripping to tuple: ", s)
     if isinstance(s, tuple) or isinstance(s, list): # ready correct format
         return s
     s = s.strip()

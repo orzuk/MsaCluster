@@ -1243,12 +1243,18 @@ def plot_array_contacts_and_predictions(
     for i, name in enumerate(preds.keys()):
         ax = axes[i]
         recall[name] = plot_foldswitch_contacts_and_predictions(
-            preds[name], contacts, ax=ax, title=_cluster_short_disp(name), show_legend=(i == 0)
-        )
+            preds[name], contacts, ax=ax, title=_cluster_short_disp(name), show_legend=False)
 
     # hide leftover cells
     for j in range(n_pred, len(axes)):
         axes[j].axis("off")
+
+    # Get legend handles/labels from the first populated axes
+    handles, labels = axes[0].get_legend_handles_labels()
+    if handles and labels:
+        # put a single shared legend at the bottom
+        fig.legend(handles, labels, loc='lower center', ncol=3)
+        fig.subplots_adjust(bottom=0.12)  # leave room for legend
 
     if save_file:
         plt.savefig(save_file + ".png", dpi=200)

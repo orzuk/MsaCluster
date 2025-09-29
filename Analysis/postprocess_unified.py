@@ -224,7 +224,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
             return max(t12, t21)
 
         row["PAIR_TM"] = round(get_or_compute_true_tm(pair_dir_str, pdb1, pdb2, _tm_sym_once), 3)
-        print("Compute/cache TRUE TM:", row["fold_pair"], row["PAIR_TM"])
+#        print("Compute/cache TRUE TM:", row["fold_pair"], row["PAIR_TM"])
 
         # AF: Clust + Deep, per fold
         for tag, up in (("af2","AF2"), ("af3","AF3")):
