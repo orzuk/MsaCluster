@@ -21,6 +21,7 @@ from utils.energy_utils import *
 from utils.align_utils import *
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFont  # NEW
 
@@ -601,20 +602,38 @@ quit
     _add_png_legend(out_two,  label_red, label_blue, title=None)
     _add_png_legend(out_aln,  label_red, label_blue, title=None)
 
-    # Optional interactive viewer (aligned)
+    # Optional interactive (3D)
     if make_interactive:
+        # Unaligned interactive
         try:
-            html_out = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.html")
+            html_unaln = os.path.join(out_dir, f"{out_prefix}_two_structures.html")
             write_py3dmol_overlay_html(
                 os.path.join(pair_dir, pdb1),
                 os.path.join(pair_dir, pdb2),
-                html_out,
-                left_label=label_red, right_label=label_blue,
+                html_unaln,
+                left_label=label_red,
+                right_label=label_blue,
+                title="True vs True (unaligned)"
+            )
+            print(f"[3D] wrote {html_unaln}")
+        except Exception as e:
+            print(f"[3D] true-true interactive (unaligned) failed: {e}")
+
+        # Aligned interactive
+        try:
+            html_aln = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.html")
+            write_py3dmol_overlay_html(
+                os.path.join(pair_dir, pdb1),
+                os.path.join(pair_dir, pdb2),
+                html_aln,
+                left_label=label_red,
+                right_label=label_blue,
                 title="True vs True (aligned)"
             )
-            print(f"[3D] wrote {html_out}")
+            print(f"[3D] wrote {html_aln}")
         except Exception as e:
-            print(f"[3D] true-true interactive failed: {e}")
+            print(f"[3D] true-true interactive (aligned) failed: {e}")
+
 
 
 
@@ -728,7 +747,7 @@ def _render_true_vs_best_esm(pair_id: str, pdbids: list[str], pdbchains: list[st
             print(f"[3D] ESM{model_ver} fold{idx+1} overlay failed: {e}")
 
         if make_interactive:
-            title = f"ESM{model_ver} (best): {_cluster_short_disp(cluster_tag)} sample {sample_idx:03d}"
+            title = f"ESM{model_ver}({_cluster_short_disp(cluster_tag)}) vs. {pdbids[idx]}{pdbchains[idx]}"
             html_out = os.path.join(fig_dir_root, f"{pair_id}_fold{idx+1}_vs_best_ESM{model_ver}.html")
             try:
                 write_py3dmol_overlay_html(
@@ -776,9 +795,9 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
             # render
             align_and_visualize_proteins(true_pdb, pred_pdb, out, open_environment=bool(PYMOL_AVAILABLE))
             # annotate
-            title = f"{model_tag}: TM={tm:.2f} ({_cluster_short_disp(cluster)})"
             left = f"{pdbids[idx]}{pdbchains[idx]}"
             right = f"{model_tag}"
+            title = f"{model_tag}({_cluster_short_disp(cluster)}) vs. {left}: TM={tm:.2f}"
             _add_png_legend(out, left, right, title=title)
             print(f"[3D] wrote {out}")
         except Exception as e:
@@ -799,39 +818,42 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
 
 
 # ----------- Plots Generation Functions -----------
-def write_py3dmol_overlay_html(pdb1: str, pdb2: str, out_html: str,
-                               color1="red", color2="blue",
-                               width=900, height=700):
-    import py3Dmol
-    v = py3Dmol.view(width=width, height=height)
-    with open(pdb1) as f: v.addModel(f.read(), 'pdb')
-    v.setStyle({'model': 0}, {'cartoon': {'color': color1}})
-    with open(pdb2) as f: v.addModel(f.read(), 'pdb')
-    v.setStyle({'model': 1}, {'cartoon': {'color': color2}})
-    v.zoomTo()
-    with open(out_html, "w") as f: f.write(v._make_html())
-
-def write_py3dmol_overlay_html(pdb1: str, pdb2: str, out_html: str,
-    *, left_label: str = "Fold1", right_label: str = "Fold2",
-    title: str | None = None, color_left="red", color_right="blue",
-    width: int = 1000, height: int = 760
+def write_py3dmol_overlay_html(
+    pdb1: str,
+    pdb2: str,
+    out_html: str,
+    *,
+    left_label: str = "Fold1",
+    right_label: str = "Fold2",
+    title: str | None = None,
+    color_left: str = "red",
+    color_right: str = "blue",
+    width: int = 700,
+    height: int = 520,
 ):
-    import py3Dmol, html
+    import py3Dmol, html as _html
+
     v = py3Dmol.view(width=width, height=height)
-    with open(pdb1) as f: v.addModel(f.read(), 'pdb')
-    v.setStyle({'model': 0}, {'cartoon': {'color': color_left}})
-    with open(pdb2) as f: v.addModel(f.read(), 'pdb')
-    v.setStyle({'model': 1}, {'cartoon': {'color': color_right}})
-    v.setBackgroundColor('white')
+    with open(pdb1) as f:
+        v.addModel(f.read(), "pdb")
+    v.setStyle({"model": 0}, {"cartoon": {"color": color_left}})
+    with open(pdb2) as f:
+        v.addModel(f.read(), "pdb")
+    v.setStyle({"model": 1}, {"cartoon": {"color": color_right}})
+    v.setBackgroundColor("white")
     v.zoomTo()
-    # simple legend labels in-scene
-    v.addLabel(f"Red: {left_label}",  {'fontColor':'black','backgroundColor':'white','fontSize':14})
-    v.addLabel(f"Blue: {right_label}", {'y':20,'fontColor':'black','backgroundColor':'white','fontSize':14})
-    html_body = v._make_html()
-    # wrap with a lightweight title bar (keeps page embedding simple)
-    header = f"<h3 style='font-family:sans-serif'>{html.escape(title) if title else ''}</h3>"
+
+    body = v._make_html()
+    # Title + legend (colored squares; no “Red/Blue” words)
+    title_html = f"<h3 style='font-family:sans-serif;margin:6px 0 6px 0;'>{_html.escape(title) if title else ''}</h3>"
+    legend_html = f"""
+<div style="display:flex;justify-content:center;gap:18px;margin:4px 0 10px 0;font-family:sans-serif;">
+  <span><span style="display:inline-block;width:12px;height:12px;background:{color_left};margin-right:6px;border:1px solid #444;"></span>{_html.escape(left_label)}</span>
+  <span><span style="display:inline-block;width:12px;height:12px;background:{color_right};margin-right:6px;border:1px solid #444;"></span>{_html.escape(right_label)}</span>
+</div>"""
+
     with open(out_html, "w") as f:
-        f.write(header + html_body)
+        f.write(title_html + legend_html + body)
 
 
 
@@ -882,7 +904,7 @@ def make_foldswitch_all_plots(
 
     # ---------- Load predicted CMAPs (shallow + deep) ----------
     # Keys: "ShallowMsa_XXX" or "MSA_deep"
-    print("msa_pred_files:", msa_pred_files, " num=", len(msa_pred_files))
+    print("msa_pred_files num=", len(msa_pred_files))
     msa_transformer_pred = {}
     for path in msa_pred_files:
         base = os.path.splitext(os.path.basename(path))[0]  # e.g., "msa_t__ShallowMsa_008"
@@ -1234,7 +1256,7 @@ def plot_array_contacts_and_predictions(
     n_row = int(math.ceil(math.sqrt(n_pred)))
     n_col = n_row - 1 if n_row * (n_row - 1) >= n_pred else n_row
 
-    fig, axes = plt.subplots(n_row, n_col, figsize=(18, 18), layout="compressed")
+    fig, axes = plt.subplots(n_row, n_col, figsize=(12, 12), layout="compressed")
     axes = np.array(axes).reshape(-1)  # flatten safely for any 1D/2D case
 
     # ---- draw all clusters and collect per-fold recall ----
@@ -1245,16 +1267,22 @@ def plot_array_contacts_and_predictions(
         recall[name] = plot_foldswitch_contacts_and_predictions(
             preds[name], contacts, ax=ax, title=_cluster_short_disp(name), show_legend=False)
 
+
     # hide leftover cells
     for j in range(n_pred, len(axes)):
         axes[j].axis("off")
+    # hide leftovers...
+    # Add one global legend (5 items in a single row) below the mosaic
+    legend_elements = [
+        Line2D([0], [0], marker='s', color='lightgray', label='Shared Contacts', markersize=10, linestyle='None'),
+        Line2D([0], [0], marker='s', color='darkgray', label='Unique Contacts', markersize=10, linestyle='None'),
+        Line2D([0], [0], marker='o', color='red', label='False Positives', markersize=6, linestyle='None'),
+        Line2D([0], [0], marker='o', color='blue', label='True Shared Positives', markersize=6, linestyle='None'),
+        Line2D([0], [0], marker='o', color='green', label='True Unique Positives', markersize=6, linestyle='None'),
+    ]
+    fig.legend(legend_elements, loc='lower center', bbox_to_anchor=(0.5, -0.02), ncol=5, frameon=False, fontsize=8)
+    fig.subplots_adjust(bottom=0.14)
 
-    # Get legend handles/labels from the first populated axes
-    handles, labels = axes[0].get_legend_handles_labels()
-    if handles and labels:
-        # put a single shared legend at the bottom
-        fig.legend(handles, labels, loc='lower center', ncol=3)
-        fig.subplots_adjust(bottom=0.12)  # leave room for legend
 
     if save_file:
         plt.savefig(save_file + ".png", dpi=200)

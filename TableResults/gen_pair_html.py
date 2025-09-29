@@ -174,7 +174,6 @@ def _to_html_src(html_path: Path, mode: str, publish_dir_for_pair: Path, html_ou
     rel_src = os.path.relpath(dest_path, start=html_out_dir).replace("\\", "/")
     return rel_src
 
-
 class PageBuilder:
     def __init__(self, title: str):
         self.title = title
@@ -185,19 +184,78 @@ class PageBuilder:
         return f"""
 <style>
   :root {{ color-scheme: dark; }}
-  body {{ background:#121212; color:#E0E0E0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:20px; }}
+  body {{
+    background:#121212; color:#E0E0E0;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin:20px;
+    line-height:1.45;
+  }}
+
   h1 {{ margin: 0 0 4px; }}
   h2 {{ margin: 18px 0 10px; }}
+
+  /* Figure container and caption (caption on TOP, bigger, with extra spacing) */
+  .figure-block {{ margin: 24px 0 40px 0; }}
+  h2.figcap {{
+    margin: 0 0 10px 0;
+    font-size: 1.8em;            /* ~2x your old size */
+    font-weight: 600;
+  }}
+
   .sub {{ color:#B0BEC5; margin-bottom:10px; }}
 
-  /* Two-up panels: enforce a shared max-height so Deep/Best look the same size */
+  /* Two-up panels (static images): keep your old behavior */
   .two-up {{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }}
-  .two-up figure, .two-up .imgbox {{ height:{MAX_TWOCOL_HEIGHT}px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:transparent; margin:0; }}
-  .two-up img {{ max-height:{MAX_TWOCOL_HEIGHT}px; width:auto; height:auto; object-fit:contain; display:block; border:1px solid #333; }}
+  .two-up figure, .two-up .imgbox {{
+    height:{MAX_TWOCOL_HEIGHT}px;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden; background:transparent; margin:0;
+  }}
+  .two-up img {{
+    max-height:{MAX_TWOCOL_HEIGHT}px; width:auto; height:auto;
+    object-fit:contain; display:block; border:1px solid #333;
+  }}
 
-  /* Tree: cap its height and center it, keep width auto */
-  .tree figure, .tree .imgbox {{ max-height:{MAX_TREE_HEIGHT}px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin: 0 auto 16px auto; }}
-  .tree img {{ max-height:{MAX_TREE_HEIGHT}px; width:auto; height:auto; border:1px solid #333; display:block; }}
+  /* Interactive 3D rows: two viewers side-by-side, each ~30% page width, centered */
+  .iframerow {{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(260px, 30vw));
+    gap: 16px;
+    justify-content: center;      /* center the two columns */
+    align-items: start;
+    margin: 10px auto 32px auto;  /* center the whole row */
+    width: 100%;
+    max-width: 100%;
+  }}
+  .iframerow .iframebox {{
+    width: 30vw;                  /* ~30% of page */
+    max-width: 720px;
+    height: 520px;
+    border:1px solid #333; background:#fff;
+    margin: 0 auto;
+  }}
+  .iframerow iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
+
+  /* Single interactive viewer fallback (still narrow & centered) */
+  .iframebox {{
+    width: 30vw;                  /* ~30% of page */
+    max-width: 720px;
+    height: 520px;
+    border:1px solid #333; background:#fff;
+    margin: 0 auto;
+  }}
+  iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
+
+  /* Tree: 40% larger than before & centered; width auto */
+  .tree figure, .tree .imgbox {{
+    max-height:{int(MAX_TREE_HEIGHT*1.4)}px;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden; margin: 0 auto 16px auto;
+  }}
+  .tree img {{
+    max-height:{int(MAX_TREE_HEIGHT*1.4)}px; width:auto; height:auto;
+    border:1px solid #333; display:block;
+  }}
 
   figure {{ margin: 0 0 12px 0; }}
   figcaption {{ text-align:center; font-style:italic; color:#9aa5ad; margin-top:6px; }}
@@ -206,16 +264,13 @@ class PageBuilder:
   .warn {{ color:#ff6f6f; }}
   .callout-missing {{ color:#ff8080; font-weight:700; font-size:1.05em; margin:10px 0; }}
 
-  /* Table container: limit width so it doesn't span full page */
-  .table-wrap {{ max-width: 960px; margin: 10px auto 18px auto; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 0.95em; }}
-  th, td {{ border: 1px solid #333; padding: 6px 8px; text-align: left; white-space: normal; }}
+  /* Table: ~40% larger text and centered container */
+  .table-wrap {{ max-width: 1200px; margin: 10px auto 22px auto; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 1.33em; }}
+  th, td {{ border: 1px solid #333; padding: 8px 10px; text-align: left; white-space: normal; }}
   th {{ background:#b71c1c; color:#fff; position: sticky; top: 0; }}
   tr:nth-child(even) {{ background: #2b2b2b; }}
   tr:hover {{ background: #3a3a3a; }}
-
- .iframebox {{ width: 100%; height: 820px; border:1px solid #333; background:#fff; }}
-  iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
 
   /* Grid of per-cluster thumbnails */
   .thumb-grid {{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }}
@@ -233,9 +288,12 @@ class PageBuilder:
 
     def fig_html(self, img_src: str, caption: str, extra_class: str = "") -> str:
         self.fig_idx += 1
-        cap = f"Figure {self.fig_idx}. {html.escape(caption)}"
-        cls = f' class="{extra_class}"' if extra_class else ""
-        return f"""<div{cls}><figure class="imgbox"><img src="{img_src}"/></figure><figcaption>{cap}</figcaption></div>"""
+        cap = f"Figure {self.fig_idx}: {html.escape(caption)}"
+        cls = f' class="figure-block {extra_class}"' if extra_class else ' class="figure-block"'
+        return f'''<div{cls}>
+    <h2 class="figcap">{cap}</h2>
+    <figure class="imgbox"><img src="{img_src}"/></figure>
+    </div>'''
 
     def missing_html(self, label: str) -> str:
         return f"""<div class="warn">[missing] {html.escape(label)}</div>"""
@@ -256,10 +314,30 @@ class PageBuilder:
 
     def fig_iframe(self, iframe_src: str, caption: str) -> str:
         self.fig_idx += 1
-        cap = f"Figure {self.fig_idx}. {html.escape(caption)}"
-        return f"""<div><div class="iframebox">
-<iframe class="viewer" src="{iframe_src}"></iframe>
-</div><figcaption>{cap}</figcaption></div>"""
+        cap = f"Figure {self.fig_idx}: {html.escape(caption)}"
+        return f'''<div class="figure-block">
+    <h2 class="figcap">{cap}</h2>
+    <div class="iframebox"><iframe class="viewer" src="{iframe_src}"></iframe></div>
+    </div>'''
+
+    def fig_iframe_pair(self, left_src: str, left_caption: str, right_src: str, right_caption: str) -> str:
+        self.fig_idx += 1
+        capL = f"Figure {self.fig_idx}: {html.escape(left_caption)}"
+        self.fig_idx += 1
+        capR = f"Figure {self.fig_idx}: {html.escape(right_caption)}"
+        return f'''<div class="iframerow">
+      <div class="figure-block"><h2 class="figcap">{capL}</h2>
+        <div class="iframebox"><iframe class="viewer" src="{left_src}"></iframe></div>
+      </div>
+      <div class="figure-block"><h2 class="figcap">{capR}</h2>
+        <div class="iframebox"><iframe class="viewer" src="{right_src}"></iframe></div>
+      </div>
+    </div>'''
+
+def _iframe_src_from_patterns(fig_dir: Path, patterns: list[str], mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
+    p = _find_first(fig_dir, patterns)
+    if not p or not p.is_file(): return None
+    return _to_html_src(p, mode, publish_dir_for_pair, html_out_dir)
 
 
 def _iframe_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], caption: str,
@@ -368,10 +446,15 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
 
     # ===== ORDER 1: 3D STRUCTURES FIRST =====
     # Two-structures (un-aligned) and aligned
-    _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures"], "Two structures (Fold1 & Fold2)",
-                          mode, publish_dir_for_pair, output_dir)
-    _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures_aligned"], "Two structures aligned",
-                          mode, publish_dir_for_pair, output_dir)
+    # Skip static true-true PNGs if interactive exists
+    if _find_first(fig_dir, ["*two_structures.html", "*true*vs*true*.html", "*two*structures*aligned*.html"]):
+        pass  # don't push the static ones
+    else:
+        # (keep existing code that pushes the static PNGs)
+        _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures"], "Two structures (Fold1 & Fold2)",
+                              mode, publish_dir_for_pair, output_dir)
+        _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures_aligned"], "Two structures aligned",
+                              mode, publish_dir_for_pair, output_dir)
 
     # Fold1/Fold2 vs best models (AF2/AF3/ESM2/ESM3)
     for tag, nice in [
@@ -398,21 +481,34 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
             # Bold callout for missing items (as requested)
             pb.push(pb.callout_missing(f"Missing: {nice}"))
 
-    # 3D INTERACTIVE VIEWERS (if present)
-    _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS["two_structures_aligned_html"],
-                          "Two structures aligned — interactive", mode, publish_dir_for_pair, output_dir)
+    # 3D INTERACTIVE VIEWERS (rows: AF2 | AF3 | ESM2 | ESM3; cols: Fold1 | Fold2)
+    a, b = _pair_tokens(pair_id)
 
-    for tag, nice in [
-        ("fold1_vs_best_AF2_html", "Fold1 vs best AF2 — interactive"),
-        ("fold2_vs_best_AF2_html", "Fold2 vs best AF2 — interactive"),
-        ("fold1_vs_best_AF3_html", "Fold1 vs best AF3 — interactive"),
-        ("fold2_vs_best_AF3_html", "Fold2 vs best AF3 — interactive"),
-        ("fold1_vs_best_ESM2_html", "Fold1 vs best ESM2 — interactive"),
-        ("fold2_vs_best_ESM2_html", "Fold2 vs best ESM2 — interactive"),
-        ("fold1_vs_best_ESM3_html", "Fold1 vs best ESM3 — interactive"),
-        ("fold2_vs_best_ESM3_html", "Fold2 vs best ESM3 — interactive"),
-    ]:
-        _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS[tag], nice, mode, publish_dir_for_pair, output_dir)
+    # Always show two-true interactive(s) first; skip static duplicates if present
+    # (We'll still list aligned interactive explicitly below.)
+    _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS.get("two_structures_html",
+                                                                    ["*two_structures.html", "*true*vs*true*.html"]),
+                              f"{a} vs. {b} (unaligned) — interactive", mode, publish_dir_for_pair, output_dir)
+    _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS["two_structures_aligned_html"],
+                              f"{a} vs. {b} (aligned) — interactive", mode, publish_dir_for_pair, output_dir)
+
+    def _push_pair_row(tag_l: str, tag_r: str, model_name: str):
+        srcL = _iframe_src_from_patterns(fig_dir, HTML_STRUCT_PATTERNS[tag_l], mode, publish_dir_for_pair, output_dir)
+        srcR = _iframe_src_from_patterns(fig_dir, HTML_STRUCT_PATTERNS[tag_r], mode, publish_dir_for_pair, output_dir)
+        if srcL or srcR:
+            capL = f"{a} vs. best {model_name} prediction"
+            capR = f"{b} vs. best {model_name} prediction"
+            if srcL and srcR:
+                pb.push(pb.fig_iframe_pair(srcL, capL, srcR, capR))
+            elif srcL:
+                pb.push(pb.fig_iframe(srcL, capL))
+            else:
+                pb.push(pb.fig_iframe(srcR, capR))
+
+    _push_pair_row("fold1_vs_best_AF2_html", "fold2_vs_best_AF2_html", "AF2")
+    _push_pair_row("fold1_vs_best_AF3_html", "fold2_vs_best_AF3_html", "AF3")
+    _push_pair_row("fold1_vs_best_ESM2_html", "fold2_vs_best_ESM2_html", "ESM2")
+    _push_pair_row("fold1_vs_best_ESM3_html", "fold2_vs_best_ESM3_html", "ESM3")
 
     # ===== ORDER 2: CMAPS (Deep vs Best side-by-side, then ALL) =====
     _two_figures(pb, fig_dir,
@@ -435,7 +531,14 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     _thumb_grid(pb, fig_dir, CLUSTER_TILE_PATTERNS, mode, publish_dir_for_pair, output_dir,
                 title="Per-cluster contact maps")
 
-    # ===== ORDER 3: TABLE (narrow container) =====
+    # ===== ORDER 4: TREE (unchanged block) =====
+    _figure_from_patterns(pb, fig_dir,
+                          [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
+                          "Phylogenetic tree with per-cluster heatmap.",
+                          mode, publish_dir_for_pair, output_dir, extra_class="tree")
+
+
+    # ===== ORDER 5: TABLE (narrow container) =====
     if build_pair_cluster_table:
         try:
             df = build_pair_cluster_table(pair_id)
@@ -461,12 +564,6 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     else:
         pb.push('<div class="warn">build_pair_cluster_table not importable; table omitted.</div>')
 
-    # ===== ORDER 4: TREE LAST (smaller) =====
-    _figure_from_patterns(pb, fig_dir,
-                          [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
-                          "Phylogenetic tree with per-cluster heatmap.",
-                          mode, publish_dir_for_pair, output_dir,
-                          extra_class="tree")
 
     out_html.write_text(pb.build(), encoding="utf-8")
     return out_html
