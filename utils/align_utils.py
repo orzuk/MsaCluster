@@ -214,3 +214,100 @@ def align_cmaps_by_sequence(
     cm2 = cmap2[np.ix_(j_sel, j_sel)]
     return cm1, cm2, (i_sel.tolist(), j_sel.tolist())
 
+
+def align_truth_and_preds_via_msa_first2(
+    true_cmap: dict,          # {keyA: (L1,L1), keyB: (L2,L2)}
+    pred_cmaps: dict,         # {cluster_tag: (Lmsa,Lmsa)}  (K predicted maps, all same Lmsa)
+    msa_path: str,            # e.g., Pipeline/<pair>/output_get_msa/DeepMsa.a3m  (or _seed_both.a3m)
+) -> tuple[dict, dict]:
+    """
+    Use the first two A3M rows (the two query sequences) to:
+      1) select columns where both rows are non-gaps,
+      2) slice each true cmap via per-row residue indices,
+      3) slice every predicted cmap directly in MSA space.
+
+    Returns:
+      match_true : {keyA: (M,M), keyB: (M,M)}
+      match_pred : {cluster_tag: (M,M)} for all K clusters
+    """
+    # sanity: predicted maps must all be square and same size
+    sizes = {M.shape[0] for M in pred_cmaps.values()}
+    if any(M.shape[0] != M.shape[1] for M in pred_cmaps.values()):
+        raise ValueError("All predicted contact maps must be square.")
+    if len(sizes) != 1:
+        raise ValueError(f"Predicted cmaps have multiple sizes: {sorted(sizes)}")
+    (Lmsa,) = tuple(sizes)
+
+    # first two MSA rows == your two queries (by construction of DeepMsa from _seed_both)
+    alnA, alnB = read_first_two_a3m_rows(msa_path)
+    if len(alnA) != Lmsa:
+        raise ValueError(f"MSA length ({len(alnA)}) != predicted cmap size ({Lmsa}).")
+
+    residxA = msa_row_to_residx(alnA)
+    residxB = msa_row_to_residx(alnB)
+
+    cols = np.where((residxA >= 0) & (residxB >= 0))[0]
+    if cols.size == 0:
+        raise ValueError("No non-gapped overlap between the first two MSA rows.")
+
+    idxA = residxA[cols]
+    idxB = residxB[cols]
+
+    if len(true_cmap) != 2:
+        raise ValueError(f"true_cmap must have exactly 2 entries; got {len(true_cmap)}")
+    (keyA, A_map), (keyB, B_map) = list(true_cmap.items())
+
+    if idxA.max() >= A_map.shape[0] or idxB.max() >= B_map.shape[0]:
+        raise ValueError("Index mapping exceeds true cmap dimensions (check sequences vs. map build).")
+
+    match_true = {
+        keyA: A_map[np.ix_(idxA, idxA)],
+        keyB: B_map[np.ix_(idxB, idxB)],
+    }
+    match_pred = {name: M[np.ix_(cols, cols)] for name, M in pred_cmaps.items()}
+    return match_true, match_pred
+
+
+# Match between cmaps, get only aligned indices
+def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
+    """
+       Match between cmaps, get only aligned indices
+
+       Parameters:
+       - pairwise_alignment: Object with alignment of two sequences .
+       - true_cmap : Matrix representing first contact map .
+       - pred_cmap : Matrix representing second contact map .
+       """
+    #    n_true = len(true_cmap)  # always 2 !!
+    #    n_pred = len(pred_cmap)  # variable number !!
+
+#    print("Pairwise alignment: ")
+#    print(pairwise_alignment)
+    print("Inside get_matching_indices_two_cmaps: Cmap sizes: ", len(true_cmap), len(pred_cmap))
+    print("Inside true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
+    print("inside pred_cmaps sizes: ", [cmap.shape for cmap in pred_cmap.values()])
+    match_true_cmap = {}  # [None]*2
+    match_pred_cmap = {}  # [None]*n_pred
+
+    to_idx = lambda blocks: np.concatenate([np.arange(s, e) for s, e in blocks]).astype(int) if len(
+        blocks) else np.empty(0, int)
+    idxs = [to_idx(blocks) for blocks in pairwise_alignment[0].aligned]  # [idxA, idxB]
+
+    ctr = 0
+    for (fold, cmap), idx in zip(true_cmap.items(), idxs):
+        print("Set true_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
+        ctr += 1
+        match_true_cmap[fold] = cmap[np.ix_(idx, idx)]
+
+    ctr = 0
+    for (fold, cmap), idx in zip(pred_cmap.items(), idxs):
+        print("Set pred_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
+        ctr += 1
+        match_pred_cmap[fold] = cmap[np.ix_(idx, idx)]
+
+
+    print("Inside match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
+    print("inside match_pred_cmaps sizes: ", [cmap.shape for cmap in match_pred_cmap.values()])
+
+    return match_true_cmap, match_pred_cmap
+

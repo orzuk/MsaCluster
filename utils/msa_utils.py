@@ -194,6 +194,52 @@ def clean_a3m_line(s: str) -> str:
     return s
 
 
+# --- ADD to msa_utils.py ---
+
+def read_first_two_a3m_rows(a3m_path: str) -> tuple[str, str]:
+    """
+    Return the first two aligned (gapped) sequences from an A3M/FASTA file,
+    cleaned with clean_a3m_line(). Assumes your two query sequences are first.
+    """
+    rows = []
+    with open(a3m_path, "r") as fh:
+        name = None
+        buf = []
+        for line in fh:
+            line = line.rstrip("\n")
+            if line.startswith(">"):
+                if name is not None:
+                    rows.append(clean_a3m_line("".join(buf)))
+                    if len(rows) == 2:
+                        break
+                name = line[1:].strip()
+                buf = []
+            else:
+                buf.append(line)
+        if name is not None and len(rows) < 2:
+            rows.append(clean_a3m_line("".join(buf)))
+
+    if len(rows) < 2:
+        raise ValueError(f"{a3m_path}: expected ≥2 sequences, found {len(rows)}")
+    if len(rows[0]) != len(rows[1]):
+        raise ValueError("First two A3M rows differ in aligned length.")
+    return rows[0], rows[1]
+
+
+def msa_row_to_residx(aln_seq: str) -> np.ndarray:
+    """
+    Map a single aligned (gapped) A3M row to residue indices:
+    returns an array of length = MSA columns, with 0-based residue index at each column,
+    or -1 where the row has a gap.
+    """
+    idx = np.full(len(aln_seq), -1, dtype=int)
+    r = 0
+    for j, ch in enumerate(aln_seq):
+        if ch != '-':
+            idx[j] = r
+            r += 1
+    return idx
+
 
 def lprint(string, f):
     print(string)
@@ -214,28 +260,6 @@ def write_fasta(names, seqs, outfile='tmp.fasta'):
     with open(outfile, 'w') as f:
         for nm, seq in list(zip(names, seqs)):
             f.write(">%s\n%s\n" % (nm, seq))
-
-
-# Do pairwise sequence alignment and keep the matching indices
-def get_align_indexes_old(seqA, seqB):
-    alignments = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)
-    best_align = alignments[0]
-    seqA = best_align.seqA
-    seqB = best_align.seqB
-    cursA, cursB = 0, 0
-    seqA_idxs, seqB_idxs = [], []
-    for aa in range(len(seqA)):
-        if (seqA[aa] != '-') & (seqB[aa] != '-'):
-            seqA_idxs.append(cursA)
-            seqB_idxs.append(cursB)
-            cursA += 1
-            cursB += 1
-        if (seqA[aa] == '-') & (seqB[aa] != '-'):
-            cursB += 1
-        if (seqA[aa] != '-') & (seqB[aa] == '-'):
-            cursA += 1
-    return seqA_idxs, seqB_idxs
-
 
 
 def download_and_parse_pfam_msa(pfam_id, alignment_type="seed"):

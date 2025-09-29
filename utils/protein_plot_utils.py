@@ -920,14 +920,19 @@ def make_foldswitch_all_plots(
     # ---------- Align truth/pred indices ----------
     pairwise_alignment = Align.PairwiseAligner().align(
         seqs[pdbids[0] + pdbchains[0]],
-        seqs[pdbids[1] + pdbchains[1]],
-    )
+        seqs[pdbids[1] + pdbchains[1]])
     print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
     print("true_cmap type and len, and len([0]):", type(true_cmap), len(true_cmap), len(true_cmap[pdbids[0] + pdbchains[0]]))
     print("msa_transformer_pred type and len, and len([0]):", type(msa_transformer_pred), len(msa_transformer_pred),
           len(msa_transformer_pred["ShallowMsa_000"]))
-    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
-        pairwise_alignment, true_cmap, msa_transformer_pred) # Works for only pair???
+#    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
+#        pairwise_alignment, true_cmap, msa_transformer_pred) # Works for only pair???
+
+    msa_a3m_path = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
+    match_true_cmap, match_predicted_cmaps = align_truth_and_preds_via_msa_first2(
+        true_cmap=true_cmap,
+        pred_cmaps=msa_transformer_pred,
+        msa_path=msa_a3m_path)
 
     # ---------- Plot CMAPs ----------
     if plot_contacts:

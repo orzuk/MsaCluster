@@ -757,49 +757,6 @@ def read_pdb(pdbcode, pdbfilenm):
         return None
 
 
-# Match between cmaps, get only aligned indices
-def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
-    """
-       Match between cmaps, get only aligned indices
-
-       Parameters:
-       - pairwise_alignment: Object with alignment of two sequences .
-       - true_cmap : Matrix representing first contact map .
-       - pred_cmap : Matrix representing second contact map .
-       """
-    #    n_true = len(true_cmap)  # always 2 !!
-    #    n_pred = len(pred_cmap)  # variable number !!
-
-#    print("Pairwise alignment: ")
-#    print(pairwise_alignment)
-    print("Inside get_matching_indices_two_cmaps: Cmap sizes: ", len(true_cmap), len(pred_cmap))
-    print("Inside true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
-    print("inside pred_cmaps sizes: ", [cmap.shape for cmap in pred_cmap.values()])
-    match_true_cmap = {}  # [None]*2
-    match_pred_cmap = {}  # [None]*n_pred
-
-    to_idx = lambda blocks: np.concatenate([np.arange(s, e) for s, e in blocks]).astype(int) if len(
-        blocks) else np.empty(0, int)
-    idxs = [to_idx(blocks) for blocks in pairwise_alignment[0].aligned]  # [idxA, idxB]
-
-    ctr = 0
-    for (fold, cmap), idx in zip(true_cmap.items(), idxs):
-        print("Set true_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
-        ctr += 1
-        match_true_cmap[fold] = cmap[np.ix_(idx, idx)]
-
-    ctr = 0
-    for (fold, cmap), idx in zip(pred_cmap.items(), idxs):
-        print("Set pred_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
-        ctr += 1
-        match_pred_cmap[fold] = cmap[np.ix_(idx, idx)]
-
-
-    print("Inside match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
-    print("inside match_pred_cmaps sizes: ", [cmap.shape for cmap in match_pred_cmap.values()])
-
-    return match_true_cmap, match_pred_cmap
-
 
 def Calculate_RMSD(structure_1: str, structure_2: str, structure_1_index: List[int], structure_2_index: List[int]) -> int:
     """
