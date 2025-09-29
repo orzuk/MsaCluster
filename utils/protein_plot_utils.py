@@ -1665,6 +1665,131 @@ def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
         print("[info] No df_cmap.csv files found; skipping MSA-Transformer plot.")
 
 
+    # === NEW: cross-method pairwise comparisons ===
+    # We use the unified *summary* table because it already contains the “Deep” and “Best Cluster/Best Prediction” summaries.
+    if (not os.path.isfile(SUMMARY_RESULTS_TABLE)) or os.path.getsize(SUMMARY_RESULTS_TABLE) == 0:
+        print(f"[warn] No summary CSV at {SUMMARY_RESULTS_TABLE}. Skipping cross-method plots.")
+        return
+
+    df_sum = pd.read_csv(SUMMARY_RESULTS_TABLE)
+
+    # columns we rely on (present in DEFAULT_PREFERRED_COLS in gen_html_table.py)
+    # AF2/AF3 Deep:
+    cols_deep = dict(
+        AF2_TM1="AF2Deep_TM1", AF2_TM2="AF2Deep_TM2",
+        AF3_TM1="AF3Deep_TM1", AF3_TM2="AF3Deep_TM2",
+    )
+    # AF2/AF3 Best Cluster (shallow only):
+    cols_bestcl = dict(
+        AF2_TM1="AF2Clust_TM1", AF2_TM2="AF2Clust_TM2",
+        AF3_TM1="AF3Clust_TM1", AF3_TM2="AF3Clust_TM2",
+    )
+    # ESM2/ESM3 Best Prediction (may be different sequence per fold):
+    cols_esm = dict(
+        ESM2_TM1="ESM2_TM1", ESM2_TM2="ESM2_TM2",
+        ESM3_TM1="ESM3_TM1", ESM3_TM2="ESM3_TM2",
+    )
+
+    # Some cells might be like "0.64 (ShallowMsa_012)"; extract the numeric prefix.
+    import re as _re
+    _num = _re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
+
+    def _numify(s):
+        if pd.isna(s): return np.nan
+        if isinstance(s, (int, float)): return float(s)
+        m = _num.match(str(s))
+        return float(m.group(1)) if m else np.nan
+
+    def _split_pair_id(pid: str):
+        # e.g., "2qqjA_4qdsA" -> ("2qqjA","4qdsA")
+        s = str(pid)
+        return tuple(s.split("_", 1)) if "_" in s else (s, "fold2")
+
+    def _plot_xy_pairs(
+        df: pd.DataFrame,
+        x1_col: str, x2_col: str,
+        y1_col: str, y2_col: str,
+        title: str,
+        outfile: str
+    ):
+        sub = df.copy()
+        # numeric-ize
+        for c in [x1_col, x2_col, y1_col, y2_col]:
+            if c not in sub.columns:
+                print(f"[skip] Missing column {c} for {title}")
+                return
+            sub[c] = sub[c].map(_numify)
+        sub = sub.dropna(subset=[x1_col, x2_col, y1_col, y2_col])
+        if sub.empty:
+            print(f"[info] No rows for plot: {title}")
+            return
+
+        # build points per pair: two points (fold1, fold2) and connect them
+        plt.figure(figsize=(6.4, 6.0))
+        # y=x
+        plt.plot([0,1],[0,1], 'k-', linewidth=1, alpha=0.8)
+
+        for _, r in sub.iterrows():
+            pid = r.get("pair_id") or r.get("fold_pair") or "pair"
+            f1, f2 = _split_pair_id(pid)
+
+            x1, y1 = r[x1_col], r[y1_col]  # fold1
+            x2, y2 = r[x2_col], r[y2_col]  # fold2
+
+            # connector
+            plt.plot([x1, x2], [y1, y2], linestyle='--', linewidth=0.8, alpha=0.5)
+
+            # points
+            plt.scatter(x1, y1, s=22, marker='o')
+            plt.scatter(x2, y2, s=22, marker='o')
+
+            # light labels (small)
+            try:
+                plt.text(x1, y1, f1, fontsize=6, ha='right', va='bottom', alpha=0.9)
+                plt.text(x2, y2, f2, fontsize=6, ha='left', va='top', alpha=0.9)
+            except Exception:
+                pass
+
+        plt.xlim(0, 1); plt.ylim(0, 1)
+        plt.xlabel("X method TM-score")
+        plt.ylabel("Y method TM-score")
+        plt.title(title)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        out_path = os.path.join(output_dir, outfile)
+        plt.savefig(out_path, dpi=180)
+        plt.close()
+        print(f"[plot] wrote {out_path}")
+
+    # 1) AF2 (Deep) vs AF3 (Deep)
+    _plot_xy_pairs(
+        df_sum,
+        x1_col=cols_deep["AF2_TM1"], x2_col=cols_deep["AF2_TM2"],
+        y1_col=cols_deep["AF3_TM1"], y2_col=cols_deep["AF3_TM2"],
+        title="AF2 (Deep) vs AF3 (Deep) — TM-scores (per fold, pairs linked)",
+        outfile="compare_AF2_AF3_DEEP.png"
+    )
+
+    # 2) AF2 (Best Shallow Cluster) vs AF3 (Best Shallow Cluster)
+    _plot_xy_pairs(
+        df_sum,
+        x1_col=cols_bestcl["AF2_TM1"], x2_col=cols_bestcl["AF2_TM2"],
+        y1_col=cols_bestcl["AF3_TM1"], y2_col=cols_bestcl["AF3_TM2"],
+        title="AF2 (Best Shallow Cluster) vs AF3 (Best Shallow Cluster)",
+        outfile="compare_AF2_AF3_BESTCLUST.png"
+    )
+
+    # 3) ESM2 (Best Prediction) vs ESM3 (Best Prediction)
+    _plot_xy_pairs(
+        df_sum,
+        x1_col=cols_esm["ESM2_TM1"], x2_col=cols_esm["ESM2_TM2"],
+        y1_col=cols_esm["ESM3_TM1"], y2_col=cols_esm["ESM3_TM2"],
+        title="ESM2 (Best Prediction) vs ESM3 (Best Prediction)",
+        outfile="compare_ESM2_ESM3_BESTPRED.png"
+    )
+
+
+
 # Used in making notebooks
 def plot_viz_cmap(file, legend_plot):
     if not file or not os.path.isfile(file):
