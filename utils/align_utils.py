@@ -215,57 +215,76 @@ def align_cmaps_by_sequence(
     return cm1, cm2, (i_sel.tolist(), j_sel.tolist())
 
 
+
 def align_truth_and_preds_via_msa_first2(
     true_cmap: dict,          # {keyA: (L1,L1), keyB: (L2,L2)}
-    pred_cmaps: dict,         # {cluster_tag: (Lmsa,Lmsa)}  (K predicted maps, all same Lmsa)
-    msa_path: str,            # e.g., Pipeline/<pair>/output_get_msa/DeepMsa.a3m  (or _seed_both.a3m)
+    pred_cmaps: dict,         # {name: (Lmsa,Lmsa)} from the SAME full MSA
+    msa_path: str,            # Pipeline/<pair>/output_get_msa/DeepMsa.a3m  (the FULL MSA)
+    keyA: str | None = None,  # e.g. '2qqjA' (header substring to find row)
+    keyB: str | None = None,  # e.g. '4qdsA'
+    verbose: bool = True,
 ) -> tuple[dict, dict]:
     """
-    Use the first two A3M rows (the two query sequences) to:
-      1) select columns where both rows are non-gaps,
-      2) slice each true cmap via per-row residue indices,
-      3) slice every predicted cmap directly in MSA space.
-
-    Returns:
-      match_true : {keyA: (M,M), keyB: (M,M)}
-      match_pred : {cluster_tag: (M,M)} for all K clusters
+    Align 2 true cmaps and K predicted cmaps via the alignment of seq1 & seq2
+    INSIDE the full MSA used for predictions (DeepMsa.a3m).
     """
-    # sanity: predicted maps must all be square and same size
+    # preds: all square, same size
     sizes = {M.shape[0] for M in pred_cmaps.values()}
     if any(M.shape[0] != M.shape[1] for M in pred_cmaps.values()):
         raise ValueError("All predicted contact maps must be square.")
     if len(sizes) != 1:
         raise ValueError(f"Predicted cmaps have multiple sizes: {sorted(sizes)}")
-    (Lmsa,) = tuple(sizes)
+    (Lmsa_pred,) = tuple(sizes)
 
-    # first two MSA rows == your two queries (by construction of DeepMsa from _seed_both)
-    alnA, alnB = read_first_two_a3m_rows(msa_path)
-    if len(alnA) != Lmsa:
-        raise ValueError(f"MSA length ({len(alnA)}) != predicted cmap size ({Lmsa}).")
+    # pick the two truth maps
+    if len(true_cmap) != 2:
+        raise ValueError(f"true_cmap must have exactly 2 entries; got {len(true_cmap)}.")
+    (tA_key, A_map), (tB_key, B_map) = list(true_cmap.items())
+    L1, L2 = A_map.shape[0], B_map.shape[0]
+
+    # read the TWO QUERY ROWS from the FULL MSA
+    alnA, alnB = find_two_query_rows_in_a3m(msa_path, keyA=keyA, keyB=keyB)
+    if len(alnA) != len(alnB):
+        raise ValueError("Two query rows in full MSA have different lengths.")
+    Lmsa = len(alnA)
+
+    # if needed, crop preds to MSA length
+    if Lmsa_pred != Lmsa and verbose:
+        print(f"[align_msa_first2] WARNING: pred size ({Lmsa_pred}) != MSA length ({Lmsa}); cropping to min.")
+    L = min(Lmsa_pred, Lmsa)
+    alnA = alnA[:L]; alnB = alnB[:L]
 
     residxA = msa_row_to_residx(alnA)
     residxB = msa_row_to_residx(alnB)
 
-    cols = np.where((residxA >= 0) & (residxB >= 0))[0]
+    # keep columns where both queries are non-gap AND indices in bounds of truth maps
+    base = (residxA >= 0) & (residxB >= 0)
+    inA  = base & (residxA < L1)
+    inB  = base & (residxB < L2)
+    cols = np.where(inA & inB)[0]
+
+    if verbose:
+        print(f"[align_msa_first2] Lmsa={L} | Ltrue=({L1},{L2}) | "
+              f"both-ungapped={int(base.sum())} | kept={len(cols)}")
+
     if cols.size == 0:
-        raise ValueError("No non-gapped overlap between the first two MSA rows.")
+        raise ValueError("No usable overlap after bounds check (likely unresolved residues).")
 
     idxA = residxA[cols]
     idxB = residxB[cols]
 
-    if len(true_cmap) != 2:
-        raise ValueError(f"true_cmap must have exactly 2 entries; got {len(true_cmap)}")
-    (keyA, A_map), (keyB, B_map) = list(true_cmap.items())
-
-    if idxA.max() >= A_map.shape[0] or idxB.max() >= B_map.shape[0]:
-        raise ValueError("Index mapping exceeds true cmap dimensions (check sequences vs. map build).")
-
     match_true = {
-        keyA: A_map[np.ix_(idxA, idxA)],
-        keyB: B_map[np.ix_(idxB, idxB)],
+        tA_key: A_map[np.ix_(idxA, idxA)],
+        tB_key: B_map[np.ix_(idxB, idxB)],
     }
-    match_pred = {name: M[np.ix_(cols, cols)] for name, M in pred_cmaps.items()}
+
+    match_pred = {}
+    for name, M in pred_cmaps.items():
+        M_ = M[:L, :L] if M.shape[0] != L else M
+        match_pred[name] = M_[np.ix_(cols, cols)]
+
     return match_true, match_pred
+
 
 
 # Match between cmaps, get only aligned indices

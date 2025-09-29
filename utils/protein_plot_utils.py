@@ -929,14 +929,21 @@ def make_foldswitch_all_plots(
 #    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
 #        pairwise_alignment, true_cmap, msa_transformer_pred) # Works for only pair???
 
-    msa_a3m_path = os.path.join("Pipeline", foldpair_id, "output_get_msa", "DeepMsa.a3m")
+
     print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
     print(" pred_cmaps sizes: ", [cmap.shape for cmap in msa_transformer_pred.values()])
+    msa_full = os.path.join("Pipeline", foldpair_id, "output_get_msa", "DeepMsa.a3m")  # FULL MSA used for preds
+    keyA = pdbids[0] + pdbchains[0]  # e.g. "2qqjA"
+    keyB = pdbids[1] + pdbchains[1]  # e.g. "4qdsA"
 
     match_true_cmap, match_predicted_cmaps = align_truth_and_preds_via_msa_first2(
         true_cmap=true_cmap,
         pred_cmaps=msa_transformer_pred,
-        msa_path=msa_a3m_path)
+        msa_path=msa_full,
+        keyA=keyA,
+        keyB=keyB,
+        verbose=True,
+    )
 
     print("After align match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
     print("After align match_pred_cmaps sizes: ", [cmap.shape for cmap in match_predicted_cmaps.values()])

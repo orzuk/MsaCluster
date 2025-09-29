@@ -241,6 +241,52 @@ def msa_row_to_residx(aln_seq: str) -> np.ndarray:
     return idx
 
 
+# --- add to msa_utils.py ---
+
+def find_two_query_rows_in_a3m(a3m_path: str, keyA: str | None, keyB: str | None) -> tuple[str, str]:
+    """
+    Return the aligned (gapped) strings of the two *query* sequences from a full A3M/FASTA.
+    If keyA/keyB (e.g. '2qqjA','4qdsA') are provided, prefer rows whose headers contain them.
+    Fallback: the first two sequences in the file.
+    """
+    rows = []          # (header, cleaned_seq)
+    with open(a3m_path, "r") as fh:
+        name, buf = None, []
+        for line in fh:
+            line = line.rstrip("\n")
+            if line.startswith(">"):
+                if name is not None:
+                    rows.append((name, clean_a3m_line("".join(buf))))
+                name, buf = line[1:].strip(), []
+            else:
+                buf.append(line)
+        if name is not None:
+            rows.append((name, clean_a3m_line("".join(buf))))
+
+    if len(rows) < 2:
+        raise ValueError(f"{a3m_path}: expected ≥2 sequences, found {len(rows)}")
+
+    def _pick(key: str | None) -> int | None:
+        if not key:
+            return None
+        for i, (hdr, _) in enumerate(rows):
+            if key in hdr:
+                return i
+        return None
+
+    iA = _pick(keyA)
+    iB = _pick(keyB)
+    if iA is not None and iB is not None:
+        alnA = rows[iA][1]; alnB = rows[iB][1]
+    else:
+        # Fallback to first two rows
+        alnA = rows[0][1]; alnB = rows[1][1]
+
+    if len(alnA) != len(alnB):
+        raise ValueError("Chosen A3M rows differ in aligned length.")
+    return alnA, alnB
+
+
 def lprint(string, f):
     print(string)
     f.write(string + '\n')
