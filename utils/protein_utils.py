@@ -794,6 +794,10 @@ def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
         ctr += 1
         match_pred_cmap[fold] = cmap[np.ix_(idx, idx)]
 
+
+    print("Inside match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
+    print("inside match_pred_cmaps sizes: ", [cmap.shape for cmap in match_pred_cmap.values()])
+
     return match_true_cmap, match_pred_cmap
 
 
