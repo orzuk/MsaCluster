@@ -16,7 +16,8 @@ import pandas as pd
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
-from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
+from utils.protein_utils import *
+
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
 from utils.align_utils import get_or_compute_true_tm
 from Analysis.postprocess_global import build_or_load_global_tables
@@ -57,20 +58,16 @@ RUN_MODE_DESCRIPTIONS = {
 
 
 def _extract_seq_ca_only(pdb_path: str, chain: str) -> str:
-    parser = PDBParser(QUIET=True)
-    structure = parser.get_structure("x", pdb_path)
-    aa = []
-    for model in structure:
-        for ch in model:
-            if ch.id != chain:
-                continue
-            for res in ch:
-                # only standard residues with a CA atom
-                if res.id[0] == " " and "CA" in res:
-                    aa.append(seq1(res.get_resname()))
-            break
-        break
-    return "".join(aa)
+    """
+    Return the CA-based sequence for the given chain, using the same codepath
+    that constructs the true CA contact map. This guarantees:
+        len(seq) == true_cmap.shape[0]
+    and preserves non-standard residues via your existing mapping tables
+    (e.g., MSE→M through NONSTD_TO_STD; unknowns become 'X').
+    """
+    atom_array = load_structure_to_atom_array(pdb_path)  # Biopython → Biotite AtomArray
+    _, _, pdb_seq, _, _ = read_seq_coord_contacts_from_pdb(atom_array, chain=chain)
+    return pdb_seq
 
 
 def _has_deltaG(pair_id: str) -> bool:
