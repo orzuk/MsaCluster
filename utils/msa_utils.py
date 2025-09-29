@@ -1,10 +1,12 @@
 from Bio import SeqIO, AlignIO, pairwise2
 from Bio.Align import substitution_matrices
+
 import parasail  # pip/conda package: parasail
 import requests
 from io import StringIO
 from typing import List, Tuple, Dict
 import re, os
+import numpy as np
 from collections import Counter
 # ...
 
@@ -62,11 +64,9 @@ def _aligned_strings_from_parasail(res, sA: str, sB: str) -> Tuple[str, str, str
 
 
 def _biopython_align(seqA: str, seqB: str, mode: str) -> Tuple[str, str]:
-    from Bio import pairwise2
     if mode == "standard":
         aln = pairwise2.align.globalxx(seqA, seqB, one_alignment_only=True)[0]
     else:
-        from Bio.Align import substitution_matrices
         blosum = substitution_matrices.load("BLOSUM62")
         aln = pairwise2.align.globalds(seqA, seqB, blosum, -11, -1, one_alignment_only=True)[0]
     return aln.seqA, aln.seqB

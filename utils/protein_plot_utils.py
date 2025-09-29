@@ -929,10 +929,16 @@ def make_foldswitch_all_plots(
 #        pairwise_alignment, true_cmap, msa_transformer_pred) # Works for only pair???
 
     msa_a3m_path = os.path.join(pair_dir, "output_get_msa", "DeepMsa.a3m")
+    print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
+    print(" pred_cmaps sizes: ", [cmap.shape for cmap in msa_transformer_pred.values()])
+
     match_true_cmap, match_predicted_cmaps = align_truth_and_preds_via_msa_first2(
         true_cmap=true_cmap,
         pred_cmaps=msa_transformer_pred,
         msa_path=msa_a3m_path)
+
+    print("After align match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
+    print("After align match_pred_cmaps sizes: ", [cmap.shape for cmap in match_predicted_cmaps.values()])
 
     # ---------- Plot CMAPs ----------
     if plot_contacts:
