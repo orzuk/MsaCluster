@@ -11,7 +11,8 @@ import argparse
 from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_TRANS_MODEL_FILE
 
 from utils.utils import list_protein_pairs, pair_str_to_tuple
-from utils.align_utils import compute_tmscore_align
+from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
+
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
 
@@ -212,15 +213,17 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         n_clusters = _count_shallow_clusters_fast(pair_id)
         row["MSA DEPTH (#Clusters)"] = f"{msa_depth} ({n_clusters})"
 
-        # --- TRUE TM between the two known folds (symmetric max) ---
+        # --- TRUE TM between the two known folds (symmetric max) — CACHED ---
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
-        # note: compute both directions; TM-score is length-normalized
-        tm12 = compute_tmscore_align(pdb1, pdb2, chain1=c1, chain2=c2)
-        tm21 = compute_tmscore_align(pdb2, pdb1, chain1=c2, chain2=c1)
-#        row["TRUE_TM12"] = tm12
-#        row["TRUE_TM21"] = tm21
-        row["PAIR_TM"] = round(max(tm12, tm21), 3)  # single symmetric number to display
-        print("TM12:", tm12, "TM21:", tm21, "MAX-rounded:", row["PAIR_TM"])
+        pair_dir_str = str(_pair_dir(pair_id))
+
+        def _tm_sym_once(pa: str, pb: str) -> float:
+            # compute ONCE (first time), cache the symmetric max, and reuse thereafter
+            t12 = compute_tmscore_align(pa, pb, chain1=c1, chain2=c2)
+            t21 = compute_tmscore_align(pb, pa, chain1=c2, chain2=c1)
+            return max(t12, t21)
+
+        row["PAIR_TM"] = round(get_or_compute_true_tm(pair_dir_str, pdb1, pdb2, _tm_sym_once), 3)
 
         # AF: Clust + Deep, per fold
         for tag, up in (("af2","AF2"), ("af3","AF3")):
@@ -552,6 +555,24 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             "n_cmap_preds": int(len(df_cmap))
         })
 
+    # ---- cache true↔true TM once ----
+    # pair_id is something like "2qqjA_4qdsA"
+    foldA, foldB = pair_id.split("_", 1)  # "2qqjA", "4qdsA"
+    pdbA_path = os.path.join("Pipeline", pair_id, f"{foldA[:-1]}.pdb")  # Pipeline/<pair>/2qqj.pdb
+    pdbB_path = os.path.join("Pipeline", pair_id, f"{foldB[:-1]}.pdb")  # Pipeline/<pair>/4qds.pdb
+    pair_dir = os.path.join("Pipeline", pair_id)
+
+    def _tm_align_wrapper(pa, pb) -> float:
+        # TODO: replace with your actual TM-score call.
+        # For example, if you already have a helper run_tmalign(pa, pb) → float:
+        from utils.protein_utils import run_tmalign  # adjust import if needed
+        return run_tmalign(pa, pb)
+
+    try:
+        tm_true_true = get_or_compute_true_tm(pair_dir, pdbA_path, pdbB_path, _tm_align_wrapper)
+        # (Optional) if you also keep a per-pair summary CSV/JSON, you can write tm_true_true there too.
+    except Exception as e:
+        print(f"[postprocess] WARN true↔true TM cache: {e}")
 
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)

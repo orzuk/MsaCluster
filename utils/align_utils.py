@@ -3,13 +3,17 @@
 from __future__ import annotations
 from Bio import pairwise2
 from Bio.Align import substitution_matrices
+# Minimal CA+chain filter writer for the binary path (keeps TM-align’s CA convention)
+from Bio.PDB import PDBIO, Select  # requires biopython
+import os, re, shutil, subprocess, tempfile, pathlib
+from typing import Optional, Dict, Any
+# utils/align_utils.py (add at bottom or near your TM code)
 
 from tmtools import tm_align
 from tmtools.io import get_structure, get_residue_data
 from utils.msa_utils import *
 from utils.protein_utils import *
-import os, re, shutil, subprocess, tempfile, pathlib
-from typing import Optional, Dict, Any
+from utils.cache_utils import get_from_pair_cache, put_in_pair_cache
 
 
 from config import * # uses TMALIGN_EXE and USE_TMALIGN_BINARY
@@ -27,8 +31,6 @@ def _ensure_local_pdb(pdb_or_path: str) -> Tuple[str, bool]:
         return tmp.name, True
     return pdb_or_path, False
 
-# Minimal CA+chain filter writer for the binary path (keeps TM-align’s CA convention)
-from Bio.PDB import PDBIO, Select  # requires biopython
 
 class _SelectCAChain(Select):
     def __init__(self, chain_id: Optional[str]): self.chain_id = chain_id
@@ -36,6 +38,8 @@ class _SelectCAChain(Select):
         return 1 if (self.chain_id is None or chain.id.strip() == str(self.chain_id)) else 0
     def accept_atom(self, atom):    # TM-align uses Cα
         return 1 if atom.get_id() == "CA" else 0
+
+
 
 def _prep_pdb_for_binary(pdb_or_path: str, chain: Optional[str]) -> Tuple[str, bool]:
     """
@@ -151,6 +155,24 @@ def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
     }
 
 # ---------------- public API ---------------- #
+
+
+def get_or_compute_true_tm(pair_dir: str,
+                           pdbA_path: str,
+                           pdbB_path: str,
+                           compute_tm_fn) -> float:
+    """
+    Returns TM(trueA, trueB), computing once and caching under
+    Pipeline/<pair>/Analysis/cache.json : {"true_true_tm": <float>}
+    `compute_tm_fn(pdbA_path, pdbB_path)` should return a float TM in [0,1].
+    """
+    cached = get_from_pair_cache(pair_dir, "true_true_tm")
+    if cached is not None:
+        return float(cached)
+
+    tm = float(compute_tm_fn(pdbA_path, pdbB_path))
+    put_in_pair_cache(pair_dir, "true_true_tm", tm)
+    return tm
 
 def tmalign_unified(
     pdb1: str, pdb2: str,

@@ -414,7 +414,6 @@ def gen_html_for_global_plots(
     # Ensure output dir exists and compute a RELATIVE path for <img src=...>
     out_dir = os.path.abspath(os.path.dirname(output_html))
     os.makedirs(out_dir, exist_ok=True)
-    rel_prefix = os.path.relpath(images_dir_abs, start=out_dir)
 
     # Copy figures to output figs dir
     os.makedirs(FIGURE_PUBLISH_DIR, exist_ok=True)

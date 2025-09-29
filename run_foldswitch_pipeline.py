@@ -18,6 +18,8 @@ from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
 from utils.protein_utils import read_msa, greedy_select, extract_protein_sequence, load_seq_and_struct, process_sequence
 from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
+from utils.align_utils import get_or_compute_true_tm
+from Analysis.postprocess_global import build_or_load_global_tables
 try:
     from utils.phytree_utils import phytree_from_msa
 except Exception:
@@ -1222,24 +1224,33 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[postprocess] WARN post_processing_analysis: {e}")
 
-    # 2) Global CSVs + HTML tables
-    # 2) Global CSVs + HTML tables
+    # === Build/refresh global cached tables (no heavy compute here) ===
+    try:
+        from Analysis.postprocess_global import build_or_load_global_tables
+        force_global = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
+        summary_csv, detail_csv = build_or_load_global_tables(force=force_global)
+        print(f"[global] summary: {summary_csv}")
+        print(f"[global] detailed: {detail_csv}")
+    except Exception as e:
+        print(f"[postprocess] WARN global tables: {e}")
+
+    # 2) + 3) Global CSVs + HTML tables
     if args.reports in ("tables", "all"):
-        # 2.1) Build unified CSVs ...
+        # 2) Build unified CSVs ...
         try:
             build_unified_tables_from_cluster_dfs(pairs=pairs_arg, write_out=True)
             print(f"[reports] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
         except Exception as e:
             print(f"[reports] WARN building unified CSVs: {e}")
 
-        # 2.2) Generate HTML tables (single source-of-truth)
+        # 3.1) Generate HTML tables (single source-of-truth)
         try:
             os.makedirs(TABLES_RES, exist_ok=True)
             write_global_tables(force_rerun_csv=False, fade_min_clusters=2)
         except Exception as e:
             print(f"[reports] WARN write_global_tables: {e}")
 
-        # 2.3) Global plots page (unchanged)
+        # 3.2) Global plots page (unchanged)
         try:
             gen_html_for_global_plots(
                 images_dir=FIGURE_RES_DIR,
@@ -1254,7 +1265,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
             print(f"[reports] WARN building global plots page: {e}")
 
 
-    # 3) Per-pair HTML pages (new generator)
+    # 4) Per-pair HTML pages (new generator)
     if args.reports in ("html", "all"):
         try:
             # keep only pairs that already have per-pair postprocess outputs
