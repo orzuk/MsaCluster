@@ -18,6 +18,7 @@ from utils.phytree_utils import *
 from scripts.MSA_Clust import *
 from utils.utils import *
 from utils.energy_utils import *
+from utils.align_utils import *
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
