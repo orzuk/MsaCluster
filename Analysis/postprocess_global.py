@@ -1,8 +1,12 @@
 # Analysis/postprocess_global.py
 from __future__ import annotations
-import os, glob, re
+import os, glob, re, sys
 import pandas as pd
 import numpy as np
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+
 from utils.cache_utils import get_from_pair_cache
 from config import PIPELINE_DIR, DOCS_DIR
 
