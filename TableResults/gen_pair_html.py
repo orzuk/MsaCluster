@@ -253,11 +253,11 @@ class PageBuilder:
   }}
   .iframerow iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
 
-.overlay-lbl{
+.overlay-lbl{{
   position:absolute; top:6px; left:8px; 
   background: rgba(0,0,0,0.55); color:#fff; 
   padding: 4px 8px; border-radius:6px; font-size:14px; font-weight:600;
-}
+}}
 
   /* Single interactive viewer fallback (still narrow & centered) */
   .iframebox {{
