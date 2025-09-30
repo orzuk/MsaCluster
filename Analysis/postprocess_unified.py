@@ -206,6 +206,9 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         if not pair_dir.is_dir():
             continue
 
+        print("Building tables from pair:", pair_id)
+
+        # Summary row
         df_af   = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_af.csv"))
         df_esm  = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_esm.csv"))
         df_cmap = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_cmap.csv"))
