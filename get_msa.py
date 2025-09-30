@@ -6,7 +6,41 @@ from typing import List, Tuple, Iterable, Dict, Set
 
 # ColabFold (MMseqs2) for MSA building
 from colabfold.batch import get_msa_and_templates, msa_to_str
+import inspect
 
+def _call_get_msa_and_templates(*, sequences, result_dir, jobname):
+    """
+    Version-safe wrapper for colabfold.batch.get_msa_and_templates.
+    Handles API differences: (queries vs query_sequences), a3m_lines, jobname, etc.
+    """
+    from colabfold.batch import get_msa_and_templates
+
+    sig = inspect.signature(get_msa_and_templates)
+    params = {k for k in sig.parameters.keys()}
+
+    kwargs = {}
+    # sequences param name
+    if "query_sequences" in params:
+        kwargs["query_sequences"] = sequences
+    elif "queries" in params:
+        kwargs["queries"] = sequences
+    else:
+        raise RuntimeError("ColabFold API: neither 'query_sequences' nor 'queries' parameter found.")
+
+    # common / stable-ish
+    if "result_dir" in params: kwargs["result_dir"] = str(result_dir)
+    if "msa_mode"   in params: kwargs["msa_mode"]   = "mmseqs2_uniref_env"
+    if "pair_mode"  in params: kwargs["pair_mode"]  = "unpaired"
+    if "use_templates" in params: kwargs["use_templates"] = False
+    if "custom_template_path" in params: kwargs["custom_template_path"] = ""
+
+    # version-specific extras
+    if "a3m_lines" in params:
+        kwargs["a3m_lines"] = None
+    if "jobname" in params:
+        kwargs["jobname"] = jobname
+
+    return get_msa_and_templates(**kwargs)
 
 def _ungap_upper(s: str) -> str:
     """Remove gaps/lowercase; keep only uppercase amino acids."""
@@ -119,29 +153,31 @@ def build_seedlocked_deepmsa(seed_a3m: Path, result_dir: Path) -> Path:
     L_B = len(raw_B)
 
     # --- Build monomer MSA for A ---
-    tupA = get_msa_and_templates(
-        query_sequences=[raw_A],
-        jobname="DeepMsa_S1",
-        result_dir=str(result_dir),
-        use_templates=False,
-        custom_template_path="",
-        pair_mode="unpaired",
-        msa_mode="mmseqs2_uniref_env",
-    )
+#    tupA = get_msa_and_templates(
+#        query_sequences=[raw_A],
+#        jobname="DeepMsa_S1",
+#        result_dir=str(result_dir),
+#        use_templates=False,
+#        custom_template_path="",
+#        pair_mode="unpaired",
+#        msa_mode="mmseqs2_uniref_env",
+#    )
+    tupA = _call_get_msa_and_templates(sequences=[raw_A], result_dir=result_dir, jobname="DeepMsa_S1")
     unpairedA, pairedA, quniqA, qcardA, _ = tupA
     a3mA = msa_to_str(unpairedA, None, quniqA, qcardA)
     rowsA = _parse_a3m_text(a3mA)  # cleaned, len == L_A
 
     # --- Build monomer MSA for B ---
-    tupB = get_msa_and_templates(
-        query_sequences=[raw_B],
-        jobname="DeepMsa_S2",
-        result_dir=str(result_dir),
-        use_templates=False,
-        custom_template_path="",
-        pair_mode="unpaired",
-        msa_mode="mmseqs2_uniref_env",
-    )
+#    tupB = get_msa_and_templates(
+#        query_sequences=[raw_B],
+#        jobname="DeepMsa_S2",
+#        result_dir=str(result_dir),
+#        use_templates=False,
+#        custom_template_path="",
+#        pair_mode="unpaired",
+#       msa_mode="mmseqs2_uniref_env",
+#    )
+    tupB = _call_get_msa_and_templates(sequences=[raw_B], result_dir=result_dir, jobname="DeepMsa_S2")
     unpairedB, pairedB, quniqB, qcardB, _ = tupB
     a3mB = msa_to_str(unpairedB, None, quniqB, qcardB)
     rowsB = _parse_a3m_text(a3mB)  # cleaned, len == L_B
