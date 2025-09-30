@@ -106,7 +106,8 @@ def build_or_load_global_tables(force: bool = False,
                  "AF2Deep_TM1","AF2Deep_TM2","AF3Deep_TM1","AF3Deep_TM2",
                  "AF2Clust_TM1","AF2Clust_TM2","AF3Clust_TM1","AF3Clust_TM2",
                  "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
-                 "TrueTrue_TM"]
+                 "TrueTrue_TM",  '#RES', 'PAIR_TM',  'ΔG1', 'ΔG2' ]
+
     summary  = df[[c for c in keep_cols if c in df.columns]].copy()
     detailed = df.copy()
 

@@ -1184,6 +1184,7 @@ def make_foldswitch_all_plots(
     # ---------- 3D PANELS (PyMOL headless) ----------
     # --------- Optional 3D-align plot (only on non-Linux in your original code)  --------------
     # 3D PANELS
+    make_interactive = plot3dformat in ('interactive', 'both')
     try:
         _render_true_structures(
             pair_dir=os.path.join('Pipeline', foldpair_id),
@@ -1196,7 +1197,6 @@ def make_foldswitch_all_plots(
     except Exception as e:
         print(f"[3D] true-true render failed: {e}")
 
-    make_interactive = plot3dformat in ('interactive', 'both')
 
     # AF2 / AF3
 #    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF',  ver='2')

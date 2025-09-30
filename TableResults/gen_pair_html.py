@@ -46,7 +46,7 @@ PUBLISH_BASE = TABLES_RES / Path(PER_PAIR_PUBLISH_SUBDIR)  # e.g., docs/HTML/fig
 
 # Optional knobs
 MAX_TREE_HEIGHT = 520    # px
-MAX_TWOCOL_HEIGHT = 520  # px, deep vs best height cap
+MAX_TWOCOL_HEIGHT = 680  # px, deep vs best height cap
 
 # Optional cluster CMAP filename patterns (loose, to pick any naming)
 CLUSTER_TILE_PATTERNS = [
@@ -158,6 +158,22 @@ def _data_uri_for_html_file(p: Path) -> str | None:
     except Exception:
         return None
 
+def _best_tm_from_df(pair_id: str, model: str, fold: int) -> float | None:
+    import pandas as _pd
+    p = Path(DATA_DIR) / pair_id / "Analysis" / "df_esm.csv"
+    if not p.is_file(): return None
+    d = _pd.read_csv(p)
+    d = d.copy()
+    d['model'] = d.get('model', '').astype(str).str.upper()
+    d = d[d['model'] == model.upper()]
+    if d.empty: return None
+    col = 'TMscore_fold1' if fold == 1 else 'TMscore_fold2'
+    if col not in d.columns: return None
+    try:
+        vals = _pd.to_numeric(d[col], errors='coerce').dropna()
+        return None if vals.empty else float(vals.max())
+    except Exception:
+        return None
 
 
 def _to_html_src(html_path: Path, mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
@@ -184,6 +200,7 @@ class PageBuilder:
         return f"""
 <style>
   :root {{ color-scheme: dark; }}
+   text-align: center;
   body {{
     background:#121212; color:#E0E0E0;
     font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -205,7 +222,7 @@ class PageBuilder:
   .sub {{ color:#B0BEC5; margin-bottom:10px; }}
 
   /* Two-up panels (static images): keep your old behavior */
-  .two-up {{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }}
+  .two-up {{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:start; }}
   .two-up figure, .two-up .imgbox {{
     height:{MAX_TWOCOL_HEIGHT}px;
     display:flex; align-items:center; justify-content:center;
@@ -219,8 +236,8 @@ class PageBuilder:
   /* Interactive 3D rows: two viewers side-by-side, each ~30% page width, centered */
   .iframerow {{
     display:grid;
-    grid-template-columns: repeat(2, minmax(260px, 30vw));
-    gap: 16px;
+    grid-template-columns: repeat(2, minmax(280px, 36vw));
+    gap: 8px;
     justify-content: center;      /* center the two columns */
     align-items: start;
     margin: 10px auto 32px auto;  /* center the whole row */
@@ -228,19 +245,25 @@ class PageBuilder:
     max-width: 100%;
   }}
   .iframerow .iframebox {{
-    width: 30vw;                  /* ~30% of page */
+    width: 36vw;                  /* ~30% of page */
     max-width: 720px;
-    height: 520px;
+    height: 620px;
     border:1px solid #333; background:#fff;
     margin: 0 auto;
   }}
   .iframerow iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
 
+.overlay-lbl{
+  position:absolute; top:6px; left:8px; 
+  background: rgba(0,0,0,0.55); color:#fff; 
+  padding: 4px 8px; border-radius:6px; font-size:14px; font-weight:600;
+}
+
   /* Single interactive viewer fallback (still narrow & centered) */
   .iframebox {{
-    width: 30vw;                  /* ~30% of page */
+    width: 36vw;                  /* ~30% of page */
     max-width: 720px;
-    height: 520px;
+    height: 620px;
     border:1px solid #333; background:#fff;
     margin: 0 auto;
   }}
@@ -248,12 +271,12 @@ class PageBuilder:
 
   /* Tree: 40% larger than before & centered; width auto */
   .tree figure, .tree .imgbox {{
-    max-height:{int(MAX_TREE_HEIGHT*1.4)}px;
+    max-height:{int(MAX_TREE_HEIGHT*1.8)}px;
     display:flex; align-items:center; justify-content:center;
     overflow:hidden; margin: 0 auto 16px auto;
   }}
   .tree img {{
-    max-height:{int(MAX_TREE_HEIGHT*1.4)}px; width:auto; height:auto;
+    max-height:{int(MAX_TREE_HEIGHT*1.8)}px; width:auto; height:auto;
     border:1px solid #333; display:block;
   }}
 
@@ -320,19 +343,23 @@ class PageBuilder:
     <div class="iframebox"><iframe class="viewer" src="{iframe_src}"></iframe></div>
     </div>'''
 
-    def fig_iframe_pair(self, left_src: str, left_caption: str, right_src: str, right_caption: str) -> str:
-        self.fig_idx += 1
-        capL = f"Figure {self.fig_idx}: {html.escape(left_caption)}"
-        self.fig_idx += 1
-        capR = f"Figure {self.fig_idx}: {html.escape(right_caption)}"
-        return f'''<div class="iframerow">
-      <div class="figure-block"><h2 class="figcap">{capL}</h2>
-        <div class="iframebox"><iframe class="viewer" src="{left_src}"></iframe></div>
-      </div>
-      <div class="figure-block"><h2 class="figcap">{capR}</h2>
-        <div class="iframebox"><iframe class="viewer" src="{right_src}"></iframe></div>
-      </div>
-    </div>'''
+    def fig_iframe_pair(left_html_datauri: str, right_html_datauri: str, caption: str,
+                        left_overlay: str | None = None, right_overlay: str | None = None) -> str:
+        return f"""
+        <figure class="figure-block">
+          <h2 class="figcap">{caption}</h2>
+          <div class="iframerow">
+            <div class="iframebox">
+              {f'<div class="overlay-lbl">{left_overlay}</div>' if left_overlay else ''}
+              <iframe src="{left_html_datauri}" loading="lazy"></iframe>
+            </div>
+            <div class="iframebox">
+              {f'<div class="overlay-lbl">{right_overlay}</div>' if right_overlay else ''}
+              <iframe src="{right_html_datauri}" loading="lazy"></iframe>
+            </div>
+          </div>
+        </figure>
+        """
 
 def _iframe_src_from_patterns(fig_dir: Path, patterns: list[str], mode: str, publish_dir_for_pair: Path, html_out_dir: Path) -> str | None:
     p = _find_first(fig_dir, patterns)
