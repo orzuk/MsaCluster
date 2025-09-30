@@ -818,8 +818,9 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
 
 def _render_ddg_aligned_image(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str) -> None:
     """
-    Build the aligned per-residue ΔΔG image into output_figs/, using cached CSVs if present.
-    Falls back to computing per-residue energies if CSVs are missing.
+    Build the aligned per-residue ΔΔG image into output_figs/,
+    using cached CSVs written by the compute_deltaG step.
+
     Output: Pipeline/<pair>/output_figs/<pair>_ddg_aligned.png
     """
     os.makedirs(fig_dir_root, exist_ok=True)
@@ -827,39 +828,37 @@ def _render_ddg_aligned_image(pair_id: str, pdbids: list[str], pdbchains: list[s
     anal_dir = os.path.join(pair_dir, "Analysis")
     out_png = os.path.join(fig_dir_root, f"{pair_id}_ddg_aligned.png")
 
-    # Preferred: read cached per-residue energy CSVs that compute_deltaG step wrote
+    import pandas as _pd
+
+    # Try to load per-residue energies for both folds.
     res_lists = []
-    ok = True
     for i in (0, 1):
-        token = f"{pdbids[i]}{pdbchains[i]}"
-        csv_path = os.path.join(anal_dir, f"df_energy_{token}.csv")
-        if os.path.isfile(csv_path) and os.path.getsize(csv_path) > 0:
-            d = pd.read_csv(csv_path)
-            # expect columns: residue_name, residue_index, energy
-            if set(["residue_name","residue_index","energy"]).issubset(d.columns):
-                res_lists.append(list(d[["residue_name","residue_index","energy"]].itertuples(index=False, name=None)))
-            else:
-                ok = False; break
-        else:
-            ok = False; break
+        # Accept both naming schemes: df_energy_2qqjA.csv or df_energy_2qqj.csv
+        token_with_chain = f"{pdbids[i]}{pdbchains[i]}"
+        candidates = [
+            os.path.join(anal_dir, f"df_energy_{token_with_chain}.csv"),
+            os.path.join(anal_dir, f"df_energy_{pdbids[i]}.csv"),
+        ]
+        csv_path = next((p for p in candidates if os.path.isfile(p)), None)
+        if not csv_path:
+            print(f"[ΔΔG] missing per-residue CSV for fold {i+1}. "
+                  f"Expected one of: {', '.join(candidates)}. "
+                  f"Run: --run_mode compute_deltaG for this pair first.")
+            return
 
-    # Fallback: compute per-residue energies on the fly (no figure saved by energy_utils)
-    if not ok:
-        res_lists = []
-        for i in (0, 1):
-            pdb_path = os.path.join(pair_dir, f"{pdbids[i]}.pdb")
-            try:
-                deltaG, perres, _ = compute_deltaG_and_residue_energies(pdb_path)
-                res_lists.append(perres)
-            except Exception as e:
-                print(f"[ΔΔG] compute per-res energies failed for {pdb_path}: {e}")
-                return  # give up quietly; plot step should continue
+        d = _pd.read_csv(csv_path)
+        # expect columns: residue_name, residue_index, energy
+        if not set(["residue_name", "residue_index", "energy"]).issubset(d.columns):
+            print(f"[ΔΔG] bad columns in {csv_path}; needs residue_name,residue_index,energy")
+            return
 
-    # Make the image (align & draw). Function will skip saving if path is None.
+        res_lists.append(list(d[["residue_name", "residue_index", "energy"]].itertuples(index=False, name=None)))
+
+    # Make the image (align & draw)
     try:
         align_and_compare_residues(
             res_lists[0], res_lists[1],
-            pdbids[0], pdbids[1],
+            f"{pdbids[0]}{pdbchains[0]}", f"{pdbids[1]}{pdbchains[1]}",
             output_file=out_png
         )
         print(f"[ΔΔG] wrote {out_png}")
@@ -1374,7 +1373,8 @@ def plot_array_contacts_and_predictions(
         try:
             e0 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[0][:4]}.txt"))
             e1 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[1][:4]}.txt"))
-            _, delta_energies_filtered = align_and_compare_residues(e0, e1, fold_ids[0][:4], fold_ids[1][:4])
+            tmp_delta = align_and_compare_residues(e0, e1, fold_ids[0][:4], fold_ids[1][:4])
+            delta_energies_filtered = tmp_delta[1]
             xvec = yvec = np.array(delta_energies_filtered[:len(contacts[next(iter(contacts))])])
         except Exception as e:
             print(f"[plot] NOTE: ΔG overlay skipped for {foldpair_id}: {e}")
