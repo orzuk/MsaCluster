@@ -81,9 +81,7 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir, plo
 #        for pdb_pair_file, foldpair_id in zip(pdb_pair_files, foldpair_ids):
     for pair in pdb_pairs:
         pdb1_path, pdb2_path = pair # pdb1, pdb2
-        pdb1 = os.path.basename(pdb1_path)[:-4]
-        pdb2 = os.path.basename(pdb2_path)[:-4]
-        foldpair_id = pair[0] + "_" + pair[1]
+        foldpair_id = pdb1_path[9:20] # remove pipeline, extract pair id pair[0] + "_" + pair[1]
         pair_anal_dir = os.path.join(DATA_DIR, foldpair_id, f"Analysis")
         # Load PDBs
         print(f"Processing pair: {pdb1_path} and {pdb2_path} ; foldpair_id: {foldpair_id}")
