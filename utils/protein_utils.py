@@ -360,10 +360,10 @@ def read_seq_coord_contacts_from_pdb(
     """
 
     residue_starts, residues  = get_residues(structure)
-    print("Extracted residues:", residues)
+#    print("Extracted residues:", residues)
 
     # Filter by chain ID if specified
-    print("BEFORE IF CHAIN IS", chain)
+#    print("BEFORE IF CHAIN IS", chain)
     if chain is not None:
         structure = structure[structure.chain_id == chain]
     print("Unique chain IDs before filtering:", np.unique(structure.chain_id))

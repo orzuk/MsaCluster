@@ -553,6 +553,8 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
         if not pair_dir.is_dir():
             continue
 
+        print("Post-processing pair:", pair_id)
+        # AF/ESM tables
         # AF + ESM tables
         df_af  = _read_or_compute_af(pair_id, force=force_rerun)
         df_esm = _read_or_compute_esm(pair_id, force=force_rerun)
