@@ -247,6 +247,22 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         row["PAIR_TM"] = round(get_or_compute_true_tm(pair_dir_str, pdb1, pdb2, _tm_sym_once), 3)
 #        print("Compute/cache TRUE TM:", row["fold_pair"], row["PAIR_TM"])
 
+        # ΔG (pair-local energy CSV)
+        f_energy = f"{DATA_DIR}/{pair_id}/Analysis/df_energy_global.csv"
+        if os.path.isfile(f_energy):
+            try:
+                dfe = pd.read_csv(f_energy)
+                a, b = pair_id.split("_", 1)
+                def _pick(token):
+                    p = f"{token}.pdb"
+                    sub = dfe[dfe["PDB_ID"] == p]
+                    return float(sub["Delta_G"].iloc[0]) if not sub.empty else np.nan
+                row["ΔG1"] = _pick(a)
+                row["ΔG2"] = _pick(b)
+            except Exception:
+                row["ΔG1"] = np.nan; row["ΔG2"] = np.nan
+
+
         # AF: Clust + Deep, per fold
         for tag, up in (("af2","AF2"), ("af3","AF3")):
             row[f"{up}Clust_TM1"] = _pick_best(tm_all, tag, "clust", 1)

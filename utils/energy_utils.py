@@ -14,6 +14,8 @@ from config import *
 import os
 import sys
 import numpy as np
+import pandas as pd
+
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 #current_dir = os.path.dirname(os.path.abspath(__file__))
 #parent_dir = os.path.dirname(current_dir)
@@ -43,7 +45,8 @@ class RedirectStdStreams:
 
 
 
-def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
+def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir, plot_dir: str | None = None):
+
     """
     Pipeline to compute global and residue-specific energies for PDB pairs.
 
@@ -80,8 +83,10 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
         pdb1_path, pdb2_path = pair # pdb1, pdb2
         pdb1 = os.path.basename(pdb1_path)[:-4]
         pdb2 = os.path.basename(pdb2_path)[:-4]
-
-        print(f"Processing pair: {pdb1_path} and {pdb2_path}")
+        foldpair_id = pair[0] + "_" + pair[1]
+        pair_anal_dir = os.path.join(DATA_DIR, foldpair_id, f"Analysis")
+        # Load PDBs
+        print(f"Processing pair: {pdb1_path} and {pdb2_path} ; foldpair_id: {foldpair_id}")
 
         # Compute global ΔG and residue-specific energies for both PDBs
         residue_energies = [[], []]
@@ -89,19 +94,6 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
         for pdb in pair:
             pdb_file = os.path.basename(pdb) # .replace(".pdb", f"{chain}.pdb")
             deltaG, residue_energies[ctr], chain_count = compute_deltaG_and_residue_energies(pdb) # , log_file_path=log_file_path, silent=True)
-
-
-#                print("Residue Energies[ctr]: ", residue_energies[ctr])
-#                for r in residue_energies[ctr]:
-#                    print("r now: ",r)
-
-            # Save global ΔG
-#            pose = pyrosetta.pose_from_file(pdb)
-#            chain_count = pose.num_chains()
-#                writer.writerow([pair[0].split("/")[-2], pdb_file, deltaG,
-#                                 len(residue_energies[ctr]), len(set(r[1] for r in residue_energies[ctr]))])
-    #        writer.writerow([pair[0].split("/")[-2], pdb_file, deltaG,
-    #                         len(residue_energies[ctr]), len(residue_energies), chain_count ])
 
             # Instead of writing directly, update the global_data dict:
             key = (pair[0].split("/")[-2], pdb_file)
@@ -128,17 +120,69 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
                         print(
                             f"Warning: Skipping residue {res['residue_index']} with non-numeric energy: {res['energy']}")
 
+            # NEW: write per-structure per-residue CSV (pair-local)
+            perres_csv = os.path.join(pair_anal_dir, f"df_energy_{pdb_file[:-4]}.csv")
+            print("perres_csv: ", perres_csv)
+            pd.DataFrame(residue_energies[ctr]).to_csv(perres_csv, index=False)
+
             # Compare residue energies and visualize differences
 #                residue_energies[ctr] = compute_deltaG_and_residue_energies(pdb1_path, log_file_path=log_file_path, silent=True)[1]
             ctr += 1
 
-        # Save visualization
-        image_file = os.path.join(output_dir, f"deltaG_diff_{pdb1}_{pdb2}.jpg")
-#            print("residue_energies_1:", residue_energies[0])
-#            print("residue_energies_2:", residue_energies[1])
+        # NEW: pair-local global ΔG table (2 rows)
+        pair_global_csv = os.path.join(pair_anal_dir, "df_energy_global.csv")
+        # Find the two rows we just put into global_data (by keys)
+        rows_local = []
+        for pb in (pdb1_path, pdb2_path):
+            k = (pair[0].split("/")[-2], os.path.basename(pb))
+            rows_local.append(global_data[k])
+        pd.DataFrame(rows_local).to_csv(pair_global_csv, index=False)
 
-        align_and_compare_residues(residue_energies[0], residue_energies[1], os.path.basename(pdb1_path), os.path.basename(pdb2_path), image_file)
-#            plot_residue_energy_differences(comparison, os.path.basename(pdb1), os.path.basename(pdb2), top_n=5, save_path=image_file)
+
+        # (optional) make the ΔΔG image only if plot_dir was requested
+        if plot_dir:
+            os.makedirs(plot_dir, exist_ok=True)
+            image_file = os.path.join(plot_dir,
+                                      f"{foldpair_ids[0] if len(foldpair_ids) == 1 else 'pair'}_ddg_aligned.png")
+        else:
+            image_file = None
+
+        deltas_raw, deltas_filled, aligned_seq1, aligned_seq2, aligned_e1, aligned_e2 = align_and_compare_residues(
+            residue_energies[0], residue_energies[1],
+            os.path.basename(pdb1_path), os.path.basename(pdb2_path), image_file)
+
+        # Build aligned residue table (pair-local CSV in Analysis/)
+        aligned_csv = os.path.join(pair_anal_dir, "df_ddg_aligned.csv")
+
+        # Reconstruct aligned AA symbols for convenience (same logic as in align function)
+        seq1 = clean_sequence(residue_energies[0])
+        seq2 = clean_sequence(residue_energies[1])
+        _aln = pairwise2.align.globalxx(seq1, seq2)[0]
+        a1, a2 = _aln.seqA, _aln.seqB
+
+        # Map original per-res energies to aligned positions (mirror logic)
+        aligned_e1, aligned_e2 = [], []
+        i1 = i2 = 0
+        for r1, r2 in zip(a1, a2):
+            if r1 == "-" and r2 != "-":
+                aligned_e1.append(None); aligned_e2.append(residue_energies[1][i2]["energy"]); i2 += 1
+            elif r1 != "-" and r2 == "-":
+                aligned_e1.append(residue_energies[0][i1]["energy"]); aligned_e2.append(None); i1 += 1
+            else:  # both not gap
+                aligned_e1.append(residue_energies[0][i1]["energy"])
+                aligned_e2.append(residue_energies[1][i2]["energy"])
+                i1 += 1; i2 += 1
+
+        pd.DataFrame({
+            "aln_pos": list(range(1, len(deltas_filled)+1)),
+            "aa1": list(a1),
+            "aa2": list(a2),
+            "E1": aligned_e1,
+            "E2": aligned_e2,
+            "dEdiff": deltas_raw,       # None where gaps; keep for strictness
+            "dEdiff_filled": deltas_filled  # zeros at gaps (useful for plotting)
+        }).to_csv(aligned_csv, index=False)
+
 
     # --- After processing all pairs, add these lines to write the updated data ---
     with open(ENERGY_FILE, "w", newline="") as global_file:
@@ -319,7 +363,7 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
     - top_n: Number of residues with the largest differences to highlight.
 
     Returns:
-    - tuple: (delta_energies, delta_energies_filtered)
+    - tuple: (delta_energies, delta_energies_filtered, aligned_seq1, aligned_seq2, aligned_energies_1, aligned_energies_2)
     """
     # Clean the sequences (assumes clean_sequence has been updated to work with dicts)
     seq1 = clean_sequence(residue_energies_1)
@@ -400,9 +444,8 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
 
     print(f"Plot saved to {output_file}")
 
-    return delta_energies, delta_energies_filtered
-
-
+    return (delta_energies, delta_energies_filtered,
+            aligned_seq1, aligned_seq2, aligned_energies_1, aligned_energies_2)
 
 
 def compute_deltaG_with_pyrosetta(pdb_path: str, log_file_path: str = None):

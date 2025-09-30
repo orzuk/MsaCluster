@@ -816,6 +816,57 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
                 print(f"[3D] {model_tag} interactive failed: {e}")
 
 
+def _render_ddg_aligned_image(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str) -> None:
+    """
+    Build the aligned per-residue ΔΔG image into output_figs/, using cached CSVs if present.
+    Falls back to computing per-residue energies if CSVs are missing.
+    Output: Pipeline/<pair>/output_figs/<pair>_ddg_aligned.png
+    """
+    os.makedirs(fig_dir_root, exist_ok=True)
+    pair_dir = os.path.join("Pipeline", pair_id)
+    anal_dir = os.path.join(pair_dir, "Analysis")
+    out_png = os.path.join(fig_dir_root, f"{pair_id}_ddg_aligned.png")
+
+    # Preferred: read cached per-residue energy CSVs that compute_deltaG step wrote
+    res_lists = []
+    ok = True
+    for i in (0, 1):
+        token = f"{pdbids[i]}{pdbchains[i]}"
+        csv_path = os.path.join(anal_dir, f"df_energy_{token}.csv")
+        if os.path.isfile(csv_path) and os.path.getsize(csv_path) > 0:
+            d = pd.read_csv(csv_path)
+            # expect columns: residue_name, residue_index, energy
+            if set(["residue_name","residue_index","energy"]).issubset(d.columns):
+                res_lists.append(list(d[["residue_name","residue_index","energy"]].itertuples(index=False, name=None)))
+            else:
+                ok = False; break
+        else:
+            ok = False; break
+
+    # Fallback: compute per-residue energies on the fly (no figure saved by energy_utils)
+    if not ok:
+        res_lists = []
+        for i in (0, 1):
+            pdb_path = os.path.join(pair_dir, f"{pdbids[i]}.pdb")
+            try:
+                deltaG, perres, _ = compute_deltaG_and_residue_energies(pdb_path)
+                res_lists.append(perres)
+            except Exception as e:
+                print(f"[ΔΔG] compute per-res energies failed for {pdb_path}: {e}")
+                return  # give up quietly; plot step should continue
+
+    # Make the image (align & draw). Function will skip saving if path is None.
+    try:
+        align_and_compare_residues(
+            res_lists[0], res_lists[1],
+            pdbids[0], pdbids[1],
+            output_file=out_png
+        )
+        print(f"[ΔΔG] wrote {out_png}")
+    except Exception as e:
+        print(f"[ΔΔG] align/plot failed for {pair_id}: {e}")
+
+
 # ----------- Plots Generation Functions -----------
 def write_py3dmol_overlay_html(
     pdb1: str,
@@ -1122,6 +1173,12 @@ def make_foldswitch_all_plots(
         seqs_dists_vec = None
 
     num_seqs_msa_vec = len(seqs)
+
+    # ---- NEW: ΔΔG aligned profile image into output_figs/ ----
+    try:
+        _render_ddg_aligned_image(foldpair_id, pdbids, pdbchains, fig_dir_root)
+    except Exception as e:
+        print(f"[ΔΔG] skipped for {foldpair_id}: {e}")
 
 
     # ---------- 3D PANELS (PyMOL headless) ----------

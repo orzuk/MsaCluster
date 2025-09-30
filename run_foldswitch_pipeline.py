@@ -6,6 +6,7 @@ import sys, os, warnings, re
 from glob import glob
 import json
 import gzip
+import getpass
 
 from pathlib import Path
 from typing import List, Tuple
@@ -16,18 +17,22 @@ import pandas as pd
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
-from utils.protein_utils import *
-
 from utils.msa_utils import *
 from utils.align_utils import get_or_compute_true_tm
-from Analysis.postprocess_global import build_or_load_global_tables
 try:
     from utils.phytree_utils import phytree_from_msa
 except Exception:
     phytree_from_msa = None
     print("[phytree ERROR] Can't import phytree!", flush=True)
+from utils.protein_utils import *
 from utils.protein_plot_utils import make_foldswitch_all_plots, global_pairs_statistics_plots
+try:
+    # NB: in repo this module sits under utils/. Keep your original import path.
+    from utils.energy_utils import compute_global_and_residue_energies
+except ImportError:
+    raise SystemExit("[RosettaFold ERROR] PyRosetta utilities are unavailable in this env.")
 
+from Analysis.postprocess_global import build_or_load_global_tables
 from Analysis.postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs
 from TableResults.gen_html_table import *
 
@@ -55,13 +60,25 @@ RUN_MODE_DESCRIPTIONS = {
 
 
 # ------------------------- helpers -------------------------
+def _truth_pdb_paths_for_pair(pair_id: str) -> tuple[str, str]:
+    # Prefer chain-sliced files if present
+    from utils.utils import pair_str_to_tuple
+    pair_dir = Path("Pipeline") / pair_id
+    a, b = pair_str_to_tuple(pair_id)  # e.g., ("2qqjA","4qdsA")
+    c1, c2 = a[-1], b[-1]
+    cand1 = pair_dir / "chain_pdb_files" / f"{a}.pdb"
+    cand2 = pair_dir / "chain_pdb_files" / f"{b}.pdb"
+    pdb1 = str(cand1 if cand1.is_file() else (pair_dir / f"{a[:-1]}.pdb"))
+    pdb2 = str(cand2 if cand2.is_file() else (pair_dir / f"{b[:-1]}.pdb"))
+    return pdb1, pdb2
+
+
 def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True) -> str:
     """
     Create pair-trimmed A3Ms (keep columns where S1 OR S2 has a residue) to avoid
     gap-gap columns and length explosions for MSA-Transformer/CCMpred.
     Returns the directory that contains the pair-trimmed cluster A3Ms.
     """
-    from pathlib import Path
     deep_src = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
     clus_src = f"Pipeline/{pair_id}/output_msa_cluster"
     clus_dst = f"Pipeline/{pair_id}/output_msa_cluster_pairtrim"
@@ -120,8 +137,6 @@ def _has_deltaG(pair_id: str) -> bool:
 
 
 
-import getpass
-from pathlib import Path
 
 def _jupyter_env_for_scratch(base: str | None = None) -> dict[str, str]:
     """
@@ -1233,18 +1248,30 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
             plot3dformat=args.plot3dformat  # allow interactive 3D plots
         )
 
-
 def task_deltaG(pair_id: str) -> None:
-    # Import PyRosetta-consuming code only here
-    try:
-        from utils.energy_utils import compute_global_and_residue_energies
-    except ImportError:
-        raise SystemExit("PyRosetta utilities are unavailable in this env.")
-    pA, pB = pair_str_to_tuple(pair_id)
-    pdb_pair = [(f"Pipeline/{pair_id}/{pA[:-1]}.pdb", f"Pipeline/{pair_id}/{pB[:-1]}.pdb")]
-    pair_dir = f"Pipeline/{pair_id}/output_deltaG"
-    os.makedirs(pair_dir, exist_ok=True)
-    compute_global_and_residue_energies(pdb_pairs=pdb_pair, foldpair_ids=[pair_id], output_dir=pair_dir)
+    """
+    Compute global ΔG per true structure and an aligned per-residue ΔΔG profile.
+    Writes:
+      Pipeline/<pair>/Analysis/df_energy_<token>.csv           (per-structure per-res energies)
+      Pipeline/<pair>/Analysis/df_energy_global.csv            (2 rows: ΔG1/ΔG2)
+      Pipeline/<pair>/Analysis/df_ddg_aligned.csv              (aligned ΔΔG table)
+      Pipeline/<pair>/output_deltaG/deltaG_diff_*.jpg          (plot)
+    """
+
+    pair_dir = Path("Pipeline") / pair_id
+    out_dir  = pair_dir / "output_deltaG"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Prefer chain-sliced true PDBs when available
+    a, b = pair_str_to_tuple(pair_id)        # e.g., ("2qqjA","4qdsA")
+    p_chain1 = pair_dir / "chain_pdb_files" / f"{a}.pdb"
+    p_chain2 = pair_dir / "chain_pdb_files" / f"{b}.pdb"
+    p_raw1   = pair_dir / f"{a[:-1]}.pdb"
+    p_raw2   = pair_dir / f"{b[:-1]}.pdb"
+    pdb1 = str(p_chain1 if p_chain1.is_file() else p_raw1)
+    pdb2 = str(p_chain2 if p_chain2.is_file() else p_raw2)
+
+    compute_global_and_residue_energies(pdb_pairs=[(pdb1, pdb2)], foldpair_ids=[pair_id], output_dir=str(out_dir), plot_dir=None)
 
 
 def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:

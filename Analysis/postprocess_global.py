@@ -60,6 +60,24 @@ def _read_pair_tables(pair_dir: str) -> dict:
     tm_true = get_from_pair_cache(pair_dir, "true_true_tm")
     out["TrueTrue_TM"] = float(tm_true) if tm_true is not None else np.nan
 
+    # ---- ΔG from pair-local energy CSV ----
+    f_energy = os.path.join(pair_dir, "Analysis", "df_energy_global.csv")
+    try:
+        if os.path.isfile(f_energy):
+            dfe = pd.read_csv(f_energy)
+            # Identify which PDB belongs to fold1/fold2 by name tokens in pair_id
+            a, b = pair_id.split("_", 1)  # "2qqjA", "4qdsA"
+            # Match by basename (without .pdb)
+            names = {os.path.splitext(os.path.basename(x))[0]: x for x in dfe["PDB_ID"].tolist()}
+            def _pick(token):
+                p = f"{token}.pdb"
+                row = dfe[dfe["PDB_ID"] == p]
+                return _numify(row["Delta_G"].iloc[0]) if not row.empty else np.nan
+            out["ΔG1"] = _pick(a)
+            out["ΔG2"] = _pick(b)
+    except Exception:
+        pass
+
     return out
 
 def build_or_load_global_tables(force: bool = False,

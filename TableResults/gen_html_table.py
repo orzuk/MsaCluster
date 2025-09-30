@@ -13,6 +13,7 @@ from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
 # Single source of truth for the main comparison table
 DEFAULT_PREFERRED_COLS = [
     "pair_id", "#RES", "MSA: DEPTH; #RES; #Clusters", "PAIR_TM",
+    "ΔG1", "ΔG2",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
     "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
@@ -23,6 +24,8 @@ DEFAULT_EXPLANATIONS = {
     "#RES": "Number of residues in the longer chain of the pair.",
     "MSA: DEPTH; #RES; #Clusters": "DEPTH = number of sequences in DeepMsa.a3m; #RES = alignment width (columns, including gaps); #Clusters = count of ShallowMsa_* a3m files.",
     "PAIR_TM": "TM-score between the two ground-truth folds (max of the two directions).",
+    "ΔG1": "Rosetta full-atom (Ref2015) energy of Fold1 (lower is more stable).",
+    "ΔG2": "Rosetta full-atom (Ref2015) energy of Fold2 (lower is more stable).",
     "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
     "AF2Clust_TM2": "Best TM-score to Fold2 among AF2 predictions from shallow clusters.",
     "AF2Deep_TM1":  "Best TM-score to Fold1 among AF2 predictions built from the DeepMsa alignment.",
