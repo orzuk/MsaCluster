@@ -828,7 +828,8 @@ def _render_ddg_aligned_image(pair_id: str, pdbids: list[str], pdbchains: list[s
     anal_dir = os.path.join(pair_dir, "Analysis")
     out_png = os.path.join(fig_dir_root, f"{pair_id}_ddg_aligned.png")
 
-    import pandas as _pd
+    print("fig_dir_root:", fig_dir_root)
+    print("out_png:", out_png)
 
     # Try to load per-residue energies for both folds.
     res_lists = []
@@ -846,7 +847,7 @@ def _render_ddg_aligned_image(pair_id: str, pdbids: list[str], pdbchains: list[s
                   f"Run: --run_mode compute_deltaG for this pair first.")
             return
 
-        d = _pd.read_csv(csv_path)
+        d = pd.read_csv(csv_path)
         # expect columns: residue_name, residue_index, energy
         if not set(["residue_name", "residue_index", "energy"]).issubset(d.columns):
             print(f"[ΔΔG] bad columns in {csv_path}; needs residue_name,residue_index,energy")

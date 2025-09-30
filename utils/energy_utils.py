@@ -166,6 +166,7 @@ def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir, plo
             os.makedirs(plot_dir, exist_ok=True)
             image_file = os.path.join(plot_dir,
                                       f"{foldpair_ids[0] if len(foldpair_ids) == 1 else 'pair'}_ddg_aligned.png")
+            print("plot_dir, image file: ", plot_dir, image_file)
         else:
             image_file = None
 
