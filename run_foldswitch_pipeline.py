@@ -914,17 +914,22 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
         f"python3 ./runMSATrans.py "
         f"--input_msas {clus_dir_pairtrim} "
         f"-o {outdir}"
+        f"--model msa_t --keyword clusters --clean matched"
     )
     _run(cmd, run_job_mode)
 
+
     # 3) Deep (if present)
     deep_trim = f"Pipeline/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
-    if os.path.isfile(deep_trim):
+    if os.path.isfile(deep_in):
+        # Leave keyword empty so the file name stays 'msa_t__DeepMsa.npy'
         cmd_deep = (
             f"python3 ./runMSATrans.py "
-            f"--input_msas {deep_trim} "
-            f"-o {outdir}"
-        )
+            f"--input_msas {deep_in} "
+            f"-o {outdir} "
+            f"--model msa_t --keyword '' --clean matched"
+            )
+
         _run(cmd_deep, run_job_mode)
 
 

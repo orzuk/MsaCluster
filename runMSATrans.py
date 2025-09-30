@@ -28,6 +28,11 @@ if __name__ == '__main__':
     p.add_argument("--model", action='store', default='msa_t',
                    help="Model: `esm1b` or `msa_t` (default: 'msa_t').")
     p.add_argument('--keyword', action='store', default='', help="Keyword tag for this prediction.")
+    p.add_argument('--clean', choices=['none', 'matched', 'all'], default='matched',
+                    help = "What to delete in output dir before writing. "
+                    "'none' = keep everything; 'matched' = delete only files that match "
+                    "this run's model/keyword prefix; 'all' = delete all *.npy (legacy).")
+
     p.add_argument("--test", action='store_true', help='Test mode: only first 3 inputs.')
     p.add_argument("--parallel", action='store_true', help='(unused) Runs in parallel using Pandarallel.')
     args = p.parse_args()
@@ -107,6 +112,25 @@ if __name__ == '__main__':
             os.remove(f_old)
         except OSError:
             pass
+
+    # Remove old outputs according to --clean policy
+    if args.clean != 'none':
+        if args.clean == 'all':
+            pattern = '*.npy'
+        else:  # matched
+        # delete only files produced by this run configuration
+            prefix = f"{args.model}_{args.keyword}_" if args.keyword else f"{args.model}_"
+            pattern = f"{prefix}*.npy"
+        print(f"Removing old files: {args.o}/{pattern}")
+        old = glob(os.path.join(args.o, pattern))
+        print(old)
+
+    for f_old in old:
+        try:
+            os.remove(f_old)
+        except OSError:
+            pass
+
 
     # --- Predict ---
     if args.model == 'esm1b':
