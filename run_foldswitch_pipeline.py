@@ -887,20 +887,30 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     )
     _run(cmd, run_job_mode)
 
-
 def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
 
-    # NEW: prepare pair-trimmed MSAs (≤1024 cols) to avoid length errors and noise
+    # 1) make trimmed Deep + trimmed clusters (≤1024)
     clus_dir_pairtrim = _prepare_pairtrim_msas(pair_id, cap_1024=True)
 
+    # 2) clusters
     cmd = (
         f"python3 ./runMSATrans.py "
         f"--input_msas {clus_dir_pairtrim} "
         f"-o {outdir}"
     )
     _run(cmd, run_job_mode)
+
+    # 3) Deep (if present)
+    deep_trim = f"Pipeline/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
+    if os.path.isfile(deep_trim):
+        cmd_deep = (
+            f"python3 ./runMSATrans.py "
+            f"--input_msas {deep_trim} "
+            f"-o {outdir}"
+        )
+        _run(cmd_deep, run_job_mode)
 
 
 def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
