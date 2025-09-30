@@ -9,6 +9,7 @@ import re, os
 import numpy as np
 from collections import Counter
 from pathlib import Path
+import math
 
 # ...
 
@@ -175,21 +176,66 @@ def get_align_indexes(
     return idxA, idxB
 
 
-def trim_a3m_for_query(a3m_path, out_path, query_tokens, max_len=None):
+def trim_a3m_for_pair_union(a3m_path, out_path, s1_tokens, s2_tokens, max_len=None):
+    """
+    Keep columns where S1 OR S2 has a residue; optionally cap to max_len (e.g., 1024).
+    Uses a robust downsampler + final hard cap to guarantee length <= max_len.
+    """
+
     lines = Path(a3m_path).read_text().splitlines(True)
     headers, seqs = parse_a3m_records(lines, strip_inserts=True)
 
-    iq = find_row_idx(headers, query_tokens, default=0)
-    keep = keep_mask_query(seqs[iq])
-    if max_len is not None and len(keep) > max_len:
-        step = len(keep) / float(max_len)
-        keep = [keep[int(k*step)] for k in range(max_len)]
+    i1 = find_row_idx(headers, s1_tokens, default=0)
+    i2 = find_row_idx(headers, s2_tokens, default=1 if len(headers) > 1 else 0)
+    s1_aln, s2_aln = seqs[i1], seqs[i2]
 
+    # Columns where at least one of S1/S2 is not a gap
+    keep = [j for j, (a, b) in enumerate(zip(s1_aln, s2_aln)) if (a != '-' or b != '-')]
+
+    # Uniformly downsample if too long
+    if max_len is not None and len(keep) > max_len:
+        # indices via linspace (inclusive of endpoints), floor to ints
+        import numpy as np
+        idx = np.floor(np.linspace(0, len(keep) - 1, max_len)).astype(int).tolist()
+
+        # deduplicate while preserving order
+        seen = set()
+        dedup = []
+        for k in idx:
+            if k not in seen:
+                dedup.append(k); seen.add(k)
+
+        # If dedup became shorter than max_len due to rounding collisions,
+        # fill by scanning forward for missing indices.
+        ptr = 0
+        while len(dedup) < max_len and ptr < len(keep):
+            if ptr not in seen:
+                dedup.append(ptr); seen.add(ptr)
+            ptr += max(1, len(keep) // max_len)
+
+        # Final monotone, bounded indices
+        dedup = sorted(set(dedup))[:max_len]
+        keep = [keep[k] for k in dedup]
+
+    # Project
     trimmed = project_columns(seqs, keep)
+
+    # Final hard cap (safety against any weirdness): guarantee <= max_len
+    if max_len is not None and len(trimmed[0]) > max_len:
+        trimmed = [s[:max_len] for s in trimmed]
+        keep = keep[:max_len]
+
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     write_a3m(headers, trimmed, out_path)
-    (Path(out_path).with_suffix(".colmap.txt")).write_text(",".join(map(str, keep)))
+
+    # Save mapping for downstream (optional)
+    try:
+        Path(out_path).with_suffix(".colmap.txt").write_text(",".join(map(str, keep)))
+    except Exception:
+        pass
+
     return keep
+
 
 
 def clean_a3m_line(s: str) -> str:

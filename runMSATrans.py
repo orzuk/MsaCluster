@@ -127,6 +127,14 @@ if __name__ == '__main__':
             inputs = greedy_select(msa_rows, num_seqs=128)
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
             batch_tokens = batch_tokens.to(next(mdl.parameters()).device)
+
+            # ---- SAFETY CAP on sequence length ----
+            seqlen = batch_tokens.size(-1)
+            if seqlen > 1024:
+                print(f"[MSAT] Warning: MSA length {seqlen} > 1024; cropping to 1024.")
+                batch_tokens = batch_tokens[:, :, :1024]
+            # ---------------------------------------
+
             print('MSA-Transformer predicting...')
             pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()
             if args.saveformat == "text":
