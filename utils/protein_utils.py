@@ -227,24 +227,6 @@ def extract_protein_sequence(
         return seq
 
 
-def clean_sequence(residue_energies):
-    """
-    Clean residue energies to extract a valid amino acid sequence.
-
-    Parameters:
-    - residue_energies (list of dict): Residue data [{'residue_name': ..., 'residue_index': ..., 'energy': ...}, ...]
-
-    Returns:
-    - str: Cleaned amino acid sequence.
-    """
-    seq = ""
-    for res in residue_energies:
-        resname = res[0]  # res = ('ALA', 3, 2.5)
-        if resname in aa_long_short:
-            seq += aa_long_short[resname]
-    return seq
-
-
 def convert_atomarray_to_recarray(atom_array):
     """
     Convert a Biotite AtomArray (which may not be a recarray with a dtype)

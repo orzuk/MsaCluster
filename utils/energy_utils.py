@@ -44,6 +44,30 @@ class RedirectStdStreams:
         sys.stdout, sys.stderr = self.old_stdout, self.old_stderr
 
 
+def clean_sequence(residue_energies):
+    """
+    Clean residue energies to extract a valid amino acid sequence.
+
+    Accepts either:
+      - list of dicts: [{'residue_name': 'ALA', 'residue_index': 3, 'energy': 2.5}, ...]
+      - list of tuples: ('ALA', 3, 2.5)  # legacy
+
+    Returns:
+      str: one-letter AA sequence
+    """
+    seq_chars = []
+    for res in residue_energies:
+        if isinstance(res, dict):
+            res3 = res.get("residue_name")
+        else:  # tuple/list fallback
+            res3 = res[0] if len(res) > 0 else None
+        if not res3:
+            continue
+        # normalize nonstandard, then map to 1-letter (unknown → 'X')
+        res3 = NONSTD_TO_STD.get(res3, str(res3).upper())
+        seq_chars.append(aa_long_short.get(res3, "X"))
+    return "".join(seq_chars)
+
 
 def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir, plot_dir: str | None = None):
 
@@ -347,103 +371,89 @@ def plot_residue_energy_differences(residue_comparison, pdb_id_1, pdb_id_2, top_
         plt.show()
 
 
-
-def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1, pdb_id_2, output_file=None, top_n=5):
+def align_and_compare_residues(
+    residue_energies_1, residue_energies_2,
+    pdb_id_1, pdb_id_2,
+    output_file=None, top_n=5
+):
     """
     Align sequences from two PDB files and compare residue energies.
 
     Parameters:
-    - residue_energies_1: List of dicts [{'residue_name': ..., 'residue_index': ..., 'energy': ...}, ...] for structure 1.
-    - residue_energies_2: List of dicts [{'residue_name': ..., 'residue_index': ..., 'energy': ...}, ...] for structure 2.
-    - pdb_id_1: PDB ID of the first structure.
-    - pdb_id_2: PDB ID of the second structure.
-    - output_file: File path to save the plot.
-    - top_n: Number of residues with the largest differences to highlight.
+      - residue_energies_1: list of dicts or tuples for structure 1
+      - residue_energies_2: list of dicts or tuples for structure 2
+      - pdb_id_1, pdb_id_2: labels for plotting
+      - output_file: optional path to save plot
+      - top_n: annotate N largest |ΔΔG|
 
     Returns:
-    - tuple: (delta_energies, delta_energies_filtered, aligned_seq1, aligned_seq2, aligned_energies_1, aligned_energies_2)
+      (delta_energies, delta_energies_filtered,
+       aligned_seq1, aligned_seq2,
+       aligned_energies_1, aligned_energies_2)
     """
-    # Clean the sequences (assumes clean_sequence has been updated to work with dicts)
+    # 1) sequences
     seq1 = clean_sequence(residue_energies_1)
     seq2 = clean_sequence(residue_energies_2)
 
-    # Perform sequence alignment using Biopython's pairwise2
+    # 2) global alignment
     alignments = pairwise2.align.globalxx(seq1, seq2)
     alignment = alignments[0]
     aligned_seq1, aligned_seq2 = alignment.seqA, alignment.seqB
 
-    # Map energies to aligned positions
+    # 3) map energies along the alignment
+    def _energy(lst, idx):
+        x = lst[idx]
+        return x["energy"] if isinstance(x, dict) else x[2]
+
     aligned_energies_1, aligned_energies_2 = [], []
-    index_1 = index_2 = 0
-    for res1, res2 in zip(aligned_seq1, aligned_seq2):
-        if res1 == "-" and res2 != "-":
+    i1 = i2 = 0
+    for r1, r2 in zip(aligned_seq1, aligned_seq2):
+        if r1 == "-" and r2 != "-":
             aligned_energies_1.append(None)
-#            aligned_energies_2.append(residue_energies_2[index_2]["energy"])
-            aligned_energies_2.append(residue_energies_2[index_2][2])
-            index_2 += 1
-        elif res1 != "-" and res2 == "-":
-#            aligned_energies_1.append(residue_energies_1[index_1]["energy"])
-            aligned_energies_1.append(residue_energies_1[index_1][2])
-
+            aligned_energies_2.append(_energy(residue_energies_2, i2))
+            i2 += 1
+        elif r1 != "-" and r2 == "-":
+            aligned_energies_1.append(_energy(residue_energies_1, i1))
             aligned_energies_2.append(None)
-            index_1 += 1
-        elif res1 != "-" and res2 != "-":
-#            aligned_energies_1.append(residue_energies_1[index_1]["energy"])
-            aligned_energies_1.append(residue_energies_1[index_1][2])
+            i1 += 1
+        else:  # both residues present
+            aligned_energies_1.append(_energy(residue_energies_1, i1))
+            aligned_energies_2.append(_energy(residue_energies_2, i2))
+            i1 += 1
+            i2 += 1
 
-#            aligned_energies_2.append(residue_energies_2[index_2]["energy"])
-            aligned_energies_2.append(residue_energies_2[index_2][2])
-
-
-            index_1 += 1
-            index_2 += 1
-
-    # Compute energy differences for aligned residues
+    # 4) ΔΔG per aligned position
     delta_energies = [
-        (e1 - e2 if e1 is not None and e2 is not None else None)
+        (e1 - e2) if (e1 is not None and e2 is not None) else None
         for e1, e2 in zip(aligned_energies_1, aligned_energies_2)
     ]
-
-    # Find top N differences (by absolute value)
-    indexed_delta_energies = [(i, d) for i, d in enumerate(delta_energies) if d is not None]
-    top_indices = sorted(indexed_delta_energies, key=lambda x: abs(x[1]), reverse=True)[:top_n]
-
-    # Prepare for plotting: fill in gaps with zero for plotting purposes.
-    indices = np.arange(len(delta_energies))
+    indexed = [(i, d) for i, d in enumerate(delta_energies) if d is not None]
+    top_indices = sorted(indexed, key=lambda x: abs(x[1]), reverse=True)[:top_n]
     delta_energies_filtered = [d if d is not None else 0 for d in delta_energies]
 
-    if output_file is None:
-        return delta_energies, delta_energies_filtered
-
-    bar_colors = ["blue"] * len(delta_energies)
-    for idx, _ in top_indices:
-        bar_colors[idx] = "red"
-
-    # Plot energy differences
-    plt.figure(figsize=(12, 6))
-    plt.bar(indices, delta_energies_filtered, color=bar_colors)
-
-    # Annotate top residues
-    for idx, delta in top_indices:
-        # Use the aligned residue symbol from the aligned sequence
-        # If gap, then use the other sequence's symbol
-        residue_symbol = aligned_seq1[idx] if aligned_seq1[idx] != "-" else aligned_seq2[idx]
-        plt.text(idx, delta + (1 if delta > 0 else -3), f"{residue_symbol}\n{idx + 1}",
-                 color="red", ha="center", fontsize=8)
-
-    plt.title(f"ΔG({pdb_id_1[:-4]}) - ΔG({pdb_id_2[:-4]})")
-    plt.xlabel("Aligned Residue Index")
-    plt.ylabel("ΔΔG (kcal/mol)")
-    plt.axhline(0, color="black", linewidth=0.8)
-    plt.ylim(min(delta_energies_filtered) - 5, max(delta_energies_filtered) + 5)
-    plt.tight_layout()
-    plt.savefig(output_file)
-    plt.close()
-
-    print(f"Plot saved to {output_file}")
+    # 5) optional plot
+    if output_file is not None:
+        plt.figure(figsize=(12, 6))
+        colors = ["blue"] * len(delta_energies_filtered)
+        for idx, _ in top_indices:
+            colors[idx] = "red"
+        plt.bar(range(len(delta_energies_filtered)), delta_energies_filtered, color=colors)
+        for idx, delta in top_indices:
+            aa = aligned_seq1[idx] if aligned_seq1[idx] != "-" else aligned_seq2[idx]
+            plt.text(idx, delta + (1 if delta > 0 else -3), f"{aa}\n{idx+1}", ha="center", fontsize=8)
+        plt.title(f"ΔG({pdb_id_1[:-4]}) - ΔG({pdb_id_2[:-4]})")
+        plt.xlabel("Aligned Residue Index")
+        plt.ylabel("ΔΔG (kcal/mol)")
+        plt.axhline(0, color="black", linewidth=0.8)
+        plt.tight_layout()
+        plt.savefig(output_file)
+        plt.close()
+        print(f"Plot saved to {output_file}")
 
     return (delta_energies, delta_energies_filtered,
-            aligned_seq1, aligned_seq2, aligned_energies_1, aligned_energies_2)
+            aligned_seq1, aligned_seq2,
+            aligned_energies_1, aligned_energies_2)
+
 
 
 def compute_deltaG_with_pyrosetta(pdb_path: str, log_file_path: str = None):
