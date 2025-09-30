@@ -18,7 +18,7 @@ from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
 from utils.protein_utils import *
 
-from utils.msa_utils import write_fasta, load_fasta, build_pair_seed_a3m_from_pair  # your existing writer
+from utils.msa_utils import *
 from utils.align_utils import get_or_compute_true_tm
 from Analysis.postprocess_global import build_or_load_global_tables
 try:
@@ -55,6 +55,46 @@ RUN_MODE_DESCRIPTIONS = {
 
 
 # ------------------------- helpers -------------------------
+def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True) -> str:
+    """
+    Create pair-trimmed A3Ms (keep columns where S1 OR S2 has a residue) to avoid
+    gap-gap columns and length explosions for MSA-Transformer/CCMpred.
+    Returns the directory that contains the pair-trimmed cluster A3Ms.
+    """
+    from pathlib import Path
+    deep_src = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
+    clus_src = f"Pipeline/{pair_id}/output_msa_cluster"
+    clus_dst = f"Pipeline/{pair_id}/output_msa_cluster_pairtrim"
+    ensure_dir(clus_dst)
+
+    pA, pB = pair_str_to_tuple(pair_id)
+    s1_tokens = [pA[:-1], pA[-1]]
+    s2_tokens = [pB[:-1], pB[-1]]
+    max_len = 1024 if cap_1024 else None
+
+    # Deep (also keeps a .colmap.txt alongside)
+    deep_dst = f"Pipeline/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
+    keep = trim_a3m_for_pair_union(deep_src, deep_dst, s1_tokens, s2_tokens, max_len=max_len)
+
+    # Also make a trimmed seed for analysis (so indices match predictions)
+    try:
+        seed_src = f"Pipeline/{pair_id}/_seed_both.a3m"
+        if os.path.isfile(seed_src):
+            # project first two rows by the same 'keep'
+            lines = Path(seed_src).read_text().splitlines(True)
+            headers, seqs = parse_a3m_records(lines, strip_inserts=True)
+            seeds2 = project_columns(seqs[:2], keep)
+            with open(f"Pipeline/{pair_id}/_seed_both_pairtrim.a3m", "w") as fh:
+                fh.write(">S1\n" + seeds2[0] + "\n>S2\n" + seeds2[1] + "\n")
+    except Exception as e:
+        print(f"[seed_pairtrim] WARN: {e}")
+
+    # Clusters
+    for a3m in sorted(glob(os.path.join(clus_src, "ShallowMsa_*.a3m"))):
+        dst = os.path.join(clus_dst, os.path.basename(a3m))
+        trim_a3m_for_pair_union(a3m, dst, s1_tokens, s2_tokens, max_len=max_len)
+
+    return clus_dst
 
 
 def _extract_seq_ca_only(pdb_path: str, chain: str) -> str:
@@ -851,9 +891,13 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
 def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
+
+    # NEW: prepare pair-trimmed MSAs (≤1024 cols) to avoid length errors and noise
+    clus_dir_pairtrim = _prepare_pairtrim_msas(pair_id, cap_1024=True)
+
     cmd = (
         f"python3 ./runMSATrans.py "
-        f"--input_msas Pipeline/{pair_id}/output_msa_cluster "
+        f"--input_msas {clus_dir_pairtrim} "
         f"-o {outdir}"
     )
     _run(cmd, run_job_mode)

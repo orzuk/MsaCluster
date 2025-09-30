@@ -36,6 +36,26 @@ def _count_a3m_sequences_fast(a3m_path: str) -> int:
     except Exception:
         return 0
 
+# --- add near the top of the file, with the other small helpers ---
+def _msa_width_a3m_columns(a3m_path: str) -> int:
+    """
+    Return the MSA alignment width (number of columns), counting gaps.
+    We read the first sequence line after a header and strip lowercase insertions.
+    """
+    try:
+        with open(a3m_path, "r") as fh:
+            for line in fh:
+                if line.startswith(">"):
+                    # next non-header line is the reference sequence
+                    seq = next(fh).strip()
+                    # in A3M, lowercase = insertions; remove them but keep '-' gaps
+                    core = "".join(ch for ch in seq if (ch == '-' or ch.isupper()))
+                    return len(core)
+    except Exception:
+        pass
+    return 0
+
+
 def _count_shallow_clusters_fast(pair_id: str) -> int:
     """Count ShallowMsa_*.a3m files directly under output_msa_cluster/."""
     base = f"{DATA_DIR}/{pair_id}/output_msa_cluster"
@@ -209,9 +229,10 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         row = {"fold_pair": pair_id, "#RES": _pair_max_len_from_truth(pair_id)}
 
         deepmsa_file = _deepmsa_a3m_path(pair_id)
-        msa_depth = _count_a3m_sequences_fast(deepmsa_file)
-        n_clusters = _count_shallow_clusters_fast(pair_id)
-        row["MSA DEPTH (#Clusters)"] = f"{msa_depth} ({n_clusters})"
+        msa_depth = _count_a3m_sequences_fast(deepmsa_file) # num. sequences
+        msa_width = _msa_width_a3m_columns(deepmsa_file)  # num. residues with gaps
+        n_clusters = _count_shallow_clusters_fast(pair_id) # num. clusters
+        row["MSA: DEPTH; #RES; #Clusters"] = f"{msa_depth}; {msa_width}; {n_clusters}"
 
         # --- TRUE TM between the two known folds (symmetric max) — CACHED ---
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)

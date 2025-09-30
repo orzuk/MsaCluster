@@ -503,7 +503,6 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
     # Show what keys we actually got (handy for debugging)
     try:
         klist = [str(k) for k in (match_predicted_cmaps or {}).keys()]
-        print("[plot] cmap keys:", klist)
     except Exception:
         pass
 
@@ -915,6 +914,10 @@ def make_foldswitch_all_plots(
             msa_transformer_pred[key] = np.genfromtxt(path)
     print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), " num=", len(msa_transformer_pred))
 
+    if not msa_transformer_pred:
+        print(f"[plot:{foldpair_id}] No MSA-Transformer .npy files — skipping contact panels.")
+        return  # skip
+
     # ---------- Truth contacts ----------
     try:
         true_cmap = {
@@ -946,11 +949,10 @@ def make_foldswitch_all_plots(
         seqs[pdbids[1] + pdbchains[1]])
     print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
     print("true_cmap type and len, and len([0]):", type(true_cmap), len(true_cmap), len(true_cmap[pdbids[0] + pdbchains[0]]))
-    print("msa_transformer_pred type and len, and len([0]):", type(msa_transformer_pred), len(msa_transformer_pred),
-          len(msa_transformer_pred["ShallowMsa_000"]))
-#    match_true_cmap, match_predicted_cmaps = get_matching_indices_two_cmaps(
-#        pairwise_alignment, true_cmap, msa_transformer_pred) # Works for only pair???
-
+    # new (safe):
+    first_key = next(iter(msa_transformer_pred.keys()), None)
+    first_len = (msa_transformer_pred[first_key].shape[0] if first_key is not None else 0)
+    print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), "first_len:", first_len)
 
     print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
     print(" pred_cmaps sizes: ", [cmap.shape for cmap in msa_transformer_pred.values()])

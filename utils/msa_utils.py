@@ -8,6 +8,8 @@ from typing import List, Tuple, Dict
 import re, os
 import numpy as np
 from collections import Counter
+from pathlib import Path
+
 # ...
 
 
@@ -17,8 +19,8 @@ _HAS_PARASAIL = True # Assume import parasail will work
 _ID_ALPHABET = "ARNDCQEGHILKMFPSTWYVBZXUO"
 _ID_MATRIX = parasail.matrix_create(_ID_ALPHABET, 1, 0)  # match=1, mismatch=0
 _BLOSUM62   = parasail.blosum62
-_CIGAR_RE   = re.compile(r"(\d+)([=XMDI])")
 _BLOSUM_ALPHABET = set("ARNDCQEGHILKMFPSTWYVBZX")  # no J/U/O in common blosum tables
+_CIGAR_RE = re.compile(r"(\d+)([=XMDISH])")  # include S/H just in case
 
 
 def _sanitize_blosum(seq: str) -> str:
@@ -26,7 +28,6 @@ def _sanitize_blosum(seq: str) -> str:
     s = (seq or "").upper().translate(str.maketrans({"U": "C", "O": "K", "J": "L"}))
     return "".join(ch if ch in _BLOSUM_ALPHABET else "X" for ch in s)
 
-_CIGAR_RE = re.compile(r"(\d+)([=XMDISH])")  # include S/H just in case
 
 def _aligned_strings_from_parasail(res, sA: str, sB: str) -> Tuple[str, str, str, Dict[str,int]]:
     """
@@ -174,6 +175,21 @@ def get_align_indexes(
     return idxA, idxB
 
 
+def trim_a3m_for_query(a3m_path, out_path, query_tokens, max_len=None):
+    lines = Path(a3m_path).read_text().splitlines(True)
+    headers, seqs = parse_a3m_records(lines, strip_inserts=True)
+
+    iq = find_row_idx(headers, query_tokens, default=0)
+    keep = keep_mask_query(seqs[iq])
+    if max_len is not None and len(keep) > max_len:
+        step = len(keep) / float(max_len)
+        keep = [keep[int(k*step)] for k in range(max_len)]
+
+    trimmed = project_columns(seqs, keep)
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    write_a3m(headers, trimmed, out_path)
+    (Path(out_path).with_suffix(".colmap.txt")).write_text(",".join(map(str, keep)))
+    return keep
 
 
 def clean_a3m_line(s: str) -> str:
@@ -346,6 +362,77 @@ def write_a3m(names, aligned_seqs, outfile='seed.a3m'):
     with open(outfile, 'w') as f:
         for nm, seq in zip(names, aligned_seqs):
             f.write(f">{nm}\n{seq}\n")
+
+
+def trim_a3m_for_pair_union(a3m_path, out_path, s1_tokens, s2_tokens, max_len=None):
+    lines = Path(a3m_path).read_text().splitlines(True)
+    headers, seqs = parse_a3m_records(lines, strip_inserts=True)
+
+    i1 = find_row_idx(headers, s1_tokens, default=0)
+    i2 = find_row_idx(headers, s2_tokens, default=1 if len(headers) > 1 else 0)
+    s1_aln, s2_aln = seqs[i1], seqs[i2]
+
+    keep = keep_mask_union(s1_aln, s2_aln)
+    # Optional: uniformly thin if still too long (e.g., for MSA-Transformer L<=1024)
+    if max_len is not None and len(keep) > max_len:
+        step = len(keep) / float(max_len)
+        keep = [keep[int(k*step)] for k in range(max_len)]
+
+    trimmed = project_columns(seqs, keep)
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    write_a3m(headers, trimmed, out_path)
+
+    # save the mapping for downstream plotting
+    (Path(out_path).with_suffix(".colmap.txt")).write_text(",".join(map(str, keep)))
+    return keep
+
+
+# === A3M parsing/projection helpers ===
+def parse_a3m_records(a3m_lines, strip_inserts=True):
+    """Return (headers, seqs) lists; optionally strip lowercase inserts."""
+    headers, seqs = [], []
+    i, n = 0, len(a3m_lines)
+    while i < n:
+        if a3m_lines[i].startswith(">"):
+            h = a3m_lines[i].rstrip("\n")
+            i += 1
+            s_chunks = []
+            while i < n and not a3m_lines[i].startswith(">"):
+                s_chunks.append(a3m_lines[i].strip())
+                i += 1
+            s = "".join(s_chunks)
+            if strip_inserts:
+                s = "".join(ch for ch in s if (ch == '-' or ch.isupper()))
+            headers.append(h)
+            seqs.append(s)
+        else:
+            i += 1
+    if not headers:
+        raise ValueError("Empty A3M")
+    L = len(seqs[0])
+    assert all(len(s) == L for s in seqs), "A3M rows must be equal length after stripping."
+    return headers, seqs
+
+
+def project_columns(seqs, keep_idx):
+    return ["".join(s[j] for j in keep_idx) for s in seqs]
+
+def keep_mask_union(seq_a, seq_b):
+    """Columns where either S1 or S2 has a residue."""
+    return [j for j, (a, b) in enumerate(zip(seq_a, seq_b)) if (a != '-' or b != '-')]
+
+def keep_mask_query(seq_q):
+    """Columns where the query has a residue (for AF)."""
+    return [j for j, ch in enumerate(seq_q) if ch != '-']
+
+def find_row_idx(headers, tokens, default=None):
+    """Find a header containing all tokens (case-insensitive)."""
+    toks = [t.lower() for t in tokens if t]
+    for i, h in enumerate(headers):
+        hl = h.lower()
+        if all(t in hl for t in toks):
+            return i
+    return default
 
 
 def build_pair_seed_a3m_from_pair(

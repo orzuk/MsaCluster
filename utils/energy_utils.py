@@ -7,6 +7,7 @@ except ImportError:
 
 import csv
 import matplotlib.pyplot as plt
+
 import tempfile
 
 from config import *
@@ -21,6 +22,7 @@ import numpy as np
 
 from utils.protein_utils import *
 from Bio.pairwise2 import format_alignment
+from Bio import pairwise2
 
 
 # Direct the output of rosetta to log file
@@ -40,16 +42,6 @@ class RedirectStdStreams:
         sys.stdout, sys.stderr = self.old_stdout, self.old_stderr
 
 
-def remove_nonstandard_residues(pdb_file, residue="GTP"):
-    new_pdb = pdb_file[:-4] + f"_no{residue}.pdb"
-    with open(pdb_file, "r") as fin, open(new_pdb, "w") as fout:
-        for line in fin:
-            # If the line defines a heteroatom with the specified residue, skip it.
-            # (Adjust the condition if needed for your PDB format.)
-            if line.startswith("HETATM") and line[17:20].strip() == residue:
-                continue
-            fout.write(line)
-    return new_pdb
 
 def compute_global_and_residue_energies(pdb_pairs, foldpair_ids, output_dir):
     """
@@ -334,7 +326,6 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
     seq2 = clean_sequence(residue_energies_2)
 
     # Perform sequence alignment using Biopython's pairwise2
-    from Bio import pairwise2
     alignments = pairwise2.align.globalxx(seq1, seq2)
     alignment = alignments[0]
     aligned_seq1, aligned_seq2 = alignment.seqA, alignment.seqB
@@ -376,14 +367,12 @@ def align_and_compare_residues(residue_energies_1, residue_energies_2, pdb_id_1,
     top_indices = sorted(indexed_delta_energies, key=lambda x: abs(x[1]), reverse=True)[:top_n]
 
     # Prepare for plotting: fill in gaps with zero for plotting purposes.
-    import numpy as np
     indices = np.arange(len(delta_energies))
     delta_energies_filtered = [d if d is not None else 0 for d in delta_energies]
 
     if output_file is None:
         return delta_energies, delta_energies_filtered
 
-    import matplotlib.pyplot as plt
     bar_colors = ["blue"] * len(delta_energies)
     for idx, _ in top_indices:
         bar_colors[idx] = "red"

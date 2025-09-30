@@ -17,7 +17,10 @@ import Bio.PDB
 import Bio.SeqRecord
 from Bio import SeqIO, PDB, AlignIO
 from Bio.PDB import *
+from Bio.PDB.MMCIFParser import MMCIFParser
 
+import subprocess
+import re
 import pickle
 import os
 import sys
@@ -25,30 +28,20 @@ import sys
 import mdtraj as md
 # import biotite.structure as bs
 
-from biotite.structure.io.pdb import PDBFile
-from biotite.database import rcsb
-# from biotite.structure.io.pdbx import get_structure
-from biotite.structure import filter_amino_acids, distance, AtomArray
-# from biotite.structure.residues import get_residues
-from biotite.structure import get_residues, AtomArray
-
-from Bio.PDB.MMCIFParser import MMCIFParser
-
-
 # Biotite provides a mapping of residue codes to single-letter amino acid codes
 # from biotite.sequence.residues import RESIDUE_CODES_3TO1
 # from biotite.sequence import ProteinSequence
+from biotite.structure.io.pdb import PDBFile
+from biotite.database import rcsb
+# from biotite.structure.io.pdbx import PDBxFile, get_structure
+from biotite.structure import get_residues, filter_amino_acids, distance, AtomArray
+# from biotite.structure.residues import get_residues
+
 import numpy as np
-import subprocess
-import re
-
-#from biotite.structure.io.pdbx import PDBxFile, get_structure
-
 
 # import iminuit
 # Helper function for loading
 
-from Bio.PDB.MMCIFParser import MMCIFParser
 from types import SimpleNamespace
 
 
@@ -123,6 +116,17 @@ def seq3_to_1(resnames):
     """
     return "".join(aa3_to_1(r) for r in resnames)
 
+
+def remove_nonstandard_residues(pdb_file, residue="GTP"):
+    new_pdb = pdb_file[:-4] + f"_no{residue}.pdb"
+    with open(pdb_file, "r") as fin, open(new_pdb, "w") as fout:
+        for line in fin:
+            # If the line defines a heteroatom with the specified residue, skip it.
+            # (Adjust the condition if needed for your PDB format.)
+            if line.startswith("HETATM") and line[17:20].strip() == residue:
+                continue
+            fout.write(line)
+    return new_pdb
 
 
 

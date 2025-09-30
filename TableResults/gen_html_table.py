@@ -12,7 +12,7 @@ from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
 
 # Single source of truth for the main comparison table
 DEFAULT_PREFERRED_COLS = [
-    "pair_id", "#RES", "MSA DEPTH (#Clusters)", "PAIR_TM",
+    "pair_id", "#RES", "MSA: DEPTH; #RES; #Clusters", "PAIR_TM",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
     "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
@@ -21,7 +21,7 @@ DEFAULT_PREFERRED_COLS = [
 
 DEFAULT_EXPLANATIONS = {
     "#RES": "Number of residues in the longer chain of the pair.",
-    "MSA DEPTH (#Clusters)": "Number of sequences in DeepMsa.a3m (before clustering), and in parentheses the number of ShallowMsa_* clusters found.",
+    "MSA: DEPTH; #RES; #Clusters": "DEPTH = number of sequences in DeepMsa.a3m; #RES = alignment width (columns, including gaps); #Clusters = count of ShallowMsa_* a3m files.",
     "PAIR_TM": "TM-score between the two ground-truth folds (max of the two directions).",
     "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
     "AF2Clust_TM2": "Best TM-score to Fold2 among AF2 predictions from shallow clusters.",
@@ -113,19 +113,21 @@ def gen_html_from_summary_table(
         if "(#Clusters)" in c:
             cluster_col = c
             break
+    cluster_col = "MSA: DEPTH; #RES; #Clusters" if "MSA: DEPTH; #RES; #Clusters" in df.columns else None
 
     # Helper to parse "(N)" from the “MSA DEPTH (#Clusters)” cell
-    import re as _re
-    _paren = _re.compile(r"\((\d+)\)")
+    _paren = re.compile(r"\((\d+)\)")
 
     def _clusters_in_row(row) -> int | None:
         if cluster_col is None:
             return None
-        val = row.get(cluster_col)
-        if pd.isna(val):
+        val = str(row.get(cluster_col, ""))
+        try:
+            # split "DEPTH; WIDTH; CLUSTERS"
+            parts = [p.strip() for p in val.split(";")]
+            return int(parts[-1]) if len(parts) == 3 else None
+        except Exception:
             return None
-        m = _paren.search(str(val))
-        return int(m.group(1)) if m else None
 
 
     # --- Normalize pair id column name to 'pair_id' (for display & linking) ---

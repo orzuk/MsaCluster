@@ -1,16 +1,14 @@
 import os, sys
+import re
+import numpy as np
+from tqdm import tqdm
+import argparse
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
-from tqdm import tqdm
 from config import *
 from utils.utils import *
 from utils.align_utils import *
-import argparse
-
-
-import re
-import numpy as np
 
 CONTACT_CUTOFF = 8.0  # Å; adjust if you use a different truth definition
 
@@ -351,6 +349,9 @@ def compute_cmap_metrics_for_pair(
 
     # ---- 2) alignment frames from _seed_both.a3m (symmetric mapping)
     both_a3m = os.path.join(pair_dir, "_seed_both.a3m")
+    pairtrim_seed = os.path.join(pair_dir, "_seed_both_pairtrim.a3m")
+    if os.path.isfile(pairtrim_seed):
+        both_a3m = pairtrim_seed
     s1, s2 = _read_two_seeds_from_a3m(both_a3m)
     keep1 = _uppercase_cols(s1) if s1 else []
     keep2 = _uppercase_cols(s2) if s2 else []
