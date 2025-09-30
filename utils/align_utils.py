@@ -1,11 +1,12 @@
 # Utilities for aligning two structures,contact maps and sequences
 # utils/align_utils.py
 from __future__ import annotations
+import os, re, shutil, subprocess, tempfile, pathlib
+import numpy as np
 from Bio import pairwise2
 from Bio.Align import substitution_matrices
 # Minimal CA+chain filter writer for the binary path (keeps TM-align’s CA convention)
-from Bio.PDB import PDBIO, Select  # requires biopython
-import os, re, shutil, subprocess, tempfile, pathlib
+from Bio.PDB import PDBIO, Select, PDBParser, is_aa  # requires biopython
 from typing import Optional, Dict, Any
 # utils/align_utils.py (add at bottom or near your TM code)
 
@@ -15,9 +16,9 @@ from utils.msa_utils import *
 from utils.protein_utils import *
 from utils.cache_utils import get_from_pair_cache, put_in_pair_cache
 
-
 from config import * # uses TMALIGN_EXE and USE_TMALIGN_BINARY
-import numpy as np
+
+
 # ---------------- helpers (use YOUR loaders) ---------------- #
 
 def _ensure_local_pdb(pdb_or_path: str) -> Tuple[str, bool]:
@@ -59,6 +60,35 @@ def _prep_pdb_for_binary(pdb_or_path: str, chain: Optional[str]) -> Tuple[str, b
 
 # ---------------- engines ---------------- #
 
+def _coords_seq_from_pdb(pdb_path: str, chain_id: str | None):
+
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure("x", pdb_path)
+
+    coords = []
+    letters = []
+
+    # pick first model, chosen chain
+    for model in structure:
+        for chain in model:
+            if chain_id and chain.id != chain_id:
+                continue
+            for res in chain:
+                if not is_aa(res, standard=True):
+                    continue
+                if "CA" not in res:
+                    continue  # skip residues without CA
+                res3 = res.get_resname().upper()
+                aa1 = aa_long_short.get(res3, "X")
+                coords.append(res["CA"].get_coord())
+                letters.append(aa1)
+            # stop after first matching chain
+            return np.asarray(coords, dtype=np.float32), "".join(letters)
+        break
+    # if chain not found, return empty
+    return np.empty((0,3), dtype=np.float32), ""
+
+
 def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
     if not (os.path.isfile(TMALIGN_EXE) and os.access(TMALIGN_EXE, os.X_OK)):
         raise FileNotFoundError(f"TM-align binary not found or not executable: {TMALIGN_EXE}")
@@ -97,6 +127,8 @@ def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
         "aligned_length": aligned_length,
         "raw_output": out,
     }
+
+
 
 
 def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
@@ -138,12 +170,30 @@ def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
         seq = "".join(aa_long_short.get(res, "X") for res in sub.res_name)
         return coords, seq
 
-    def _coords_and_seq(pdb_or_path: str, chain: str | None):
-        local_pdb, _ = _ensure_local_pdb(pdb_or_path)
-        return _coords_seq_from_any(local_pdb, chain)
+#    def _coords_and_seq(pdb_or_path: str, chain: str | None):
+#        local_pdb, _ = _ensure_local_pdb(pdb_or_path)
+#        return _coords_seq_from_any(local_pdb, chain)
 
-    coords1, seq1 = _coords_and_seq(pdb1, chain1)
-    coords2, seq2 = _coords_and_seq(pdb2, chain2)
+#    coords1, seq1 = _coords_and_seq(pdb1, chain1)
+#    coords2, seq2 = _coords_and_seq(pdb2, chain2)
+
+    coords1, seq1 = _coords_seq_from_pdb(pdb1, chain1)
+    coords2, seq2 = _coords_seq_from_pdb(pdb2, chain2)
+
+    # Enforce tmtools invariant len(seq)==coords.shape[0]
+    if coords1.shape[0] != len(seq1):
+        n = min(coords1.shape[0], len(seq1))
+        print(
+            f"[tmtools] mismatch {os.path.basename(pdb1)}:{chain1} coords={coords1.shape[0]} seq={len(seq1)} → trunc {n}")
+        coords1 = coords1[:n].astype(np.float32, copy=False)
+        seq1 = seq1[:n]
+
+    if coords2.shape[0] != len(seq2):
+        n = min(coords2.shape[0], len(seq2))
+        print(
+            f"[tmtools] mismatch {os.path.basename(pdb2)}:{chain2} coords={coords2.shape[0]} seq={len(seq2)} → trunc {n}")
+        coords2 = coords2[:n].astype(np.float32, copy=False)
+        seq2 = seq2[:n]
 
     res = tm_align(coords1, coords2, seq1, seq2)
     print("[TM-align] Using tmtools (Python bindings)")
