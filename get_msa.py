@@ -8,15 +8,20 @@ from typing import List, Tuple, Iterable, Dict, Set
 from colabfold.batch import get_msa_and_templates, msa_to_str
 import inspect
 
+
 def _call_get_msa_and_templates(*, sequences, result_dir, jobname):
     """
     Version-safe wrapper for colabfold.batch.get_msa_and_templates.
-    Handles API differences: (queries vs query_sequences), a3m_lines, jobname, etc.
+    - Pass result_dir as Path (not str) because some versions do result_dir.joinpath(jobname)
+    - Provide a3m_lines = [] if the param exists
+    - Handle queries vs query_sequences naming
     """
     from colabfold.batch import get_msa_and_templates
 
     sig = inspect.signature(get_msa_and_templates)
-    params = {k for k in sig.parameters.keys()}
+    params = set(sig.parameters.keys())
+
+    rd = Path(result_dir)  # <-- Path, not str
 
     kwargs = {}
     # sequences param name
@@ -27,8 +32,8 @@ def _call_get_msa_and_templates(*, sequences, result_dir, jobname):
     else:
         raise RuntimeError("ColabFold API: neither 'query_sequences' nor 'queries' parameter found.")
 
-    # common / stable-ish
-    if "result_dir" in params: kwargs["result_dir"] = str(result_dir)
+    # stable/optional params
+    if "result_dir" in params: kwargs["result_dir"] = rd
     if "msa_mode"   in params: kwargs["msa_mode"]   = "mmseqs2_uniref_env"
     if "pair_mode"  in params: kwargs["pair_mode"]  = "unpaired"
     if "use_templates" in params: kwargs["use_templates"] = False
@@ -36,11 +41,12 @@ def _call_get_msa_and_templates(*, sequences, result_dir, jobname):
 
     # version-specific extras
     if "a3m_lines" in params:
-        kwargs["a3m_lines"] = None
+        kwargs["a3m_lines"] = []      # <-- required by your version
     if "jobname" in params:
-        kwargs["jobname"] = jobname
+        kwargs["jobname"] = jobname   # some versions need this
 
     return get_msa_and_templates(**kwargs)
+
 
 def _ungap_upper(s: str) -> str:
     """Remove gaps/lowercase; keep only uppercase amino acids."""
