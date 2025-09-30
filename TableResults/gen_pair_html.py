@@ -531,14 +531,20 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     _thumb_grid(pb, fig_dir, CLUSTER_TILE_PATTERNS, mode, publish_dir_for_pair, output_dir,
                 title="Per-cluster contact maps")
 
-    # ===== ORDER 4: TREE (unchanged block) =====
+    # ===== ORDER 4: ΔΔG aligned heatmap (new) =====
+    _figure_from_patterns(pb, fig_dir,
+                          [f"{pair_id}_ddg_aligned.png", "*ddg*aligned*.png", "*delta*G*aligned*.png"],
+                          "Aligned per-residue ΔΔG (seq alignment overlay).",
+                          mode, publish_dir_for_pair, output_dir)
+
+    # ===== ORDER 5: TREE (unchanged block) =====
     _figure_from_patterns(pb, fig_dir,
                           [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
                           "Phylogenetic tree with per-cluster heatmap.",
                           mode, publish_dir_for_pair, output_dir, extra_class="tree")
 
 
-    # ===== ORDER 5: TABLE (narrow container) =====
+    # ===== ORDER 6: TABLE (narrow container) =====
     if build_pair_cluster_table:
         try:
             df = build_pair_cluster_table(pair_id)
@@ -564,7 +570,7 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     else:
         pb.push('<div class="warn">build_pair_cluster_table not importable; table omitted.</div>')
 
-    # ===== ORDER 6: ΔΔG aligned table (new) =====
+    # ===== ORDER 7: ΔΔG aligned table (new) =====
     try:
         aligned_csv = (Path(DATA_DIR) / pair_id / "Analysis" / "df_ddg_aligned.csv")
         if aligned_csv.is_file():
