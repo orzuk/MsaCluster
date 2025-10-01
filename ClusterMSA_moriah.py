@@ -296,9 +296,10 @@ def run_clustering(a3m_path: str,
 
     # ---------- choose clustering path ----------
     # Path A: small/medium n -> full precomputed, gap-aware PID (your current precise logic)
-    # Path B: large n        -> feature-mode with metric='hamming' (no n×n matrix)ric == "lev" and n <= 4000)
-    USE_PRECOMPUTED = (not args.force_feature_mode) and \
-                      ((metric == "hamming" and n <= max_n_for_precomputed) or (metric == "lev" and n <= 4000))
+    # Path B: large n        -> feature-mode with metric='hamming' (no n×n matrix)
+    USE_PRECOMPUTED = (metric == "hamming" and n <= max_n_for_precomputed) or (metric == "lev" and n <= 4000)
+#    USE_PRECOMPUTED = (not args.force_feature_mode) and \
+#                      ((metric == "hamming" and n <= max_n_for_precomputed) or (metric == "lev" and n <= 4000))
 
     if metric == "hamming" and USE_PRECOMPUTED:
         # ===== Path A: precomputed, gap-aware PID =====
