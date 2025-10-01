@@ -58,6 +58,32 @@ RUN_MODE_DESCRIPTIONS = {
     "help":             "Print this list of run modes with one-line explanations.",
 }
 
+# Modes that are time/compute-heavy and parallelize well across pairs
+HEAVY_PAIR_MODES = {
+    "cluster_msa",            # new: HDBSCAN on MSA
+    "run_cmap_msa_transformer",
+    "run_cmap_ccmpred",
+    "run_esmfold",            # your ESMFold step
+    "run_AF",         # if you have this mode
+    "compute_deltaG",         # if you have a Rosetta/PyRosetta ΔG step
+    "plot",                   # rendering/alignments can be slow
+    "gen_pair_html",          # if HTML generation per pair is non-trivial
+    # add more as needed
+}
+
+# Suggested sbatch resources per mode (tweak to your cluster)
+SBATCH_HINTS = {
+    "cluster_msa":           {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
+    "run_cmap_msa_transformer": {"time":"04:00:00", "mem":"8G",   "gpus":0, "cpus":4},
+    "run_cmap_ccmpred":      {"time":"04:00:00", "mem":"16G",  "gpus":0, "cpus":8},
+    "run_esmfold":           {"time":"06:00:00", "mem":"24G",  "gpus":1, "cpus":6},
+    "run_AF":                {"time":"24:00:00","mem":"64G",  "gpus":1, "cpus":8},
+    "compute_deltaG":        {"time":"06:00:00", "mem":"16G",  "gpus":0, "cpus":8},
+    "plot":                  {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
+    "gen_pair_html":         {"time":"01:00:00", "mem":"4G",   "gpus":0, "cpus":2},
+}
+
+
 
 # ------------------------- helpers -------------------------
 def _truth_pdb_paths_for_pair(pair_id: str) -> tuple[str, str]:
@@ -430,6 +456,20 @@ def _modes_epilog() -> str:
         lines.append(f"  {k:<18} {v}")
     return "\n".join(lines)
 
+def _prune_stale_fastas(pair_id: str, pair_dir: Path, dry: bool):
+    # Keep chain FASTAs (e.g., 2qqjA.fasta, 4qdsA.fasta); drop stray FASTAs if chain ones exist
+    m = re.match(r"^([0-9A-Za-z]{4})([A-Za-z])_([0-9A-Za-z]{4})([A-Za-z])$", pair_id)
+    expected = set()
+    if m:
+        pdb1, ch1, pdb2, ch2 = m.groups()
+        expected = {f"{pdb1}{ch1}.fasta", f"{pdb2}{ch2}.fasta"}
+    have_chain = expected and all((pair_dir / e).exists() for e in expected)
+    for f in pair_dir.glob("*.fasta"):
+        if have_chain and f.name not in expected:
+            print(f"[clean] rm stale FASTA: {f}")
+            if not dry:
+                try: f.unlink()
+                except: pass
 
 
 def ensure_chain_fastas(pair_dir: str, pdbids: list[str], pdbchains: list[str]) -> None:
@@ -733,57 +773,83 @@ def _submit_notebook_job(pair_id: str, kernel: str, args: argparse.Namespace) ->
 
 
 # ------------------------- tasks -------------------------
-def task_clean(pair_id: str, args: argparse.Namespace) -> None:
+# add imports at file top if missing
+from pathlib import Path
+import shutil, re
+from config import PAIR_TARGET_DIRS
 
-    dry   = _bool_from_tf(getattr(args, "clean_dry_run", "TRUE"))
-    level = getattr(args, "clean_level", "derived")
+def task_clean(pair_id: str, args) -> None:
+    dry     = _bool_from_tf(getattr(args, "clean_dry_run", "TRUE"))
+    level   = getattr(args, "clean_level", "derived")
+    targets = getattr(args, "clean_targets", None)
     pair_dir = Path(f"Pipeline/{pair_id}")
 
     if not pair_dir.exists():
         print(f"[clean] skip (missing): {pair_id}")
         return
 
+    # ----- TARGETED CLEAN (overrides level) -----
+    if targets:
+        # expand targets -> relative paths
+        rel_paths = []
+        for t in targets:
+            dirs = PAIR_TARGET_DIRS.get(t)
+            if not dirs:
+                print(f"[clean] unknown target '{t}', skipping.")
+                continue
+            rel_paths.extend(dirs)
+
+        # de-dupe while keeping order
+        seen, uniq = set(), []
+        for rel in rel_paths:
+            if rel not in seen:
+                seen.add(rel)
+                uniq.append(rel)
+
+        for rel in uniq:
+            p = pair_dir / rel
+            if p.exists():
+                print(f"[clean:{','.join(targets)}] rm -rf {p}")
+                if not dry:
+                    shutil.rmtree(p, ignore_errors=True)
+
+        # special handling for logs: also remove root-level files
+        if any(t in ("logs",) for t in targets):
+            for pat in ["*.out", "*.log", "*.err", "RunAF.out", "CmapESM.out", "run_pipeline_for_*.out"]:
+                for f in pair_dir.glob(pat):
+                    if f.is_file():
+                        print(f"[clean:logs] rm {f}")
+                        if not dry:
+                            try: f.unlink()
+                            except: pass
+
+        # special handling for tmp: remove any tmp_* dirs
+        if any(t in ("tmp",) for t in targets):
+            for p in pair_dir.glob("tmp_*"):
+                if p.is_dir():
+                    print(f"[clean:tmp] rm -rf {p}")
+                    if not dry:
+                        shutil.rmtree(p, ignore_errors=True)
+
+        _prune_stale_fastas(pair_id, pair_dir, dry)
+        return
+
+    # ----- EXISTING LEVEL-BASED CLEAN (unchanged semantics) -----
     if level == "all":
         print(f"[clean:ALL] rm -rf {pair_dir}")
         if not dry:
             shutil.rmtree(pair_dir, ignore_errors=True)
         return
 
-    # ===== derived-only (keep base inputs) =====
-    # Current outputs
+    # derived-only clean (keep base inputs)
     rm_dirs_current = [
-        "output_get_msa",
-        "output_msa_cluster",
-        "output_AF",
-        "output_cmaps",
-        "output_esm_fold",
-        "output_phytree",
-        "Analysis",
-        # temp / logs
-        "tmp_msa_files",
-        "tmp_esmfold",
-        "jobs",
-        "logs",
+        "output_get_msa", "output_msa_cluster", "output_AF",
+        "output_cmaps", "output_esm_fold", "output_phytree",
+        "Analysis", "tmp_msa_files", "tmp_esmfold", "jobs", "logs",
     ]
-    # Legacy outputs from old runs
-    rm_dirs_legacy = [
-        "output_cmap_esm",
-        "esm_cmap_output",
-        "AF_preds",
-        "chain_pdb_files",
-        "fasta_chain_files",
-    ]
-    # Root-level junk logs (old & new)
-    rm_globs = [
-        "run_pipeline_for_*.out",
-        "RunAF.out",
-        "CmapESM.out",
-        "*.out",
-        "*.log",
-        "*.err",
-    ]
+    rm_dirs_legacy = ["output_cmap_esm", "esm_cmap_output", "AF_preds", "chain_pdb_files", "fasta_chain_files"]
+    rm_globs = ["run_pipeline_for_*.out", "RunAF.out", "CmapESM.out", "*.out", "*.log", "*.err"]
 
-    # remove known directories
     for d in rm_dirs_current + rm_dirs_legacy:
         p = pair_dir / d
         if p.exists():
@@ -791,14 +857,12 @@ def task_clean(pair_id: str, args: argparse.Namespace) -> None:
             if not dry:
                 shutil.rmtree(p, ignore_errors=True)
 
-    # remove any other tmp_* dirs at the top level
     for p in pair_dir.glob("tmp_*"):
         if p.is_dir():
             print(f"[clean] rm -rf {p}")
             if not dry:
                 shutil.rmtree(p, ignore_errors=True)
 
-    # remove root-level logs
     for pat in rm_globs:
         for f in pair_dir.glob(pat):
             if f.is_file():
@@ -807,27 +871,7 @@ def task_clean(pair_id: str, args: argparse.Namespace) -> None:
                     try: f.unlink()
                     except: pass
 
-    # prune stale FASTA files:
-    # keep only chain-specific FASTA (e.g., 2pbkB.fasta, 3njqA.fasta)
-    # remove unsuffixed FASTA (e.g., 2pbk.fasta) if chain FASTA exist
-    m = re.match(r"^([0-9a-zA-Z]{4})([A-Za-z])_([0-9a-zA-Z]{4})([A-Za-z])$", pair_id)
-    expected = set()
-    if m:
-        pdb1, ch1, pdb2, ch2 = m.groups()
-        expected = {f"{pdb1}{ch1}.fasta", f"{pdb2}{ch2}.fasta"}
-    fasta_files = list(pair_dir.glob("*.fasta"))
-    have_chain_fastas = expected and all((pair_dir / e).exists() for e in expected)
-    for f in fasta_files:
-        name = f.name
-        if have_chain_fastas and name not in expected:
-            print(f"[clean] rm stale FASTA: {f}")
-            if not dry:
-                try: f.unlink()
-                except: pass
-
-    # keep base inputs:
-    #   Pipeline/<pair>/*.pdb, *_cif.pdb, *.fasta (chain-specific), *_pdb_contacts.npy
-    print(f"[clean] done: {pair_id}")
+    _prune_stale_fastas(pair_id, pair_dir, dry)
 
 
 def task_load(pair_id: str, args: argparse.Namespace) -> None:
@@ -888,49 +932,88 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
         )
         _run(cmd, "inline")
 
-
 def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     # Use the *current* Python interpreter so the same venv is used downstream
     py  = shlex.quote(sys.executable)
     pid = shlex.quote(pair_id)
+
+    # ClusterMSA_moriah.py (new version) flags:
+    # --a3m : input A3M
+    # --keyword : output prefix (keeps your ShallowMsa_XXX.a3m naming)
+    # -o : output directory
+    # other defaults: Hamming on aligned columns, coarse EOM selection
     cmd = (
         f"bash -lc 'cd Pipeline/{pid} && "
         f"{py} ../../ClusterMSA_moriah.py "
         f"--keyword ShallowMsa "
-        f"-i output_get_msa/DeepMsa.a3m "
-        f"-o output_msa_cluster'"
+        f"--a3m output_get_msa/DeepMsa.a3m "
+        f"-o output_msa_cluster "
+        f"--metric hamming "
+        f"--cluster_selection eom "
+        f"--min_cluster_size 200 "
+        f"--min_output_size 200 "
+        f"--max_clusters 100 "
+        f"--min_neff 100 "
+        f"--neff_id_thresh 0.8'"
     )
     _run(cmd, run_job_mode)
 
+
+
 def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
+    """
+    Always run MSA-Transformer on the *trimmed* MSAs for both clusters and deep,
+    but save the deep output as 'msa_t__DeepMsa.npy' (no 'pairtrim' in the name).
+    """
+    import os, shutil
+
     outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
 
-    # 1) make trimmed Deep + trimmed clusters (≤1024)
+    # 1) Make trimmed Deep + trimmed clusters (≤1024)
     clus_dir_pairtrim = _prepare_pairtrim_msas(pair_id, cap_1024=True)
 
-    # 2) clusters
+    # 2) Clusters (trimmed)
+    # NOTE the leading space before --model is important.
     cmd = (
         f"python3 ./runMSATrans.py "
         f"--input_msas {clus_dir_pairtrim} "
-        f"-o {outdir}"
+        f"-o {outdir} "
         f"--model msa_t --keyword clusters --clean matched"
     )
     _run(cmd, run_job_mode)
 
-
-    # 3) Deep (if present)
+    # 3) Deep (trimmed) — but force basename 'DeepMsa' for output naming
     deep_trim = f"Pipeline/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
-    if os.path.isfile(deep_in):
-        # Leave keyword empty so the file name stays 'msa_t__DeepMsa.npy'
+    if os.path.isfile(deep_trim):
+        # Make a tiny temp input folder and place a copy named exactly 'DeepMsa.a3m'
+        # (Copy instead of symlink to avoid FS/permission surprises.)
+        tmp_in = os.path.join(outdir, "_tmp_msa_inputs")
+        if os.path.isdir(tmp_in):
+            # Clean the temp dir so --clean matched doesn't accidentally hit old junk
+            try:
+                shutil.rmtree(tmp_in)
+            except OSError:
+                pass
+        ensure_dir(tmp_in)
+
+        deep_alias = os.path.join(tmp_in, "DeepMsa.a3m")
+        shutil.copyfile(deep_trim, deep_alias)
+
+        # Empty keyword ⇒ output file will be 'msa_t__DeepMsa.npy'
         cmd_deep = (
             f"python3 ./runMSATrans.py "
-            f"--input_msas {deep_in} "
+            f"--input_msas {deep_alias} "
             f"-o {outdir} "
             f"--model msa_t --keyword '' --clean matched"
-            )
-
+        )
         _run(cmd_deep, run_job_mode)
+
+        # Optional: clean temp input
+        try:
+            shutil.rmtree(tmp_in)
+        except OSError:
+            pass
 
 
 def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
@@ -1623,6 +1706,21 @@ def main():
 
     p.add_argument("--clean_level", default="derived", choices=["derived", "all"],
         help="derived: remove computed outputs but keep base inputs; all: remove the entire pair folder")
+    # Targeted clean (optional): choose which operation outputs to remove
+    # If provided, this overrides --clean_level and only removes the selected targets.
+    from config import PAIR_TARGET_DIRS  # add near other imports
+
+    # ... inside build_argparser / parser setup ...
+    p.add_argument(
+        "--clean_targets",
+        nargs="+",
+        default=None,
+        choices=sorted(PAIR_TARGET_DIRS.keys()),
+        help=("Targeted clean of specific steps. "
+              "Examples: --clean_targets msa_clusters | cmap | esmfold | alphafold | get_msa | plots | logs | tmp")
+    )
+
+
     p.add_argument("--clean_dry_run", default="TRUE", choices=["TRUE", "FALSE"],
         help="TRUE: only print what would be removed; FALSE: actually delete")
 
@@ -1692,18 +1790,35 @@ def main():
             pair_id = f"{pair_id[0]}_{pair_id[1]}"
 
         # NEW: generic per-pair submit for single-step run modes
-        if args.run_job_mode == "sbatch" and args.run_mode in {
-            "run_esmfold", "run_cmap_msa_transformer", "run_cmap_ccmpred", "postprocess"
-        }:
+        if args.run_job_mode == "sbatch" and args.run_mode in HEAVY_PAIR_MODES:
             extras = []
+            # --- Slurm resource hints (optional) ---
+            # If SBATCH_HINTS dict is defined (per earlier step), use it; else use defaults.
+            try:
+                hint = SBATCH_HINTS.get(args.run_mode, {"time": "04:00:00", "mem": "8G", "gpus": 0, "cpus": 4})
+            except NameError:
+                hint = {"time": "04:00:00", "mem": "8G", "gpus": 0, "cpus": 4}
+            if hint.get("time"): extras += [f"--time {hint['time']}"]
+            if hint.get("mem"):  extras += [f"--mem {hint['mem']}"]
+            if hint.get("cpus"): extras += [f"--cpus-per-task {hint['cpus']}"]
+            if hint.get("gpus", 0):
+                # adapt to your cluster flag style if needed (e.g., --gpus=1 vs --gres=gpu:1)
+                extras += [f"--gres=gpu:{hint['gpus']}"]
+
+            # --- Mode-specific passthrough flags (preserve your existing behavior) ---
             if args.run_mode == "run_esmfold":
-                # pass through ESM flags
+                # pass through ESM options if present
                 if getattr(args, "esm_model", None):
                     extras += [f"--esm_model {args.esm_model}"]
                 if getattr(args, "esm_device", None):
                     extras += [f"--esm_device {args.esm_device}"]
-            if args.run_mode == "postprocess" and args.reports != "none":
-                extras += [f"--reports {args.reports}"]
+
+            if args.run_mode == "postprocess":
+                # pass through reports option if not 'none'
+                if getattr(args, "reports", "none") != "none":
+                    extras += [f"--reports {args.reports}"]
+
+            # Submit one job per pair for this run_mode
             _submit_pair_job(args.run_mode, pair_id, args, " ".join(extras))
             continue
 
@@ -1754,10 +1869,6 @@ def main():
 
         else:
             raise ValueError(args.run_mode)
-
-
-
-
 
     # If we only submitted per-pair jobs, don’t build reports now
     if args.run_job_mode == "sbatch" and args.run_mode in {

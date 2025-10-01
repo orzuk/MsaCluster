@@ -115,9 +115,65 @@ FIGURE_RES_DIR = DATA_DIR + '/Results/Figures'
 FIGURE_PUBLISH_DIR = os.path.join(TABLES_RES, 'figures', 'global')   # docs/figures/global
 PER_PAIR_PUBLISH_SUBDIR = os.path.join('HTML', 'figs')               # docs/HTML/figs/<pair_id> (per-pair)
 
+
+# --- add near the bottom of config.py (after existing constants) ---
+
+# Inclusive alias map for per-pair outputs (used by targeted clean)
+# Keys are common names/commands; values are RELATIVE dirs inside Pipeline/<pair_id>
+PAIR_TARGET_DIRS = {
+    # MSA acquisition
+    "get_msa":            ["output_get_msa", "tmp_msa_files"],
+    "msa":                ["output_get_msa", "tmp_msa_files"],
+    "MSA":                ["output_get_msa", "tmp_msa_files"],
+    "colabfold":          ["output_get_msa", "tmp_msa_files"],
+
+    # MSA clustering
+    "msa_clusters":       ["output_msa_cluster"],
+    "cluster":            ["output_msa_cluster"],
+    "Cluster":            ["output_msa_cluster"],
+    "clusters":           ["output_msa_cluster"],
+    "shallow_msa":        ["output_msa_cluster"],
+
+    # Contact maps
+    "cmap":               ["output_cmaps/msa_transformer", "output_cmaps/ccmpred"],
+    "Cmap":               ["output_cmaps/msa_transformer", "output_cmaps/ccmpred"],
+    "cmap_msa_transformer": ["output_cmaps/msa_transformer"],
+    "msa_transformer":    ["output_cmaps/msa_transformer"],
+    "cmap_ccmpred":       ["output_cmaps/ccmpred"],
+    "ccmpred":            ["output_cmaps/ccmpred"],
+
+    # Structure prediction
+    "esmfold":            ["output_esm_fold", "tmp_esmfold"],
+    "esm":                ["output_esm_fold", "tmp_esmfold"],
+    "esm_fold":           ["output_esm_fold", "tmp_esmfold"],
+    "ESMFold":            ["output_esm_fold", "tmp_esmfold"],
+
+    "alphafold":          ["output_AF", "tmp_AF"],
+    "alphafold2":         ["output_AF", "tmp_AF"],
+    "alphafold3":         ["output_AF", "tmp_AF"],
+    "af":                 ["output_AF", "tmp_AF"],
+    "AF":                 ["output_AF", "tmp_AF"],
+
+    # Energy / ΔG (if you produce per-pair dirs; keep if relevant)
+    "deltag":             ["output_deltaG"],
+    "deltaG":             ["output_deltaG"],
+    "energy":             ["output_deltaG"],
+
+    # Analysis / plots / trees
+    "plots":              ["Analysis"],
+    "analysis":           ["Analysis"],
+    "phytree":            ["output_phytree"],
+    "tree":               ["output_phytree"],
+
+    # Logs / scratch
+    "logs":               ["logs"],        # plus root *.out/*.log handled in cleaner
+    "tmp":                ["jobs", "tmp_msa_files", "tmp_esmfold"],
+}
+
+
+
 # Whether to auto-copy figures from compute dirs to publish dirs when building HTML
 PUBLISH_FIGURES = True
-
 LOCAL_RUN = False
 
 PAIR_DIR_RE = re.compile(r'^([0-9A-Za-z]{4}[A-Za-z0-9])_([0-9A-Za-z]{4}[A-Za-z0-9])$')

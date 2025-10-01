@@ -1,156 +1,444 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Cluster MSA (A3M) with HDBSCAN, enforce limits on number/size of clusters,
+and filter by N_effective (Meff). Writes A3M clusters (query on top) suitable
+for AlphaFold / MSA-Transformer.
+
+Design:
+- Prefer coarse clusters: HDBSCAN(cluster_selection_method="eom")
+- Avoid micro-clusters via larger min_cluster_size + post-filters
+- Cap total clusters with --max_clusters (keep largest K by size)
+- Require both raw size (--min_output_size) and information content (--min_neff)
+
+This file is self-contained, but if the project provides msa_utils.parse_a3m_records
+and msa_utils.write_fasta, they will be used automatically.
+"""
+
+import os
+import sys
 import argparse
-import pandas as pd
-from polyleven import levenshtein
-from hdbscan import HDBSCAN
 import numpy as np
-import pickle
+import pandas as pd
 from glob import glob
-from utils.msa_utils import *
+from typing import List, Tuple, Optional
+from hdbscan import HDBSCAN
+
+# Optional: faster edit distances if present
+try:
+    from polyleven import levenshtein as _levenshtein
+    HAS_POLYLEVEN = True
+except Exception:
+    HAS_POLYLEVEN = False
+
+# ---------- Try to use project utilities if available ----------
+# We try to import parse_a3m_records and write_fasta; if not present,
+# fallbacks defined below will be used.
+_parse_a3m_records = None
+_write_fasta = None
+try:
+    from utils.msa_utils import parse_a3m_records as _parse_a3m_records  # type: ignore
+except Exception:
+    pass
+try:
+    from utils.msa_utils import write_fasta as _write_fasta  # type: ignore
+except Exception:
+    pass
 
 
-def consensusVoting(seqs):
-    ## Find the consensus sequence
-    consensus = ""
-    residues = "ACDEFGHIKLMNPQRSTVWY-"
-    n_chars = len(seqs[0])
-    for i in range(n_chars):
-        baseArray = [x[i] for x in seqs]
-        baseCount = np.array([baseArray.count(a) for a in list(residues)])
-        vote = np.argmax(baseCount)
-        consensus += residues[vote]
-    return consensus
+# ---------- Fallback utilities (used only if project utils are missing) ----------
+def _fallback_parse_a3m_records(lines: List[str],
+                                strip_inserts: bool = True) -> Tuple[List[str], List[str]]:
+    """
+    Minimal A3M reader.
+    Returns (headers, sequences) with lowercase insertions stripped if requested.
+    """
+    headers, seqs = [], []
+    cur_h = None
+    cur_s = []
+    for ln in lines:
+        ln = ln.rstrip("\n")
+        if not ln:
+            continue
+        if ln.startswith(">"):
+            if cur_h is not None:
+                s = "".join(cur_s)
+                if strip_inserts:
+                    # keep uppercase letters and '-' gaps only
+                    s = "".join(ch for ch in s if (ch == '-' or ch.isupper()))
+                headers.append(cur_h)
+                seqs.append(s)
+            cur_h = ln
+            cur_s = []
+        else:
+            cur_s.append(ln.strip())
+    if cur_h is not None:
+        s = "".join(cur_s)
+        if strip_inserts:
+            s = "".join(ch for ch in s if (ch == '-' or ch.isupper()))
+        headers.append(cur_h)
+        seqs.append(s)
+    return headers, seqs
 
 
-def encode_seqs(seqs, max_len=108, alphabet=None):
-    if alphabet is None:
-        alphabet = "ACDEFGHIKLMNPQRSTVY-"
-
-    arr = np.zeros([len(seqs), max_len, len(alphabet)])
-    for j, seq in enumerate(seqs):
-        for i, char in enumerate(seq):
-            for k, res in enumerate(alphabet):
-                if char == res:
-                    arr[j, i, k] += 1
-    return arr.reshape([len(seqs), max_len * len(alphabet)])
+def _fallback_write_fasta(headers: List[str], seqs: List[str], outfile: str) -> None:
+    with open(outfile, "w") as f:
+        for h, s in zip(headers, seqs):
+            if not h.startswith(">"):
+                h = ">" + h
+            f.write(h + "\n")
+            # wrap to 80 chars
+            for i in range(0, len(s), 80):
+                f.write(s[i:i+80] + "\n")
 
 
-if __name__ == '__main__':
-    p = argparse.ArgumentParser(description=
-                                """
-                                Cluster sequences in a MSA using DBSCAN algorithm and write .a3m file for each cluster.
-                                Assumes first sequence in fasta is the query sequence.
-                            
-                                H Wayment-Steele, 2022
-                                """)
-
-    p.add_argument("--keyword", action="store", help="Keyword to call all generated MSAs.")
-    p.add_argument("-i", action='store', help='fasta/a3m file of original alignment.')
-    p.add_argument("-o", action="store", help='name of output directory to write MSAs to.')
-    p.add_argument("--n_controls", action="store", default=10, type=int,help='Number of control msas to generate (Default 10)')
-    p.add_argument('--verbose', action='store_true', help='Print cluster info as they are generated.')
-
-    # p.add_argument('--scan', action='store_true', help='Select eps value on 1/4 of data, shuffled.')
-    # p.add_argument('--eps_val', action='store', type=float, help="Use single value for eps instead of scanning.")
-    p.add_argument('--resample', action='store_true',help='If included, will resample the original MSA with replacement before writing.')
-    p.add_argument("--gap_cutoff", action='store', type=float, default=0.25, help='Remove sequences with gaps representing more than this frac of seq.')
-    p.add_argument('--min_eps', action='store', default=3, help='Min epsilon value to scan for DBSCAN (Default 3).')
-    p.add_argument('--max_eps', action='store', default=20, help='Max epsilon value to scan for DBSCAN (Default 20).')
-    p.add_argument('--eps_step', action='store', default=.5, help='step for epsilon scan for DBSCAN (Default 0.5).')
-    p.add_argument('--min_samples', action='store', default=3,help='Default min_samples for DBSCAN (Default 3, recommended no lower than that).')
-    p.add_argument('--min_cluster_size', action='store', default=15,help='HDBSCAN minimum cluster size.')
+# bind utils (prefer project versions if present)
+parse_a3m_records = _parse_a3m_records or _fallback_parse_a3m_records
+write_fasta = _write_fasta or _fallback_write_fasta
 
 
-    # p.add_argument('--run_PCA', action='store_true', help='Run PCA on one-hot embedding of sequences and store in output_cluster_metadata.tsv')
-    # p.add_argument('--run_TSNE', action='store_true', help='Run TSNE on one-hot embedding of sequences and store in output_cluster_metadata.tsv')
+# ---------- Core: Meff ----------
+def compute_neff_from_seqs(seqs: List[str],
+                           id_thresh: float = 0.8,
+                           use_query_columns: bool = True) -> float:
+    """
+    Compute N_effective (Meff) from in-memory aligned sequences.
+    - Identity computed over positions with residues in BOTH sequences.
+    - If use_query_columns=True, restrict to columns where the QUERY (seqs[0]) has residues.
+    Return a float Meff (sum of 1 / neighborhood counts).
+    """
+    n = len(seqs)
+    if n == 0:
+        return 0.0
+    L = len(seqs[0])
+    if any(len(s) != L for s in seqs):
+        raise ValueError("All sequences must be the same aligned length.")
 
-    args = p.parse_args()
+    # build array (n, L), characters
+    arr = np.array([list(s) for s in seqs], dtype='<U1')
 
-    os.makedirs(args.o, exist_ok=True)
-    f = open("%s.log" % args.keyword, 'w')
-    IDs, seqs = load_fasta(args.i)
-    seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
+    # restrict to query residue columns if requested
+    if use_query_columns:
+        keep = (arr[0] != '-')
+        if keep.sum() == 0:
+            return 0.0
+        arr = arr[:, keep]
+        L = arr.shape[1]
 
-    df = pd.DataFrame({'SequenceName': IDs, 'sequence': seqs})
+    # identity(i,j) = matches / non_gap_positions, with both residues present
+    def pid_row(i, sl):
+        A = arr[i]                 # (L,)
+        B = arr[sl]                # (B, L)
+        both = (A != '-') & (B != '-')
+        denom = both.sum(axis=1)   # (B,)
+        matches = (A == B) & both
+        num = matches.sum(axis=1)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            pid = np.where(denom > 0, num / denom, 0.0)
+        return pid
 
-    query_ = df.iloc[:1]
-    df = df.iloc[1:]
+    counts = np.zeros(n, dtype=np.int32)
+    block = 1024
+    for i in range(n):
+        c = 0
+        for start in range(0, n, block):
+            end = min(n, start + block)
+            pid = pid_row(i, slice(start, end))
+            c += int((pid >= id_thresh).sum())
+        counts[i] = max(c, 1)
+    weights = 1.0 / counts.astype(np.float64)
+    return float(weights.sum())
 
-    if args.resample:
-        df = df.sample(frac=1)
 
-    L = len(df.sequence.iloc[0])
-    N = len(df)
-    print("Seqs len: " + str(L))
+def compute_neff_from_a3m(a3m_path: str,
+                          id_thresh: float = 0.8,
+                          use_query_columns: bool = True,
+                          strip_inserts: bool = True) -> int:
+    with open(a3m_path, "r") as f:
+        lines = f.readlines()
+    headers, seqs = parse_a3m_records(lines, strip_inserts=strip_inserts)
+    meff = compute_neff_from_seqs(seqs, id_thresh=id_thresh, use_query_columns=use_query_columns)
+    return int(round(meff))
 
-    df['frac_gaps'] = [x.count('-') / L for x in df['sequence']]
 
-    former_len = len(df)
-    df = df.loc[df.frac_gaps < args.gap_cutoff]
+# ---------- Distance matrix (precomputed) ----------
+def normalized_hamming_distance_matrix(seqs: List[str],
+                                       use_query_columns: bool = True) -> np.ndarray:
+    """
+    1 - pid over positions where both have residues (like AF conventions).
+    If use_query_columns=True: only columns where query (seqs[0]) has residues.
+    Returns (n,n) symmetric matrix with zeros on diag.
+    """
+    n = len(seqs)
+    L = len(seqs[0])
+    arr = np.array([list(s) for s in seqs], dtype='<U1')
+    if use_query_columns:
+        keep = (arr[0] != '-')
+        arr = arr[:, keep]
+    # compute pairwise distances in blocks
+    D = np.zeros((n, n), dtype=np.float32)
+    block = 256
+    for i in range(0, n, block):
+        A = arr[i:i+block]
+        for j in range(i, n, block):
+            B = arr[j:j+block]
+            # both residues mask: (A_b,1,L) & (1,B_b,L)
+            both = (A[:, None, :] != '-') & (B[None, :, :] != '-')
+            denom = both.sum(axis=2).astype(np.float32) + 1e-9
+            matches = (A[:, None, :] == B[None, :, :]) & both
+            pid = matches.sum(axis=2).astype(np.float32) / denom
+            dist = 1.0 - pid
+            D[i:i+A.shape[0], j:j+B.shape[0]] = dist
+            if j != i:
+                D[j:j+B.shape[0], i:i+A.shape[0]] = dist.T
+    np.fill_diagonal(D, 0.0)
+    return D
 
-    new_len = len(df)
-    lprint(args.keyword, f)
-    lprint("%d seqs removed for containing more than %d%% gaps, %d remaining" % (
-    former_len - new_len, int(args.gap_cutoff * 100), new_len), f)
-    ohe_seqs = encode_seqs(df.sequence.tolist(), max_len=L)
 
-    n_clusters = []
-    eps_test_vals = np.arange(args.min_eps, args.max_eps + args.eps_step, args.eps_step)
+def normalized_levenshtein_distance_matrix(seqs: List[str]) -> np.ndarray:
+    """
+    Normalized Levenshtein distance (edit distance / length).
+    Requires polyleven; falls back to simple Python if unavailable (slower).
+    """
+    n = len(seqs)
+    L = len(seqs[0])
+    D = np.zeros((n, n), dtype=np.float32)
+    for i in range(n):
+        si = seqs[i]
+        for j in range(i+1, n):
+            sj = seqs[j]
+            if HAS_POLYLEVEN:
+                d = _levenshtein(si, sj)
+            else:
+                # slower fallback
+                d = _plain_lev(si, sj)
+            dist = d / float(L)
+            D[i, j] = D[j, i] = dist
+    return D
 
-    # Save inputs:
-    with open('hdbscan_input.pkl', 'wb') as f_pickle:  # Python 3: open(..., 'wb')
-        pickle.dump([ohe_seqs, df, IDs, seqs, args], f_pickle)
 
-    clustering = HDBSCAN(min_cluster_size=10, min_samples=args.min_samples, cluster_selection_method='leaf')
-    clustering.fit_predict(ohe_seqs)
-    clusters = np.unique(clustering.labels_)
-    if len(clusters) > 35:
-            clustering = HDBSCAN(min_cluster_size=15, min_samples=args.min_samples, cluster_selection_method='eom')
-            clustering.fit_predict(ohe_seqs)
-            clusters = np.unique(clustering.labels_)
+def _plain_lev(a: str, b: str) -> int:
+    # very simple Levenshtein for fallback (only used if polyleven missing)
+    la, lb = len(a), len(b)
+    dp = list(range(lb + 1))
+    for i in range(1, la + 1):
+        prev, dp[0] = dp[0], i
+        for j in range(1, lb + 1):
+            cur = dp[j]
+            cost = 0 if a[i-1] == b[j-1] else 1
+            dp[j] = min(dp[j] + 1, dp[j-1] + 1, prev + cost)
+            prev = cur
+    return dp[lb]
 
-    # _ = clustering.condensed_tree_.plot(select_clusters=True,selection_palette=sns.color_palette("deep", np.unique(clusters).shape[0]),label_clusters=True)
-    lprint("%d total seqs" % len(df), f)
-    df['dbscan_label'] = clustering.labels_
 
-    clusters = [x for x in df.dbscan_label.unique() if x >= 0]
-    unclustered = len(df.loc[df.dbscan_label == -1])
+# ---------- IO helpers ----------
+def read_a3m(a3m_path: str,
+             strip_inserts: bool = True) -> Tuple[List[str], List[str]]:
+    with open(a3m_path, "r") as f:
+        lines = f.readlines()
+    headers, seqs = parse_a3m_records(lines, strip_inserts=strip_inserts)
+    # sanity
+    if len(seqs) == 0:
+        raise ValueError("Empty A3M.")
+    L = len(seqs[0])
+    if any(len(s) != L for s in seqs):
+        raise ValueError("Sequences are not aligned to the same length.")
+    return headers, seqs
 
-    lprint('%d clusters, %d of %d not clustered (%.2f)' % (len(clusters), unclustered, len(df), unclustered / len(df)),f)
 
-    avg_dist_to_query = np.mean([1 - levenshtein(x, query_['sequence'].iloc[0]) / L for x in
-                                 df.loc[df.dbscan_label == -1]['sequence'].tolist()])
-    lprint('avg identity to query of unclustered: %.2f' % avg_dist_to_query, f)
+def ensure_dir(p: str):
+    os.makedirs(p, exist_ok=True)
 
-    avg_dist_to_query = np.mean([1 - levenshtein(x, query_['sequence'].iloc[0]) / L for x in df.loc[df.dbscan_label != -1]['sequence'].tolist()])
-    lprint('avg identity to query of clustered: %.2f' % avg_dist_to_query, f)
 
-    print("Delete old MSA files: " + args.o + '/' + args.keyword + '*.a3m')
-    for f_old in glob(args.o + '/*.a3m'):
-        os.remove(f_old)
-    cluster_metadata = []
-    for clust in clusters:
-        tmp = df.loc[df.dbscan_label == clust]
+# ---------- Main clustering ----------
+def run_clustering(a3m_path: str,
+                   outdir: str,
+                   keyword: str,
+                   metric: str = "hamming",
+                   min_cluster_size: int = 200,
+                   min_samples: Optional[int] = None,
+                   cluster_selection: str = "eom",
+                   max_clusters: int = 100,
+                   min_output_size: int = 200,
+                   min_neff: int = 100,
+                   neff_id_thresh: float = 0.8,
+                   frac_gaps_cutoff: float = 0.5,
+                   use_query_columns: bool = True,
+                   max_n_for_precomputed: int = 6000) -> pd.DataFrame:
+    """
+    Returns a DataFrame with cluster metadata. Writes cluster A3Ms to outdir.
+    """
+    ensure_dir(outdir)
+    headers, seqs = read_a3m(a3m_path, strip_inserts=True)
+    query_h = headers[0]
+    query_s = seqs[0]
+    L = len(query_s)
+    n_all = len(seqs)
 
-        cs = consensusVoting(tmp.sequence.tolist())
+    # filter by fraction of gaps
+    def frac_gaps(s): return s.count('-') / L
+    keep_mask = np.array([frac_gaps(s) < frac_gaps_cutoff for s in seqs], dtype=bool)
+    if keep_mask.sum() < 2:
+        raise ValueError("Too few sequences after gap filtering.")
+    headers = [h for h, k in zip(headers, keep_mask) if k]
+    seqs = [s for s, k in zip(seqs, keep_mask) if k]
+    # ensure query is first
+    if headers[0] != query_h:
+        # find old query and move it to front
+        qi = headers.index(query_h) if query_h in headers else 0
+        if qi != 0:
+            headers = [headers[qi]] + headers[:qi] + headers[qi+1:]
+            seqs = [seqs[qi]] + seqs[:qi] + seqs[qi+1:]
 
-        avg_dist_to_cs = np.mean([1 - levenshtein(x, cs) / L for x in tmp.sequence.tolist()])
-        avg_dist_to_query = np.mean([1 - levenshtein(x, query_['sequence'].iloc[0]) / L for x in tmp.sequence.tolist()])
+    n = len(seqs)
+    print(f"[INFO] A3M: {n_all} -> {n} after gap filter (cutoff={frac_gaps_cutoff}). Aln len={L}")
 
-        if args.verbose:
-            print('Cluster %d consensus seq, %d seqs:' % (clust, len(tmp)))
-            print(cs)
-            print('#########################################')
-            for _, row in tmp.iterrows():
-                print(row['SequenceName'], row['sequence'])
-            print('#########################################')
+    # compute distances
+    if metric == "hamming":
+        if n > max_n_for_precomputed:
+            raise RuntimeError(
+                f"n={n} exceeds max_n_for_precomputed={max_n_for_precomputed} for precomputed distances. "
+                f"Downsample or increase threshold.")
+        D = normalized_hamming_distance_matrix(seqs, use_query_columns=use_query_columns)
+        hdb = HDBSCAN(min_cluster_size=min_cluster_size,
+                      min_samples=min_samples,
+                      cluster_selection_method=cluster_selection,
+                      metric='precomputed')
+        labels = hdb.fit_predict(D)
+    elif metric == "lev":
+        if n > 4000:
+            raise RuntimeError("Levenshtein precomputed distance is O(n^2); limit n or switch to hamming.")
+        D = normalized_levenshtein_distance_matrix(seqs)
+        hdb = HDBSCAN(min_cluster_size=min_cluster_size,
+                      min_samples=min_samples,
+                      cluster_selection_method=cluster_selection,
+                      metric='precomputed')
+        labels = hdb.fit_predict(D)
+    else:
+        raise ValueError("metric must be 'hamming' or 'lev'.")
 
-        tmp = pd.concat([query_, tmp], axis=0)
+    labels = np.asarray(labels, dtype=int)
+    # post-filter tiny clusters
+    valid = labels >= 0
+    cluster_ids, counts = np.unique(labels[valid], return_counts=True)
+    small = set(cluster_ids[counts < min_output_size])
+    labels = np.array([-1 if (lab in small) else lab for lab in labels], dtype=int)
 
-        cluster_metadata.append({'cluster_ind': clust, 'consensusSeq': cs, 'avg_lev_dist': '%.3f' % avg_dist_to_cs,
-                                 'avg_dist_to_query': '%.3f' % avg_dist_to_query, 'size': len(tmp)})
+    # cap number of clusters by size
+    cluster_ids, counts = np.unique(labels[labels >= 0], return_counts=True)
+    kept_clusters = set()
+    if len(cluster_ids) > max_clusters:
+        order = np.argsort(counts)[::-1]
+        kept_clusters = set(cluster_ids[order[:max_clusters]])
+        labels = np.array([lab if lab in kept_clusters else -1 for lab in labels], dtype=int)
 
-        write_fasta(tmp.SequenceName.tolist(), tmp.sequence.tolist(), outfile=args.o + '/' + args.keyword + '_' + "%03d" % clust + '.a3m')
+    # reindex cluster labels to 0..C-1
+    uniq = sorted(list(set(labels[labels >= 0])))
+    remap = {old: i for i, old in enumerate(uniq)}
+    labels = np.array([remap[lab] if lab in remap else -1 for lab in labels], dtype=int)
 
-    print('Saved this output to %s.log' % args.keyword)
-    f.close()
+    # clean previous outputs
+    for old in glob(os.path.join(outdir, f"{keyword}_*.a3m")):
+        try:
+            os.remove(old)
+        except Exception:
+            pass
 
+    # write clusters (query on top), and compute Meff
+    rows = []
+    n_noise = int((labels < 0).sum())
+    print(f"[INFO] clusters found (before Meff): {len(uniq)} ; noise={n_noise}")
+
+    for c in sorted(set(labels) - {-1}):
+        idx = np.where(labels == c)[0]
+        # ensure query is included in each cluster file by prepending it
+        # (common practice for AF/MSA-transformer)
+        cl_headers = [headers[0]] + [headers[i] for i in idx if i != 0]
+        cl_seqs = [seqs[0]] + [seqs[i] for i in idx if i != 0]
+
+        out_path = os.path.join(outdir, f"{keyword}_{c:03d}.a3m")
+        write_fasta(cl_headers, cl_seqs, outfile=out_path)
+
+        meff = compute_neff_from_seqs(cl_seqs, id_thresh=neff_id_thresh,
+                                      use_query_columns=True)
+        n_raw = len(cl_seqs)
+
+        if (min_neff is not None and min_neff > 0) and (meff < min_neff):
+            # drop if not enough information content
+            try:
+                os.remove(out_path)
+            except Exception:
+                pass
+            rows.append(dict(cluster=c, kept=False, n=n_raw, neff=meff, path=out_path))
+            continue
+
+        rows.append(dict(cluster=c, kept=True, n=n_raw, neff=meff, path=out_path))
+
+    df_meta = pd.DataFrame(rows).sort_values(["kept", "n"], ascending=[False, False])
+    meta_csv = os.path.join(outdir, f"{keyword}_clusters.csv")
+    df_meta.to_csv(meta_csv, index=False)
+    print(f"[INFO] Wrote cluster metadata: {meta_csv}")
+    return df_meta
+
+
+# ---------- CLI ----------
+def build_argparser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="Cluster an A3M with HDBSCAN and filter by size/Neff.")
+    p.add_argument("--a3m", required=True, help="Input A3M path.")
+    p.add_argument("-o", "--outdir", required=True, help="Output directory.")
+    p.add_argument("--keyword", default="ShallowMsa", help="Prefix for cluster files.")
+    p.add_argument("--metric", choices=["hamming", "lev"], default="hamming",
+                   help="Distance metric (precomputed). 'hamming' respects aligned columns and gaps.")
+    p.add_argument("--min_cluster_size", type=int, default=200,
+                   help="HDBSCAN min_cluster_size (coarser -> fewer clusters).")
+    p.add_argument("--min_samples", type=str, default="auto",
+                   help="'auto' or integer. Larger -> fewer clusters.")
+    p.add_argument("--cluster_selection", choices=["eom", "leaf"], default="eom",
+                   help="Use 'eom' for fewer, larger clusters.")
+    p.add_argument("--max_clusters", type=int, default=100,
+                   help="Keep only largest K clusters; rest -> noise.")
+    p.add_argument("--min_output_size", type=int, default=200,
+                   help="Drop clusters with raw size < this after HDBSCAN.")
+    p.add_argument("--min_neff", type=int, default=100,
+                   help="Drop clusters whose Meff < this threshold.")
+    p.add_argument("--neff_id_thresh", type=float, default=0.8,
+                   help="Identity threshold for Meff (e.g., 0.8).")
+    p.add_argument("--frac_gaps_cutoff", type=float, default=0.5,
+                   help="Filter out sequences with fraction of gaps >= cutoff.")
+    p.add_argument("--use_query_columns", type=int, default=1,
+                   help="1: compute distances/Meff on columns where query has residues; 0: all columns.")
+    p.add_argument("--max_n_for_precomputed", type=int, default=6000,
+                   help="Safety limit for O(n^2) distance computations (hamming).")
+    return p
+
+
+def main():
+    args = build_argparser().parse_args()
+    min_samples = None if args.min_samples == "auto" else int(args.min_samples)
+    df = run_clustering(
+        a3m_path=args.a3m,
+        outdir=args.outdir,
+        keyword=args.keyword,
+        metric=args.metric,
+        min_cluster_size=int(args.min_cluster_size),
+        min_samples=min_samples,
+        cluster_selection=args.cluster_selection,
+        max_clusters=int(args.max_clusters),
+        min_output_size=int(args.min_output_size),
+        min_neff=int(args.min_neff),
+        neff_id_thresh=float(args.neff_id_thresh),
+        frac_gaps_cutoff=float(args.frac_gaps_cutoff),
+        use_query_columns=bool(int(args.use_query_columns)),
+        max_n_for_precomputed=int(args.max_n_for_precomputed),
+    )
+    # brief console summary
+    kept = df[df.kept]
+    dropped = df[~df.kept]
+    print(f"[SUMMARY] Kept {len(kept)} clusters, Dropped {len(dropped)} (by Neff).")
+    if not kept.empty:
+        print(kept[["cluster", "n", "neff", "path"]].to_string(index=False))
+
+
+if __name__ == "__main__":
+    main()

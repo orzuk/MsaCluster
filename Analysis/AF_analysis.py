@@ -22,7 +22,7 @@ def compute_AF_pred_tmscores(fold_pair):
 
     folds = fold_pair.split("_")
     chains = [folds[0][-1],folds[1][-1]]
-    AF_OUTPUT_DIR = path + '/' + PAIR_DIRS['AF']
+    AF_OUTPUT_DIR = path + '/' + PAIR_TARGET_DIRS['AF'][0]
 #    af_pdb_files = os.listdir(AF_OUTPUT_DIR)
 #    af_pdb_files = [os.path.basename(p) for p in glob.glob(f"{AF_OUTPUT_DIR}/**/*.pdb", recursive=True)]
 

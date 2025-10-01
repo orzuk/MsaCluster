@@ -533,3 +533,66 @@ def build_pair_seed_a3m_from_pair(
     out_a3m = os.path.join(pair_dir, out_name)
     write_a3m([nameA, nameB], [alignedA, alignedB], out_a3m)
     return out_a3m
+
+
+# --- add at end (or a utilities section) in msa_utils.py ---
+def compute_neff_from_a3m(
+    a3m_path: str,
+    id_thresh: float = 0.8,
+    use_query_columns: bool = True,
+    strip_inserts: bool = True,
+) -> int:
+    """
+    Compute N_effective (Meff) from an A3M file.
+    - Identity computed over positions with residues in BOTH sequences.
+    - If use_query_columns=True, restrict columns to those where the query has residues
+      (uses the FIRST row as the query).
+    - strip_inserts=True removes lowercase insert chars before computing identity.
+    Returns an integer Meff (rounded) for convenience.
+    """
+    with open(a3m_path, "r") as f:
+        lines = f.readlines()
+
+    headers, seqs = parse_a3m_records(lines, strip_inserts=strip_inserts)
+    n = len(seqs)
+    if n == 0:
+        return 0
+
+    # Optional: restrict to query (row 0) residue columns only
+    if use_query_columns:
+        keep_idx = keep_mask_query(seqs[0])
+        seqs = project_columns(seqs, keep_idx)
+
+    # Convert to numpy char arrays for vectorized ops
+    arr = np.array([list(s) for s in seqs], dtype='<U1')  # shape (n, L)
+
+    # Pairwise identity ignoring gaps: pid(i,j) = matches/(L - gaps)
+    # We'll do it blockwise to avoid huge memory when n is large.
+    def pid_row(i, block):
+        A = arr[i]
+        B = arr[block]                  # shape (B, L)
+        both = (A != '-') & (B != '-')
+        denom = both.sum(axis=1)        # per-row
+        matches = (A == B) & both
+        num = matches.sum(axis=1)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            pid = np.where(denom > 0, num / denom, 0.0)
+        return pid
+
+    # Compute neighborhood counts: c_i = |{ j : pid(i,j) >= id_thresh }|
+    counts = np.zeros(n, dtype=np.int32)
+    block_size = 1024
+    for i in range(n):
+        c = 0
+        for start in range(0, n, block_size):
+            end = min(n, start + block_size)
+            pid = pid_row(i, slice(start, end))
+            c += int((pid >= id_thresh).sum())
+        counts[i] = max(c, 1)  # avoid div by zero
+
+    weights = 1.0 / counts.astype(np.float64)
+    meff = weights.sum()
+
+    # Return rounded Meff as an int (common in AF/MSA pipelines), but keep the
+    # true float if you prefer; your call.
+    return int(round(meff))
