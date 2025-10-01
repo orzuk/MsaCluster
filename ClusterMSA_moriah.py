@@ -374,6 +374,20 @@ def run_clustering(a3m_path: str,
     remap = {old: i for i, old in enumerate(uniq)}
     labels = np.array([remap[lab] if lab in remap else -1 for lab in labels], dtype=int)
 
+    # reindex cluster labels to 0..C-1
+    uniq = sorted(list(set(labels[labels >= 0])))
+    remap = {old: i for i, old in enumerate(uniq)}
+    labels = np.array([remap[lab] if lab in remap else -1 for lab in labels], dtype=int)
+
+    # If no clusters at all, write an empty metadata CSV and return cleanly
+    if len(uniq) == 0:
+        meta_csv = os.path.join(outdir, f"{keyword}_clusters.csv")
+        pd.DataFrame(columns=["cluster", "kept", "n", "neff", "path"]).to_csv(meta_csv, index=False)
+        print(f"[INFO] No clusters found; all sequences labeled noise. Wrote empty {meta_csv}. "
+              f"Hint: lower --min_cluster_size/--min_output_size, set a smaller --min_samples, "
+              f"or try --cluster_selection leaf.")
+        return pd.DataFrame(columns=["cluster", "kept", "n", "neff", "path"])
+
     # clean previous outputs
     for old in glob(os.path.join(outdir, f"{keyword}_*.a3m")):
         try:
@@ -411,7 +425,9 @@ def run_clustering(a3m_path: str,
 
         rows.append(dict(cluster=c, kept=True, n=n_raw, neff=meff, path=out_path))
 
-    df_meta = pd.DataFrame(rows).sort_values(["kept", "n"], ascending=[False, False])
+    df_meta = pd.DataFrame(rows)
+    if not df_meta.empty:
+        df_meta = df_meta.sort_values(["kept", "n"], ascending=[False, False])
     meta_csv = os.path.join(outdir, f"{keyword}_clusters.csv")
     df_meta.to_csv(meta_csv, index=False)
     print(f"[INFO] Wrote cluster metadata: {meta_csv}")
