@@ -2,18 +2,16 @@
 import argparse
 import subprocess
 import shlex
-import sys, os, warnings, re
+import sys, os, warnings, re, math
 from glob import glob
-import json
-import gzip
-import getpass
+import json, shutil, gzip, getpass
 
 from pathlib import Path
 from typing import List, Tuple
 from copy import deepcopy
-import shutil
 import numpy as np
 import pandas as pd
+
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
@@ -470,6 +468,89 @@ def _prune_stale_fastas(pair_id: str, pair_dir: Path, dry: bool):
             if not dry:
                 try: f.unlink()
                 except: pass
+
+
+
+def _update_basic_cache(pair_id: str) -> None:
+    """
+    Update Pipeline/<pair>/Analysis/cache.json with:
+      - n_residues_A, n_residues_B (from chain FASTAs)
+      - msa_depth, msa_width (DeepMsa.a3m; width after stripping inserts)
+      - seq_id (pairwise identity of the two chains; matches / non-gap positions)
+      - clusters: { "ShallowMsa_000": {"n": ..., "neff": ...}, ... }
+    Safe: only writes keys it can compute.
+    """
+    pair_dir = Path(f"Pipeline/{pair_id}")
+    analysis = pair_dir / "Analysis"
+    analysis.mkdir(parents=True, exist_ok=True)
+    cache_path = analysis / "cache.json"
+    cache = {}
+    if cache_path.exists():
+        try:
+            cache = json.loads(cache_path.read_text())
+        except Exception:
+            cache = {}
+
+    # A) residues & seq-id from chain FASTAs
+    m = re.match(r"^([0-9A-Za-z]{4})([A-Za-z])_([0-9A-Za-z]{4})([A-Za-z])$", pair_id)
+    if m:
+        pdb1, ch1, pdb2, ch2 = m.groups()
+        fa1 = pair_dir / "fasta_chain_files" / f"{pdb1}{ch1}.fasta"
+        fa2 = pair_dir / "fasta_chain_files" / f"{pdb2}{ch2}.fasta"
+        if fa1.exists() and fa2.exists():
+            from Bio import SeqIO, Align
+            s1 = str(next(SeqIO.parse(str(fa1), "fasta")).seq)
+            s2 = str(next(SeqIO.parse(str(fa2), "fasta")).seq)
+            cache["n_residues_A"] = len(s1)
+            cache["n_residues_B"] = len(s2)
+            # global alignment with identity-like scoring
+            aligner = Align.PairwiseAligner()
+            aligner.mode = "global"
+            aligner.match_score = 1.0
+            aligner.mismatch_score = 0.0
+            aligner.open_gap_score = -1.0
+            aligner.extend_gap_score = -0.5
+            aln = aligner.align(s1, s2)[0]
+            # compute identity over both-residue positions
+            a, b = str(aln.aligned[0]), str(aln.aligned[1])  # not directly the strings; build from coordinates
+            # Reconstruct aligned strings (Aligner doesn't expose directly; use format)
+            aligned = aln.format().splitlines()
+            # second and third lines are aligned strings with gaps
+            if len(aligned) >= 3:
+                Aline = aligned[1].strip()
+                Bline = aligned[2].strip()
+                both = [(x != '-') and (y != '-') for x,y in zip(Aline, Bline)]
+                denom = sum(both)
+                matches = sum((x == y) and m for x,y,m in zip(Aline, Bline, both))
+                cache["seq_id"] = float(matches/denom) if denom>0 else 0.0
+
+    # B) Deep MSA depth & width
+    deep = pair_dir / "output_get_msa" / "DeepMsa.a3m"
+    if deep.exists():
+        lines = deep.read_text().splitlines(True)
+        headers, seqs = parse_a3m_records(lines, strip_inserts=True)
+        if seqs:
+            cache["msa_depth"] = len(seqs)
+            cache["msa_width"] = len(seqs[0])
+
+    # C) Per-cluster size & Neff
+    clus_dir = pair_dir / "output_msa_cluster"
+    clusters = {}
+    if clus_dir.exists():
+        for a3m in sorted(clus_dir.glob("ShallowMsa_*.a3m")):
+            name = a3m.stem  # e.g., ShallowMsa_000
+            lines = a3m.read_text().splitlines(True)
+            hdrs, seqs = parse_a3m_records(lines, strip_inserts=True)
+            n = len(seqs)
+            neff = compute_neff_from_a3m(str(a3m), id_thresh=0.8, use_query_columns=True)
+            clusters[name] = {"n": int(n), "neff": int(neff)}
+    if clusters:
+        cache["clusters"] = clusters
+
+    cache["_updated"] = int(__import__("time").time())
+    cache_path.write_text(json.dumps(cache, indent=2))
+    print(f"[cache] updated: {cache_path}")
+
 
 
 def ensure_chain_fastas(pair_dir: str, pdbids: list[str], pdbchains: list[str]) -> None:
@@ -932,6 +1013,12 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
         )
         _run(cmd, "inline")
 
+    # After DeepMsa exists, update basic cache (depth/width/seq-id)
+    try:
+        _update_basic_cache(pair_id)
+    except Exception as e:
+        print(f"[cache] WARN get_msa: {e}")
+
 def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     # Use the *current* Python interpreter so the same venv is used downstream
     py  = shlex.quote(sys.executable)
@@ -958,6 +1045,11 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     )
     _run(cmd, run_job_mode)
 
+    # After clusters are written, add per-cluster Neff to cache
+    try:
+        _update_basic_cache(pair_id)
+    except Exception as e:
+        print(f"[cache] WARN cluster_msa: {e}")
 
 
 def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
@@ -1792,35 +1884,46 @@ def main():
         # NEW: generic per-pair submit for single-step run modes
         if args.run_job_mode == "sbatch" and args.run_mode in HEAVY_PAIR_MODES:
             extras = []
-            # --- Slurm resource hints (optional) ---
-            # If SBATCH_HINTS dict is defined (per earlier step), use it; else use defaults.
+
+            # ----- Slurm resource hints -> use *pipeline* args (sbatch_*) NOT raw sbatch flags -----
             try:
                 hint = SBATCH_HINTS.get(args.run_mode, {"time": "04:00:00", "mem": "8G", "gpus": 0, "cpus": 4})
             except NameError:
                 hint = {"time": "04:00:00", "mem": "8G", "gpus": 0, "cpus": 4}
-            if hint.get("time"): extras += [f"--time {hint['time']}"]
-            if hint.get("mem"):  extras += [f"--mem {hint['mem']}"]
-            if hint.get("cpus"): extras += [f"--cpus-per-task {hint['cpus']}"]
-            if hint.get("gpus", 0):
-                # adapt to your cluster flag style if needed (e.g., --gpus=1 vs --gres=gpu:1)
-                extras += [f"--gres=gpu:{hint['gpus']}"]
 
-            # --- Mode-specific passthrough flags (preserve your existing behavior) ---
+            if hint.get("time"):
+                extras += [f"--sbatch_time {hint['time']}"]
+            if hint.get("mem"):
+                extras += [f"--sbatch_mem {hint['mem']}"]
+            if hint.get("cpus"):
+                extras += [f"--sbatch_cpus {hint['cpus']}"]
+            # your argparse exposes --sbatch_gres (not --gpus); map gpus -> gres=gpu:<n>
+            if hint.get("gpus", 0):
+                extras += [f"--sbatch_gres gpu:{hint['gpus']}"]
+            # (optional) partition/qos/account/constraint if you set them in SBATCH_HINTS
+            for k_src, k_dst in [
+                ("partition", "sbatch_partition"),
+                ("qos", "sbatch_qos"),
+                ("account", "sbatch_account"),
+                ("constraint", "sbatch_constraint"),
+            ]:
+                if hint.get(k_src):
+                    extras += [f"--{k_dst} {hint[k_src]}"]
+
+            # ----- Mode-specific passthrough flags you already had -----
             if args.run_mode == "run_esmfold":
-                # pass through ESM options if present
                 if getattr(args, "esm_model", None):
                     extras += [f"--esm_model {args.esm_model}"]
                 if getattr(args, "esm_device", None):
                     extras += [f"--esm_device {args.esm_device}"]
 
             if args.run_mode == "postprocess":
-                # pass through reports option if not 'none'
                 if getattr(args, "reports", "none") != "none":
                     extras += [f"--reports {args.reports}"]
 
-            # Submit one job per pair for this run_mode
             _submit_pair_job(args.run_mode, pair_id, args, " ".join(extras))
             continue
+
 
         if args.run_mode == "load":
             task_load(pair_id, args)
