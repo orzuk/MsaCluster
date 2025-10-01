@@ -177,7 +177,7 @@ def normalized_hamming_distance_matrix(seqs: List[str],
         keep = (arr[0] != '-')
         arr = arr[:, keep]
     # compute pairwise distances in blocks
-    D = np.zeros((n, n), dtype=np.float32)
+    D = np.zeros((n, n), dtype=np.float64)
     block = 256
     for i in range(0, n, block):
         A = arr[i:i+block]
@@ -185,9 +185,9 @@ def normalized_hamming_distance_matrix(seqs: List[str],
             B = arr[j:j+block]
             # both residues mask: (A_b,1,L) & (1,B_b,L)
             both = (A[:, None, :] != '-') & (B[None, :, :] != '-')
-            denom = both.sum(axis=2).astype(np.float32) + 1e-9
+            denom = both.sum(axis=2).astype(np.float64) + 1e-9
             matches = (A[:, None, :] == B[None, :, :]) & both
-            pid = matches.sum(axis=2).astype(np.float32) / denom
+            pid = matches.sum(axis=2).astype(np.float64) / denom
             dist = 1.0 - pid
             D[i:i+A.shape[0], j:j+B.shape[0]] = dist
             if j != i:
@@ -203,7 +203,7 @@ def normalized_levenshtein_distance_matrix(seqs: List[str]) -> np.ndarray:
     """
     n = len(seqs)
     L = len(seqs[0])
-    D = np.zeros((n, n), dtype=np.float32)
+    D = np.zeros((n, n), dtype=np.float64)
     for i in range(n):
         si = seqs[i]
         for j in range(i+1, n):
@@ -309,6 +309,7 @@ def run_clustering(a3m_path: str,
                       cluster_selection_method=cluster_selection,
                       metric='precomputed',
                       core_dist_n_jobs=0)
+        D = np.asarray(D, dtype=np.float64, order="C")
         labels = hdb.fit_predict(D)
 
     elif metric == "hamming" and not USE_PRECOMPUTED:
@@ -348,6 +349,7 @@ def run_clustering(a3m_path: str,
                       cluster_selection_method=cluster_selection,
                       metric='precomputed',
                       core_dist_n_jobs=0)
+        D = np.asarray(D, dtype=np.float64, order="C")
         labels = hdb.fit_predict(D)
     else:
         raise ValueError("metric must be 'hamming' or 'lev'.")
