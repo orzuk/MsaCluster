@@ -294,26 +294,59 @@ def run_clustering(a3m_path: str,
     n = len(seqs)
     print(f"[INFO] A3M: {n_all} -> {n} after gap filter (cutoff={frac_gaps_cutoff}). Aln len={L}")
 
-    # compute distances
-    if metric == "hamming":
-        if n > max_n_for_precomputed:
-            raise RuntimeError(
-                f"n={n} exceeds max_n_for_precomputed={max_n_for_precomputed} for precomputed distances. "
-                f"Downsample or increase threshold.")
+    # ---------- choose clustering path ----------
+    # Path A: small/medium n -> full precomputed, gap-aware PID (your current precise logic)
+    # Path B: large n        -> feature-mode with metric='hamming' (no n×n matrix)ric == "lev" and n <= 4000)
+    USE_PRECOMPUTED = (not args.force_feature_mode) and \
+                      ((metric == "hamming" and n <= max_n_for_precomputed) or (metric == "lev" and n <= 4000))
+
+    if metric == "hamming" and USE_PRECOMPUTED:
+        # ===== Path A: precomputed, gap-aware PID =====
         D = normalized_hamming_distance_matrix(seqs, use_query_columns=use_query_columns)
         hdb = HDBSCAN(min_cluster_size=min_cluster_size,
                       min_samples=min_samples,
                       cluster_selection_method=cluster_selection,
-                      metric='precomputed')
+                      metric='precomputed',
+                      core_dist_n_jobs=0)
         labels = hdb.fit_predict(D)
+
+    elif metric == "hamming" and not USE_PRECOMPUTED:
+        # ===== Path B: large-n fallback: feature-mode Hamming =====
+        # Build an int8 matrix of shape (n, Lq), where Lq are query residue columns only
+        # Map residues to small integers; treat gaps as 255 so gap vs residue != match.
+        arr = np.array([list(s) for s in seqs], dtype='<U1')
+        if use_query_columns:
+            keep = (arr[0] != '-')
+            arr = arr[:, keep]
+        # compact code per character (gap -> 255, residues -> 0..24)
+        alphabet = np.array(list("ACDEFGHIKLMNPQRSTVWYBJZX-"), dtype='<U1')  # include common ambiguous + gap '-'
+        codebook = {ch: i for i, ch in enumerate(alphabet)}
+        GAP_CODE = 255
+        X = np.empty(arr.shape, dtype=np.uint8)
+        # vectorized map
+        flat = arr.ravel()
+        mapped = np.fromiter((codebook.get(ch, GAP_CODE) for ch in flat), count=flat.size, dtype=np.uint16)
+        X[:, :] = mapped.reshape(arr.shape).astype(np.uint8)
+        # Fit HDBSCAN directly on features with Hamming; no precomputed matrix is built.
+        hdb = HDBSCAN(min_cluster_size=min_cluster_size,
+                      min_samples=min_samples,
+                      cluster_selection_method=cluster_selection,
+                      metric='hamming',
+                      algorithm='best',
+                      approx_min_span_tree=True,
+                      core_dist_n_jobs=0)
+        labels = hdb.fit_predict(X)
+
     elif metric == "lev":
         if n > 4000:
-            raise RuntimeError("Levenshtein precomputed distance is O(n^2); limit n or switch to hamming.")
+            raise RuntimeError("Levenshtein with precomputed distances is O(n^2); "
+                               "for n>4000 switch to --metric hamming (feature-mode).")
         D = normalized_levenshtein_distance_matrix(seqs)
         hdb = HDBSCAN(min_cluster_size=min_cluster_size,
                       min_samples=min_samples,
                       cluster_selection_method=cluster_selection,
-                      metric='precomputed')
+                      metric='precomputed',
+                      core_dist_n_jobs=0)
         labels = hdb.fit_predict(D)
     else:
         raise ValueError("metric must be 'hamming' or 'lev'.")
@@ -410,6 +443,9 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="1: compute distances/Meff on columns where query has residues; 0: all columns.")
     p.add_argument("--max_n_for_precomputed", type=int, default=6000,
                    help="Safety limit for O(n^2) distance computations (hamming).")
+    p.add_argument("--force_feature_mode", type=int, default=0,
+                   help="Set to 1 to always use feature-mode Hamming (no precomputed matrix).")
+
     return p
 
 

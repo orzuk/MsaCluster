@@ -470,7 +470,6 @@ def _prune_stale_fastas(pair_id: str, pair_dir: Path, dry: bool):
                 except: pass
 
 
-
 def _update_basic_cache(pair_id: str) -> None:
     """
     Update Pipeline/<pair>/Analysis/cache.json with:

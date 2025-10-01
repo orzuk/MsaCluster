@@ -454,14 +454,24 @@ def compute_tmscore_all_pairs():
 
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     """
-    Return a tidy cluster table for this pair with columns:
-      cluster, TM-AF1, TM-AF2, TM-ESM1, TM-ESM2, RE-MSAT-COM, RE-MSAT1, RE-MSAT2
-    Values may be NaN if a modality is missing for a cluster.
+    One row per cluster for this pair with columns:
+      cluster, n, neff, TM-AF1, TM-AF2, TM-ESM1, TM-ESM2, RE-MSAT-COM, RE-MSAT1, RE-MSAT2
     """
     anal = _ensure_pair_analysis(pair_id)
     df_af   = _safe_read_csv(str(anal / "df_af.csv"))
     df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
     df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
+
+    # ---- cache clusters: sizes & neff ----
+    cache_stats = {}
+    cpath = anal / "cache.json"
+    if cpath.is_file():
+        try:
+            C = json.loads(cpath.read_text())
+            # clusters dict like {"ShallowMsa_000": {"n":..,"neff":..}, ...}
+            cache_stats = C.get("clusters", {}) or {}
+        except Exception:
+            cache_stats = {}
 
     def _norm_tag(s: str) -> str:
         if not isinstance(s, str): s = str(s)
@@ -513,15 +523,29 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
             "_tag": d["_tag"]
         }).groupby("_tag").max()
 
-    # ---- merge blocks on index (cluster tag) ----
-    idx = sorted(set(tm.index) | set(ms.index))
+    # ---- merge TM + MSAT on index (cluster tag) ----
+    idx = sorted(set(tm.index) | set(ms.index) | set(cache_stats.keys()))
     out = pd.DataFrame(index=idx)
     for block in (tm, ms):
         if not block.empty:
             out = out.join(block, how="left")
 
+    # add n & neff from cache (align by tag like 'ShallowMsa_007' or 'DeepMsa')
+    def _get_stat(tag, key):
+        s = cache_stats.get(tag)
+        if s is None and tag != "DeepMsa":
+            # be tolerant to '7' vs 'ShallowMsa_007'
+            m = re.search(r"(\d+)$", str(tag))
+            if m:
+                alt = f"ShallowMsa_{int(m.group(1)):03d}"
+                s = cache_stats.get(alt)
+        return (s or {}).get(key, None)
+    out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
+    out["neff"] = [ _get_stat(t, "neff") for t in out.index ]
+
     out = out.reset_index().rename(columns={"index": "cluster"})
-    # prefer compact labels: "DeepMsa" -> "Deep", "ShallowMsa_007" -> "7"
+
+    # compact labels for display: "DeepMsa"→"Deep", "ShallowMsa_007"→"7"
     def _short(s):
         if not s: return s
         if str(s).lower().startswith("deep"): return "Deep"
@@ -529,11 +553,30 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         return m.group(1) if m else s
     out["cluster"] = out["cluster"].map(_short)
 
-    # nice rounding
-    for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]:
-        if c in out.columns:
-            out[c] = out[c].round(2)
-    return out[["cluster"] + [c for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in out.columns]]
+    # order columns & round
+    wanted = ["cluster","n","neff","TM-AF1","TM-AF2","TM-ESM1","TM-ESM2","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]
+    out = out[[c for c in wanted if c in out.columns]]
+    num_cols = out.select_dtypes(include="number").columns
+    out[num_cols] = out[num_cols].round(3)
+    return out
+
+def build_all_pairs_clusters_table(pairs: Optional[List[str]] = None, write_out: bool = True) -> pd.DataFrame:
+    """Concatenate per-pair cluster tables into one global table with pair_id + cluster columns."""
+    if not pairs:
+        pairs = [f"{a}_{b}" for a, b in list_protein_pairs()]
+    rows=[]
+    for pid in pairs:
+        if not _pair_dir(pid).is_dir(): continue
+        df = build_pair_cluster_table(pid)
+        if df is None or df.empty: continue
+        df = df.copy()
+        df.insert(0, "pair_id", pid)
+        rows.append(df)
+    out = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
+    if write_out:
+        Path(SUMMARY_RESULTS_TABLE).parent.mkdir(parents=True, exist_ok=True)
+        out.to_csv(str(Path(SUMMARY_RESULTS_TABLE).parent / "clusters_global_table.csv"), index=False)
+    return out
 
 
 # Main post-processing function:
@@ -644,3 +687,7 @@ if __name__ == "__main__":
     # 2) Build unified CSVs from those cached per-pair Analysis CSVs (single writer)
     build_unified_tables_from_cluster_dfs(pairs=args.pairs, write_out=True)
     print(f"[postprocess] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
+
+# 3) Build global per-cluster table (one row per cluster)
+    build_all_pairs_clusters_table(pairs=args.pairs, write_out=True)
+    print(f"[postprocess] clusters table written:\n  {Path(SUMMARY_RESULTS_TABLE).parent / 'clusters_global_table.csv'}")

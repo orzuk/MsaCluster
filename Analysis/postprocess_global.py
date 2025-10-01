@@ -82,6 +82,12 @@ def _read_pair_tables(pair_dir: str) -> dict:
 
 def build_or_load_global_tables(force: bool = False,
                                 pairs_glob: str | None = None) -> tuple[str,str]:
+    """
+    Builds two CSVs:
+      - SUMMARY_CSV: one row per pair, with AF/ESM bests + PAIR_TM + ΔG + seq_id + msa stats
+      - DETAIL_CSV : your detailed per-pair row(s) from _read_pair_tables(d)
+    Also merges cache.json (seq_id, msa_depth, msa_width) if present.
+    """
     if (not force) and os.path.isfile(SUMMARY_CSV) and os.path.isfile(DETAIL_CSV):
         return SUMMARY_CSV, DETAIL_CSV
 
@@ -90,9 +96,26 @@ def build_or_load_global_tables(force: bool = False,
         pair_dirs = sorted(glob.glob(os.path.join(PIPELINE_DIR, pairs_glob)))
 
     rows = []
+    cache_rows = []
     for d in pair_dirs:
-        if os.path.isdir(os.path.join(d, "Analysis")):
+        anal = os.path.join(d, "Analysis")
+        if os.path.isdir(anal):
             rows.append(_read_pair_tables(d))
+            # --- pull cache.json if exists ---
+            cache_p = os.path.join(anal, "cache.json")
+            if os.path.isfile(cache_p) and os.path.getsize(cache_p) > 0:
+                try:
+                    with open(cache_p, "r") as fh:
+                        C = json.load(fh)
+                    pair_id = os.path.basename(d)
+                    cache_rows.append({
+                        "pair_id": pair_id,
+                        "seq_id": C.get("seq_id", None),
+                        "msa_depth": C.get("msa_depth", None),
+                        "msa_width": C.get("msa_width", None),
+                    })
+                except Exception:
+                    pass
 
     os.makedirs(DOCS_DIR, exist_ok=True)
     if not rows:
@@ -100,17 +123,34 @@ def build_or_load_global_tables(force: bool = False,
         pd.DataFrame([]).to_csv(DETAIL_CSV, index=False)
         return SUMMARY_CSV, DETAIL_CSV
 
+    # base table assembled from per-pair readers
     df = pd.DataFrame(rows)
 
-    keep_cols = ["pair_id",
-                 "AF2Deep_TM1","AF2Deep_TM2","AF3Deep_TM1","AF3Deep_TM2",
-                 "AF2Clust_TM1","AF2Clust_TM2","AF3Clust_TM1","AF3Clust_TM2",
-                 "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
-                 "TrueTrue_TM",  '#RES', 'PAIR_TM',  'ΔG1', 'ΔG2' ]
+    # merge cache additions
+    if cache_rows:
+        df_cache = pd.DataFrame(cache_rows)
+        df = df.merge(df_cache, on="pair_id", how="left")
+
+    # order/keep columns if present
+    keep_cols = [
+        "pair_id",
+        "AF2Deep_TM1","AF2Deep_TM2","AF3Deep_TM1","AF3Deep_TM2",
+        "AF2Clust_TM1","AF2Clust_TM2","AF3Clust_TM1","AF3Clust_TM2",
+        "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
+        "TrueTrue_TM", "#RES", "PAIR_TM", "ΔG1", "ΔG2",
+        # NEW:
+        "seq_id", "msa_depth", "msa_width",
+    ]
 
     summary  = df[[c for c in keep_cols if c in df.columns]].copy()
     detailed = df.copy()
 
+    # nicer formatting
+    for _df in (summary, detailed):
+        num_cols = _df.select_dtypes(include="number").columns
+        _df[num_cols] = _df[num_cols].round(3)
+
     summary.to_csv(SUMMARY_CSV, index=False)
     detailed.to_csv(DETAIL_CSV, index=False)
     return SUMMARY_CSV, DETAIL_CSV
+
