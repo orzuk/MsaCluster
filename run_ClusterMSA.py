@@ -208,7 +208,7 @@ def cluster_hdbscan(headers: List[str], seqs: List[str], args) -> Dict[int, List
 # ------------- AHC path (sample → linkage → medoids → assign all) -------------
 def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int]]:
     rng = np.random.default_rng(int(args.sample_seed))
-    verbose = TRUE # bool(int(args.verbose))
+    verbose = bool(int(args.verbose))
     every = max(1, int(args.progress_every))
 
     st = StageTimer("AHC: gap-filter", verbose)
@@ -466,7 +466,7 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
     Enforce min_output_size, cap at max_clusters, compute Neff and drop low-Neff,
     then write ShallowMsa_###.a3m. Return a per-cluster dataframe.
     """
-    verbose = TRUE #  bool(int(args.verbose))
+    verbose = bool(int(args.verbose))
     st = StageTimer("Postprocess & write clusters", verbose)
 
     if not assigns:
