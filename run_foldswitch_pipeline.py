@@ -1007,7 +1007,7 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
         os.environ.setdefault("COLABFOLD_USE_LOCAL_MMSEQS", "0")
         os.environ.setdefault("COLABFOLD_USER_AGENT", "MsaCluster/0.1 or.zuk@mail.huji.ac.il")
         cmd = (
-            f"{shlex.quote(python_for_msa)} ./get_msa.py "
+            f"{shlex.quote(python_for_msa)} ./run_getMSA.py "
             f"{shlex.quote(seed_a3m)} {shlex.quote(out_dir)} --pair {shlex.quote(pair_id)}"
         )
         _run(cmd, "inline")
@@ -1023,14 +1023,14 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
     py  = shlex.quote(sys.executable)
     pid = shlex.quote(pair_id)
 
-    # ClusterMSA_moriah.py (new version) flags:
+    # run_ClusterMSA.py (new version) flags:
     # --a3m : input A3M
     # --keyword : output prefix (keeps your ShallowMsa_XXX.a3m naming)
     # -o : output directory
     # other defaults: Hamming on aligned columns, coarse EOM selection
     cmd = (
         f"bash -lc 'cd Pipeline/{pid} && "
-        f"{py} ../../ClusterMSA_moriah.py "
+        f"{py} ../../run_ClusterMSA.py "
         f"--keyword ShallowMsa "
         f"--a3m output_get_msa/DeepMsa.a3m "
         f"-o output_msa_cluster "
@@ -1070,7 +1070,7 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     # 2) Clusters (trimmed)
     # NOTE the leading space before --model is important.
     cmd = (
-        f"python3 ./runMSATrans.py "
+        f"python3 ./run_MSATrans.py "
         f"--input_msas {clus_dir_pairtrim} "
         f"-o {outdir} "
         f"--model msa_t --keyword clusters --clean matched"
@@ -1096,7 +1096,7 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
 
         # Empty keyword ⇒ output file will be 'msa_t__DeepMsa.npy'
         cmd_deep = (
-            f"python3 ./runMSATrans.py "
+            f"python3 ./run_MSATrans.py "
             f"--input_msas {deep_alias} "
             f"-o {outdir} "
             f"--model msa_t --keyword '' --clean matched"
@@ -1187,8 +1187,8 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
 def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     """
     - Sample up to N seqs per cluster -> tmp_esmfold/*.fasta
-    - Call ESMFoldHF once:
-        python3 ./ESMFoldHF.py -input <PAIR_ID> --model {esm2|esm3} --device {auto|cuda|cpu}
+    - Call run_ESMFoldHF once:
+        python3 ./run_ESMFoldHF.py -input <PAIR_ID> --model {esm2|esm3} --device {auto|cuda|cpu}
     - Outputs: Pipeline/<pair>/output_esm_fold/<esm_model>/
     """
     if _is_windows():
@@ -1215,7 +1215,7 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     # Always require a GPU when device is 'cuda' or 'auto'
     require_cuda_flag = " --require_cuda" if device in ("cuda", "auto") else ""
 
-    cmd = (f"python3 ./ESMFoldHF.py -input {pair_id} "
+    cmd = (f"python3 ./run_ESMFoldHF.py -input {pair_id} "
         f"--model {args.esm_model} --device {device}{require_cuda_flag}")
 
     try:

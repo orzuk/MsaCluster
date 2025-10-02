@@ -9,12 +9,12 @@
 OUTPUT_NAME_DIR="$1"
 
 
-.  /sci/labs/orzuk/steveabecassis/steve_venv/bin/activate
-
+# .  /sci/labs/orzuk/steveabecassis/steve_venv/bin/activate
+source /sci/labs/orzuk/orzuk/my-python-venv/bin/activate
 
 mkdir -p ./Pipeline/$OUTPUT_NAME_DIR/output_esm_fold
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
-python3  ./ESMFoldHF.py  -input $OUTPUT_NAME_DIR
+python3  ./run_ESMFoldHF.py  -input $OUTPUT_NAME_DIR
 
 
 
