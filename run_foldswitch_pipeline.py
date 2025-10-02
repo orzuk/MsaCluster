@@ -1019,7 +1019,7 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
         print(f"[cache] WARN get_msa: {e}")
 
 
-def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
+def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
     py  = shlex.quote(sys.executable)
     pid = shlex.quote(pair_id)
 
@@ -1041,7 +1041,7 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
         f"--keyword ShallowMsa "
         f"--a3m output_get_msa/DeepMsa.a3m "
         f"-o output_msa_cluster "
-        f"--cluster_alg {alg} {tree_arg} "
+        f"--cluster_alg {shlex.quote(alg)} {tree_arg} "
         f"--max_clusters {int(args.cluster_max_clusters)} "
         f"--min_output_size {int(args.cluster_min_output_size)} "
         f"--min_neff {int(args.cluster_min_neff)} "
@@ -1067,7 +1067,6 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     Always run MSA-Transformer on the *trimmed* MSAs for both clusters and deep,
     but save the deep output as 'msa_t__DeepMsa.npy' (no 'pairtrim' in the name).
     """
-    import os, shutil
 
     outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
@@ -1618,7 +1617,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     # 3) cluster_msa
     if force_all or not _has_cluster_msas(pair_id):
         print("[pipeline] cluster_msa → running")
-        task_cluster_msa(pair_id, "inline")
+        task_cluster_msa(pair_id, "inline", args)
     else:
         print("[pipeline] cluster_msa → skip (clusters exist)")
 
@@ -1965,7 +1964,7 @@ def main():
             task_get_msa(pair_id, args.run_job_mode)
 
         elif args.run_mode == "cluster_msa":
-            task_cluster_msa(pair_id, args.run_job_mode)
+            task_cluster_msa(pair_id, args.run_job_mode, args)
 
         elif args.run_mode == "run_cmap_msa_transformer":
             task_cmap_msa_transformer(pair_id, args.run_job_mode)
