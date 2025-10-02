@@ -128,7 +128,7 @@ PAIR_TARGET_DIRS = {
     "colabfold":          ["output_get_msa", "tmp_msa_files"],
 
     # MSA clustering
-    "msa_clusters":       ["output_msa_cluster"],
+    "msa_clusters":       ["output_msa_cluster", "output_msa_cluster_pairtrim"],
     "cluster":            ["output_msa_cluster"],
     "Cluster":            ["output_msa_cluster"],
     "clusters":           ["output_msa_cluster"],
