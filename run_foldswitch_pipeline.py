@@ -1035,13 +1035,16 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
         f"--a3m output_get_msa/DeepMsa.a3m "
         f"-o output_msa_cluster "
         f"--metric hamming "
-        f"--cluster_selection eom "
+        f"--cluster_selection leaf "
         f"--min_cluster_size 200 "
+        f"--min_samples 40 "
         f"--min_output_size 200 "
         f"--max_clusters 100 "
-        f"--min_neff 100 "
-        f"--neff_id_thresh 0.8'"
+        f"--min_neff 50 "
+        f"--neff_id_thresh 0.8 "
+        f"--frac_gaps_cutoff 0.7'"
     )
+
     _run(cmd, run_job_mode)
 
     # After clusters are written, add per-cluster Neff to cache
