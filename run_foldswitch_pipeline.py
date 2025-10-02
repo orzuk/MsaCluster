@@ -1018,36 +1018,44 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     except Exception as e:
         print(f"[cache] WARN get_msa: {e}")
 
+
 def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
-    # Use the *current* Python interpreter so the same venv is used downstream
     py  = shlex.quote(sys.executable)
     pid = shlex.quote(pair_id)
 
-    # run_ClusterMSA.py (new version) flags:
-    # --a3m : input A3M
-    # --keyword : output prefix (keeps your ShallowMsa_XXX.a3m naming)
-    # -o : output directory
-    # other defaults: Hamming on aligned columns, coarse EOM selection
+    alg = args.cluster_alg
+    # If tree mode and no explicit tree is provided, try a sensible default location
+    tree_arg = ""
+    if alg == "tree":
+        tree_path = args.cluster_tree_path
+        if not tree_path:
+            # common default:
+            cand = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
+            tree_path = cand if os.path.isfile(cand) else None
+        if tree_path:
+            tree_arg = f"--tree_path {shlex.quote(tree_path)}"
+
     cmd = (
         f"bash -lc 'cd Pipeline/{pid} && "
         f"{py} ../../run_ClusterMSA.py "
         f"--keyword ShallowMsa "
         f"--a3m output_get_msa/DeepMsa.a3m "
         f"-o output_msa_cluster "
-        f"--metric hamming "
-        f"--cluster_selection leaf "
-        f"--min_cluster_size 200 "
-        f"--min_samples 15 "
-        f"--min_output_size 200 "
-        f"--max_clusters 100 "
-        f"--min_neff 30 "
-        f"--neff_id_thresh 0.8 "
-        f"--frac_gaps_cutoff 0.7 '"
+        f"--cluster_alg {alg} {tree_arg} "
+        f"--max_clusters {int(args.cluster_max_clusters)} "
+        f"--min_output_size {int(args.cluster_min_output_size)} "
+        f"--min_neff {int(args.cluster_min_neff)} "
+        f"--neff_id_thresh {float(args.cluster_neff_id_thresh)} "
+        f"--frac_gaps_cutoff {float(args.cluster_frac_gaps_cutoff)} "
+        f"--sample_cap {int(args.cluster_sample_cap)} "
+        f"--sample_seed {int(args.cluster_sample_seed)} "
+        f"--min_cluster_size {int(args.hdbscan_min_cluster_size)} "
+        f"--min_samples {shlex.quote(str(args.hdbscan_min_samples))} "
+        f"--cluster_selection {shlex.quote(args.hdbscan_cluster_selection)} "
+        f"'"
     )
-
     _run(cmd, run_job_mode)
 
-    # After clusters are written, add per-cluster Neff to cache
     try:
         _update_basic_cache(pair_id)
     except Exception as e:
@@ -1735,6 +1743,29 @@ def main():
 
     p.add_argument("--run_job_mode", default="inline", choices=["inline", "sbatch"])
 
+    # --- Clustering options ---
+    p.add_argument("--cluster_alg", default="ahc", choices=["hdbscan", "tree", "ahc"],
+                   help="Clustering algorithm for --run_mode cluster_msa (default: ahc).")
+    p.add_argument("--cluster_tree_path", default=None,
+                   help="Path to Newick tree for --cluster_alg tree (e.g., Pipeline/<pair>/output_phytree/DeepMsa_tree.nwk).")
+    p.add_argument("--cluster_max_clusters", type=int, default=100,
+                   help="Maximum clusters to output (default: 100).")
+    p.add_argument("--cluster_min_output_size", type=int, default=200,
+                   help="Minimum sequences per cluster (default: 200).")
+    p.add_argument("--cluster_min_neff", type=int, default=50,
+                   help="Minimum Neff per cluster (default: 50).")
+    p.add_argument("--cluster_neff_id_thresh", type=float, default=0.8,
+                   help="Identity threshold for Neff (default: 0.8).")
+    p.add_argument("--cluster_frac_gaps_cutoff", type=float, default=0.6,
+                   help="Drop sequences with ≥ this gap fraction before clustering (default: 0.6).")
+    p.add_argument("--cluster_sample_cap", type=int, default=10000,
+                   help="Sample size used by HDBSCAN/AHC (default: 12000).")
+    p.add_argument("--cluster_sample_seed", type=int, default=12345,
+                   help="Random seed for sampling (default: 12345).")
+    # HDBSCAN knobs (kept for compatibility)
+    p.add_argument("--hdbscan_min_cluster_size", type=int, default=200)
+    p.add_argument("--hdbscan_min_samples", default="auto")
+    p.add_argument("--hdbscan_cluster_selection", choices=["eom", "leaf"], default="eom")
 
     # AlphaFold options
     p.add_argument("--allow_inline_af", action="store_true",
