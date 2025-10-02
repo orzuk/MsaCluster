@@ -1757,7 +1757,7 @@ def main():
                    help="Identity threshold for Neff (default: 0.8).")
     p.add_argument("--cluster_frac_gaps_cutoff", type=float, default=0.6,
                    help="Drop sequences with ≥ this gap fraction before clustering (default: 0.6).")
-    p.add_argument("--cluster_sample_cap", type=int, default=10000,
+    p.add_argument("--cluster_sample_cap", type=int, default=5000,
                    help="Sample size used by HDBSCAN/AHC (default: 12000).")
     p.add_argument("--cluster_sample_seed", type=int, default=12345,
                    help="Random seed for sampling (default: 12345).")
