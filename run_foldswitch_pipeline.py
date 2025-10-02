@@ -1040,9 +1040,9 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
         f"--min_samples 15 "
         f"--min_output_size 200 "
         f"--max_clusters 100 "
-        f"--min_neff 50 "
+        f"--min_neff 30 "
         f"--neff_id_thresh 0.8 "
-        f"--frac_gaps_cutoff 0.5 '"
+        f"--frac_gaps_cutoff 0.7 '"
     )
 
     _run(cmd, run_job_mode)
