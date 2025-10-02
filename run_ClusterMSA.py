@@ -552,6 +552,11 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--ahc_distance_threshold", type=float, default=0.0,
                    help="If --ahc_cut_mode=distance, cut at this distance threshold (0.0 means auto-guess).")
 
+    # verbosity printing
+    p.add_argument("--verbose", type=int, default=1, help="1=log stages (default), 0=quiet")
+    p.add_argument("--progress_every", type=int, default=500,
+                   help="Print progress every N rows while building distances.")
+
     return p
 
 def main():
