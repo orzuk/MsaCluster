@@ -1042,7 +1042,7 @@ def task_cluster_msa(pair_id: str, run_job_mode: str) -> None:
         f"--max_clusters 100 "
         f"--min_neff 50 "
         f"--neff_id_thresh 0.8 "
-        f"--frac_gaps_cutoff 0.5'"
+        f"--frac_gaps_cutoff 0.5"
         f"--cluster_selection_epsilon 0.02'"
     )
 
