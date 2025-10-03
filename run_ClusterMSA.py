@@ -208,9 +208,10 @@ def cluster_hdbscan(headers: List[str], seqs: List[str], args) -> Dict[int, List
 # ------------- AHC path (sample → linkage → medoids → assign all) -------------
 def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int]]:
     rng = np.random.default_rng(int(args.sample_seed))
-    verbose = bool(int(args.verbose))
-    every = max(1, int(args.progress_every))
+    verbose = bool(int(getattr(args, "verbose", 1)))
+    every = max(1, int(getattr(args, "progress_every", 500)))
 
+    # --- Gap filter ---
     st = StageTimer("AHC: gap-filter", verbose)
     L = len(seqs[0])
     keep = np.array([(s.count('-') / L) < args.frac_gaps_cutoff for s in seqs], dtype=bool)
@@ -221,7 +222,7 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
     n = len(seqs)
     st.done(f"kept={n}, L={L}, cutoff={args.frac_gaps_cutoff}")
 
-    # sampling
+    # --- Sample ---
     st = StageTimer("AHC: sampling", verbose)
     if n > args.sample_cap:
         sample_idx = np.array(sorted(rng.choice(n, size=int(args.sample_cap), replace=False)))
@@ -230,111 +231,121 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
         sample_idx = np.arange(n)
         _log(f"[sample] using all {n} sequences", verbose)
     m = len(sample_idx)
-    # quick memory estimate for dense sample distances
-    bytes_est = m*m*8
-    _log(f"[estimate] distance matrix {m}x{m} ~ {bytes_est/1e9:.2f} GB (float64)", verbose)
+    _log(f"[estimate] condensed vector size ~ {m*(m-1)//2:,} distances", verbose)
     st.done()
 
-    # distance on sample with progress
-    st = StageTimer("AHC: compute distance matrix (gap-aware Hamming)", verbose)
-    D = np.zeros((m, m), dtype=float)
-    for ii, i in enumerate(sample_idx):
-        si = seqs[i]
-        if verbose and (ii % every == 0 or ii == m-1):
-            _log(f"[dist] row {ii+1}/{m}", verbose)
-        for jj, j in enumerate(sample_idx[ii+1:], start=ii+1):
-            D[ii, jj] = D[jj, ii] = gapaware_hamming(si, seqs[j])
-    st.done()
-
-    # Build condensed distances directly for speed/memory
-    cond = np.empty(m * (m - 1) // 2, dtype=float)
+    # --- Distances (condensed only; single pass) ---
+    st = StageTimer("AHC: compute condensed distances (gap-aware Hamming)", verbose)
+    cond = np.empty(m*(m-1)//2, dtype=float)
     k = 0
-    for ii in range(m - 1):
+    for ii in range(m-1):
         si = seqs[sample_idx[ii]]
-        if bool(int(args.verbose)) and (ii % max(1, int(args.progress_every)) == 0 or ii == m - 2):
-            print(f"[{_now()}] [dist] row {ii + 1}/{m}", flush=True)
-        for jj in range(ii + 1, m):
+        if verbose and (ii % every == 0 or ii == m-2):
+            _log(f"[dist] row {ii+1}/{m}", verbose)
+        for jj in range(ii+1, m):
             sj = seqs[sample_idx[jj]]
-            cond[k] = gapaware_hamming(si, sj);
-            k += 1
+            cond[k] = gapaware_hamming(si, sj); k += 1
+    st.done()
 
-    # Linkage
-    method = args.ahc_linkage
+    # --- Linkage (fastcluster if available) ---
+    method = getattr(args, "ahc_linkage", "average")
+    st = StageTimer(f"AHC: linkage ({method})", verbose)
     if '_HAS_FASTCLUSTER' in globals() and _HAS_FASTCLUSTER:
         Z = _fastcluster.linkage_vector(cond, method=method)
     else:
         from scipy.cluster.hierarchy import linkage
         Z = linkage(cond, method=method)
+    st.done()
 
-    # Flat cut
+    # --- Flat cut ---
     from scipy.cluster.hierarchy import fcluster
-    if args.ahc_cut_mode == "maxclust":
+    st = StageTimer("AHC: flat cut", verbose)
+    cut_mode = getattr(args, "ahc_cut_mode", "maxclust")
+    if cut_mode == "maxclust":
         lab = fcluster(Z, t=int(args.max_clusters), criterion="maxclust") - 1
     else:
-        thr = float(args.ahc_distance_threshold)
+        thr = float(getattr(args, "ahc_distance_threshold", 0.0))
         if thr <= 0.0:
-            # auto-guess a conservative threshold from the condensed dist quantiles
             q50, q75 = np.quantile(cond, [0.50, 0.75])
             thr = (q50 + q75) / 2.0
-            print(f"[AHC] Using auto distance threshold thr={thr:.4f}", flush=True)
+            _log(f"[AHC] Using auto distance threshold thr={thr:.4f}", verbose)
         lab = fcluster(Z, t=thr, criterion="distance") - 1
     C = int(lab.max() + 1) if m > 0 else 0
-    print(f"[cut] clusters on sample: {C}", flush=True)
+    _log(f"[cut] clusters on sample: {C}", verbose)
+    st.done()
 
-    # Merge small clusters to satisfy min_output_size on the sample
+    # --- Helper: medoid of sample-rows (no full D needed) ---
+    def medoid_of_rows(rows: np.ndarray) -> int:
+        if len(rows) == 1:
+            return int(rows[0])
+        r = rows.tolist()
+        R = len(r)
+        Msum = np.zeros(R, dtype=float)
+        for a in range(R-1):
+            sa = seqs[sample_idx[r[a]]]
+            for b in range(a+1, R):
+                sb = seqs[sample_idx[r[b]]]
+                d = gapaware_hamming(sa, sb)
+                Msum[a] += d
+                Msum[b] += d
+        return int(r[int(np.argmin(Msum))])
+
+    # --- OPTIONAL: limited, small↔small-first merge on sample ---
     min_size = int(args.min_output_size)
-    st = StageTimer(f"AHC: merge sample clusters < {min_size}", verbose)
+    if int(getattr(args, "ahc_merge_on_sample", 0)) == 1:
+        st = StageTimer(f"AHC: merge sample clusters < {min_size} (small↔small first)", verbose)
+        active = list(range(C))
+        # precompute per-cluster member rows
+        rows_per = {c: np.where(lab == c)[0] for c in active}
+        size_of  = {c: int(rows_per[c].size)  for c in active}
+        # compute medoids for all
+        med_row  = {c: medoid_of_rows(rows_per[c]) for c in active}
 
-    def cluster_rows(c): return np.where(lab == c)[0]
+        def dist_c(c1, c2):
+            s1 = seqs[sample_idx[med_row[c1]]]
+            s2 = seqs[sample_idx[med_row[c2]]]
+            return gapaware_hamming(s1, s2)
 
-    def recompute_medoids(active: List[int]) -> Dict[int, int]:
-        med = {}
-        for c in active:
-            rows = cluster_rows(c)
-            if len(rows) == 0: continue
-            med[c] = medoid_index(D, rows)
-        return med
+        changed = True
+        while changed:
+            changed = False
+            small = [c for c in active if size_of[c] < min_size]
+            if not small: break
 
-    active = list(range(C))
-    med = recompute_medoids(active)
+            # try to merge each small into the nearest SMALL neighbor first
+            for c in small:
+                # skip if already promoted
+                if size_of.get(c, 0) >= min_size or c not in active:
+                    continue
+                small_others = [x for x in small if x != c and x in active]
+                cand_list = small_others if small_others else [x for x in active if x != c]
+                if not cand_list:
+                    continue
+                cn = min(cand_list, key=lambda t: dist_c(c, t))
 
-    def nearest_cluster(c_from, cands):
-        dmin, cbest = 1e9, None
-        for c in cands:
-            if c == c_from: continue
-            d = D[med[c_from], med[c]]
-            if d < dmin:
-                dmin, cbest = d, c
-        return cbest
+                # merge labels: cn absorbs c
+                lab[lab == c] = cn
+                # update bookkeeping
+                rows_per[cn] = np.where(lab == cn)[0]
+                size_of[cn]  = int(rows_per[cn].size)
+                med_row[cn]  = medoid_of_rows(rows_per[cn])
+                # remove c
+                active.remove(c)
+                rows_per.pop(c, None); size_of.pop(c, None); med_row.pop(c, None)
+                changed = True
+        _log(f"[merge] sample clusters after merge: {len(active)}", verbose)
+        st.done()
+    else:
+        _log("[AHC] Skipping sample-merge; will enforce size after assignment.", verbose)
 
-    merges = 0
-    while True:
-        sizes = {c: int((lab == c).sum()) for c in active}
-        small = [c for c in active if sizes[c] < min_size]
-        if not small:
-            break
-        for c in small:
-            other = [x for x in active if x != c]
-            if not other:
-                continue
-            cn = nearest_cluster(c, other)
-            if cn is None:
-                continue
-            lab[lab == c] = cn
-            active.remove(c)
-            med = recompute_medoids(active)
-            merges += 1
-        _log(f"[merge] merges so far: {merges}, active clusters: {len(active)}", verbose)
-    st.done(f"final sample clusters={len(active)}")
-
-    # medoids of final sample clusters
+    # --- Medoids of final sample clusters ---
     st = StageTimer("AHC: medoids (sample clusters)", verbose)
     uniq = sorted(set(int(x) for x in lab))
-    med_sample_rows = [medoid_index(D, np.where(lab == c)[0]) for c in uniq]
+    med_sample_rows = [medoid_of_rows(np.where(lab == c)[0]) for c in uniq]
     medoid_global_idx = sample_idx[np.array(med_sample_rows, dtype=int)]
     st.done(f"centers={len(medoid_global_idx)}")
 
-    # assign all sequences
+    # --- Assign ALL sequences to nearest medoid ---
     st = StageTimer("AHC: assign all sequences to nearest medoid", verbose)
     centers = [seqs[i] for i in medoid_global_idx]
     assigns: Dict[int, List[int]] = {ci: [] for ci in range(len(centers))}
@@ -350,7 +361,7 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
         assigns[cmin].append(i)
     st.done()
 
-    # normalize cluster ids
+    # --- Normalize cluster ids ---
     mapping = {old: new for new, old in enumerate(sorted(assigns.keys()))}
     assigns = {mapping[k]: v for k, v in assigns.items()}
     _log(f"[assign] produced {len(assigns)} clusters (pre output filters)", verbose)
@@ -483,12 +494,15 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
     if not assigns:
         print("[WARN] All clusters were < min_output_size; nothing to write.")
         return pd.DataFrame(columns=["cluster","n","neff","path","kept"])
+    st = StageTimer("Dropped tiny clusters", verbose)
 
     # cap at max_clusters (largest first)
     maxC = int(args.max_clusters)
     order = sorted(assigns.keys(), key=lambda c: len(assigns[c]), reverse=True)
     keep_keys = order[:maxC]
     assigns = {i_new: assigns[k] for i_new, k in enumerate(keep_keys)}
+
+    st = StageTimer("Capped max clusters", verbose)
 
     # write & compute Neff
     ensure_dir(args.outdir)
@@ -501,6 +515,9 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
         write_fasta(ids, ss, str(outp))
         rows.append(dict(cluster=c, n=len(idxs), neff=neff, path=str(outp), kept=True))
 
+    st = StageTimer("Computed Neff for clusters", verbose)
+
+
     df = pd.DataFrame(rows).sort_values(["kept","n"], ascending=[False, False])
 
     # drop low-Neff if requested
@@ -512,6 +529,9 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
             for p in df.loc[~df["kept"], "path"].tolist():
                 try: os.remove(p)
                 except Exception: pass
+
+    st = StageTimer("Dropped low-Neff", verbose)
+
 
     # write metadata CSV
     meta_path = Path(args.outdir, f"{args.keyword}_clusters.csv")
@@ -545,12 +565,15 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="HDBSCAN cluster selection method; eom merges leaves to stable parents.")
 
     # AHC knobs
-    p.add_argument("--ahc_linkage", choices=["average", "complete", "single"], default="average",
-                   help="Linkage for AHC (default: average).")
-    p.add_argument("--ahc_cut_mode", choices=["maxclust", "distance"], default="maxclust",
+    p.add_argument("--ahc_linkage", choices=["average", "complete", "single"], default="complete",
+                   help="Linkage for AHC (default: complete).")
+    p.add_argument("--ahc_cut_mode", choices=["maxclust", "distance"], default="distance",
                    help="How to cut the AHC tree: maxclust or distance.")
-    p.add_argument("--ahc_distance_threshold", type=float, default=0.0,
+    p.add_argument("--ahc_distance_threshold", type=float, default=0.2,
                    help="If --ahc_cut_mode=distance, cut at this distance threshold (0.0 means auto-guess).")
+    p.add_argument("--ahc_merge_on_sample", type=int, default=0,
+                   help="If 1, merge sample clusters smaller than min_output_size before assigning all sequences. "
+                        "Default 0 (skip merge on sample; enforce size after assignment).")
 
     # verbosity printing
     p.add_argument("--verbose", type=int, default=1, help="1=log stages (default), 0=quiet")
