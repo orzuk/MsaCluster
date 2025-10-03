@@ -195,7 +195,6 @@ def trim_a3m_for_pair_union(a3m_path, out_path, s1_tokens, s2_tokens, max_len=No
     # Uniformly downsample if too long
     if max_len is not None and len(keep) > max_len:
         # indices via linspace (inclusive of endpoints), floor to ints
-        import numpy as np
         idx = np.floor(np.linspace(0, len(keep) - 1, max_len)).astype(int).tolist()
 
         # deduplicate while preserving order
@@ -235,8 +234,6 @@ def trim_a3m_for_pair_union(a3m_path, out_path, s1_tokens, s2_tokens, max_len=No
         pass
 
     return keep
-
-
 
 def clean_a3m_line(s: str) -> str:
     """
@@ -410,29 +407,6 @@ def write_a3m(names, aligned_seqs, outfile='seed.a3m'):
             f.write(f">{nm}\n{seq}\n")
 
 
-def trim_a3m_for_pair_union(a3m_path, out_path, s1_tokens, s2_tokens, max_len=None):
-    lines = Path(a3m_path).read_text().splitlines(True)
-    headers, seqs = parse_a3m_records(lines, strip_inserts=True)
-
-    i1 = find_row_idx(headers, s1_tokens, default=0)
-    i2 = find_row_idx(headers, s2_tokens, default=1 if len(headers) > 1 else 0)
-    s1_aln, s2_aln = seqs[i1], seqs[i2]
-
-    keep = keep_mask_union(s1_aln, s2_aln)
-    # Optional: uniformly thin if still too long (e.g., for MSA-Transformer L<=1024)
-    if max_len is not None and len(keep) > max_len:
-        step = len(keep) / float(max_len)
-        keep = [keep[int(k*step)] for k in range(max_len)]
-
-    trimmed = project_columns(seqs, keep)
-    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    write_a3m(headers, trimmed, out_path)
-
-    # save the mapping for downstream plotting
-    (Path(out_path).with_suffix(".colmap.txt")).write_text(",".join(map(str, keep)))
-    return keep
-
-
 # === A3M parsing/projection helpers ===
 def parse_a3m_records(a3m_lines, strip_inserts=True):
     """Return (headers, seqs) lists; optionally strip lowercase inserts."""
@@ -535,21 +509,52 @@ def build_pair_seed_a3m_from_pair(
     return out_a3m
 
 
-# --- add at end (or a utilities section) in msa_utils.py ---
+
+
+# Helper function for neff computation
+def _pid_row_from_char_array(A: np.ndarray, B_block: np.ndarray) -> np.ndarray:
+    """Vectorized pairwise PID(i, block) ignoring gaps. A: (L,), B_block: (B,L)."""
+    both = (A != '-') & (B_block != '-')
+    denom = both.sum(axis=1)
+    matches = (A == B_block) & both
+    num = matches.sum(axis=1)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        pid = np.where(denom > 0, num / denom, 0.0)
+    return pid
+
 def compute_neff_from_a3m(
     a3m_path: str,
     id_thresh: float = 0.8,
     use_query_columns: bool = True,
     strip_inserts: bool = True,
+    mode: str = "exact",                 # "exact" or "approx"
+    approx_n_hashes: int = 3,            # number of random signatures for blocking
+    approx_sig_len: int = 32,            # columns per signature
+    approx_bucket_cap: int = 5000,       # if a bucket would generate >cap pairs, sample within
+    approx_seed: int = 12345,            # RNG seed for reproducibility
+    approx_subsample_cap: int = 0,       # optional: if n > cap, subsample sequences first (0=disabled)
 ) -> int:
     """
     Compute N_effective (Meff) from an A3M file.
-    - Identity computed over positions with residues in BOTH sequences.
-    - If use_query_columns=True, restrict columns to those where the query has residues
-      (uses the FIRST row as the query).
+
+    Definition (pairwise, redundancy-aware):
+      Neff = sum_i 1 / (|{ j : PID(i,j) >= id_thresh }|)
+
+    - Identity is computed over positions with residues in BOTH sequences (ignoring gaps).
+    - If use_query_columns=True, restrict columns to those where the query (first row) has residues.
     - strip_inserts=True removes lowercase insert chars before computing identity.
-    Returns an integer Meff (rounded) for convenience.
+
+    Modes:
+      * mode="exact":   O(n^2) pairwise (blockwise) – precise.
+      * mode="approx":  LSH-ish blocking with several random signatures; do exact PID only within
+                        candidate buckets. Non-candidate pairs are treated as below-threshold.
+                        This usually **overestimates** Neff slightly (missed neighbors → larger weights).
+      You can optionally reduce n first with approx_subsample_cap to bound runtime.
+
+    Returns:
+      Integer Meff (rounded) for convenience.
     """
+    # --- load & clean ---
     with open(a3m_path, "r") as f:
         lines = f.readlines()
 
@@ -558,41 +563,122 @@ def compute_neff_from_a3m(
     if n == 0:
         return 0
 
-    # Optional: restrict to query (row 0) residue columns only
+    # Optional column restriction to query residue positions
     if use_query_columns:
         keep_idx = keep_mask_query(seqs[0])
         seqs = project_columns(seqs, keep_idx)
 
-    # Convert to numpy char arrays for vectorized ops
-    arr = np.array([list(s) for s in seqs], dtype='<U1')  # shape (n, L)
+    # Convert to char array
+    arr = np.array([list(s) for s in seqs], dtype='<U1')  # (n, L)
+    n, L = arr.shape
 
-    # Pairwise identity ignoring gaps: pid(i,j) = matches/(L - gaps)
-    # We'll do it blockwise to avoid huge memory when n is large.
-    def pid_row(i, block):
+    # Optional top-level subsample to bound runtime
+    if mode == "approx" and approx_subsample_cap and n > approx_subsample_cap:
+        rng = np.random.default_rng(approx_seed)
+        pick = rng.choice(n, size=approx_subsample_cap, replace=False)
+        arr = arr[pick]
+        n = arr.shape[0]
+
+    if mode == "exact":
+        # ---- EXACT: O(n^2) blockwise PID counts ----
+        counts = np.zeros(n, dtype=np.int32)
+        block = 1024
+        for i in range(n):
+            Ai = arr[i]
+            c = 0
+            for start in range(0, n, block):
+                end = min(n, start + block)
+                pid = _pid_row_from_char_array(Ai, arr[start:end])
+                c += int((pid >= id_thresh).sum())
+            counts[i] = max(c, 1)
+        weights = 1.0 / counts.astype(np.float64)
+        return int(round(weights.sum()))
+
+    # ---- APPROX: blocking with multiple random signatures ----
+    rng = np.random.default_rng(approx_seed)
+
+    # choose candidate columns for signatures – prefer non-gap heavy columns
+    # (simple heuristic: any column; feel free to bias toward columns with fewer gaps)
+    if L == 0:
+        return 0
+    col_pool = np.arange(L)
+
+    # For each signature k, pick sig_len columns and make a key for each sequence.
+    # A bucket holds indices that match exactly on those columns.
+    # Union candidates across multiple signatures reduces false negatives.
+    sig_cols: List[np.ndarray] = [
+        rng.choice(col_pool, size=min(approx_sig_len, L), replace=False)
+        for _ in range(max(1, approx_n_hashes))
+    ]
+
+    # Build buckets for each signature
+    buckets: List[dict] = []
+    for cols in sig_cols:
+        # Build keys: join chars at the signature columns; keep '-' as-is.
+        # Use bytes to avoid Python string overhead.
+        key_arr = arr[:, cols]  # (n, s)
+        # Turn into bytes keys
+        keys = [bytes("".join(row.tolist()), "ascii", "ignore") for row in key_arr]
+        table: dict = {}
+        for idx, k in enumerate(keys):
+            table.setdefault(k, []).append(idx)
+        buckets.append(table)
+
+    # Candidate pairs: we will count neighbors only inside each bucket (with exact PID),
+    # and we update counts symmetrically. To avoid O(n^2), we skip massive buckets.
+    counts = np.ones(n, dtype=np.int32)  # count self to avoid div-zero
+
+    # helper: exact PID between i and a block of j's
+    def pid_row_i_to_js(i: int, js: List[int]) -> np.ndarray:
         A = arr[i]
-        B = arr[block]                  # shape (B, L)
-        both = (A != '-') & (B != '-')
-        denom = both.sum(axis=1)        # per-row
-        matches = (A == B) & both
-        num = matches.sum(axis=1)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            pid = np.where(denom > 0, num / denom, 0.0)
-        return pid
+        B = arr[np.array(js, dtype=int)]
+        return _pid_row_from_char_array(A, B)
 
-    # Compute neighborhood counts: c_i = |{ j : pid(i,j) >= id_thresh }|
-    counts = np.zeros(n, dtype=np.int32)
-    block_size = 1024
-    for i in range(n):
-        c = 0
-        for start in range(0, n, block_size):
-            end = min(n, start + block_size)
-            pid = pid_row(i, slice(start, end))
-            c += int((pid >= id_thresh).sum())
-        counts[i] = max(c, 1)  # avoid div by zero
+    # Iterate buckets
+    for bidx, table in enumerate(buckets):
+        for key, members in table.items():
+            m = len(members)
+            if m <= 1:
+                continue
+            # If the bucket is huge, subsample pairs inside to cap runtime
+            if approx_bucket_cap > 0 and (m * (m - 1) // 2) > approx_bucket_cap:
+                # sample up to approx_bucket_cap pairs uniformly without replacement
+                # Generate a small random set of centers and their neighbors
+                kcent = max(1, int(np.sqrt(approx_bucket_cap)))
+                centers = rng.choice(m, size=min(kcent, m), replace=False)
+                for ci in centers:
+                    i = members[ci]
+                    # sample neighbors for i
+                    neigh = rng.choice(m, size=min(kcent, m-1), replace=False)
+                    # ensure no self
+                    neigh = [members[j] for j in neigh if members[j] != i]
+                    if not neigh:
+                        continue
+                    pid = pid_row_i_to_js(i, neigh)
+                    for jj, j in enumerate(neigh):
+                        if pid[jj] >= id_thresh:
+                            counts[i] += 1
+                            counts[j] += 1  # symmetric update
+                continue
 
+            # Small/medium bucket: evaluate all pairs inside
+            # Do it by rows to keep vectorization benefits
+            members_sorted = sorted(members)
+            for idx_pos, i in enumerate(members_sorted):
+                js = members_sorted[idx_pos + 1 :]
+                if not js:
+                    continue
+                pid = pid_row_i_to_js(i, js)
+                hit_mask = (pid >= id_thresh)
+                if np.any(hit_mask):
+                    hits = [js[k] for k, h in enumerate(hit_mask) if h]
+                    counts[i] += len(hits)
+                    for j in hits:
+                        counts[j] += 1
+
+    # Ensure minimum 1
+    counts = np.maximum(counts, 1)
     weights = 1.0 / counts.astype(np.float64)
     meff = weights.sum()
-
-    # Return rounded Meff as an int (common in AF/MSA pipelines), but keep the
-    # true float if you prefer; your call.
     return int(round(meff))
+

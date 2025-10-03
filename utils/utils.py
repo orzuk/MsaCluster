@@ -1,6 +1,6 @@
 from config import *
 import argparse
-import sys, warnings
+import sys, warnings, re
 
 if any(a in ("-h", "--help") for a in sys.argv) or ("--run_mode" in sys.argv and "help" in sys.argv):
     warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^Bio\.pairwise2$")
@@ -78,28 +78,13 @@ def pdb_to_contact_map(
     cmap = (dist_mat <= float(cutoff_A)).astype(np.uint8)
     return cmap, dist_mat
 
+_NUM = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
 
-class ChainSelect(Select):
-    def __init__(self, chain_letter):
-        self.chain_letter = chain_letter
-
-    def accept_chain(self, chain):
-        return chain.id == self.chain_letter
-
-
-def create_chain_pdb_files(fold_1,fold_2, pdb_file_path, chain_pdb_file_path):
-    chain_fold_1 = fold_1[-1]
-    chain_fold_2 = fold_2[-1]
-    # Load the original PDB file
-    parser = PDBParser()
-    structure_fold1 = parser.get_structure('PDB_structure' , f'{pdb_file_path}/{fold_1[:-1]}.pdb')
-    structure_fold2 = parser.get_structure('PDB_structure' , f'{pdb_file_path}/{fold_2[:-1]}.pdb')
-    io = PDBIO()
-    # Set the structure for saving and use ChainSelect to filter the chain
-    io.set_structure(structure_fold1)
-    io.save(f'./{chain_pdb_file_path}/{fold_1}.pdb', ChainSelect(chain_fold_1))
-    io.set_structure(structure_fold2)
-    io.save(f'./{chain_pdb_file_path}/{fold_2}.pdb', ChainSelect(chain_fold_2))
+def numify(s):
+    if pd.isna(s): return np.nan
+    if isinstance(s, (int, float)): return float(s)
+    m = _NUM.match(str(s))
+    return float(m.group(1)) if m else np.nan
 
 
 # Extract the protein sequence from a pdb file
@@ -212,6 +197,13 @@ def list_protein_pairs(parsed: bool = True, sort_result: bool = True) -> (
 
 def ensure_dir(p: str) -> None:
     Path(p).mkdir(parents=True, exist_ok=True)
+
+def pick(colnames):
+    """Return the first present column as numeric series, else NaNs."""
+    for c in colnames:
+        if c in d.columns:
+            return pd.to_numeric(d[c], errors="coerce")
+    return pd.Series(index=d.index, dtype=float)
 
 
 # For pipeline running:

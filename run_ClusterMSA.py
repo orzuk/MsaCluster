@@ -26,6 +26,11 @@ import numpy as np
 import pandas as pd
 import time
 
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+
+from utils.utils import ensure_dir
+
 # ------------- tiny I/O utils (compatible with your project) -------------
 def _now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
@@ -47,9 +52,6 @@ def _log(msg: str, verbose=True):
     if verbose:
         print(f"[{_now()}] {msg}", flush=True)
 
-
-def ensure_dir(p: str) -> None:
-    Path(p).mkdir(parents=True, exist_ok=True)
 
 def load_a3m(a3m_path: str) -> Tuple[List[str], List[str]]:
     """Read A3M, strip lowercase inserts, keep '-' and uppercase AA."""
@@ -79,10 +81,6 @@ def load_a3m(a3m_path: str) -> Tuple[List[str], List[str]]:
         raise ValueError("Not all sequences have the same aligned length after cleaning.")
     return H, S
 
-def write_fasta(ids: List[str], seqs: List[str], out_path: str) -> None:
-    with open(out_path, "w") as f:
-        for h, s in zip(ids, seqs):
-            f.write(f">{h}\n{s}\n")
 
 # ------------- distances / medoids / Neff -------------------
 def gapaware_pid(a: str, b: str) -> float:

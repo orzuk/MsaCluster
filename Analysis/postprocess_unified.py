@@ -11,7 +11,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_TRANS_MODEL_FILE
-from utils.utils import list_protein_pairs, pair_str_to_tuple
+from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
 from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
@@ -511,11 +511,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         else:
             d["_tag"] = None
 
-        def pick(cands):
-            for c in cands:
-                if c in d.columns:
-                    return pd.to_numeric(d[c], errors="coerce")
-            return pd.Series(index=d.index, dtype=float)
         ms = pd.DataFrame({
             "RE-MSAT-COM": pick(["common_mcc","common_f1","common_recall","common_jaccard"]),
             "RE-MSAT1":    pick(["uniq1_mcc","t1_mcc","t1_f1","t1_recall","uniq1_recall","t1_jaccard"]),

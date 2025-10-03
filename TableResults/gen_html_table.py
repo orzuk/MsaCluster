@@ -56,6 +56,18 @@ def _ensure_unified_csvs(force_rerun: bool = False):
         except Exception as e:
             print(f"[gen_html] WARN: could not build unified CSVs automatically: {e}")
 
+NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
+
+def numeric_part(cell) -> str:
+    if pd.isna(cell):
+        return ""
+    s = str(cell).strip()
+    if s == "-":
+        return ""
+    m = NUM_RE.match(s)
+    return m.group(1) if m else s
+
+
 def write_global_tables(*, force_rerun_csv: bool = False,
                         fade_min_clusters: int = 2) -> tuple[str, str]:
     """
@@ -170,15 +182,6 @@ def gen_html_from_summary_table(
     ) + "</tr>"
 
     # For sorting: pull numeric prefix from strings like "3219 (18)" -> "3219"
-    num_re = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
-    def numeric_part(cell) -> str:
-        if pd.isna(cell):
-            return ""
-        s = str(cell).strip()
-        if s == "-":
-            return ""
-        m = num_re.match(s)
-        return m.group(1) if m else s
 
     # --- Rows. When building rows: choose row class based on cluster count ---
     rows = []
@@ -321,15 +324,6 @@ def gen_html_from_cluster_detailed_table(
         for i, col in enumerate(df.columns)
     ) + "</tr>"
 
-    num_re = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
-    def numeric_part(cell) -> str:
-        if pd.isna(cell):
-            return ""
-        s = str(cell).strip()
-        if s == "-":
-            return ""
-        m = num_re.match(s)
-        return m.group(1) if m else s
 
     rows = []
     for _, r in df.iterrows():

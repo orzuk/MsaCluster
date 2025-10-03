@@ -8,16 +8,12 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from utils.cache_utils import get_from_pair_cache
+from utils.utils import numify
 from config import PIPELINE_DIR, DOCS_DIR
 
 SUMMARY_CSV  = os.path.join(DOCS_DIR, "summary_final_res_all_pairs_df.csv")
 DETAIL_CSV   = os.path.join(DOCS_DIR, "detailed_final_res_all_pairs_df.csv")
 
-_NUM = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
-def _numify(x):
-    if pd.isna(x): return np.nan
-    if isinstance(x, (int,float)): return float(x)
-    m = _NUM.match(str(x));  return float(m.group(1)) if m else np.nan
 
 def _pair_id_from_dir(d: str) -> str:
     return os.path.basename(d.rstrip("/"))
@@ -33,28 +29,28 @@ def _read_pair_tables(pair_dir: str) -> dict:
     # ---- AF2/AF3 Deep & Best Cluster ----
     if os.path.isfile(f_af):
         df = pd.read_csv(f_af)
-        def _pick(model, kind, fold):
+        def _pick_mkf(model, kind, fold):
             sub = df[(df["model"]==model) & (df["kind"]==kind) & (df["fold"]==fold)]
-            return _numify(sub["TM"].iloc[0]) if not sub.empty else np.nan
-        out["AF2Deep_TM1"]   = _pick("AF2", "Deep",      1)
-        out["AF2Deep_TM2"]   = _pick("AF2", "Deep",      2)
-        out["AF3Deep_TM1"]   = _pick("AF3", "Deep",      1)
-        out["AF3Deep_TM2"]   = _pick("AF3", "Deep",      2)
-        out["AF2Clust_TM1"]  = _pick("AF2", "ClustBest", 1)
-        out["AF2Clust_TM2"]  = _pick("AF2", "ClustBest", 2)
-        out["AF3Clust_TM1"]  = _pick("AF3", "ClustBest", 1)
-        out["AF3Clust_TM2"]  = _pick("AF3", "ClustBest", 2)
+            return numify(sub["TM"].iloc[0]) if not sub.empty else np.nan
+        out["AF2Deep_TM1"]   = _pick_mkf("AF2", "Deep",      1)
+        out["AF2Deep_TM2"]   = _pick_mkf("AF2", "Deep",      2)
+        out["AF3Deep_TM1"]   = _pick_mkf("AF3", "Deep",      1)
+        out["AF3Deep_TM2"]   = _pick_mkf("AF3", "Deep",      2)
+        out["AF2Clust_TM1"]  = _pick_mkf("AF2", "ClustBest", 1)
+        out["AF2Clust_TM2"]  = _pick_mkf("AF2", "ClustBest", 2)
+        out["AF3Clust_TM1"]  = _pick_mkf("AF3", "ClustBest", 1)
+        out["AF3Clust_TM2"]  = _pick_mkf("AF3", "ClustBest", 2)
 
     # ---- ESM2/ESM3 Best Prediction ----
     if os.path.isfile(f_esm):
         df = pd.read_csv(f_esm)
-        def _pick(model, fold):
+        def _pick_mf(model, fold):
             sub = df[(df["model"]==model) & (df["fold"]==fold)]
-            return _numify(sub["TM"].iloc[0]) if not sub.empty else np.nan
-        out["ESM2_TM1"] = _pick("ESM2", 1)
-        out["ESM2_TM2"] = _pick("ESM2", 2)
-        out["ESM3_TM1"] = _pick("ESM3", 1)
-        out["ESM3_TM2"] = _pick("ESM3", 2)
+            return numify(sub["TM"].iloc[0]) if not sub.empty else np.nan
+        out["ESM2_TM1"] = _pick_mf("ESM2", 1)
+        out["ESM2_TM2"] = _pick_mf("ESM2", 2)
+        out["ESM3_TM1"] = _pick_mf("ESM3", 1)
+        out["ESM3_TM2"] = _pick_mf("ESM3", 2)
 
     # ---- true vs true TM from cache ----
     tm_true = get_from_pair_cache(pair_dir, "true_true_tm")
@@ -69,12 +65,12 @@ def _read_pair_tables(pair_dir: str) -> dict:
             a, b = pair_id.split("_", 1)  # "2qqjA", "4qdsA"
             # Match by basename (without .pdb)
             names = {os.path.splitext(os.path.basename(x))[0]: x for x in dfe["PDB_ID"].tolist()}
-            def _pick(token):
+            def _pick_token(token):
                 p = f"{token}.pdb"
                 row = dfe[dfe["PDB_ID"] == p]
-                return _numify(row["Delta_G"].iloc[0]) if not row.empty else np.nan
-            out["ΔG1"] = _pick(a)
-            out["ΔG2"] = _pick(b)
+                return numify(row["Delta_G"].iloc[0]) if not row.empty else np.nan
+            out["ΔG1"] = _pick_token(a)
+            out["ΔG2"] = _pick_token(b)
     except Exception:
         pass
 

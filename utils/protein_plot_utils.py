@@ -238,13 +238,6 @@ def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.Da
     else:
         return out
 
-    def pick(colnames):
-        """Return the first present column as numeric series, else NaNs."""
-        for c in colnames:
-            if c in d.columns:
-                return pd.to_numeric(d[c], errors="coerce")
-        return pd.Series(index=d.index, dtype=float)
-
     cols = {
         "RE-MSAT-COM": pick(["common_mcc", "common_f1", "common_recall", "common_jaccard"]),
         "RE-MSAT1":    pick(["uniq1_mcc", "t1_mcc", "t1_f1", "t1_recall", "uniq1_recall", "t1_jaccard"]),
@@ -1791,15 +1784,6 @@ def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
         ESM3_TM1="ESM3_TM1", ESM3_TM2="ESM3_TM2",
     )
 
-    # Some cells might be like "0.64 (ShallowMsa_012)"; extract the numeric prefix.
-    import re as _re
-    _num = _re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
-
-    def _numify(s):
-        if pd.isna(s): return np.nan
-        if isinstance(s, (int, float)): return float(s)
-        m = _num.match(str(s))
-        return float(m.group(1)) if m else np.nan
 
     def _split_pair_id(pid: str):
         # e.g., "2qqjA_4qdsA" -> ("2qqjA","4qdsA")
@@ -1819,7 +1803,7 @@ def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
             if c not in sub.columns:
                 print(f"[skip] Missing column {c} for {title}")
                 return
-            sub[c] = sub[c].map(_numify)
+            sub[c] = sub[c].map(numify)
         sub = sub.dropna(subset=[x1_col, x2_col, y1_col, y2_col])
         if sub.empty:
             print(f"[info] No rows for plot: {title}")
