@@ -602,9 +602,9 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="HDBSCAN cluster selection method; eom merges leaves to stable parents.")
 
     # AHC knobs
-    p.add_argument("--ahc_linkage", choices=["average", "complete", "single"], default="complete",
+    p.add_argument("--ahc_linkage", choices=["average", "complete", "single"], default="average",
                    help="Linkage for AHC (default: complete).")
-    p.add_argument("--ahc_cut_mode", choices=["maxclust", "distance"], default="distance",
+    p.add_argument("--ahc_cut_mode", choices=["maxclust", "distance"], default="maxclust",
                    help="How to cut the AHC tree: maxclust or distance.")
     p.add_argument("--ahc_distance_threshold", type=float, default=0.2,
                    help="If --ahc_cut_mode=distance, cut at this distance threshold (0.0 means auto-guess).")
