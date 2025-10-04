@@ -327,7 +327,11 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
 
         # one medoid per cluster (on sample rows)
         centers_seq = {}
+        i = 0
         for c in active:
+            if i % 10 == 0:
+                _log(f"[compute-kxk-cluster-centers] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
+            i += 1
             r = rows_per[c]
             centers_seq[c] = seqs[sample_idx[medoid_of_rows(r)]]
 
@@ -464,25 +468,62 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
 # ------------- TREE path (monophyletic flat cut with size/Neff constraints) -------------
 def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[int]]:
     """
-    Cut an input phylogenetic tree (Newick) into monophyletic clusters such that
-    each cluster has >= min_output_size; small clades are merged upward.
-    If tree is missing, abort with a clear message.
+    Cut an input phylogenetic tree (Newick) into monophyletic clusters (subtrees),
+    meeting size/branch constraints and respecting long internal branches.
     """
     if not args.tree_path or not os.path.isfile(args.tree_path):
-        raise SystemExit("Missing tree! Run tree reconstruction first to use --cluster_alg tree, or choose hdbscan/ahc.")
-    from Bio import Phylo
+        raise SystemExit("Missing tree! Run with --tree_path *.nwk or choose --cluster_alg ahc/hdbscan.")
 
+    from Bio import Phylo
+    verbose = bool(int(getattr(args, "verbose", 1)))
+
+    # Map header names -> sequence indices (normalize like your code)
     name_to_idx: Dict[str, int] = {}
     for i, h in enumerate(headers):
-        # normalize like your code: take first token before space; strip trailing /start-end
         tok = (h or "").split()[0]
         tok = tok.split("/")[0] if "/" in tok else tok
         name_to_idx[tok] = i
 
     tree = Phylo.read(args.tree_path, "newick")
 
-    # get leaves and map to indices; we only keep leaves that we can map
-    def clade_indices(clade) -> List[int]:
+    min_size = int(args.min_output_size)
+    max_clusters = int(args.max_clusters)
+    min_tot_br = float(getattr(args, "tree_min_total_branch", 0.0))
+    max_size = int(getattr(args, "tree_max_size", 0))
+    max_tot_br = float(getattr(args, "tree_max_total_branch", 0.0))
+    split_min_ib = float(getattr(args, "tree_split_min_internal_branch", 0.0))
+
+    # --- Relative size cap: aim for at least K clusters (K = tree_min_num_clusters) ---
+    K = int(getattr(args, "tree_min_num_clusters", 5))
+    # Count how many leaves in the tree map to our headers
+    all_idx = []
+    for leaf in tree.get_terminals():
+        nm = (leaf.name or "").strip().strip("'").strip('"')
+        nm = nm.split()[0]
+        nm = nm.split("/")[0] if "/" in nm else nm
+        if nm in name_to_idx:
+            all_idx.append(name_to_idx[nm])
+    total_n = len(all_idx)
+
+    # Desired relative max size by total size / K
+    rel_max_size = (total_n // K) if K > 0 else 0
+
+    # Final effective max size rule:
+    # - If rel_max_size < min_size, disable the size cap (so we can return <K clusters if needed)
+    # - Otherwise use rel_max_size; if an absolute max_size>0 exists, take the MIN of the two.
+    if rel_max_size > 0 and rel_max_size >= min_size:
+        eff_max_size = rel_max_size
+        if max_size > 0:
+            eff_max_size = min(eff_max_size, max_size)
+    else:
+        eff_max_size = 0  # disable size cap (allows fewer clusters than K when data is small)
+
+    if verbose:
+        print(f"[TREE] total_n={total_n}, K={K}, rel_max_size={rel_max_size}, "
+              f"min_output_size={min_size}, eff_max_size={eff_max_size} (0=disabled)")
+
+    # Utilities to compute subtree data fast in a single postorder pass
+    def leaf_idxs(clade) -> List[int]:
         ids = []
         for leaf in clade.get_terminals():
             nm = (leaf.name or "").strip().strip("'").strip('"')
@@ -492,76 +533,116 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
                 ids.append(name_to_idx[nm])
         return ids
 
-    # postorder traversal; accept clade if it is big enough; else merge upward
     accepted: List[List[int]] = []
 
-    def walk(clade) -> List[int]:
+    def postorder(clade):
+        """
+        Returns: (idxs, total_branch_len, longest_internal_branch_here, accepted_here)
+        total_branch_len counts all descendant branch lengths within this clade.
+        longest_internal_branch_here = max(branch_length of immediate children)
+        """
         if clade.is_terminal():
-            idxs = clade_indices(clade)
-            return idxs
-        child_sets = [walk(c) for c in clade.clades]
-        merged = [i for sub in child_sets for i in sub]
-        # accept this clade if large enough; else bubble up
-        if len(merged) >= int(args.min_output_size):
+            idxs = leaf_idxs(clade)
+            # terminal: no internal branches beneath
+            return idxs, 0.0, 0.0
+
+        child_data = [postorder(c) for c in clade.clades]
+        child_idxs = [x[0] for x in child_data]
+        child_totL = [x[1] for x in child_data]
+        # immediate children branch lengths (internal edges emanating from this node)
+        child_bl = [(c.branch_length or 0.0) for c in clade.clades]
+
+        merged = []
+        for ids in child_idxs:
+            merged.extend(ids)
+
+        total_len = float(sum(child_totL) + sum(child_bl))
+        longest_ib = float(max(child_bl) if child_bl else 0.0)
+
+        # Decide acceptance at this node
+        n = len(merged)
+        too_large = (eff_max_size > 0 and n > eff_max_size) or (max_tot_br > 0.0 and total_len > max_tot_br)
+        has_min_branch = (min_tot_br <= 0.0) or (total_len >= min_tot_br)
+
+        # Prefer splitting at long internal branches when both children are sizeable
+        children_big_enough = all(len(ids) >= min_size for ids in child_idxs) if child_idxs else False
+        prefer_split = (split_min_ib > 0.0 and longest_ib >= split_min_ib and children_big_enough)
+
+        if (n >= min_size) and has_min_branch and not too_large and not prefer_split:
+            # accept this clade and do not let ancestors reuse these leaves
             accepted.append(merged)
-            return []  # consumed here
+            return [], 0.0, 0.0  # consumed here
         else:
-            return merged
+            # bubble up leaves; children may still be accepted lower down
+            return merged, total_len, longest_ib
 
-    leftover = walk(tree.root)
-    if leftover:
-        # attach leftover to the largest accepted cluster (or create one)
-        if accepted:
+    leftovers, _, _ = postorder(tree.root)
+
+    # If anything bubbled to the top, attach to the largest accepted cluster or keep as its own if big enough
+    if leftovers:
+        if len(leftovers) >= min_size and (min_tot_br <= 0.0):
+            accepted.append(leftovers)
+        elif accepted:
             j = int(np.argmax([len(x) for x in accepted]))
-            accepted[j].extend(leftover)
+            accepted[j].extend(leftovers)
         else:
-            accepted = [leftover]
+            accepted = [leftovers]
 
-    # if too many clusters, keep largest max_clusters and merge the rest into nearest by medoid
-    maxC = int(args.max_clusters)
-    if len(accepted) > maxC:
-        # compute medoid for each, then greedily merge smallest into nearest until count == maxC
-        # build a quick distance cache
-        Dfull = None  # build lazily when needed
-        def dist(i, j):
-            nonlocal Dfull
-            if Dfull is None:
-                n = len(seqs)
-                Dfull = np.zeros((n, n), dtype=float)
-                for a in range(n-1):
-                    sa = seqs[a]
-                    for b in range(a+1, n):
-                        Dfull[a, b] = Dfull[b, a] = gapaware_hamming(sa, seqs[b])
-            return Dfull[i, j]
+    # If too many clusters, merge smallest into nearest by representative PID,
+    # but avoid merging clusters whose MRCA separation is "long" (>= split_min_ib)
+    if len(accepted) > max_clusters:
+        # Build representatives (medoids) to define "nearest"
+        rng = np.random.default_rng(int(getattr(args, "sample_seed", 0)))
+        REP_CAP = 200
 
-        def medoid_of(idxs):
-            M = np.zeros((len(idxs), len(idxs)))
-            for ii, gi in enumerate(idxs):
-                for jj, gj in enumerate(idxs[ii+1:], start=ii+1):
-                    M[ii, jj] = M[jj, ii] = dist(gi, gj)
-            s = M.sum(axis=1)
-            return idxs[int(np.argmin(s))]
+        def rep_of(idxs: List[int]) -> str:
+            if len(idxs) <= 1:
+                return seqs[idxs[0]] if idxs else ""
+            ids = idxs if len(idxs) <= REP_CAP else rng.choice(idxs, size=REP_CAP, replace=False).tolist()
+            S = [seqs[i] for i in ids]
+            m = len(S)
+            if m == 1: return S[0]
+            Msum = np.zeros(m, dtype=float)
+            for a in range(m - 1):
+                sa = S[a]
+                for b in range(a + 1, m):
+                    d = gapaware_hamming(sa, S[b])
+                    Msum[a] += d; Msum[b] += d
+            return S[int(np.argmin(Msum))]
 
-        groups = [list(sorted(set(g))) for g in accepted]
-        while len(groups) > maxC:
-            sizes = [len(g) for g in groups]
+        reps = [rep_of(g) for g in accepted]
+
+        # Helper to decide if two groups' MRCA edge is "long"; we approximate by rep distance via tree threshold
+        def allow_merge(i, j):
+            # If you want to be very strict, forbid merges when split_min_ib > 0
+            return not (split_min_ib > 0.0)
+
+        while len(accepted) > max_clusters:
+            sizes = [len(g) for g in accepted]
             smin = int(np.argmin(sizes))
-            m_from = medoid_of(groups[smin])
-            # find nearest target
+            # find nearest target by rep PID
             best, bestd = None, 1e9
-            for k, g in enumerate(groups):
+            for k in range(len(accepted)):
                 if k == smin: continue
-                m_to = medoid_of(g)
-                d = dist(m_from, m_to)
-                if d < bestd:
+                d = gapaware_hamming(reps[smin], reps[k])
+                if d < bestd and allow_merge(smin, k):
                     best, bestd = k, d
-            groups[best].extend(groups[smin])
-            groups.pop(smin)
-        accepted = groups
+            if best is None:
+                break
+            accepted[best].extend(accepted[smin])
+            if verbose:
+                print(f"[TREE] accept clade: n={n}, total_branch={total_len:.2f}, longest_ib={longest_ib:.2f}")
 
-    # return membership dict over local indices
+            # refresh rep of the target
+            reps[best] = rep_of(accepted[best])
+            # remove source
+            accepted.pop(smin); reps.pop(smin)
+
     assigns: Dict[int, List[int]] = {i: sorted(set(g)) for i, g in enumerate(accepted)}
+    if verbose:
+        print(f"[TREE] accepted {len(assigns)} clusters (pre post-process).")
     return assigns
+
 
 # ------------- common post-processing and writing ------------------------
 def postprocess_and_write(assigns: Dict[int, List[int]],
@@ -749,8 +830,23 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--keyword", default="ShallowMsa", help="Prefix for cluster files.")
     p.add_argument("--cluster_alg", choices=["hdbscan","tree","ahc"], default="ahc",
                    help="Clustering algorithm to use (default: ahc).")
-    p.add_argument("--tree_path", default=None, help="Newick file for --cluster_alg tree.")
+
     p.add_argument("--metric", choices=["hamming"], default="hamming", help="Distance metric (currently: hamming).")
+
+    # Tree clustering knobs
+    p.add_argument("--tree_path", default=None, help="Newick file for --cluster_alg tree.")
+    p.add_argument("--tree_min_total_branch", type=float, default=0.0,
+                               help = "Require subtree total branch length >= this to accept a clade (0=ignore).")
+    p.add_argument("--tree_max_size", type=int, default=0,
+                               help = "If >0, clades with size > this are considered too large and will be split (0=ignore).")
+    p.add_argument("--tree_max_total_branch", type=float, default=0.0,
+                               help = "If >0, clades with total branch length > this are considered too large and will be split (0=ignore).")
+    p.add_argument("--tree_split_min_internal_branch", type=float, default=0.0,
+                               help = "Prefer splitting a clade if the longest internal branch at this node is >= threshold (0=ignore).")
+    p.add_argument("--tree_min_num_clusters", type=int, default=5,
+                   help="Target minimum number of clusters; sets a relative max cluster size total_n / K. "
+                        "If that would give clusters smaller than min_output_size, size cap is disabled.")
+
     # shared thresholds
     p.add_argument("--max_clusters", type=int, default=100, help="Maximum clusters to output.")
     p.add_argument("--min_output_size", type=int, default=200, help="Minimum sequences per cluster (size filter).")
