@@ -337,6 +337,7 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
         K = len(act_list)
         CD = np.zeros((K, K), dtype=float)
         for i, c1 in enumerate(act_list):
+            _log(f"[compute-kxk-distance-metric] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
             s1 = centers_seq[c1]
             for j in range(i + 1, K):
                 c2 = act_list[j]
@@ -585,7 +586,7 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
     if not assigns:
         print("[WARN] All clusters were < min_output_size; nothing to write.")
         return pd.DataFrame(columns=["cluster","n","neff","path","kept"])
-    st = StageTimer("Dropped tiny clusters", verbose)
+    st = StageTimer("[drop] Dropped tiny clusters, kept " + f"{len(assigns)} clusters", verbose)
 
     # cap at max_clusters (largest first)
     maxC = int(args.max_clusters)
@@ -703,12 +704,12 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="Linkage for AHC (default: average).")
     p.add_argument("--ahc_cut_mode", choices=["maxclust", "distance"], default="maxclust",
                    help="How to cut the AHC tree: maxclust or distance.")
-    p.add_argument("--ahc_distance_threshold", type=float, default=0.2,
+    p.add_argument("--ahc_distance_threshold", type=float, default=0.18,
                    help="If --ahc_cut_mode=distance, cut at this distance threshold (0.0 means auto-guess).")
     p.add_argument("--ahc_merge_on_sample", type=int, default=0,
                    help="If 1, merge sample clusters smaller than min_output_size before assigning all sequences. "
                         "Default 0 (skip merge on sample; enforce size after assignment).")
-    p.add_argument("--ahc_min_center_size", type=int, default=20,
+    p.add_argument("--ahc_min_center_size", type=int, default=10,
                    help="On the sample, clusters smaller than this are merged into nearest before assignment (0=disable).")
     p.add_argument("--ahc_center_cap", type=int, default=500,
                    help="Cap the number of centers used for assignment by merging the smallest clusters until this count (0=disable).")
