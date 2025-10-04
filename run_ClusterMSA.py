@@ -53,6 +53,27 @@ def _log(msg: str, verbose=True):
         print(f"[{_now()}] {msg}", flush=True)
 
 
+def _cond_idx(i,j,m):
+    if i==j: return None
+    if i>j: i,j = j,i
+    # SciPy condensed index
+    return i*m - i*(i+1)//2 + (j - i - 1)
+
+def medoid_of_rows_condensed(rows: np.ndarray, m: int, cond_vec: np.ndarray) -> int:
+    r = rows.astype(int)
+    R = len(r)
+    if R == 1: return int(r[0])
+    sums = np.zeros(R, dtype=float)
+    for a in range(R-1):
+        ia = r[a]
+        for b in range(a+1, R):
+            ib = r[b]
+            k = _cond_idx(ia, ib, m)
+            d = cond_vec[k]
+            sums[a] += d; sums[b] += d
+    return int(r[int(np.argmin(sums))])
+
+
 def load_a3m(a3m_path: str) -> Tuple[List[str], List[str]]:
     """Read A3M, strip lowercase inserts, keep '-' and uppercase AA."""
     H, S = [], []
@@ -122,6 +143,8 @@ def compute_neff(seqs: List[str], id_thresh: float = 0.8) -> float:
                 cnt += 1
         weights[i] = 1.0 / float(cnt)
     return float(weights.sum())
+
+
 
 # ------------- HDBSCAN path (reuse your existing behavior) -------------
 def cluster_hdbscan(headers: List[str], seqs: List[str], args) -> Dict[int, List[int]]:
@@ -293,30 +316,59 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
     rows_per = {c: rows_of(c) for c in active}
     size_of  = {c: int(rows_per[c].size) for c in active}
 
-    # --- (1) Remove *micro* centers before assignment ---
-    min_center = int(getattr(args, "ahc_min_center_size", 20))
+    # --- (1) Remove *micro* centers before assignment (fast O(K^2)) ---
+    min_center = int(getattr(args, "ahc_min_center_size", 0))
     if min_center > 0:
-        st = StageTimer(f"AHC: merge sample clusters < {min_center} (pre-assign)", verbose)
-        changed = True
-        while changed:
-            changed = False
-            small = [c for c in active if size_of[c] < min_center]
-            if not small: break
-            # merge each small into nearest; prefer small↔small when possible
-            for c in small:
-                if c not in active: continue
-                others_small = [x for x in small if x != c and x in active]
-                cand = others_small if others_small else [x for x in active if x != c]
-                if not cand: continue
-                cn = min(cand, key=lambda t: dist_c(c, t))
-                lab[lab == c] = cn
-                # update bookkeeping
-                rows_per[cn] = rows_of(cn)
-                size_of[cn]  = int(rows_per[cn].size)
-                active.remove(c); rows_per.pop(c, None); size_of.pop(c, None)
-                changed = True
-        _log(f"[pre-assign] centers after micro-merge: {len(active)}", verbose)
+        st = StageTimer(f"AHC: merge sample clusters < {min_center} (pre-assign, cached)", verbose)
+        active = sorted(set(int(x) for x in lab))
+        rows_per = {c: np.where(lab == c)[0] for c in active}
+        size_of = {c: int(rows_per[c].size) for c in active}
+
+        # one medoid per cluster (on sample rows)
+        centers_seq = {}
+        for c in active:
+            r = rows_per[c]
+            centers_seq[c] = seqs[sample_idx[medoid_of_rows(r)]]
+
+        # KxK center distance matrix
+        act_list = list(active);
+        idx_of = {c: i for i, c in enumerate(act_list)}
+        K = len(act_list)
+        CD = np.zeros((K, K), dtype=float)
+        for i, c1 in enumerate(act_list):
+            s1 = centers_seq[c1]
+            for j in range(i + 1, K):
+                c2 = act_list[j]
+                CD[i, j] = CD[j, i] = gapaware_hamming(s1, centers_seq[c2])
+
+        # freeze clusters once they reach >= min_center
+        frozen = {c for c in active if size_of[c] >= min_center}
+        merges = 0
+        for c in list(active):
+            if c in frozen or size_of[c] >= min_center or c not in active:
+                continue
+            i = idx_of[c]
+            # prefer non-frozen targets first
+            cand = [x for x in active if x != c and x not in frozen]
+            if not cand:
+                cand = [x for x in active if x != c]
+            if not cand: continue
+            # nearest by cached distances
+            cn = min(cand, key=lambda t: CD[i, idx_of[t]])
+            lab[lab == c] = cn
+            size_of[cn] += size_of[c]
+            size_of[c] = 0
+            active.remove(c)
+            merges += 1
+            if size_of[cn] >= min_center:
+                frozen.add(cn)
+            if verbose and merges % 10 == 0:
+                _log(f"[pre-assign merge] merges={merges}; active={len(active)}", verbose)
+
+        _log(f"[pre-assign] centers after micro-merge: {len(active)} (merges={merges})", verbose)
         st.done()
+    else:
+        _log("[pre-assign] micro-merge disabled (ahc_min_center_size=0).", verbose)
 
     # --- (2) Optional: sample-merge to min_output_size (small↔small first) ---
     min_size = int(args.min_output_size)
@@ -378,7 +430,8 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
     # --- Final centers (medoids) on sample clusters ---
     st = StageTimer("AHC: medoids (sample clusters)", verbose)
     uniq = sorted(set(int(x) for x in lab))
-    med_sample_rows = [medoid_of_rows(rows_of(c)) for c in uniq]
+    med_sample_rows = [medoid_of_rows_condensed(np.where(lab == c)[0], m, cond) for c in uniq]
+
     medoid_global_idx = sample_idx[np.array(med_sample_rows, dtype=int)]
     st.done(f"centers={len(medoid_global_idx)}")
 
