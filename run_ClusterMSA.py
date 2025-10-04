@@ -682,9 +682,6 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--cluster_selection", choices=["eom","leaf"], default="eom",
                    help="HDBSCAN cluster selection method; eom merges leaves to stable parents.")
 
-    p.add_argument("--neff_id_thresh", type=float, default=0.8, help="Identity threshold for Neff.")
-    p.add_argument("--frac_gaps_cutoff", type=float, default=0.6, help="Drop seqs with gap fraction >= this.")
-
       # Neff mode & approximation knobs
     p.add_argument("--neff_mode", choices=["exact", "approx"], default="approx",
                                        help = "How to compute Neff per cluster (default: approx).")
@@ -703,7 +700,7 @@ def build_argparser() -> argparse.ArgumentParser:
 
 # AHC knobs
     p.add_argument("--ahc_linkage", choices=["average", "complete", "single"], default="average",
-                   help="Linkage for AHC (default: complete).")
+                   help="Linkage for AHC (default: average).")
     p.add_argument("--ahc_cut_mode", choices=["maxclust", "distance"], default="maxclust",
                    help="How to cut the AHC tree: maxclust or distance.")
     p.add_argument("--ahc_distance_threshold", type=float, default=0.2,
