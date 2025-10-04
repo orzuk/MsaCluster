@@ -30,7 +30,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from utils.utils import ensure_dir
-from utils.msa_utils import clean_a3m_line, read_a3m, write_a3m, write_fasta, compute_neff_from_a3m
+from utils.msa_utils import clean_a3m_line, write_fasta, compute_neff_from_a3m
 
 # ------------- tiny I/O utils (compatible with your project) -------------
 def _now() -> str:
