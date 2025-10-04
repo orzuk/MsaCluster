@@ -337,7 +337,8 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
         K = len(act_list)
         CD = np.zeros((K, K), dtype=float)
         for i, c1 in enumerate(act_list):
-            _log(f"[compute-kxk-distance-metric] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
+            if i%10 == 0:
+                _log(f"[compute-kxk-distance-metric] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
             s1 = centers_seq[c1]
             for j in range(i + 1, K):
                 c2 = act_list[j]
@@ -581,12 +582,94 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
         return meta
 
     # drop tiny clusters (< min_output_size)
+    # --- Greedy tiny-merge: repeatedly merge the smallest cluster (< min_size) into its nearest cluster ---
     min_size = int(args.min_output_size)
-    assigns = {c: ids for c, ids in assigns.items() if len(ids) >= min_size}
-    if not assigns:
-        print("[WARN] All clusters were < min_output_size; nothing to write.")
+
+    st = StageTimer("Greedy tiny-merge to reach min_output_size", verbose)
+
+    rng = np.random.default_rng(int(getattr(args, "sample_seed", 0)))
+    REP_CAP = 200  # compute cluster representative on at most this many sequences
+
+    # Work on a local dict we can mutate
+    clusters: Dict[int, List[int]] = {int(c): list(ids) for c, ids in assigns.items()}
+
+    # Cache a representative (approx medoid) sequence per cluster, recompute lazily when cluster changes
+    rep_cache: Dict[int, str] = {}
+
+    def _rep_seq(cluster_id: int) -> str:
+        """Return a representative sequence (approx medoid) for a cluster using up to REP_CAP members."""
+        if cluster_id in rep_cache:
+            return rep_cache[cluster_id]
+        ids = clusters[cluster_id]
+        if not ids:
+            # shouldn't happen, but guard
+            rep_cache[cluster_id] = ""
+            return rep_cache[cluster_id]
+        # sample up to REP_CAP members to make medoid affordable
+        if len(ids) > REP_CAP:
+            sample_ids = rng.choice(ids, size=REP_CAP, replace=False).tolist()
+        else:
+            sample_ids = ids
+        S = [seqs[i] for i in sample_ids]
+        m = len(S)
+        if m == 1:
+            rep_cache[cluster_id] = S[0]
+            return rep_cache[cluster_id]
+        # compute medoid on the sample
+        Msum = np.zeros(m, dtype=float)
+        for a in range(m - 1):
+            sa = S[a]
+            for b in range(a + 1, m):
+                d = gapaware_hamming(sa, S[b])
+                Msum[a] += d
+                Msum[b] += d
+        rep_cache[cluster_id] = S[int(np.argmin(Msum))]
+        return rep_cache[cluster_id]
+
+    def _closest_cluster(src: int) -> int:
+        """Return the id of the nearest cluster to 'src' by rep-to-rep distance (excluding src)."""
+        srep = _rep_seq(src)
+        best, bestd = None, 1e9
+        for c2 in clusters.keys():
+            if c2 == src:
+                continue
+            d = gapaware_hamming(srep, _rep_seq(c2))
+            if d < bestd:
+                best, bestd = c2, d
+        return int(best)
+
+    merges = 0
+    # Keep merging the smallest cluster if it's tiny
+    while True:
+        # pick the smallest by size
+        order_by_size = sorted(clusters.keys(), key=lambda c: len(clusters[c]))
+        if not order_by_size:
+            break
+        cmin = order_by_size[0]
+        nmin = len(clusters[cmin])
+        if nmin >= min_size:
+            break  # all clusters are now >= min_size
+        # merge cmin into its nearest neighbor (can be tiny or big)
+        target = _closest_cluster(cmin)
+        clusters[target].extend(clusters[cmin])
+        # invalidate reps for participants
+        rep_cache.pop(target, None)
+        rep_cache.pop(cmin, None)
+        del clusters[cmin]
+        merges += 1
+        if verbose and (merges % 5 == 0 or merges <= 3):
+            _log(f"[tiny-merge] merges={merges}; smallest_now={min(len(clusters[c]) for c in clusters)}; clusters={len(clusters)}", verbose)
+
+    st.done(f"merges={merges}; clusters_now={len(clusters)}")
+
+    # If everything was tiny and merged to nothing (shouldn't happen), guard:
+    if not clusters:
+        print("[WARN] All clusters vanished during tiny-merge; nothing to write.")
         return pd.DataFrame(columns=["cluster","n","neff","path","kept"])
-    st = StageTimer("[drop] Dropped tiny clusters, kept " + f"{len(assigns)} clusters", verbose)
+
+    # Reindex cluster ids to 0..C-1 for downstream
+    assigns = {i_new: clusters[k] for i_new, k in enumerate(sorted(clusters.keys()))}
+
 
     # cap at max_clusters (largest first)
     maxC = int(args.max_clusters)
