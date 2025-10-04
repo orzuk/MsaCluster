@@ -30,6 +30,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from utils.utils import ensure_dir
+from utils.msa_utils import clean_a3m_line, read_a3m, write_a3m, write_fasta, compute_neff_from_a3m
 
 # ------------- tiny I/O utils (compatible with your project) -------------
 def _now() -> str:
@@ -592,21 +593,48 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
     keep_keys = order[:maxC]
     assigns = {i_new: assigns[k] for i_new, k in enumerate(keep_keys)}
 
-    st = StageTimer("Capped max clusters", verbose)
 
-    # write & compute Neff
+    st = StageTimer("Capped max clusters", verbose)
+    st.done(f"kept_centers={len(assigns)}")
+
+    # Announce Neff phase
+    _log(f"Finished clustering (clusters={len(assigns)}). "
+         f"Computing Neff for clusters (mode={args.neff_mode}) ...", verbose)
+
+    # Write clusters & compute Neff (A3M → msa_utils.compute_neff_from_a3m)
     ensure_dir(args.outdir)
     rows = []
-    for c, idxs in assigns.items():
+    total = len(assigns)
+
+    for k, (c, idxs) in enumerate(assigns.items(), start=1):
         ids = [headers[i] for i in idxs]
-        ss  = [seqs[i]    for i in idxs]
-        neff = compute_neff(ss, id_thresh=float(args.neff_id_thresh))
+        ss = [seqs[i] for i in idxs]
         outp = Path(args.outdir, f"{args.keyword}_{c:03d}.a3m")
         write_fasta(ids, ss, str(outp))
+
+        _log(f"[neff] cluster {k}/{total} (size={len(idxs)}) using {args.neff_mode}", verbose)
+
+        if args.neff_mode == "approx":
+            neff = compute_neff_from_a3m(str(outp),
+                        id_thresh = float(args.neff_id_thresh),
+                        use_query_columns = bool(int(args.neff_use_query_columns)),
+                        strip_inserts = bool(int(args.neff_strip_inserts)),
+                        mode = "approx",
+                        approx_n_hashes = int(args.neff_approx_n_hashes),
+                        approx_sig_len = int(args.neff_approx_sig_len),
+                        approx_bucket_cap = int(args.neff_approx_bucket_cap),
+                        approx_seed = int(args.sample_seed),
+                        approx_subsample_cap = int(args.neff_approx_subsample_cap))
+        else:
+            neff = compute_neff_from_a3m(str(outp),
+                        id_thresh = float(args.neff_id_thresh),
+                        use_query_columns = bool(int(args.neff_use_query_columns)),
+                        strip_inserts = bool(int(args.neff_strip_inserts)),
+                        mode = "exact")
+
         rows.append(dict(cluster=c, n=len(idxs), neff=neff, path=str(outp), kept=True))
 
     st = StageTimer("Computed Neff for clusters", verbose)
-
 
     df = pd.DataFrame(rows).sort_values(["kept","n"], ascending=[False, False])
 
@@ -654,7 +682,26 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--cluster_selection", choices=["eom","leaf"], default="eom",
                    help="HDBSCAN cluster selection method; eom merges leaves to stable parents.")
 
-    # AHC knobs
+    p.add_argument("--neff_id_thresh", type=float, default=0.8, help="Identity threshold for Neff.")
+    p.add_argument("--frac_gaps_cutoff", type=float, default=0.6, help="Drop seqs with gap fraction >= this.")
+
+      # Neff mode & approximation knobs
+    p.add_argument("--neff_mode", choices=["exact", "approx"], default="approx",
+                                       help = "How to compute Neff per cluster (default: approx).")
+    p.add_argument("--neff_use_query_columns", type=int, default=1,
+                                       help = "1=restrict Neff PID to columns where the first row has residues (default: 1).")
+    p.add_argument("--neff_strip_inserts", type=int, default=1,
+                                       help = "1=strip lowercase inserts from A3M before Neff (default: 1).")
+    p.add_argument("--neff_approx_n_hashes", type=int, default=3,
+                                       help = "Approx mode: number of random signatures for blocking (default: 3).")
+    p.add_argument("--neff_approx_sig_len", type=int, default=32,
+                                       help = "Approx mode: signature length in columns (default: 32).")
+    p.add_argument("--neff_approx_bucket_cap", type=int, default=5000,
+                                       help = "Approx mode: if a bucket would induce >cap pairs, sample inside (default: 5000).")
+    p.add_argument("--neff_approx_subsample_cap", type=int, default=0,
+                                       help = "Approx mode: if n>cap, subsample sequences before blocking (0=disabled).")
+
+# AHC knobs
     p.add_argument("--ahc_linkage", choices=["average", "complete", "single"], default="average",
                    help="Linkage for AHC (default: complete).")
     p.add_argument("--ahc_cut_mode", choices=["maxclust", "distance"], default="maxclust",
