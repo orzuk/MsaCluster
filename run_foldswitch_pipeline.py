@@ -533,6 +533,8 @@ def _update_basic_cache(pair_id: str) -> None:
             cache["msa_depth"] = len(seqs)
             cache["msa_width"] = len(seqs[0])
 
+    st = StageTimer("Computing Neff for clusters for cache", verbose)
+
     # C) Per-cluster size & Neff
     clus_dir = pair_dir / "output_msa_cluster"
     clusters = {}
@@ -1076,6 +1078,8 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
     )
     _run(cmd, run_job_mode)
 
+    print(f"[cache] Finished clustering, updating cache")
+    # After ClusterMsa exists, update basic cache (depth/width/seq-id)
     try:
         _update_basic_cache(pair_id)
     except Exception as e:

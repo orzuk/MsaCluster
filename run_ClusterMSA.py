@@ -167,7 +167,6 @@ def cluster_hdbscan(headers: List[str], seqs: List[str], args) -> Dict[int, List
     if keep.sum() < 2:
         raise RuntimeError("Too few sequences after gap filtering.")
     idx_all = np.where(keep)[0]
-    headers = [headers[i] for i in idx_all]
     seqs    = [seqs[i]    for i in idx_all]
     n = len(seqs)
     print(f"[INFO] A3M: {len(idx_all)} kept after gap filter (cutoff={args.frac_gaps_cutoff}). Aln len={L}")
@@ -238,7 +237,6 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
     L = len(seqs[0])
     keep = np.array([(s.count('-') / L) < args.frac_gaps_cutoff for s in seqs], dtype=bool)
     if keep.sum() < 2: raise RuntimeError("Too few sequences after gap filtering.")
-    headers = [h for h,k in zip(headers, keep) if k]
     seqs    = [s for s,k in zip(seqs, keep) if k]
     n = len(seqs)
     st.done(f"kept={n}, L={L}, cutoff={args.frac_gaps_cutoff}")
@@ -602,6 +600,7 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
 
     rep_name_of = {i: any_leaf_name(g) for i, g in enumerate(accepted)}
 
+    print(f"[counts] pre-postprocess clusters: {len(accepted)}  total_assigned={sum(len(g) for g in accepted)}")
 
     # If too many clusters, merge smallest into nearest by representative PID,
     # but avoid merging clusters whose MRCA separation is "long" (>= split_min_ib)
@@ -662,6 +661,9 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
             reps[best] = rep_of(accepted[best])
             # remove source
             accepted.pop(smin); reps.pop(smin)
+
+    print(f"[counts] after merging clusters: {len(accepted)}  total_assigned={sum(len(g) for g in accepted)}")
+
 
     # ---- Assign sequences missing from the tree to nearest cluster representative ----
     if int(getattr(args, "tree_assign_missing", 1)) == 1:
@@ -884,6 +886,9 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
 
     st = StageTimer("Dropped low-Neff", verbose)
 
+    final_n = sum(len(idxs) for idxs in assigns.values())
+    print(f"[counts] final clusters: {len(assigns)}  total_assigned={final_n}")
+#    print(f"[counts] total_unassigned={n_after_gaps - final_n}")
 
     # write metadata CSV
     meta_path = Path(args.outdir, f"{args.keyword}_clusters.csv")
@@ -977,6 +982,23 @@ def main():
     args = build_argparser().parse_args()
 
     headers, seqs = load_a3m(args.a3m)
+
+    raw_n = len(headers)  # or however you store MSA lines
+    L = len(seqs[0]) if seqs else 0
+    print(f"[counts] MSA total={raw_n}  L={L}")
+
+    # Build gap filter (works for all algorithms)
+    frac = np.array([s.count('-') / len(s) for s in seqs], dtype=float)
+    keep_mask = (frac <= float(args.frac_gaps_cutoff))
+    if keep_mask.mean() < 1.0:
+        print(f"[filter] dropping {int((~keep_mask).sum())} sequences by gap fraction > {args.frac_gaps_cutoff}")
+    # Apply mask
+    headers = [h for h, k in zip(headers, keep_mask) if k]
+    seqs = [s for s, k in zip(seqs, keep_mask) if k]
+
+    # Suppose you build keep_mask by frac_gaps_cutoff (see next patch)
+    n_after_gaps = int(keep_mask.sum())
+    print(f"[counts] after gap-filter (frac_gaps <= {args.frac_gaps_cutoff}): {n_after_gaps} kept, {raw_n - n_after_gaps} dropped")
 
     if args.cluster_alg == "hdbscan":
         assigns = cluster_hdbscan(headers, seqs, args)
