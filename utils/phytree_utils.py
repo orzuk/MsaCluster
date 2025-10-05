@@ -72,63 +72,67 @@ def _stage(name: str):
         print(f"[tree] {now()} <<< {name} done in {dt:.1f}s", flush=True)
 
 
-
-
-
-def _condensed_hamming_from_seqs(seqs, block_rows=512, step_cols=2048):
+def _condensed_hamming_from_seqs(seqs, block_j=1024, step_cols=2048):
     """
-    Build a condensed Hamming distance vector for equal-length aligned strings.
+    Build a condensed Hamming distance vector (upper triangle, i<j) for equal-length aligned strings.
 
     seqs: list[str] with identical length (post A3M cleaning)
     Returns: np.ndarray, shape = (n*(n-1)//2,), float64, distances in [0,1]
     """
     import numpy as np
 
+    n = len(seqs)
+    if n < 2:
+        return np.zeros(0, dtype=np.float64)
+
     L = len(seqs[0])
-    # Build a small LUT only for actually observed characters
+    # Build a tiny LUT only for actually observed characters (fast, compact)
     chars = sorted({c for s in seqs for c in s})
-    lut = {c: i for i, c in enumerate(chars)}  # typically 20–21 symbols with '-'
+    lut = {c: i for i, c in enumerate(chars)}  # typically 21 symbols including '-'
 
     # Encode to uint8 matrix (n, L)
-    A = np.empty((len(seqs), L), dtype=np.uint8)
+    A = np.empty((n, L), dtype=np.uint8)
     for i, s in enumerate(seqs):
         A[i, :] = np.fromiter((lut[c] for c in s), dtype=np.uint8, count=L)
 
-    n = A.shape[0]
+    # Condensed length
     m = n * (n - 1) // 2
     out = np.empty(m, dtype=np.float64)
-    k = 0
 
-    # Block over rows; within blocks, accumulate mismatches over columns in steps
-    for i0 in range(0, n, block_rows):
-        i1 = min(n, i0 + block_rows)
-        Ai = A[i0:i1]  # (B, L)
-        for j0 in range(i0 + 1, n, block_rows):
-            j1 = min(n, j0 + block_rows)
-            Aj = A[j0:j1]  # (B2, L)
+    # Precompute row offsets into the condensed vector:
+    # offset(i) = number of elements before row i = sum_{r=0}^{i-1} (n-1-r) = i*(2n - i - 1)/2
+    # Then index(i,j) = offset(i) + (j - i - 1)
+    # We'll write per-i row to contiguous slices starting at offset(i).
+    for i in range(n - 1):
+        # Starting write position in condensed for this i
+        offset_i = i * (2 * n - i - 1) // 2  # integer arithmetic
+        write_pos = offset_i
+
+        # Compare row i against blocks of rows j in (i+1..n-1)
+        Ai = A[i:i+1]  # shape (1, L)
+        for j0 in range(i + 1, n, block_j):
+            j1 = min(n, j0 + block_j)
+            Aj = A[j0:j1]  # shape (B2, L)
 
             # Accumulate mismatches across columns in manageable chunks
-            B, B2 = Ai.shape[0], Aj.shape[0]
             acc = None
             for c0 in range(0, L, step_cols):
                 c1 = min(L, c0 + step_cols)
-                # (B,1,cols) vs (1,B2,cols) -> (B,B2,cols) -> sum over cols
+                # (1,1,cols) vs (1,B2,cols) via broadcasting -> (1,B2,cols) -> sum over cols -> (1,B2)
                 neq = (Ai[:, None, c0:c1] != Aj[None, :, c0:c1]).sum(axis=2, dtype=np.int32)
                 acc = neq if acc is None else (acc + neq)
 
-            # Write this block into the condensed vector
-            # Each row bi contributes distances to rows j0..j1-1
-            for bi in range(B):
-                out[k:k + B2] = acc[bi]
-                k += B2
+            B2 = j1 - j0
+            # acc shape is (1, B2); squeeze to (B2,)
+            out[write_pos:write_pos + B2] = acc[0]
+            write_pos += B2
 
-    out /= float(L)  # normalize like Bio 'identity' (mismatch fraction)
+    # Normalize to mismatch fraction (Bio 'identity' distance)
+    out /= float(L)
     return out
 
 
 # --- helpers for stratified sampling (place once in phytree_utils.py) ---
-
-
 
 def _norm_id(header: str) -> str:
     """
