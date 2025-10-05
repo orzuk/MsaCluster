@@ -11,7 +11,7 @@ from typing import List, Tuple
 from copy import deepcopy
 import numpy as np
 import pandas as pd
-
+import time
 
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
@@ -66,6 +66,7 @@ HEAVY_PAIR_MODES = {
     "compute_deltaG",         # if you have a Rosetta/PyRosetta ΔG step
     "plot",                   # rendering/alignments can be slow
     "gen_pair_html",          # if HTML generation per pair is non-trivial
+    "tree",                   # build phylogenetic tree
     # add more as needed
 }
 
@@ -1026,14 +1027,25 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
     alg = args.cluster_alg
     # If tree mode and no explicit tree is provided, try a sensible default location
     tree_arg = ""
+    tree_arg = ""
     if alg == "tree":
+        pair_dir = os.path.join("Pipeline", pair_id)
+
+        # 1) If user provided a path, use it as-is (convert to pair-relative if it redundantly includes the pair prefix)
         tree_path = args.cluster_tree_path
-        if not tree_path:
-            # common default:
-            cand = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
-            tree_path = cand if os.path.isfile(cand) else None
         if tree_path:
-            tree_arg = f"--tree_path {shlex.quote(tree_path)}"
+            if not os.path.isabs(tree_path):
+                # If user passed "Pipeline/<pair_id>/...", strip that prefix because we cd into pair_dir
+                pref = os.path.join("Pipeline", pair_id) + os.sep
+                if tree_path.startswith(pref):
+                    tree_path = tree_path[len(pref):]
+        else:
+            # 2) No path provided: choose a sensible default.
+            # Preferred default: relative to the pair dir (we cd into it before calling run_ClusterMSA.py)
+            tree_path = os.path.join(pair_dir, "output_phytree", "DeepMsa_tree.nwk")
+
+        tree_arg = f"--tree_path {shlex.quote(tree_path)} "
+
 
     cmd = (
         f"bash -lc 'cd Pipeline/{pid} && "
@@ -1375,8 +1387,8 @@ def task_tree(pair_id: str, args: argparse.Namespace) -> None:
     out = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
     ensure_dir(os.path.dirname(out))
 
-    # Effective cap: default 500; <=0 → no cap (use all).
-    cap = getattr(args, "tree_max_seqs", 500)
+    # Effective cap: default 5000; <=0 → no cap (use all).
+    cap = getattr(args, "tree_max_seqs", 5000)
     if cap is not None and int(cap) <= 0:
         cap = None  # all sequences -> no stratification
 
@@ -1394,6 +1406,9 @@ def task_tree(pair_id: str, args: argparse.Namespace) -> None:
             eff_cap = max(int(eff_cap), n_clusters)
 
     # Build tree (phytree_utils.phytree_from_msa has the stratified logic)
+    t0 = time.time()
+    print(f"[tree] building from {msa_file} with cap={eff_cap if eff_cap is not None else 'ALL'} ...", flush=True)
+
     phytree_from_msa(
         msa_file,
         output_tree_file=out,
@@ -1401,6 +1416,9 @@ def task_tree(pair_id: str, args: argparse.Namespace) -> None:
         cluster_msa_dir=cluster_dir,      # used only when capped
         seed=getattr(args, "tree_seed", 123),
     )
+
+    dt = time.time() - t0
+    print(f"[tree] done → {out} in {dt:.1f}s", flush=True)
 
 
 def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
@@ -1797,7 +1815,7 @@ def main():
                    help="Threads for CCMpred (-t)")
 
     # --- Tree options ---
-    p.add_argument("--tree_max_seqs", type=int, default=500,
+    p.add_argument("--tree_max_seqs", type=int, default=5000,
                    help="Max sequences to include in the Deep tree. If stratified, "
                         "it’s bumped up to the number of represented clusters when needed.")
     p.add_argument("--tree_use_clusters", type=str2bool, nargs="?", const=True, default=True,
