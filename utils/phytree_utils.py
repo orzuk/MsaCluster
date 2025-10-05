@@ -31,6 +31,7 @@ except Exception as _e:
 #    print(f"[phytree] ETE3 import failed: {e}")
 
 from utils.msa_utils import *
+from utils.utils import now
 import numpy as np
 import pandas as pd
 from matplotlib.colors import Normalize, to_hex
