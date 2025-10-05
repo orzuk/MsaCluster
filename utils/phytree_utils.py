@@ -4,10 +4,12 @@ import copy
 # for phylogenetic trees
 from Bio import Phylo, AlignIO
 from Bio.Phylo.TreeConstruction import *
+
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.Newick import Clade, Tree as NwTree
+
 
 # Prefer fastcluster (much faster), fall back to SciPy
 try:
@@ -46,17 +48,15 @@ import pandas as pd
 from matplotlib.colors import Normalize, to_hex
 # from matplotlib import pyplot as plt
 from matplotlib.colorbar import ColorbarBase
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 # from matplotlib.transforms import Bbox
 
-import matplotlib.pyplot as plt
 import re, random
 import time
 import math
 from contextlib import contextmanager
-
-
-
-
+from collections import Counter
 
 
 # ----- Helper functions -----
@@ -79,8 +79,6 @@ def _condensed_hamming_from_seqs(seqs, block_j=1024, step_cols=2048):
     seqs: list[str] with identical length (post A3M cleaning)
     Returns: np.ndarray, shape = (n*(n-1)//2,), float64, distances in [0,1]
     """
-    import numpy as np
-
     n = len(seqs)
     if n < 2:
         return np.zeros(0, dtype=np.float64)
@@ -133,6 +131,46 @@ def _condensed_hamming_from_seqs(seqs, block_j=1024, step_cols=2048):
 
 
 # --- helpers for stratified sampling (place once in phytree_utils.py) ---
+
+def _debug_compare_with_biopython(seqs, names, sample_pairs=200, rng_seed=0):
+    """
+    Randomly pick some (i,j) pairs, compare our fast Hamming to BioPython's
+    DistanceCalculator('identity'). Print MAE / max-abs-diff.
+    """
+
+    random.seed(rng_seed)
+    n = len(seqs)
+    # Build a small alignment only for sampled pairs + a reference row to avoid repeated rebuilds.
+    # For simplicity, we just build per-pair mini-alignments (cheap for a few hundred checks).
+    calc = DistanceCalculator('identity')
+
+    # our fast distances via the same encoder used in pipeline (re-use function)
+    def _pair_fast(i, j):
+        s1, s2 = seqs[i], seqs[j]
+        # exact same logic as in _condensed_hamming_from_seqs for a single pair:
+        L = len(s1)
+        # NOTE: treat '-' as a regular symbol (same as Bio 'identity'):
+        neq = sum(ch1 != ch2 for ch1, ch2 in zip(s1, s2))
+        return neq / float(L)
+
+    idx = [(random.randrange(0, n-1), None) for _ in range(sample_pairs)]
+    idx = [(i, random.randrange(i+1, n)) for (i, _) in idx]
+
+    diffs = []
+    for (i, j) in idx:
+        aln = MultipleSeqAlignment([
+            SeqRecord(Seq(seqs[i]), id=names[i]),
+            SeqRecord(Seq(seqs[j]), id=names[j]),
+        ])
+        bio_dm = calc.get_distance(aln)
+        bio = bio_dm[1,0]  # distance between the two rows
+        fast = _pair_fast(i, j)
+        diffs.append(abs(bio - fast))
+
+    diffs = np.asarray(diffs)
+    print(f"[debug] compare fast-vs-Bio on {len(diffs)} pairs: "
+          f"MAE={diffs.mean():.3e}  max={diffs.max():.3e}")
+
 
 def _norm_id(header: str) -> str:
     """
@@ -264,7 +302,6 @@ def phytree_from_msa(msa_file, output_tree_file,
     seqs = [clean_a3m_line(s) for s in seqs]
 
     # 2) ENFORCE A SINGLE ALIGNED LENGTH (keep modal length; drop outliers)
-    from collections import Counter
     raw_n = len(seqs)
     lengths = [len(s) for s in seqs]
     if not lengths or min(lengths) == 0:
@@ -358,11 +395,16 @@ def phytree_from_msa(msa_file, output_tree_file,
 
     # Fast condensed distances (skip Bio DistanceCalculator)
     with _stage(f"Setting Distance MAtrix"):
-        import numpy as np
         condensed = _condensed_hamming_from_seqs(seqs)  # <- main speedup
         names = list(seqs_IDs)  # keep same order as seqs
         n = len(names)
         print(f"[phytree] Built condensed Hamming for {n} sequences")
+
+        L = len(seqs[0])
+        print(f"[phytree] n={len(seqs)}  L={L}  pairs={len(seqs) * (len(seqs) - 1) // 2}")
+
+        _debug_compare_with_biopython(seqs, names, sample_pairs=200)
+        print(f"[debug] Compared condensed to Biopython distances")
 
     # --- replaced the slow UPGMA block with a SciPy-based version ---
     with _stage(f"Setting UPGMA Tree"):
@@ -391,13 +433,16 @@ def phytree_from_msa(msa_file, output_tree_file,
 
         except Exception as e:
             print(f"[warn] Fast UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
-            from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
             # If you want a fallback, you *must* rebuild a Bio DistanceMatrix. Skipping here is fine.
             constructor = DistanceTreeConstructor()
             # WARNING: falling back will need a DistanceMatrix object;
             # you can omit this fallback, or reconstruct it if necessary.
             raise
 
+    from scipy.cluster.hierarchy import cophenet
+    c, _ = cophenet(Z, condensed)
+    print(f"[phytree] cophenetic corr = {c:.4f}")
+    # Values ~0.8–0.98 are typical; closer to 1 is better.
 
     # Save (same as before)
     if len(output_tree_file) == 0:
@@ -512,9 +557,6 @@ def visualize_tree_with_heatmap(
     Render an ETE tree + grouped heatmap + group colorbars (slim, stacked).
     `node_values_matrix` must be indexed by EXACT leaf names present in `phylo_tree`.
     """
-    import matplotlib as mpl
-    import matplotlib.pyplot as plt
-    import numpy as np
 
     # --- validate / order rows by tree leaves (tree is already pruned by caller) ---
     tree_leaves = [n.name for n in phylo_tree.iter_leaves()]
