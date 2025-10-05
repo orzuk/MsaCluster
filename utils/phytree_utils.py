@@ -160,7 +160,7 @@ def resolve_duplicated_ids(ids_list):
 # msa_file - file with MSA in a3m format
 # output_tree_file - where to save
 # max_seqs - sample sequences if too many
-def phytree_from_msa(msa_path, output_tree_file,
+def phytree_from_msa(msa_file, output_tree_file,
     max_seqs=None,  # None → unlimited; keep your existing behavior if different
     cluster_msa_dir=None,
     seed=123,
