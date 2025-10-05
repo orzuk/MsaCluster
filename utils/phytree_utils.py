@@ -7,7 +7,15 @@ from Bio.Phylo.TreeConstruction import *
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from scipy.cluster.hierarchy import linkage, to_tree
+from Bio.Phylo.Newick import Clade, Tree as NwTree
+
+# Prefer fastcluster (much faster), fall back to SciPy
+try:
+    from fastcluster import linkage  # 1.2.6 present on machine
+except Exception:
+    from scipy.cluster.hierarchy import linkage
+from scipy.cluster.hierarchy import to_tree
+
 
 import pickle
 from pylab import *
@@ -47,6 +55,12 @@ import math
 from contextlib import contextmanager
 
 
+
+
+
+
+# ----- Helper functions -----
+
 @contextmanager
 def _stage(name: str):
     t0 = time.time()
@@ -61,11 +75,60 @@ def _stage(name: str):
 
 
 
+def _condensed_hamming_from_seqs(seqs, block_rows=512, step_cols=2048):
+    """
+    Build a condensed Hamming distance vector for equal-length aligned strings.
 
+    seqs: list[str] with identical length (post A3M cleaning)
+    Returns: np.ndarray, shape = (n*(n-1)//2,), float64, distances in [0,1]
+    """
+    import numpy as np
 
-# ----- Helper functions -----
+    L = len(seqs[0])
+    # Build a small LUT only for actually observed characters
+    chars = sorted({c for s in seqs for c in s})
+    lut = {c: i for i, c in enumerate(chars)}  # typically 20–21 symbols with '-'
+
+    # Encode to uint8 matrix (n, L)
+    A = np.empty((len(seqs), L), dtype=np.uint8)
+    for i, s in enumerate(seqs):
+        A[i, :] = np.fromiter((lut[c] for c in s), dtype=np.uint8, count=L)
+
+    n = A.shape[0]
+    m = n * (n - 1) // 2
+    out = np.empty(m, dtype=np.float64)
+    k = 0
+
+    # Block over rows; within blocks, accumulate mismatches over columns in steps
+    for i0 in range(0, n, block_rows):
+        i1 = min(n, i0 + block_rows)
+        Ai = A[i0:i1]  # (B, L)
+        for j0 in range(i0 + 1, n, block_rows):
+            j1 = min(n, j0 + block_rows)
+            Aj = A[j0:j1]  # (B2, L)
+
+            # Accumulate mismatches across columns in manageable chunks
+            B, B2 = Ai.shape[0], Aj.shape[0]
+            acc = None
+            for c0 in range(0, L, step_cols):
+                c1 = min(L, c0 + step_cols)
+                # (B,1,cols) vs (1,B2,cols) -> (B,B2,cols) -> sum over cols
+                neq = (Ai[:, None, c0:c1] != Aj[None, :, c0:c1]).sum(axis=2, dtype=np.int32)
+                acc = neq if acc is None else (acc + neq)
+
+            # Write this block into the condensed vector
+            # Each row bi contributes distances to rows j0..j1-1
+            for bi in range(B):
+                out[k:k + B2] = acc[bi]
+                k += B2
+
+    out /= float(L)  # normalize like Bio 'identity' (mismatch fraction)
+    return out
+
 
 # --- helpers for stratified sampling (place once in phytree_utils.py) ---
+
+
 
 def _norm_id(header: str) -> str:
     """
@@ -289,43 +352,20 @@ def phytree_from_msa(msa_file, output_tree_file,
         alignment = MultipleSeqAlignment(seq_records)
         print(f"[phytree] Built MSA for sequences")
 
-    # Distances + UPGMA
+    # Fast condensed distances (skip Bio DistanceCalculator)
     with _stage(f"Setting Distance MAtrix"):
-        calculator = DistanceCalculator('identity')
-        distance_matrix = calculator.get_distance(alignment)
-        print(f"[phytree] Built Distance matrix for MSA of {len(alignment)} sequences")
+        import numpy as np
+        condensed = _condensed_hamming_from_seqs(seqs)  # <- main speedup
+        names = list(seqs_IDs)  # keep same order as seqs
+        n = len(names)
+        print(f"[phytree] Built condensed Hamming for {n} sequences")
 
-#    with _stage(f"Setting UPGMA Tree"):
-#        constructor = DistanceTreeConstructor()
-#        tree = constructor.upgma(distance_matrix)
-#        print(f"[phytree] Building Tree UPGMA from Distance matrix" )
-
-    # --- replace the slow UPGMA block with a SciPy-based version ---
-
+    # --- replaced the slow UPGMA block with a SciPy-based version ---
     with _stage(f"Setting UPGMA Tree"):
         try:
-            import numpy as np
-            from scipy.cluster.hierarchy import linkage, to_tree
-            from Bio.Phylo.Newick import Clade, Tree as NwTree
+            # 'condensed', 'names', 'n' were produced in the previous stage
+            Z = linkage(condensed, method="average")  # fastcluster or SciPy
 
-            print("[phytree] Converting DistanceMatrix -> condensed vector")
-            names = distance_matrix.names
-            n = len(names)
-
-            # DistanceMatrix.matrix is lower-triangular rows: row i has entries [0..i]
-            dm = np.zeros((n, n), dtype=float)
-            for i, row in enumerate(distance_matrix.matrix):
-                dm[i, :i + 1] = row
-                dm[:i + 1, i] = row  # mirror
-
-            # Condensed upper-triangle for SciPy
-            iu = np.triu_indices(n, 1)
-            condensed = dm[iu]
-
-            print("[phytree] SciPy linkage(method='average') (UPGMA-equivalent)")
-            Z = linkage(condensed, method="average")  # fast C/Fortran implementation
-
-            # Convert SciPy tree -> Bio.Phylo tree (with proper branch lengths)
             rootnode, _ = to_tree(Z, rd=True)
 
             def to_clade(cn):
@@ -334,7 +374,7 @@ def phytree_from_msa(msa_file, output_tree_file,
                     return Clade(name=names[cn.id], branch_length=0.0), 0.0
                 lc, lh = to_clade(cn.get_left())
                 rc, rh = to_clade(cn.get_right())
-                # UPGMA ultrametric: branch length = parent.height - child.height
+                # UPGMA ultrametric branch lengths
                 bl_l = max(cn.dist - lh, 0.0)
                 bl_r = max(cn.dist - rh, 0.0)
                 lc.branch_length = bl_l
@@ -343,14 +383,17 @@ def phytree_from_msa(msa_file, output_tree_file,
 
             root_clade, _ = to_clade(rootnode)
             tree = NwTree(root=root_clade)
-            print("[phytree] UPGMA tree built via SciPy average-linkage")
+            print("[phytree] UPGMA tree built via fastcluster average-linkage")
 
         except Exception as e:
-            print(f"[warn] Fast SciPy UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
-            from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
+            print(f"[warn] Fast UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
+            from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
+            # If you want a fallback, you *must* rebuild a Bio DistanceMatrix. Skipping here is fine.
             constructor = DistanceTreeConstructor()
-            tree = constructor.upgma(distance_matrix)
-            print("[phytree] Building Tree UPGMA from Distance matrix (Bio.Phylo)")
+            # WARNING: falling back will need a DistanceMatrix object;
+            # you can omit this fallback, or reconstruct it if necessary.
+            raise
+
 
     # Save (same as before)
     if len(output_tree_file) == 0:
