@@ -328,19 +328,19 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
         i = 0
         for c in active:
             if i % 10 == 0:
-                _log(f"[compute-kxk-cluster-centers] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
+                _log(f"[compute-kxk-cluster-centers] Cluster i={i} out of {len(active)}; Cluster label={c}", verbose)
             i += 1
             r = rows_per[c]
             centers_seq[c] = seqs[sample_idx[medoid_of_rows(r)]]
 
         # KxK center distance matrix
-        act_list = list(active);
+        act_list = list(active)
         idx_of = {c: i for i, c in enumerate(act_list)}
         K = len(act_list)
         CD = np.zeros((K, K), dtype=float)
         for i, c1 in enumerate(act_list):
             if i%10 == 0:
-                _log(f"[compute-kxk-distance-metric] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
+                _log(f"[compute-kxk-distance-metric] Cluster i={i} out of {len(act_list)}; Cluster label={c1}", verbose)
             s1 = centers_seq[c1]
             for j in range(i + 1, K):
                 c2 = act_list[j]
