@@ -1027,7 +1027,6 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
     alg = args.cluster_alg
     # If tree mode and no explicit tree is provided, try a sensible default location
     tree_arg = ""
-    tree_arg = ""
     if alg == "tree":
         pair_dir = os.path.join("Pipeline", pair_id)
 
@@ -1043,6 +1042,8 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
             # 2) No path provided: choose a sensible default.
             # Preferred default: relative to the pair dir (we cd into it before calling run_ClusterMSA.py)
             tree_path = os.path.join(pair_dir, "output_phytree", "DeepMsa_tree.nwk")
+            # we already `cd` into pair dir; default tree is relative to it
+            tree_path = "output_phytree/DeepMsa_tree.nwk"
 
         tree_arg = f"--tree_path {shlex.quote(tree_path)} "
 
