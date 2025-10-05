@@ -302,75 +302,55 @@ def phytree_from_msa(msa_file, output_tree_file,
 
     # --- replace the slow UPGMA block with a SciPy-based version ---
 
-    with _stage(f"Setting FAST UPGMA Tree"):
+    with _stage(f"Setting UPGMA Tree"):
         try:
-            print("[phytree] Converting BioPython DistanceMatrix -> condensed vector")
+            import numpy as np
+            from scipy.cluster.hierarchy import linkage, to_tree
+            from Bio.Phylo.Newick import Clade, Tree as NwTree
+
+            print("[phytree] Converting DistanceMatrix -> condensed vector")
             names = distance_matrix.names
             n = len(names)
 
-            # BioPython DistanceMatrix stores lower-triangular rows: matrix[i][0..i]
-            # Build full square then extract condensed upper-triangle.
+            # DistanceMatrix.matrix is lower-triangular rows: row i has entries [0..i]
             dm = np.zeros((n, n), dtype=float)
             for i, row in enumerate(distance_matrix.matrix):
                 dm[i, :i + 1] = row
-                dm[:i + 1, i] = row  # mirror to upper triangle
+                dm[:i + 1, i] = row  # mirror
 
-            # condensed vector (upper triangle, k=(i<j))
+            # Condensed upper-triangle for SciPy
             iu = np.triu_indices(n, 1)
             condensed = dm[iu]
 
-            print("[phytree] SciPy linkage(method='average') ~ UPGMA")
-            Z = linkage(condensed, method="average")  # fast C implementation
+            print("[phytree] SciPy linkage(method='average') (UPGMA-equivalent)")
+            Z = linkage(condensed, method="average")  # fast C/Fortran implementation
 
-            # Convert to a binary tree; heights in Z are node distances.
-            root, nodes = to_tree(Z, rd=True)
+            # Convert SciPy tree -> Bio.Phylo tree (with proper branch lengths)
+            rootnode, _ = to_tree(Z, rd=True)
 
-            # Build Newick (ultrametric): branch length = node.height - child.height
-            class _Node:
-                __slots__ = ("name", "children", "height")
-
-                def __init__(self, name=None, children=(), height=0.0):
-                    self.name = name
-                    self.children = list(children)
-                    self.height = float(height)
-
-            # map SciPy ClusterNodes to simple nodes with heights
-            snodes = [_Node() for _ in nodes]
-            for idx, cn in enumerate(nodes):
+            def to_clade(cn):
+                # returns (Bio.Phylo.Newick.Clade, height_of_subtree)
                 if cn.is_leaf():
-                    snodes[idx].name = names[cn.id]
-                    snodes[idx].height = 0.0
-                else:
-                    snodes[idx].children = [snodes[nodes.index(cn.get_left())],
-                                            snodes[nodes.index(cn.get_right())]]
-                    snodes[idx].height = cn.dist
+                    return Clade(name=names[cn.id], branch_length=0.0), 0.0
+                lc, lh = to_clade(cn.get_left())
+                rc, rh = to_clade(cn.get_right())
+                # UPGMA ultrametric: branch length = parent.height - child.height
+                bl_l = max(cn.dist - lh, 0.0)
+                bl_r = max(cn.dist - rh, 0.0)
+                lc.branch_length = bl_l
+                rc.branch_length = bl_r
+                return Clade(clades=[lc, rc], branch_length=0.0), cn.dist
 
-            def _to_newick(n):
-                if not n.children:  # leaf
-                    return f"{n.name}:0"
-                c1, c2 = n.children
-                bl1 = max(n.height - c1.height, 0.0)
-                bl2 = max(n.height - c2.height, 0.0)
-                return f"({_to_newick(c1)}:{bl1:.6f},{_to_newick(c2)}:{bl2:.6f})"
-
-            newick = _to_newick(snodes[nodes.index(root)]) + ";"
-            print("[phytree] UPGMA/average-linkage tree built via SciPy")
-
-            # Write Newick directly
-            if len(output_tree_file) == 0:
-                output_tree_file = msa_file.replace(".a3m", "_tree.nwk")
-            os.makedirs(os.path.dirname(output_tree_file), exist_ok=True)
-            with open(output_tree_file, "w") as f:
-                f.write(newick)
-            print(f"[phytree] Saved output tree to {output_tree_file}")
-
-            return newick  # or return a lightweight object if you prefer
+            root_clade, _ = to_clade(rootnode)
+            tree = NwTree(root=root_clade)
+            print("[phytree] UPGMA tree built via SciPy average-linkage")
 
         except Exception as e:
-            print(f"[warn] SciPy fast UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
+            print(f"[warn] Fast SciPy UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
+            from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
             constructor = DistanceTreeConstructor()
             tree = constructor.upgma(distance_matrix)
-            print(f"[phytree] Building Tree UPGMA from Distance matrix (Bio.Phylo)")
+            print("[phytree] Building Tree UPGMA from Distance matrix (Bio.Phylo)")
 
     # Save (same as before)
     if len(output_tree_file) == 0:
