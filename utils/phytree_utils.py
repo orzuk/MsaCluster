@@ -7,6 +7,7 @@ from Bio.Phylo.TreeConstruction import *
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
+from scipy.cluster.hierarchy import linkage, to_tree
 
 import pickle
 from pylab import *
@@ -294,10 +295,82 @@ def phytree_from_msa(msa_file, output_tree_file,
         distance_matrix = calculator.get_distance(alignment)
         print(f"[phytree] Built Distance matrix for MSA of {len(alignment)} sequences")
 
-    with _stage(f"Setting UPGMA Tree"):
-        constructor = DistanceTreeConstructor()
-        tree = constructor.upgma(distance_matrix)
-        print(f"[phytree] Building Tree UPGMA from Distance matrix" )
+#    with _stage(f"Setting UPGMA Tree"):
+#        constructor = DistanceTreeConstructor()
+#        tree = constructor.upgma(distance_matrix)
+#        print(f"[phytree] Building Tree UPGMA from Distance matrix" )
+
+    # --- replace the slow UPGMA block with a SciPy-based version ---
+
+    with _stage(f"Setting FAST UPGMA Tree"):
+        try:
+            print("[phytree] Converting BioPython DistanceMatrix -> condensed vector")
+            names = distance_matrix.names
+            n = len(names)
+
+            # BioPython DistanceMatrix stores lower-triangular rows: matrix[i][0..i]
+            # Build full square then extract condensed upper-triangle.
+            dm = np.zeros((n, n), dtype=float)
+            for i, row in enumerate(distance_matrix.matrix):
+                dm[i, :i + 1] = row
+                dm[:i + 1, i] = row  # mirror to upper triangle
+
+            # condensed vector (upper triangle, k=(i<j))
+            iu = np.triu_indices(n, 1)
+            condensed = dm[iu]
+
+            print("[phytree] SciPy linkage(method='average') ~ UPGMA")
+            Z = linkage(condensed, method="average")  # fast C implementation
+
+            # Convert to a binary tree; heights in Z are node distances.
+            root, nodes = to_tree(Z, rd=True)
+
+            # Build Newick (ultrametric): branch length = node.height - child.height
+            class _Node:
+                __slots__ = ("name", "children", "height")
+
+                def __init__(self, name=None, children=(), height=0.0):
+                    self.name = name
+                    self.children = list(children)
+                    self.height = float(height)
+
+            # map SciPy ClusterNodes to simple nodes with heights
+            snodes = [_Node() for _ in nodes]
+            for idx, cn in enumerate(nodes):
+                if cn.is_leaf():
+                    snodes[idx].name = names[cn.id]
+                    snodes[idx].height = 0.0
+                else:
+                    snodes[idx].children = [snodes[nodes.index(cn.get_left())],
+                                            snodes[nodes.index(cn.get_right())]]
+                    snodes[idx].height = cn.dist
+
+            def _to_newick(n):
+                if not n.children:  # leaf
+                    return f"{n.name}:0"
+                c1, c2 = n.children
+                bl1 = max(n.height - c1.height, 0.0)
+                bl2 = max(n.height - c2.height, 0.0)
+                return f"({_to_newick(c1)}:{bl1:.6f},{_to_newick(c2)}:{bl2:.6f})"
+
+            newick = _to_newick(snodes[nodes.index(root)]) + ";"
+            print("[phytree] UPGMA/average-linkage tree built via SciPy")
+
+            # Write Newick directly
+            if len(output_tree_file) == 0:
+                output_tree_file = msa_file.replace(".a3m", "_tree.nwk")
+            os.makedirs(os.path.dirname(output_tree_file), exist_ok=True)
+            with open(output_tree_file, "w") as f:
+                f.write(newick)
+            print(f"[phytree] Saved output tree to {output_tree_file}")
+
+            return newick  # or return a lightweight object if you prefer
+
+        except Exception as e:
+            print(f"[warn] SciPy fast UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
+            constructor = DistanceTreeConstructor()
+            tree = constructor.upgma(distance_matrix)
+            print(f"[phytree] Building Tree UPGMA from Distance matrix (Bio.Phylo)")
 
     # Save (same as before)
     if len(output_tree_file) == 0:
@@ -606,100 +679,6 @@ def add_figure_title_working(image_path, title,
 
     # Save the updated image
     img.save(image_path)
-
-
-# Draw phylogenetic tree, with values assigned to each leaf
-# Input:
-# phylo_tree - a phylogenetic tree object
-# node_values - vector/matrix of values representing each node
-# output_file - where to save image
-
-def visualize_tree_with_heatmap_old(phylo_tree, node_values_matrix, output_file=None):
-    from copy import deepcopy
-
-    # Ensure the data matrix is a numpy array
-    node_names = node_values_matrix.index.tolist()
-    node_values_matrix = np.array(node_values_matrix)
-
-    if type(phylo_tree) == str:  # Load the phylogenetic tree
-        bio_tree = Phylo.read(phylo_tree, "newick")  # This is different from write_newick_with_quotes !!!!
-        print("Read from file and convert to ete3 tree:")
-        tree = convert_biopython_to_ete3(bio_tree)
-    else:
-        print("input phylotree: ")
-        print(phylo_tree)
-        print("node names:", node_names)
-        tree = deepcopy(phylo_tree)
-
-    tree = extract_induced_subtree(tree, node_names)
-    print("Induced sub-tree:")
-    print(tree)
-
-    # get only subtree based on node_values_matrix
-
-    # Create a Normalized object to scale values between 0 and 1
-    flat_data = node_values_matrix.flatten()
-    epsilon = 0.00000001
-#    print("flat_data=", flat_data)
-#    print("min=", flat_data.min(), "max=", flat_data.max())
-    norm = Normalize(vmin=flat_data.min()-epsilon, vmax=flat_data.max()+epsilon)
-
-    # Create a colormap for continuous data
-    cmap = plt.cm.viridis
-
-    def layout(node):
-        if node.is_leaf():
-            index = tree.get_leaf_names().index(node.name)
-            node.name = str(index)
-            values = node_values_matrix[index]
-
-            node_style = NodeStyle()
-            node_style["size"] = 0
-            node.set_style(node_style)
-
-            group_breaks = [2, 4]
-            column = 0
-            title_columns = []  # Keep track of columns where titles should go
-
-            for i, value in enumerate(values):
-                hex_color = to_hex(cmap(norm(value)))
-                rect_face = faces.RectFace(width=20, height=20, fgcolor='black', bgcolor=hex_color)
-                faces.add_face_to_node(rect_face, node, column=column, position="aligned")
-
-                if i in [0, 2, 4]:  # First column of each group
-                    title_columns.append(column)
-
-                column += 1
-
-                if i + 1 in group_breaks:
-                    spacer = faces.RectFace(width=5, height=20, fgcolor='white', bgcolor='white')
-                    faces.add_face_to_node(spacer, node, column=column, position="aligned")
-                    column += 1
-
-            # Add titles to the last leaf node
-            if node == tree.get_leaves()[-1]:
-                titles = ["AF", "ESMF", "MSAT"]
-                for col, title in zip(title_columns, titles):
-                    title_face = faces.TextFace(title, fsize=12, fgcolor="black", bold=True)
-                    faces.add_face_to_node(title_face, node, column=col, position="aligned")
-
-
-    # Create a TreeStyle for the phylogenetic tree
-    ts = TreeStyle()
-    ts.show_leaf_name = True
-    ts.show_branch_length = True
-    ts.show_scale = False
-    ts.branch_vertical_margin = 15  # Add some vertical margin for titles
-
-    if output_file:
-        print("Saving tree image to : " + output_file)
-        if '.' not in output_file:
-            output_file = output_file + ".png"
-        tree.render(output_file, w=800, units="px", tree_style=ts, layout=layout)
-        print("Did tree render!!! ")
-    else:
-        tree.show(tree_style=ts, layout=layout)
-
 
 
 def render_tree_to_png(
