@@ -778,41 +778,63 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
         rep_cache[cluster_id] = S[int(np.argmin(Msum))]
         return rep_cache[cluster_id]
 
-    def _closest_cluster(src: int) -> int:
-        """Return the id of the nearest cluster to 'src' by rep-to-rep distance (excluding src)."""
-        srep = _rep_seq(src)
-        best, bestd = None, 1e9
-        for c2 in clusters.keys():
-            if c2 == src:
-                continue
-            d = gapaware_hamming(srep, _rep_seq(c2))
-            if d < bestd:
-                best, bestd = c2, d
-        return int(best)
+    def _closest_cluster(c_from: int) -> int | None:
+        """Return id of nearest *other* cluster to c_from; None if no candidate."""
+        # candidates are all clusters except c_from
+        cand = [c for c in assigns if c != c_from and len(assigns[c]) > 0]
+        if not cand:
+            return None
+        best = None
+        best_d = float("inf")
 
+        # distance by tree representatives if available, else by gap-aware Hamming of medoids
+        def _rep_seq(ci):
+            # reuse any representative you cache; else pick a quick medoid
+            ids = assigns[ci]
+            return seqs[ids[0]] if len(ids) == 1 else seqs[medoid_of_rows(np.array(ids, dtype=int))]
+
+        s_from = _rep_seq(c_from)
+        for cj in cand:
+            d = gapaware_hamming(s_from, _rep_seq(cj))
+            if d < best_d:
+                best_d = d
+                best = cj
+        return best
+
+    print("[2025-.. ..:..:..] >>> Greedy tiny-merge to reach min_output_size ...")
+    eff_min = int(getattr(args, "min_output_size", 0))
     merges = 0
-    # Keep merging the smallest cluster if it's tiny
-    while True:
-        # pick the smallest by size
-        order_by_size = sorted(clusters.keys(), key=lambda c: len(clusters[c]))
-        if not order_by_size:
-            break
-        cmin = order_by_size[0]
-        nmin = len(clusters[cmin])
-        if nmin >= min_size:
-            break  # all clusters are now >= min_size
-        # merge cmin into its nearest neighbor (can be tiny or big)
-        target = _closest_cluster(cmin)
-        clusters[target].extend(clusters[cmin])
-        # invalidate reps for participants
-        rep_cache.pop(target, None)
-        rep_cache.pop(cmin, None)
-        del clusters[cmin]
-        merges += 1
-        if verbose and (merges % 5 == 0 or merges <= 3):
-            _log(f"[tiny-merge] merges={merges}; smallest_now={min(len(clusters[c]) for c in clusters)}; clusters={len(clusters)}", verbose)
 
-    st.done(f"merges={merges}; clusters_now={len(clusters)}")
+    # No merging if disabled or nothing to merge
+    if eff_min <= 0:
+        print(f"[tiny-merge] disabled (min_output_size={eff_min})")
+    elif len(assigns) <= 1:
+        # Nothing to merge into. Accept the single cluster as-is.
+        print(f"[tiny-merge] skipped: only {len(assigns)} cluster(s); "
+              f"min_output_size={eff_min} > total_n={sum(len(v) for v in assigns.values())}")
+    else:
+        # Iteratively merge clusters smaller than eff_min into their nearest neighbor
+        # Stop when all clusters are >= eff_min or when no valid target exists.
+        while True:
+            small = [c for c in sorted(assigns.keys()) if len(assigns[c]) < eff_min]
+            if not small:
+                break
+            progressed = False
+            for cmin in small:
+                target = _closest_cluster(cmin)
+                if target is None or target == cmin:
+                    # No valid merge target; skip this one
+                    continue
+                assigns[target].extend(assigns[cmin])
+                assigns[cmin] = []  # mark emptied
+                merges += 1
+                progressed = True
+            if not progressed:
+                # no more merges possible
+                break
+
+
+    st.done(f"Greedy tiny-merge: merges={merges}; clusters_now={len(clusters)}")
 
     # If everything was tiny and merged to nothing (shouldn't happen), guard:
     if not clusters:
