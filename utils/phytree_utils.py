@@ -335,8 +335,13 @@ def phytree_from_msa(msa_file, output_tree_file,
                 nid = _norm_id(rid)
                 deep_norm_to_indices.setdefault(nid, []).append(i)
 
-            clusters = _load_cluster_norm_ids(cluster_msa_dir)
-            shallow = sorted([c for c in clusters if c.startswith("ShallowMsa_")])
+            try:  # try to load clusters
+                clusters = _load_cluster_norm_ids(cluster_msa_dir)
+                shallow = sorted([c for c in clusters if c.startswith("ShallowMsa_")])
+            except:
+                print("[warn] Could not load clusters; falling back to uniform sampling.")
+                clusters = {}
+                shallow = []
 
             chosen_idx: list[int] = []
             represented = 0
