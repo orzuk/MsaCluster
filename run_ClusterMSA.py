@@ -29,11 +29,11 @@ import time
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
-from utils.utils import ensure_dir
+from utils.utils import ensure_dir, now
 from utils.msa_utils import clean_a3m_line, write_fasta, compute_neff_from_a3m
 
 # ------------- tiny I/O utils (compatible with your project) -------------
-def _now() -> str:
+def now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
 class StageTimer:
@@ -42,16 +42,16 @@ class StageTimer:
         self.t0 = time.perf_counter()
         self.verbose = verbose
         if self.verbose:
-            print(f"[{_now()}] >>> {self.name} ...", flush=True)
+            print(f"[{now()}] >>> {self.name} ...", flush=True)
     def done(self, note: str = ""):
         t = time.perf_counter() - self.t0
         if self.verbose:
             extra = f" ({note})" if note else ""
-            print(f"[{_now()}] <<< {self.name} done in {t:.2f}s{extra}", flush=True)
+            print(f"[{now()}] <<< {self.name} done in {t:.2f}s{extra}", flush=True)
 
 def _log(msg: str, verbose=True):
     if verbose:
-        print(f"[{_now()}] {msg}", flush=True)
+        print(f"[{now()}] {msg}", flush=True)
 
 
 def _cond_idx(i,j,m):

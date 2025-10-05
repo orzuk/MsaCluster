@@ -16,6 +16,11 @@ from typing import List, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import time
+
+def now():
+    return time.strftime("%Y-%m-%d %H:%M:%S")
+
 
 def str2bool(v):
     if isinstance(v, bool): return v

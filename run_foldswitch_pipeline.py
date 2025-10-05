@@ -1974,6 +1974,13 @@ def main():
                 if getattr(args, "esm_device", None):
                     extras += [f"--esm_device {args.esm_device}"]
 
+            if args.run_mode == "tree":
+                # forward tree knobs into the inner inline run
+                extras += [f"--tree_max_seqs {int(args.tree_max_seqs)}"]
+                extras += [f"--tree_seed {int(args.tree_seed)}"]
+                # (optional) only if/when tree_use_clusters starts being honored in task_tree
+                # extras += [f"--tree_use_clusters {str(args.tree_use_clusters)}"]
+
             if args.run_mode == "postprocess":
                 if getattr(args, "reports", "none") != "none":
                     extras += [f"--reports {args.reports}"]

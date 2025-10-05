@@ -14,7 +14,6 @@ from pylab import *
 # Use ete3 package for visualization
 # from ete3 import Tree, TreeStyle, TextFace, RectFace, NodeStyle
 from ete3 import Tree, TreeStyle, NodeStyle, faces, AttrFace, TextFace, RectFace
-
 import os
 os.environ["XDG_RUNTIME_DIR"] = "/tmp"
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen") # os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -41,6 +40,22 @@ from matplotlib.colorbar import ColorbarBase
 
 import matplotlib.pyplot as plt
 import re, random
+import time
+import math
+from contextlib import contextmanager
+
+
+@contextmanager
+def _stage(name: str):
+    t0 = time.time()
+    print(f"[tree] {now()} >>> {name} ...", flush=True)
+    try:
+        yield
+    finally:
+        dt = time.time() - t0
+        print(f"[tree] {now()} <<< {name} done in {dt:.1f}s", flush=True)
+
+
 
 
 
@@ -145,14 +160,13 @@ def resolve_duplicated_ids(ids_list):
 # msa_file - file with MSA in a3m format
 # output_tree_file - where to save
 # max_seqs - sample sequences if too many
-def phytree_from_msa(
-    msa_file,
-    output_tree_file: str | list = [],
-    max_seqs: int | None = 100,
-    *,
-    cluster_msa_dir: str | None = None,
-    seed: int | None = 123
-):
+def phytree_from_msa(msa_path, output_tree_file,
+    max_seqs=None,  # None → unlimited; keep your existing behavior if different
+    cluster_msa_dir=None,
+    seed=123,
+    progress_rows=100,  # print every N rows of the distance matrix
+    progress_percent=1.0):  # or every % of pairs (whichever triggers first)
+
     """
     Build a UPGMA tree from an A3M alignment.
     - If max_seqs is None -> use ALL sequences (no sampling; cluster_msa_dir is ignored).
@@ -206,6 +220,8 @@ def phytree_from_msa(
     if (max_seqs is None) or (num_seqs <= int(max_seqs)):
         pass  # keep all sequences
     else:
+        with _stage(f"phytree sampling"):
+            print(f"[phytree] sampling {max_seqs} sequences from {num_seqs}")
         if cluster_msa_dir:
             # Build mapping on CURRENT seqs_IDs (post-clean)
             deep_norm_to_indices: dict[str, list[int]] = {}
@@ -261,24 +277,35 @@ def phytree_from_msa(
             print(f"[sample] uniform random: picked {len(seqs)} / {num_seqs}")
 
     # Make IDs unique if needed (same as before)
-    seqs_IDs = resolve_duplicated_ids(seqs_IDs)
+    with _stage(f"Setting unique IDs"):
+        seqs_IDs = resolve_duplicated_ids(seqs_IDs)
+        print(f"[phytree] Set unique IDs for {len(seqs_IDs)} sequences")
 
     # Build alignment object
     seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]
-    alignment = MultipleSeqAlignment(seq_records)
+    with _stage(f"Setting MSA"):
+        alignment = MultipleSeqAlignment(seq_records)
+        print(f"[phytree] Built MSA for sequences")
 
     # Distances + UPGMA
-    calculator = DistanceCalculator('identity')
-    distance_matrix = calculator.get_distance(alignment)
-    constructor = DistanceTreeConstructor()
-    tree = constructor.upgma(distance_matrix)
+    with _stage(f"Setting Distance MAtrix"):
+        calculator = DistanceCalculator('identity')
+        distance_matrix = calculator.get_distance(alignment)
+        print(f"[phytree] Built Distance matrix for MSA of {len(alignment)} sequences")
+
+    with _stage(f"Setting UPGMA Tree"):
+        constructor = DistanceTreeConstructor()
+        tree = constructor.upgma(distance_matrix)
+        print(f"[phytree] Building Tree UPGMA from Distance matrix" )
 
     # Save (same as before)
     if len(output_tree_file) == 0:
         output_tree_file = msa_file.replace(".a3m", "_tree.nwk")
     if not os.path.exists(os.path.dirname(output_tree_file)):
         os.makedirs(os.path.dirname(output_tree_file))
-    Phylo.write(tree, output_tree_file, "newick")
+    with _stage(f"Saving Tree"):
+        Phylo.write(tree, output_tree_file, "newick")
+        print(f"[phytree] Saved output tree to {output_tree_file}" )
 
     return tree
 
