@@ -533,6 +533,8 @@ def _update_basic_cache(pair_id: str) -> None:
             cache["msa_depth"] = len(seqs)
             cache["msa_width"] = len(seqs[0])
 
+    st = StageTimer("Computing Neff for clusters for cache", verbose)
+
     # C) Per-cluster size & Neff
     clus_dir = pair_dir / "output_msa_cluster"
     clusters = {}
@@ -1027,7 +1029,6 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
     alg = args.cluster_alg
     # If tree mode and no explicit tree is provided, try a sensible default location
     tree_arg = ""
-    tree_arg = ""
     if alg == "tree":
         pair_dir = os.path.join("Pipeline", pair_id)
 
@@ -1043,6 +1044,8 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
             # 2) No path provided: choose a sensible default.
             # Preferred default: relative to the pair dir (we cd into it before calling run_ClusterMSA.py)
             tree_path = os.path.join(pair_dir, "output_phytree", "DeepMsa_tree.nwk")
+            # we already `cd` into pair dir; default tree is relative to it
+            tree_path = "output_phytree/DeepMsa_tree.nwk"
 
         tree_arg = f"--tree_path {shlex.quote(tree_path)} "
 
@@ -1075,6 +1078,8 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
     )
     _run(cmd, run_job_mode)
 
+    print(f"[cache] Finished clustering, updating cache")
+    # After ClusterMsa exists, update basic cache (depth/width/seq-id)
     try:
         _update_basic_cache(pair_id)
     except Exception as e:
@@ -1780,8 +1785,8 @@ def main():
                    help="Minimum Neff per cluster (default: 50).")
     p.add_argument("--cluster_neff_id_thresh", type=float, default=0.8,
                    help="Identity threshold for Neff (default: 0.8).")
-    p.add_argument("--cluster_frac_gaps_cutoff", type=float, default=0.6,
-                   help="Drop sequences with ≥ this gap fraction before clustering (default: 0.6).")
+    p.add_argument("--cluster_frac_gaps_cutoff", type=float, default=0.7,
+                   help="Drop sequences with ≥ this gap fraction before clustering (default: 0.7).")
     p.add_argument("--cluster_sample_cap", type=int, default=5000,
                    help="Sample size used by HDBSCAN/AHC (default: 12000).")
     p.add_argument("--cluster_sample_seed", type=int, default=12345,
@@ -1980,6 +1985,29 @@ def main():
                 extras += [f"--tree_seed {int(args.tree_seed)}"]
                 # (optional) only if/when tree_use_clusters starts being honored in task_tree
                 # extras += [f"--tree_use_clusters {str(args.tree_use_clusters)}"]
+
+            if args.run_mode == "cluster_msa":
+                # pass clustering knobs through to the inner inline run
+                extras += [
+                    f"--cluster_alg {args.cluster_alg}",
+                    # tree path is optional; task_cluster_msa will auto-pick default if not set
+                ]
+                if getattr(args, "cluster_tree_path", None):
+                    extras += [f"--cluster_tree_path {args.cluster_tree_path}"]
+
+                extras += [
+                    f"--cluster_max_clusters {int(args.cluster_max_clusters)}",
+                    f"--cluster_min_output_size {int(args.cluster_min_output_size)}",
+                    f"--cluster_min_neff {int(args.cluster_min_neff)}",
+                    f"--cluster_neff_id_thresh {float(args.cluster_neff_id_thresh)}",
+                    f"--cluster_frac_gaps_cutoff {float(args.cluster_frac_gaps_cutoff)}",
+                    f"--cluster_sample_cap {int(args.cluster_sample_cap)}",
+                    f"--cluster_sample_seed {int(args.cluster_sample_seed)}",
+                    # keep HDBSCAN knobs for compatibility (AHC ignores them; tree path ignores them)
+                    f"--hdbscan_min_cluster_size {int(args.hdbscan_min_cluster_size)}",
+                    f"--hdbscan_min_samples {str(args.hdbscan_min_samples)}",
+                    f"--hdbscan_cluster_selection {str(args.hdbscan_cluster_selection)}",
+                ]
 
             if args.run_mode == "postprocess":
                 if getattr(args, "reports", "none") != "none":

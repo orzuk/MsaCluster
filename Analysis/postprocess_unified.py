@@ -15,6 +15,7 @@ from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
 from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
+import numpy as np
 
 PAIR_DIR = Path(DATA_DIR)
 
@@ -79,7 +80,6 @@ def _norm_tm_df(df: Optional[pd.DataFrame], default_source: str) -> pd.DataFrame
       columns: model (af2|af3|esm2|esm3), cluster_tag, cluster_type ('clust'|'deep'|None),
                cluster_id (e.g., '7' for ShallowMsa_007), TM1, TM2
     """
-    import re
     SHALLOW_RE = re.compile(r"ShallowMsa_(\d+)", re.IGNORECASE)
     if df is None or df.empty:
         return pd.DataFrame(columns=["model","cluster_tag","cluster_type","cluster_id","TM1","TM2"])
@@ -636,25 +636,6 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             "n_cmap_preds": int(len(df_cmap))
         })
 
-    # ---- cache true↔true TM once ----
-    # pair_id is something like "2qqjA_4qdsA"
-    foldA, foldB = pair_id.split("_", 1)  # "2qqjA", "4qdsA"
-    pdbA_path = os.path.join("Pipeline", pair_id, f"{foldA[:-1]}.pdb")  # Pipeline/<pair>/2qqj.pdb
-    pdbB_path = os.path.join("Pipeline", pair_id, f"{foldB[:-1]}.pdb")  # Pipeline/<pair>/4qds.pdb
-    pair_dir = os.path.join("Pipeline", pair_id)
-
-    def _tm_align_wrapper(pa, pb) -> float:
-        # TODO: replace with your actual TM-score call.
-        # For example, if you already have a helper run_tmalign(pa, pb) → float:
-        from utils.protein_utils import run_tmalign  # adjust import if needed
-        return run_tmalign(pa, pb)
-
-    try:
-        tm_true_true = get_or_compute_true_tm(pair_dir, pdbA_path, pdbB_path, _tm_align_wrapper)
-        # (Optional) if you also keep a per-pair summary CSV/JSON, you can write tm_true_true there too.
-    except Exception as e:
-        print(f"[postprocess] WARN true↔true TM cache: {e}")
-
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
@@ -665,7 +646,6 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
     return summary_df, detailed_df
 
 if __name__ == "__main__":
-    import argparse
     p = argparse.ArgumentParser(description="Unified post-processing: build summary/detailed CSVs for the website.")
     p.add_argument("--pairs", nargs="*", help="Pair IDs like 1fzpD_2frhA. If omitted, process all pairs.")
     p.add_argument("--force_rerun", action="store_true",

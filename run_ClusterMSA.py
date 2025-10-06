@@ -167,7 +167,6 @@ def cluster_hdbscan(headers: List[str], seqs: List[str], args) -> Dict[int, List
     if keep.sum() < 2:
         raise RuntimeError("Too few sequences after gap filtering.")
     idx_all = np.where(keep)[0]
-    headers = [headers[i] for i in idx_all]
     seqs    = [seqs[i]    for i in idx_all]
     n = len(seqs)
     print(f"[INFO] A3M: {len(idx_all)} kept after gap filter (cutoff={args.frac_gaps_cutoff}). Aln len={L}")
@@ -238,7 +237,6 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
     L = len(seqs[0])
     keep = np.array([(s.count('-') / L) < args.frac_gaps_cutoff for s in seqs], dtype=bool)
     if keep.sum() < 2: raise RuntimeError("Too few sequences after gap filtering.")
-    headers = [h for h,k in zip(headers, keep) if k]
     seqs    = [s for s,k in zip(seqs, keep) if k]
     n = len(seqs)
     st.done(f"kept={n}, L={L}, cutoff={args.frac_gaps_cutoff}")
@@ -330,19 +328,19 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
         i = 0
         for c in active:
             if i % 10 == 0:
-                _log(f"[compute-kxk-cluster-centers] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
+                _log(f"[compute-kxk-cluster-centers] Cluster i={i} out of {len(active)}; Cluster label={c}", verbose)
             i += 1
             r = rows_per[c]
             centers_seq[c] = seqs[sample_idx[medoid_of_rows(r)]]
 
         # KxK center distance matrix
-        act_list = list(active);
+        act_list = list(active)
         idx_of = {c: i for i, c in enumerate(act_list)}
         K = len(act_list)
         CD = np.zeros((K, K), dtype=float)
         for i, c1 in enumerate(act_list):
             if i%10 == 0:
-                _log(f"[compute-kxk-distance-metric] Cluster i={i} out of {K}; Cluster label={c1}", verbose)
+                _log(f"[compute-kxk-distance-metric] Cluster i={i} out of {len(act_list)}; Cluster label={c1}", verbose)
             s1 = centers_seq[c1]
             for j in range(i + 1, K):
                 c2 = act_list[j]
@@ -588,6 +586,22 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
         else:
             accepted = [leftovers]
 
+    # Map cluster index -> a leaf name present in the tree (for tree.distance)
+    def any_leaf_name(idxs):
+        # find a header (name) that exists in the tree; we used normalized names for name_to_idx
+        for i in idxs:
+            # original header token (normalized)
+            nm = headers[i].split()[0]
+            nm = nm.split("/")[0] if "/" in nm else nm
+            if nm in (leaf.name for leaf in tree.get_terminals()):
+                return nm
+        # as fallback, return the first header token (even if not in tree)
+        return headers[idxs[0]].split()[0]
+
+    rep_name_of = {i: any_leaf_name(g) for i, g in enumerate(accepted)}
+
+    print(f"[counts] pre-postprocess clusters: {len(accepted)}  total_assigned={sum(len(g) for g in accepted)}")
+
     # If too many clusters, merge smallest into nearest by representative PID,
     # but avoid merging clusters whose MRCA separation is "long" (>= split_min_ib)
     if len(accepted) > max_clusters:
@@ -612,10 +626,20 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
 
         reps = [rep_of(g) for g in accepted]
 
-        # Helper to decide if two groups' MRCA edge is "long"; we approximate by rep distance via tree threshold
+        # Use tree distances between cluster representatives to block merges across long separations.
+        # We compare the path length between representative leaves to a threshold derived from split_min_ib.
+        # (Rule of thumb: if path >= 2 * split_min_ib, the MRCA separation implies long internal edges → block.)
         def allow_merge(i, j):
-            # If you want to be very strict, forbid merges when split_min_ib > 0
-            return not (split_min_ib > 0.0)
+            if split_min_ib <= 0.0:
+                return True
+            # pick any mapped leaf name for each cluster representative
+            rep_i = rep_name_of[i]  # we’ll set rep_name_of below
+            rep_j = rep_name_of[j]
+            try:
+                d_tree = float(tree.distance(rep_i, rep_j))
+            except Exception:
+                d_tree = 0.0
+            return not (d_tree >= 2.0 * split_min_ib)
 
         while len(accepted) > max_clusters:
             sizes = [len(g) for g in accepted]
@@ -638,7 +662,54 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
             # remove source
             accepted.pop(smin); reps.pop(smin)
 
+    print(f"[counts] after merging clusters: {len(accepted)}  total_assigned={sum(len(g) for g in accepted)}")
+
+
+    # ---- Assign sequences missing from the tree to nearest cluster representative ----
+    if int(getattr(args, "tree_assign_missing", 1)) == 1:
+        present = set()
+        for g in accepted:
+            present.update(g)
+        missing = [i for i in range(len(seqs)) if i not in present]
+        if missing:
+            rng = np.random.default_rng(int(getattr(args, "sample_seed", 0)))
+            REP_CAP = int(getattr(args, "tree_rep_cap", 200))
+
+            # representatives (approx medoids) for each accepted cluster (reuse reps list if already built)
+            if 'reps' not in locals():
+                def rep_of(idxs: List[int]) -> str:
+                    if len(idxs) <= 1:
+                        return seqs[idxs[0]] if idxs else ""
+                    ids = idxs if len(idxs) <= REP_CAP else rng.choice(idxs, size=REP_CAP, replace=False).tolist()
+                    S = [seqs[i] for i in ids]
+                    m = len(S)
+                    if m == 1: return S[0]
+                    Msum = np.zeros(m, dtype=float)
+                    for a in range(m - 1):
+                        sa = S[a]
+                        for b in range(a + 1, m):
+                            d = gapaware_hamming(sa, S[b])
+                            Msum[a] += d;
+                            Msum[b] += d
+                    return S[int(np.argmin(Msum))]
+
+                reps = [rep_of(g) for g in accepted]
+
+            # Build assigns dict and add missing to nearest rep
+            assigns_tmp: Dict[int, List[int]] = {ci: list(set(g)) for ci, g in enumerate(accepted)}
+            for i in missing:
+                s = seqs[i]
+                # nearest representative by gap-aware Hamming
+                dmin, cmin = 1e9, 0
+                for ci, rseq in enumerate(reps):
+                    d = gapaware_hamming(s, rseq)
+                    if d < dmin:
+                        dmin, cmin = d, ci
+                assigns_tmp[cmin].append(i)
+            accepted = [assigns_tmp[k] for k in sorted(assigns_tmp.keys())]
+
     assigns: Dict[int, List[int]] = {i: sorted(set(g)) for i, g in enumerate(accepted)}
+
     if verbose:
         print(f"[TREE] accepted {len(assigns)} clusters (pre post-process).")
     return assigns
@@ -707,41 +778,63 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
         rep_cache[cluster_id] = S[int(np.argmin(Msum))]
         return rep_cache[cluster_id]
 
-    def _closest_cluster(src: int) -> int:
-        """Return the id of the nearest cluster to 'src' by rep-to-rep distance (excluding src)."""
-        srep = _rep_seq(src)
-        best, bestd = None, 1e9
-        for c2 in clusters.keys():
-            if c2 == src:
-                continue
-            d = gapaware_hamming(srep, _rep_seq(c2))
-            if d < bestd:
-                best, bestd = c2, d
-        return int(best)
+    def _closest_cluster(c_from: int) -> int | None:
+        """Return id of nearest *other* cluster to c_from; None if no candidate."""
+        # candidates are all clusters except c_from
+        cand = [c for c in assigns if c != c_from and len(assigns[c]) > 0]
+        if not cand:
+            return None
+        best = None
+        best_d = float("inf")
 
+        # distance by tree representatives if available, else by gap-aware Hamming of medoids
+        def _rep_seq(ci):
+            # reuse any representative you cache; else pick a quick medoid
+            ids = assigns[ci]
+            return seqs[ids[0]] if len(ids) == 1 else seqs[medoid_of_rows(np.array(ids, dtype=int))]
+
+        s_from = _rep_seq(c_from)
+        for cj in cand:
+            d = gapaware_hamming(s_from, _rep_seq(cj))
+            if d < best_d:
+                best_d = d
+                best = cj
+        return best
+
+    print("[2025-.. ..:..:..] >>> Greedy tiny-merge to reach min_output_size ...")
+    eff_min = int(getattr(args, "min_output_size", 0))
     merges = 0
-    # Keep merging the smallest cluster if it's tiny
-    while True:
-        # pick the smallest by size
-        order_by_size = sorted(clusters.keys(), key=lambda c: len(clusters[c]))
-        if not order_by_size:
-            break
-        cmin = order_by_size[0]
-        nmin = len(clusters[cmin])
-        if nmin >= min_size:
-            break  # all clusters are now >= min_size
-        # merge cmin into its nearest neighbor (can be tiny or big)
-        target = _closest_cluster(cmin)
-        clusters[target].extend(clusters[cmin])
-        # invalidate reps for participants
-        rep_cache.pop(target, None)
-        rep_cache.pop(cmin, None)
-        del clusters[cmin]
-        merges += 1
-        if verbose and (merges % 5 == 0 or merges <= 3):
-            _log(f"[tiny-merge] merges={merges}; smallest_now={min(len(clusters[c]) for c in clusters)}; clusters={len(clusters)}", verbose)
 
-    st.done(f"merges={merges}; clusters_now={len(clusters)}")
+    # No merging if disabled or nothing to merge
+    if eff_min <= 0:
+        print(f"[tiny-merge] disabled (min_output_size={eff_min})")
+    elif len(assigns) <= 1:
+        # Nothing to merge into. Accept the single cluster as-is.
+        print(f"[tiny-merge] skipped: only {len(assigns)} cluster(s); "
+              f"min_output_size={eff_min} > total_n={sum(len(v) for v in assigns.values())}")
+    else:
+        # Iteratively merge clusters smaller than eff_min into their nearest neighbor
+        # Stop when all clusters are >= eff_min or when no valid target exists.
+        while True:
+            small = [c for c in sorted(assigns.keys()) if len(assigns[c]) < eff_min]
+            if not small:
+                break
+            progressed = False
+            for cmin in small:
+                target = _closest_cluster(cmin)
+                if target is None or target == cmin:
+                    # No valid merge target; skip this one
+                    continue
+                assigns[target].extend(assigns[cmin])
+                assigns[cmin] = []  # mark emptied
+                merges += 1
+                progressed = True
+            if not progressed:
+                # no more merges possible
+                break
+
+
+    st.done(f"Greedy tiny-merge: merges={merges}; clusters_now={len(clusters)}")
 
     # If everything was tiny and merged to nothing (shouldn't happen), guard:
     if not clusters:
@@ -815,6 +908,9 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
 
     st = StageTimer("Dropped low-Neff", verbose)
 
+    final_n = sum(len(idxs) for idxs in assigns.values())
+    print(f"[counts] final clusters: {len(assigns)}  total_assigned={final_n}")
+#    print(f"[counts] total_unassigned={n_after_gaps - final_n}")
 
     # write metadata CSV
     meta_path = Path(args.outdir, f"{args.keyword}_clusters.csv")
@@ -846,6 +942,10 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--tree_min_num_clusters", type=int, default=5,
                    help="Target minimum number of clusters; sets a relative max cluster size total_n / K. "
                         "If that would give clusters smaller than min_output_size, size cap is disabled.")
+    p.add_argument("--tree_assign_missing", type=int, default=1,
+                   help="If 1, assign sequences not present in the tree to nearest cluster representative (default: 1).")
+    p.add_argument("--tree_rep_cap", type=int, default=200,
+                   help="Max sequences to use when computing a cluster representative/medoid (default: 200).")
 
     # shared thresholds
     p.add_argument("--max_clusters", type=int, default=100, help="Maximum clusters to output.")
@@ -904,6 +1004,23 @@ def main():
     args = build_argparser().parse_args()
 
     headers, seqs = load_a3m(args.a3m)
+
+    raw_n = len(headers)  # or however you store MSA lines
+    L = len(seqs[0]) if seqs else 0
+    print(f"[counts] MSA total={raw_n}  L={L}")
+
+    # Build gap filter (works for all algorithms)
+    frac = np.array([s.count('-') / len(s) for s in seqs], dtype=float)
+    keep_mask = (frac <= float(args.frac_gaps_cutoff))
+    if keep_mask.mean() < 1.0:
+        print(f"[filter] dropping {int((~keep_mask).sum())} sequences by gap fraction > {args.frac_gaps_cutoff}")
+    # Apply mask
+    headers = [h for h, k in zip(headers, keep_mask) if k]
+    seqs = [s for s, k in zip(seqs, keep_mask) if k]
+
+    # Suppose you build keep_mask by frac_gaps_cutoff (see next patch)
+    n_after_gaps = int(keep_mask.sum())
+    print(f"[counts] after gap-filter (frac_gaps <= {args.frac_gaps_cutoff}): {n_after_gaps} kept, {raw_n - n_after_gaps} dropped")
 
     if args.cluster_alg == "hdbscan":
         assigns = cluster_hdbscan(headers, seqs, args)

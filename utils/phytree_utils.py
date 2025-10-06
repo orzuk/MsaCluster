@@ -4,10 +4,20 @@ import copy
 # for phylogenetic trees
 from Bio import Phylo, AlignIO
 from Bio.Phylo.TreeConstruction import *
+
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from scipy.cluster.hierarchy import linkage, to_tree
+from Bio.Phylo.Newick import Clade, Tree as NwTree
+
+
+# Prefer fastcluster (much faster), fall back to SciPy
+try:
+    from fastcluster import linkage  # 1.2.6 present on machine
+except Exception:
+    from scipy.cluster.hierarchy import linkage
+from scipy.cluster.hierarchy import to_tree
+
 
 import pickle
 from pylab import *
@@ -38,14 +48,18 @@ import pandas as pd
 from matplotlib.colors import Normalize, to_hex
 # from matplotlib import pyplot as plt
 from matplotlib.colorbar import ColorbarBase
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 # from matplotlib.transforms import Bbox
 
-import matplotlib.pyplot as plt
 import re, random
 import time
 import math
 from contextlib import contextmanager
+from collections import Counter
 
+
+# ----- Helper functions -----
 
 @contextmanager
 def _stage(name: str):
@@ -58,14 +72,105 @@ def _stage(name: str):
         print(f"[tree] {now()} <<< {name} done in {dt:.1f}s", flush=True)
 
 
+def _condensed_hamming_from_seqs(seqs, block_j=1024, step_cols=2048):
+    """
+    Build a condensed Hamming distance vector (upper triangle, i<j) for equal-length aligned strings.
 
+    seqs: list[str] with identical length (post A3M cleaning)
+    Returns: np.ndarray, shape = (n*(n-1)//2,), float64, distances in [0,1]
+    """
+    n = len(seqs)
+    if n < 2:
+        return np.zeros(0, dtype=np.float64)
 
+    L = len(seqs[0])
+    # Build a tiny LUT only for actually observed characters (fast, compact)
+    chars = sorted({c for s in seqs for c in s})
+    lut = {c: i for i, c in enumerate(chars)}  # typically 21 symbols including '-'
 
+    # Encode to uint8 matrix (n, L)
+    A = np.empty((n, L), dtype=np.uint8)
+    for i, s in enumerate(seqs):
+        A[i, :] = np.fromiter((lut[c] for c in s), dtype=np.uint8, count=L)
 
+    # Condensed length
+    m = n * (n - 1) // 2
+    out = np.empty(m, dtype=np.float64)
 
-# ----- Helper functions -----
+    # Precompute row offsets into the condensed vector:
+    # offset(i) = number of elements before row i = sum_{r=0}^{i-1} (n-1-r) = i*(2n - i - 1)/2
+    # Then index(i,j) = offset(i) + (j - i - 1)
+    # We'll write per-i row to contiguous slices starting at offset(i).
+    for i in range(n - 1):
+        # Starting write position in condensed for this i
+        offset_i = i * (2 * n - i - 1) // 2  # integer arithmetic
+        write_pos = offset_i
+
+        # Compare row i against blocks of rows j in (i+1..n-1)
+        Ai = A[i:i+1]  # shape (1, L)
+        for j0 in range(i + 1, n, block_j):
+            j1 = min(n, j0 + block_j)
+            Aj = A[j0:j1]  # shape (B2, L)
+
+            # Accumulate mismatches across columns in manageable chunks
+            acc = None
+            for c0 in range(0, L, step_cols):
+                c1 = min(L, c0 + step_cols)
+                # (1,1,cols) vs (1,B2,cols) via broadcasting -> (1,B2,cols) -> sum over cols -> (1,B2)
+                neq = (Ai[:, None, c0:c1] != Aj[None, :, c0:c1]).sum(axis=2, dtype=np.int32)
+                acc = neq if acc is None else (acc + neq)
+
+            B2 = j1 - j0
+            # acc shape is (1, B2); squeeze to (B2,)
+            out[write_pos:write_pos + B2] = acc[0]
+            write_pos += B2
+
+    # Normalize to mismatch fraction (Bio 'identity' distance)
+    out /= float(L)
+    return out
+
 
 # --- helpers for stratified sampling (place once in phytree_utils.py) ---
+
+def _debug_compare_with_biopython(seqs, names, sample_pairs=200, rng_seed=0):
+    """
+    Randomly pick some (i,j) pairs, compare our fast Hamming to BioPython's
+    DistanceCalculator('identity'). Print MAE / max-abs-diff.
+    """
+
+    random.seed(rng_seed)
+    n = len(seqs)
+    # Build a small alignment only for sampled pairs + a reference row to avoid repeated rebuilds.
+    # For simplicity, we just build per-pair mini-alignments (cheap for a few hundred checks).
+    calc = DistanceCalculator('identity')
+
+    # our fast distances via the same encoder used in pipeline (re-use function)
+    def _pair_fast(i, j):
+        s1, s2 = seqs[i], seqs[j]
+        # exact same logic as in _condensed_hamming_from_seqs for a single pair:
+        L = len(s1)
+        # NOTE: treat '-' as a regular symbol (same as Bio 'identity'):
+        neq = sum(ch1 != ch2 for ch1, ch2 in zip(s1, s2))
+        return neq / float(L)
+
+    idx = [(random.randrange(0, n-1), None) for _ in range(sample_pairs)]
+    idx = [(i, random.randrange(i+1, n)) for (i, _) in idx]
+
+    diffs = []
+    for (i, j) in idx:
+        aln = MultipleSeqAlignment([
+            SeqRecord(Seq(seqs[i]), id=names[i]),
+            SeqRecord(Seq(seqs[j]), id=names[j]),
+        ])
+        bio_dm = calc.get_distance(aln)
+        bio = bio_dm[1,0]  # distance between the two rows
+        fast = _pair_fast(i, j)
+        diffs.append(abs(bio - fast))
+
+    diffs = np.asarray(diffs)
+    print(f"[debug] compare fast-vs-Bio on {len(diffs)} pairs: "
+          f"MAE={diffs.mean():.3e}  max={diffs.max():.3e}")
+
 
 def _norm_id(header: str) -> str:
     """
@@ -197,7 +302,6 @@ def phytree_from_msa(msa_file, output_tree_file,
     seqs = [clean_a3m_line(s) for s in seqs]
 
     # 2) ENFORCE A SINGLE ALIGNED LENGTH (keep modal length; drop outliers)
-    from collections import Counter
     raw_n = len(seqs)
     lengths = [len(s) for s in seqs]
     if not lengths or min(lengths) == 0:
@@ -231,8 +335,13 @@ def phytree_from_msa(msa_file, output_tree_file,
                 nid = _norm_id(rid)
                 deep_norm_to_indices.setdefault(nid, []).append(i)
 
-            clusters = _load_cluster_norm_ids(cluster_msa_dir)
-            shallow = sorted([c for c in clusters if c.startswith("ShallowMsa_")])
+            try:  # try to load clusters
+                clusters = _load_cluster_norm_ids(cluster_msa_dir)
+                shallow = sorted([c for c in clusters if c.startswith("ShallowMsa_")])
+            except:
+                print("[warn] Could not load clusters; falling back to uniform sampling.")
+                clusters = {}
+                shallow = []
 
             chosen_idx: list[int] = []
             represented = 0
@@ -289,88 +398,56 @@ def phytree_from_msa(msa_file, output_tree_file,
         alignment = MultipleSeqAlignment(seq_records)
         print(f"[phytree] Built MSA for sequences")
 
-    # Distances + UPGMA
+    # Fast condensed distances (skip Bio DistanceCalculator)
     with _stage(f"Setting Distance MAtrix"):
-        calculator = DistanceCalculator('identity')
-        distance_matrix = calculator.get_distance(alignment)
-        print(f"[phytree] Built Distance matrix for MSA of {len(alignment)} sequences")
+        condensed = _condensed_hamming_from_seqs(seqs)  # <- main speedup
+        names = list(seqs_IDs)  # keep same order as seqs
+        n = len(names)
+        print(f"[phytree] Built condensed Hamming for {n} sequences")
 
-#    with _stage(f"Setting UPGMA Tree"):
-#        constructor = DistanceTreeConstructor()
-#        tree = constructor.upgma(distance_matrix)
-#        print(f"[phytree] Building Tree UPGMA from Distance matrix" )
+        L = len(seqs[0])
+        print(f"[phytree] n={len(seqs)}  L={L}  pairs={len(seqs) * (len(seqs) - 1) // 2}")
 
-    # --- replace the slow UPGMA block with a SciPy-based version ---
+        _debug_compare_with_biopython(seqs, names, sample_pairs=200)
+        print(f"[debug] Compared condensed to Biopython distances")
 
-    with _stage(f"Setting FAST UPGMA Tree"):
+    # --- replaced the slow UPGMA block with a SciPy-based version ---
+    with _stage(f"Setting UPGMA Tree"):
         try:
-            print("[phytree] Converting BioPython DistanceMatrix -> condensed vector")
-            names = distance_matrix.names
-            n = len(names)
+            # 'condensed', 'names', 'n' were produced in the previous stage
+            Z = linkage(condensed, method="average")  # fastcluster or SciPy
 
-            # BioPython DistanceMatrix stores lower-triangular rows: matrix[i][0..i]
-            # Build full square then extract condensed upper-triangle.
-            dm = np.zeros((n, n), dtype=float)
-            for i, row in enumerate(distance_matrix.matrix):
-                dm[i, :i + 1] = row
-                dm[:i + 1, i] = row  # mirror to upper triangle
+            rootnode, _ = to_tree(Z, rd=True)
 
-            # condensed vector (upper triangle, k=(i<j))
-            iu = np.triu_indices(n, 1)
-            condensed = dm[iu]
-
-            print("[phytree] SciPy linkage(method='average') ~ UPGMA")
-            Z = linkage(condensed, method="average")  # fast C implementation
-
-            # Convert to a binary tree; heights in Z are node distances.
-            root, nodes = to_tree(Z, rd=True)
-
-            # Build Newick (ultrametric): branch length = node.height - child.height
-            class _Node:
-                __slots__ = ("name", "children", "height")
-
-                def __init__(self, name=None, children=(), height=0.0):
-                    self.name = name
-                    self.children = list(children)
-                    self.height = float(height)
-
-            # map SciPy ClusterNodes to simple nodes with heights
-            snodes = [_Node() for _ in nodes]
-            for idx, cn in enumerate(nodes):
+            def to_clade(cn):
+                # returns (Bio.Phylo.Newick.Clade, height_of_subtree)
                 if cn.is_leaf():
-                    snodes[idx].name = names[cn.id]
-                    snodes[idx].height = 0.0
-                else:
-                    snodes[idx].children = [snodes[nodes.index(cn.get_left())],
-                                            snodes[nodes.index(cn.get_right())]]
-                    snodes[idx].height = cn.dist
+                    return Clade(name=names[cn.id], branch_length=0.0), 0.0
+                lc, lh = to_clade(cn.get_left())
+                rc, rh = to_clade(cn.get_right())
+                # UPGMA ultrametric branch lengths
+                bl_l = max(cn.dist - lh, 0.0)
+                bl_r = max(cn.dist - rh, 0.0)
+                lc.branch_length = bl_l
+                rc.branch_length = bl_r
+                return Clade(clades=[lc, rc], branch_length=0.0), cn.dist
 
-            def _to_newick(n):
-                if not n.children:  # leaf
-                    return f"{n.name}:0"
-                c1, c2 = n.children
-                bl1 = max(n.height - c1.height, 0.0)
-                bl2 = max(n.height - c2.height, 0.0)
-                return f"({_to_newick(c1)}:{bl1:.6f},{_to_newick(c2)}:{bl2:.6f})"
-
-            newick = _to_newick(snodes[nodes.index(root)]) + ";"
-            print("[phytree] UPGMA/average-linkage tree built via SciPy")
-
-            # Write Newick directly
-            if len(output_tree_file) == 0:
-                output_tree_file = msa_file.replace(".a3m", "_tree.nwk")
-            os.makedirs(os.path.dirname(output_tree_file), exist_ok=True)
-            with open(output_tree_file, "w") as f:
-                f.write(newick)
-            print(f"[phytree] Saved output tree to {output_tree_file}")
-
-            return newick  # or return a lightweight object if you prefer
+            root_clade, _ = to_clade(rootnode)
+            tree = NwTree(root=root_clade)
+            print("[phytree] UPGMA tree built via fastcluster average-linkage")
 
         except Exception as e:
-            print(f"[warn] SciPy fast UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
+            print(f"[warn] Fast UPGMA path failed ({e}); falling back to Bio.Phylo (slow)")
+            # If you want a fallback, you *must* rebuild a Bio DistanceMatrix. Skipping here is fine.
             constructor = DistanceTreeConstructor()
-            tree = constructor.upgma(distance_matrix)
-            print(f"[phytree] Building Tree UPGMA from Distance matrix (Bio.Phylo)")
+            # WARNING: falling back will need a DistanceMatrix object;
+            # you can omit this fallback, or reconstruct it if necessary.
+            raise
+
+    from scipy.cluster.hierarchy import cophenet
+    c, _ = cophenet(Z, condensed)
+    print(f"[phytree] cophenetic corr = {c:.4f}")
+    # Values ~0.8–0.98 are typical; closer to 1 is better.
 
     # Save (same as before)
     if len(output_tree_file) == 0:
@@ -485,9 +562,6 @@ def visualize_tree_with_heatmap(
     Render an ETE tree + grouped heatmap + group colorbars (slim, stacked).
     `node_values_matrix` must be indexed by EXACT leaf names present in `phylo_tree`.
     """
-    import matplotlib as mpl
-    import matplotlib.pyplot as plt
-    import numpy as np
 
     # --- validate / order rows by tree leaves (tree is already pruned by caller) ---
     tree_leaves = [n.name for n in phylo_tree.iter_leaves()]
