@@ -637,24 +637,6 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             "n_cmap_preds": int(len(df_cmap))
         })
 
-    # ---- cache true↔true TM once ----
-    # pair_id is something like "2qqjA_4qdsA"
-    foldA, foldB = pair_id.split("_", 1)  # "2qqjA", "4qdsA"
-    pdbA_path = os.path.join("Pipeline", pair_id, f"{foldA[:-1]}.pdb")  # Pipeline/<pair>/2qqj.pdb
-    pdbB_path = os.path.join("Pipeline", pair_id, f"{foldB[:-1]}.pdb")  # Pipeline/<pair>/4qds.pdb
-    pair_dir = os.path.join("Pipeline", pair_id)
-
-    def _tm_align_wrapper(pa, pb) -> float:
-        # TODO: replace with your actual TM-score call.
-        # For example, if you already have a helper run_tmalign(pa, pb) → float:
-        return run_tmalign(pa, pb)
-
-    try:
-        tm_true_true = get_or_compute_true_tm(pair_dir, pdbA_path, pdbB_path, _tm_align_wrapper)
-        # (Optional) if you also keep a per-pair summary CSV/JSON, you can write tm_true_true there too.
-    except Exception as e:
-        print(f"[postprocess] WARN true↔true TM cache: {e}")
-
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
