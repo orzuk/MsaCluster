@@ -14,7 +14,6 @@ from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_
 from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
 from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
-from utils.protein_utils import run_tmalign  # adjust import if needed
 
 import numpy as np
 
