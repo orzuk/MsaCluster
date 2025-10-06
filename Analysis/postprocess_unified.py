@@ -454,21 +454,21 @@ def compute_tmscore_all_pairs():
 
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     """
-    One row per cluster for this pair with columns:
-      cluster, n, neff, TM-AF1, TM-AF2, TM-ESM1, TM-ESM2, RE-MSAT-COM, RE-MSAT1, RE-MSAT2
+    One row per cluster with columns:
+      cluster, n, neff, AF2, AF3, ESM2, ESM3, RE-MSAT-COM, RE-MSAT1, RE-MSAT2
+    Where AF*/ESM* = max over predictions of max(TMscore_fold1, TMscore_fold2).
     """
     anal = _ensure_pair_analysis(pair_id)
     df_af   = _safe_read_csv(str(anal / "df_af.csv"))
     df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
     df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
 
-    # ---- cache clusters: sizes & neff ----
     cache_stats = {}
     cpath = anal / "cache.json"
     if cpath.is_file():
         try:
+            import json
             C = json.loads(cpath.read_text())
-            # clusters dict like {"ShallowMsa_000": {"n":..,"neff":..}, ...}
             cache_stats = C.get("clusters", {}) or {}
         except Exception:
             cache_stats = {}
@@ -482,25 +482,44 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         if t.startswith("ShallowMsa_"): return t
         return t
 
-    # ---- TM block ----
-    tm = pd.DataFrame()
-    def _pick_tm(df, prefix):
-        if df is None or df.empty: return
+    # --- helper: per-model per-cluster best TM = max(max(TM1,TM2)) ---
+    def _model_best(df: Optional[pd.DataFrame],
+                    model_key: str,
+                    model_col_name: str) -> pd.DataFrame:
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["_tag", model_col_name])
         d = df.copy()
+        # normalize column names
         if "cluster_num" not in d.columns and "cluster" in d.columns:
             d = d.rename(columns={"cluster": "cluster_num"})
         d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
+
+        # normalize model column
+        if "model" in d.columns:
+            d["model"] = d["model"].astype(str).str.lower()
+        else:
+            d["model"] = model_key
+
+        # select rows of this model
+        d = d[d["model"] == model_key]
+
+        # numeric safe
         t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
         t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
-        agg = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
-        for col, src in (("TM-AF1","TM1"),("TM-AF2","TM2")) if prefix=="AF" else (("TM-ESM1","TM1"),("TM-ESM2","TM2")):
-            tm[col] = agg[src]
-    _pick_tm(df_af, "AF")
-    _pick_tm(df_esm, "ESM")
-    if tm.empty:
-        tm.index = []
+        d["_best"] = pd.concat([t1, t2], axis=1).max(axis=1)
 
-    # ---- MSAT block ----
+        out = d.groupby("_tag")["_best"].max().to_frame(model_col_name)
+        return out
+
+    # AF2 & AF3 from df_af (model column is AF2/AF3)
+    af2 = _model_best(df_af,  "af2",  "AF2")
+    af3 = _model_best(df_af,  "af3",  "AF3")
+
+    # ESM2 & ESM3 from df_esm (model column is esm2/esm3)
+    es2 = _model_best(df_esm, "esm2", "ESM2")
+    es3 = _model_best(df_esm, "esm3", "ESM3")
+
+    # --- MSAT block (reuse your existing max-aggregation by cluster) ---
     ms = pd.DataFrame()
     if df_cmap is not None and not df_cmap.empty:
         d = df_cmap.copy()
@@ -512,24 +531,23 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
             d["_tag"] = None
 
         ms = pd.DataFrame({
-            "RE-MSAT-COM": pick(["common_mcc","common_f1","common_recall","common_jaccard"]),
-            "RE-MSAT1":    pick(["uniq1_mcc","t1_mcc","t1_f1","t1_recall","uniq1_recall","t1_jaccard"]),
-            "RE-MSAT2":    pick(["uniq2_mcc","t2_mcc","t2_f1","t2_recall","uniq2_recall","t2_jaccard"]),
+            "RE-MSAT-COM": d.get("common_f1", d.get("common_mcc", None)),
+            "RE-MSAT1":    d.get("t1_f1", d.get("t1_mcc", None)),
+            "RE-MSAT2":    d.get("t2_f1", d.get("t2_mcc", None)),
             "_tag": d["_tag"]
         }).groupby("_tag").max()
 
-    # ---- merge TM + MSAT on index (cluster tag) ----
-    idx = sorted(set(tm.index) | set(ms.index) | set(cache_stats.keys()))
+    # --- merge all on index (_tag) ---
+    idx = sorted(set(af2.index) | set(af3.index) | set(es2.index) | set(es3.index) | set(ms.index) | set(cache_stats.keys()))
     out = pd.DataFrame(index=idx)
-    for block in (tm, ms):
+    for block in (af2, af3, es2, es3, ms):
         if not block.empty:
             out = out.join(block, how="left")
 
-    # add n & neff from cache (align by tag like 'ShallowMsa_007' or 'DeepMsa')
+    # add n & neff from cache (keys are "ShallowMsa_XXX" or "DeepMsa")
     def _get_stat(tag, key):
         s = cache_stats.get(tag)
         if s is None and tag != "DeepMsa":
-            # be tolerant to '7' vs 'ShallowMsa_007'
             m = re.search(r"(\d+)$", str(tag))
             if m:
                 alt = f"ShallowMsa_{int(m.group(1)):03d}"
@@ -540,20 +558,23 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
 
     out = out.reset_index().rename(columns={"index": "cluster"})
 
-    # compact labels for display: "DeepMsa"→"Deep", "ShallowMsa_007"→"7"
+    # compact display labels: DeepMsa -> Deep; ShallowMsa_007 -> "007"
     def _short(s):
-        if not s: return s
-        if str(s).lower().startswith("deep"): return "Deep"
-        m = re.search(r"(\d+)$", str(s))
-        return m.group(1) if m else s
+        s = str(s)
+        if s.lower().startswith("deep"): return "Deep"
+        m = re.search(r"(\d+)$", s)
+        if m:
+            return f"{int(m.group(1)):03d}"
+        return s
     out["cluster"] = out["cluster"].map(_short)
 
-    # order columns & round
-    wanted = ["cluster","n","neff","TM-AF1","TM-AF2","TM-ESM1","TM-ESM2","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]
+    # order & round
+    wanted = ["cluster","n","neff","AF2","AF3","ESM2","ESM3","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]
     out = out[[c for c in wanted if c in out.columns]]
     num_cols = out.select_dtypes(include="number").columns
     out[num_cols] = out[num_cols].round(3)
     return out
+
 
 def build_all_pairs_clusters_table(pairs: Optional[List[str]] = None, write_out: bool = True) -> pd.DataFrame:
     """Concatenate per-pair cluster tables into one global table with pair_id + cluster columns."""

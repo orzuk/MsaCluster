@@ -58,6 +58,31 @@ def _ensure_unified_csvs(force_rerun: bool = False):
 
 NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
 
+def _append_mean_std_row(df: pd.DataFrame, label_col: str, label_text: str = "Averages") -> pd.DataFrame:
+    """Append a last row with per-column mean (std) for numeric columns.
+       Non-numeric columns get '-' except the label_col which gets label_text."""
+    out = df.copy()
+    means = {}
+    for c in out.columns:
+        if c == label_col:
+            means[c] = label_text
+            continue
+        # try parsing numeric (also when cells are strings like "0.78 (7)")
+        s = out[c]
+        if s.dtype.kind in "biufc":
+            x = pd.to_numeric(s, errors="coerce")
+        else:
+            x = pd.to_numeric(s.apply(numeric_part), errors="coerce")
+        if x.notna().any():
+            mu = float(x.mean())
+            sd = float(x.std(ddof=1)) if x.count() > 1 else 0.0
+            means[c] = f"{mu:.3f} ({sd:.3f})"
+        else:
+            means[c] = "-"
+    out = pd.concat([out, pd.DataFrame([means])], ignore_index=True)
+    return out
+
+
 def numeric_part(cell) -> str:
     if pd.isna(cell):
         return ""
@@ -175,6 +200,27 @@ def gen_html_from_summary_table(
 
     df = df[ordered]
 
+    # Round numeric columns to 3 decimals for display
+    for c in df.columns:
+        if c == "pair_id": continue
+        s = pd.to_numeric(df[c].apply(numeric_part), errors="coerce")
+        if s.notna().any():
+            # replace display values with rounded (preserve cluster-id parentheses in AF2Clust_TM*)
+            def _fmt(v):
+                if pd.isna(v): return v
+                v = str(v)
+                # keep things like "0.812 (7)": round the first number and keep the parenthesis
+                m = re.match(r"^\s*([+-]?\d+(?:\.\d+)?)\s*(.*)$", v)
+                if not m: return v
+                a, tail = m.group(1), m.group(2)
+                return f"{float(a):.3f}{tail}"
+            df[c] = df[c].map(_fmt)
+
+    # Append "Averages (std)" row
+    df = _append_mean_std_row(df, label_col="pair_id", label_text="Averages")
+
+
+
     # --- Table header (clickable for sorting) ---
     thead = "<tr>" + "".join(
         f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
@@ -287,23 +333,21 @@ function sortTable(colIdx) {{
     return output_html
 
 
-
 def gen_html_from_cluster_detailed_table(
     detailed_csv: str | None = None,
     output_html: str | None = None,
     title: str = "Cluster-level Results (one row per cluster)",
     base_pair_url: str | None = GITHUB_URL_HTML + "/{pair_id}.html",
 ) -> str:
+    # Use the global clusters CSV we write in postprocess_unified
     if detailed_csv is None:
-        detailed_csv = DETAILED_RESULTS_TABLE
+        detailed_csv = str(Path(SUMMARY_RESULTS_TABLE).parent / "clusters_global_table.csv")
     if output_html is None:
-        output_html = os.path.join(TABLES_RES, "clusters_table.html")
+        output_html = os.path.join(TABLES_RES, "protein_clusters_table.html")
 
-    # === NEW: auto-create CSVs if missing ===
     _ensure_unified_csvs(force_rerun=False)
-
     if not os.path.exists(detailed_csv):
-        raise FileNotFoundError(f"Detailed CSV not found: {detailed_csv}")
+        raise FileNotFoundError(f"Clusters CSV not found: {detailed_csv}")
 
     df = pd.read_csv(detailed_csv)
     if df.empty:
@@ -313,23 +357,39 @@ def gen_html_from_cluster_detailed_table(
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
 
-    pair_col = "fold_pair" if "fold_pair" in df.columns else ("pair_id" if "pair_id" in df.columns else None)
+    # ensure pair id is first column
+    pair_col = "pair_id" if "pair_id" in df.columns else ("fold_pair" if "fold_pair" in df.columns else None)
     if pair_col is None:
-        raise KeyError("Expected a 'fold_pair' (or 'pair_id') column in the detailed CSV.")
-    cols = [pair_col] + [c for c in df.columns if c != pair_col]
+        raise KeyError("Expected 'pair_id' (or 'fold_pair') in clusters CSV.")
+    if pair_col != "pair_id":
+        df = df.rename(columns={pair_col: "pair_id"})
+    # preferred order
+    preferred = ["pair_id","cluster","n","neff","AF2","AF3","ESM2","ESM3","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]
+    cols = [c for c in preferred if c in df.columns] + [c for c in df.columns if c not in preferred]
     df = df[cols]
 
+    # round numeric display to 3 decimals
+    for c in df.columns:
+        if c in ("pair_id","cluster"): continue
+        s = pd.to_numeric(df[c], errors="coerce")
+        if s.notna().any():
+            df[c] = s.round(3)
+
+    # Append "Averages (std)" row
+    df = _append_mean_std_row(df, label_col="pair_id", label_text="Averages")
+
+    # Build the HTML (same styling and sorter)
     thead = "<tr>" + "".join(
         f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
         for i, col in enumerate(df.columns)
     ) + "</tr>"
 
-
     rows = []
     for _, r in df.iterrows():
-        pair = str(r[pair_col])
-        link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
-        tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
+        pair = str(r["pair_id"])
+        link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair)) if pair not in ("Averages",) else "#"
+        first_td = f'<td>{"<a href=\\"%s\\" target=\\"_blank\\">%s</a>"%(link,html.escape(pair)) if pair!="Averages" else html.escape(pair)}</td>'
+        tds = [first_td]
         for col in df.columns[1:]:
             val = r[col]
             disp = "-" if pd.isna(val) else str(val)
@@ -385,7 +445,6 @@ function sortTable(colIdx) {{
 </script>
 </body>
 </html>"""
-
     os.makedirs(os.path.dirname(output_html), exist_ok=True)
     with open(output_html, "w", encoding="utf-8") as f:
         f.write(html_doc)
