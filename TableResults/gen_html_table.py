@@ -388,7 +388,12 @@ def gen_html_from_cluster_detailed_table(
     for _, r in df.iterrows():
         pair = str(r["pair_id"])
         link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair)) if pair not in ("Averages",) else "#"
-        first_td = f'<td>{"<a href=\\"%s\\" target=\\"_blank\\">%s</a>"%(link,html.escape(pair)) if pair!="Averages" else html.escape(pair)}</td>'
+        # Build the first cell (linked pair_id except for the summary row)
+        if pair != "Averages":
+            link_html = f'<a href="{link}" target="_blank">{html.escape(pair)}</a>'
+        else:
+            link_html = html.escape(pair)
+        first_td = f'<td>{link_html}</td>'
         tds = [first_td]
         for col in df.columns[1:]:
             val = r[col]
