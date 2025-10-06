@@ -213,7 +213,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
     Fast path:
       - READ cached per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv) – no recompute
       - COMPUTE summary (one row per pair) incl. "#RES" and "MSA DEPTH (#Clusters)"
-      - COMPUTE detailed (ONE ROW PER CLUSTER; includes ESM list columns)
+      - COMPUTE detailed (ONE ROW PER CLUSTER; includes per-fold AF2/AF3 and ESM list columns)
       - Optionally write SUMMARY_RESULTS_TABLE and DETAILED_RESULTS_TABLE
     """
     if not pairs:
@@ -235,18 +235,18 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
         df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
 
-        # --------- DETAILED: ONE ROW PER CLUSTER (B1a) ----------
+        # === DETAILED (B1a): ONE ROW PER CLUSTER using build_pair_cluster_table ===
         try:
-            per_cluster = build_pair_cluster_table(pair_id)  # returns one row per cluster (B1b enhanced)
+            per_cluster = build_pair_cluster_table(pair_id)  # B1b gives AF2_TM1/2, AF3_TM1/2, ESM lists, etc.
             if per_cluster is not None and not per_cluster.empty:
-                # keep both names for compatibility
+                # keep both aliases for compatibility with downstream code
                 per_cluster.insert(0, "pair_id", pair_id)
                 per_cluster.insert(0, "fold_pair", pair_id)
                 all_detailed.append(per_cluster)
         except Exception as e:
             print(f"[unified] WARN per-cluster table for {pair_id}: {e}")
 
-        # --------- SUMMARY row (unchanged) ----------
+        # === SUMMARY row (unchanged from your logic) ===
         tm_af  = _norm_tm_df(df_af,  "af2")
         tm_esm = _norm_tm_df(df_esm, "esm2")
         tm_all = pd.concat([tm_af, tm_esm], ignore_index=True) if len(tm_af) or len(tm_esm) else pd.DataFrame()
@@ -259,7 +259,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         n_clusters = _count_shallow_clusters_fast(pair_id)   # num. clusters
         row["MSA: DEPTH; #RES; #Clusters"] = f"{msa_depth}; {msa_width}; {n_clusters}"
 
-        # TRUE TM between the two known folds (symmetric max)—cached
+        # TRUE TM between the two known folds (symmetric max) — cached
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
         pair_dir_str = str(_pair_dir(pair_id))
         def _tm_sym_once(pa: str, pb: str) -> float:
@@ -464,6 +464,156 @@ def compute_tmscore_all_pairs():
 
     return tm_pairs_scores
 
+def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
+    """
+    ONE row per cluster with columns:
+      cluster, n, neff,
+      AF2_TM1, AF2_TM2, AF3_TM1, AF3_TM2,
+      RE-MSAT-COM, RE-MSAT1, RE-MSAT2,
+      ESM_SEQIDS, ESM_TM1_LIST, ESM_TM2_LIST
+
+    AF2/AF3 per-fold values = max over predictions within that cluster (per fold).
+    ESM_* are ;-joined lists (top 10 by TM1) with cleaned IDs.
+    """
+    anal = _ensure_pair_analysis(pair_id)
+    df_af   = _safe_read_csv(str(anal / "df_af.csv"))
+    df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
+    df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
+
+    # --- cache stats for n/neff ---
+    cache_stats = {}
+    cpath = anal / "cache.json"
+    if cpath.is_file():
+        try:
+            import json
+            C = json.loads(cpath.read_text())
+            cache_stats = C.get("clusters", {}) or {}
+        except Exception:
+            cache_stats = {}
+
+    # ---- AF per-fold maxima (per model) ----
+    def _tm_by_model(df: Optional[pd.DataFrame], model_key: str, prefix: str) -> pd.DataFrame:
+        if df is None or df.empty:
+            return pd.DataFrame(columns=[f"{prefix}_TM1", f"{prefix}_TM2"])
+        d = df.copy()
+        if "cluster_num" not in d.columns and "cluster" in d.columns:
+            d = d.rename(columns={"cluster": "cluster_num"})
+        d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
+
+        # select model (case-insensitive)
+        if "model" in d.columns:
+            md = d["model"].astype(str).str.lower()
+            d = d[md == model_key.lower()]
+
+        t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
+        t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
+        g = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
+        return g.rename(columns={"TM1": f"{prefix}_TM1", "TM2": f"{prefix}_TM2"})
+
+    af2 = _tm_by_model(df_af,  "af2",  "AF2")
+    af3 = _tm_by_model(df_af,  "af3",  "AF3")
+
+    # ---- CMAP / MSAT block (robust to alt column names) ----
+    ms = pd.DataFrame()
+    if df_cmap is not None and not df_cmap.empty:
+        d = df_cmap.copy()
+        if "cluster_num" in d.columns:
+            d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
+        elif "cluster" in d.columns:
+            d["_tag"] = d["cluster"].astype(str).map(_norm_tag)
+        else:
+            d["_tag"] = None
+
+        ms = pd.DataFrame({
+            "RE-MSAT-COM": d.get("common_f1", d.get("common_mcc", None)),
+            "RE-MSAT1":    d.get("t1_f1",    d.get("t1_mcc",    None)),
+            "RE-MSAT2":    d.get("t2_f1",    d.get("t2_mcc",    None)),
+            "_tag": d["_tag"]
+        }).groupby("_tag").max()
+
+    # ---- ESM list columns (IDs cleaned; 2 decimals; top-10 by TM1) ----
+    esm_lists = pd.DataFrame()
+    if df_esm is not None and not df_esm.empty:
+        d = df_esm.copy()
+        if "cluster_num" not in d.columns and "cluster" in d.columns:
+            d = d.rename(columns={"cluster": "cluster_num"})
+        d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
+
+        # clean ID: strip 'ShallowMsa_###__' prefix; 'sample_007' -> '007'
+        def _clean_id(x):
+            s = str(x)
+            s = re.sub(r"^ShallowMsa_\d+__", "", s)
+            m = re.match(r"sample_(\d+)$", s)
+            if m:
+                return f"{int(m.group(1)):03d}"
+            # also handle generic '...__ID' by taking the suffix after the last '__'
+            if "__" in s:
+                return s.split("__")[-1]
+            return s
+
+        d["ID"] = d.get("name").map(_clean_id)
+        t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce").round(2)
+        t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce").round(2)
+
+        blocks = []
+        for tag, sub in d.assign(TM1=t1, TM2=t2).groupby("_tag"):
+            sub = sub.sort_values("TM1", ascending=False).head(10)
+            ids  = "; ".join([str(x) for x in sub["ID"].fillna("")])
+            tm1s = "; ".join([("{:.2f}".format(v) if pd.notna(v) else "") for v in sub["TM1"]])
+            tm2s = "; ".join([("{:.2f}".format(v) if pd.notna(v) else "") for v in sub["TM2"]])
+            blocks.append(pd.DataFrame({"ESM_SEQIDS":[ids], "ESM_TM1_LIST":[tm1s], "ESM_TM2_LIST":[tm2s]}, index=[tag]))
+        if blocks:
+            esm_lists = pd.concat(blocks, axis=0)
+
+    # ---- assemble per-cluster table ----
+    idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(cache_stats.keys()))
+    out = pd.DataFrame(index=idx)
+    if not af2.empty: out = out.join(af2, how="left") if not out.empty else af2.copy()
+    if not af3.empty: out = out.join(af3, how="left")
+    if not ms.empty:  out = out.join(ms,  how="left")
+    if not esm_lists.empty: out = out.join(esm_lists, how="left")
+
+    # n & neff from cache (keys like "ShallowMsa_XXX" or "DeepMsa")
+    def _get_stat(tag, key):
+        s = cache_stats.get(tag)
+        if s is None and tag != "DeepMsa":
+            m = re.search(r"(\d+)$", str(tag))
+            if m:
+                alt = f"ShallowMsa_{int(m.group(1)):03d}"
+                s = cache_stats.get(alt)
+        return (s or {}).get(key, None)
+
+    out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
+    out["neff"] = [ _get_stat(t, "neff") for t in out.index ]
+
+    out = out.reset_index().rename(columns={"index": "cluster"})
+
+    # compact display labels: DeepMsa -> Deep; ShallowMsa_007 -> "007"; blank 'unknown'
+    def _short(s):
+        if s is None or (isinstance(s, float) and pd.isna(s)):
+            return ""
+        st = str(s).strip()
+        if st == "" or "unknown" in st.lower():
+            return ""
+        if st.lower().startswith("deep"):
+            return "Deep"
+        m = re.search(r"(\d+)$", st)
+        return m.group(1) if m else st
+    out["cluster"] = out["cluster"].map(_short)
+
+    # order & round
+    wanted = [
+        "cluster","n","neff",
+        "AF2_TM1","AF2_TM2","AF3_TM1","AF3_TM2",
+        "RE-MSAT-COM","RE-MSAT1","RE-MSAT2",
+        "ESM_SEQIDS","ESM_TM1_LIST","ESM_TM2_LIST",
+    ]
+    out = out[[c for c in wanted if c in out.columns]]
+
+    num_cols = out.select_dtypes(include="number").columns
+    if len(num_cols):
+        out[num_cols] = out[num_cols].round(3)
+    return out
 
 def build_pair_cluster_table_one_row(
     pair_id: str,
@@ -616,149 +766,6 @@ def build_pair_cluster_table_one_row(
         out[num_cols] = out[num_cols].round(3)
     return out
 
-def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
-    """
-    ONE row per cluster with columns:
-      cluster, n, neff,
-      AF2_TM1, AF2_TM2, AF3_TM1, AF3_TM2,
-      RE-MSAT-COM, RE-MSAT1, RE-MSAT2,
-      ESM_SEQIDS, ESM_TM1_LIST, ESM_TM2_LIST
-    Where AF*/fold = max over predictions within that cluster (per fold),
-    and ESM_* are ;-joined lists (top 10 by TM1) with cleaned IDs.
-    """
-    anal = _ensure_pair_analysis(pair_id)
-    df_af   = _safe_read_csv(str(anal / "df_af.csv"))
-    df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
-    df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
-
-    # cache: n / neff
-    cache_stats = {}
-    cpath = anal / "cache.json"
-    if cpath.is_file():
-        try:
-            import json
-            C = json.loads(cpath.read_text())
-            cache_stats = C.get("clusters", {}) or {}
-        except Exception:
-            cache_stats = {}
-
-    # -------- AF per-fold maxima (per model) --------
-    def _tm_by_model(df: Optional[pd.DataFrame], model_key: str, prefix: str) -> pd.DataFrame:
-        if df is None or df.empty:
-            return pd.DataFrame(columns=[f"{prefix}_TM1", f"{prefix}_TM2"])
-        d = df.copy()
-        if "cluster_num" not in d.columns and "cluster" in d.columns:
-            d = d.rename(columns={"cluster": "cluster_num"})
-        d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
-        if "model" in d.columns:
-            md = d["model"].astype(str).str.lower()
-            d = d[md == model_key.lower()]
-        t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
-        t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
-        g = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
-        return g.rename(columns={"TM1": f"{prefix}_TM1", "TM2": f"{prefix}_TM2"})
-
-    af2 = _tm_by_model(df_af,  "af2",  "AF2")
-    af3 = _tm_by_model(df_af,  "af3",  "AF3")
-
-    # -------- CMAP / MSAT block (kept compatible with your column names) --------
-    ms = pd.DataFrame()
-    if df_cmap is not None and not df_cmap.empty:
-        d = df_cmap.copy()
-        if "cluster_num" in d.columns:
-            d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
-        elif "cluster" in d.columns:
-            d["_tag"] = d["cluster"].astype(str).map(_norm_tag)
-        else:
-            d["_tag"] = None
-
-        ms = pd.DataFrame({
-            "RE-MSAT-COM": d.get("common_f1", d.get("common_mcc", None)),
-            "RE-MSAT1":    d.get("t1_f1",    d.get("t1_mcc",    None)),
-            "RE-MSAT2":    d.get("t2_f1",    d.get("t2_mcc",    None)),
-            "_tag": d["_tag"]
-        }).groupby("_tag").max()
-
-    # -------- ESM list columns (top-10 by TM1; 2 decimals; cleaned IDs) --------
-    esm_lists = pd.DataFrame()
-    if df_esm is not None and not df_esm.empty:
-        d = df_esm.copy()
-        if "cluster_num" not in d.columns and "cluster" in d.columns:
-            d = d.rename(columns={"cluster": "cluster_num"})
-        d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
-
-        # clean ID: strip 'ShallowMsa_###__' prefix; 'sample_007' -> '007'
-        def _clean_id(x):
-            s = str(x)
-            s = re.sub(r"^ShallowMsa_\d+__", "", s)
-            m = re.match(r"sample_(\d+)$", s)
-            if m:
-                return f"{int(m.group(1)):03d}"
-            return s
-
-        d["ID"] = d.get("name").map(_clean_id)
-        t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
-        t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
-
-        blocks = []
-        for tag, sub in d.assign(TM1=t1, TM2=t2).groupby("_tag"):
-            sub = sub.sort_values("TM1", ascending=False).head(10)
-            ids  = "; ".join([str(x) for x in sub["ID"].fillna("")])
-            tm1s = "; ".join([("{:.2f}".format(v) if pd.notna(v) else "") for v in sub["TM1"]])
-            tm2s = "; ".join([("{:.2f}".format(v) if pd.notna(v) else "") for v in sub["TM2"]])
-            blocks.append(pd.DataFrame({"ESM_SEQIDS":[ids], "ESM_TM1_LIST":[tm1s], "ESM_TM2_LIST":[tm2s]}, index=[tag]))
-        if blocks:
-            esm_lists = pd.concat(blocks, axis=0)
-
-    # -------- assemble per-cluster table --------
-    idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(cache_stats.keys()))
-    out = pd.DataFrame(index=idx)
-    if not af2.empty: out = out.join(af2, how="left") if not out.empty else af2.copy()
-    if not af3.empty: out = out.join(af3, how="left")
-    if not ms.empty:  out = out.join(ms,  how="left")
-    if not esm_lists.empty: out = out.join(esm_lists, how="left")
-
-    # n & neff from cache (keys like "ShallowMsa_XXX" or "DeepMsa")
-    def _get_stat(tag, key):
-        s = cache_stats.get(tag)
-        if s is None and tag != "DeepMsa":
-            m = re.search(r"(\d+)$", str(tag))
-            if m:
-                alt = f"ShallowMsa_{int(m.group(1)):03d}"
-                s = cache_stats.get(alt)
-        return (s or {}).get(key, None)
-
-    out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
-    out["neff"] = [ _get_stat(t, "neff") for t in out.index ]
-
-    out = out.reset_index().rename(columns={"index": "cluster"})
-
-    # compact display labels: DeepMsa -> Deep; ShallowMsa_007 -> "007"; blank 'unknown'
-    def _short(s):
-        if s is None or (isinstance(s, float) and pd.isna(s)):
-            return ""
-        st = str(s).strip()
-        if st == "" or "unknown" in st.lower():
-            return ""
-        if st.lower().startswith("deep"):
-            return "Deep"
-        m = re.search(r"(\d+)$", st)
-        return m.group(1) if m else st
-    out["cluster"] = out["cluster"].map(_short)
-
-    # order & round
-    wanted = [
-        "cluster","n","neff",
-        "AF2_TM1","AF2_TM2","AF3_TM1","AF3_TM2",
-        "RE-MSAT-COM","RE-MSAT1","RE-MSAT2",
-        "ESM_SEQIDS","ESM_TM1_LIST","ESM_TM2_LIST"
-    ]
-    out = out[[c for c in wanted if c in out.columns]]
-
-    num_cols = out.select_dtypes(include="number").columns
-    if len(num_cols):
-        out[num_cols] = out[num_cols].round(3)
-    return out
 
 def build_all_pairs_clusters_table(
     pairs_list_csv: str = "docs/summary_final_res_all_pairs_df.csv",
