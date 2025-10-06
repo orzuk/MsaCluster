@@ -642,7 +642,6 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
     # New: add tm-scores for true structures pairs
 #    tm_pairs_scores = compute_tmscore_all_pairs()
 #    summary_df['PAIR_TM'] = summary_df.apply(lambda row: tm_pairs_scores[row['fold_pair']][0], axis=1)
-
     return summary_df, detailed_df
 
 if __name__ == "__main__":
