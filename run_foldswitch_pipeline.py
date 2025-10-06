@@ -1540,6 +1540,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[reports] WARN building unified CSVs: {e}")
 
+
         # 3.1) Generate HTML tables (single source-of-truth)
         try:
             os.makedirs(TABLES_RES, exist_ok=True)

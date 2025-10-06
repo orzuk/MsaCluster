@@ -112,7 +112,7 @@ def write_global_tables(*, force_rerun_csv: bool = False,
 
     out_clusters = os.path.join(TABLES_RES, "protein_clusters_table.html")
     gen_html_from_cluster_detailed_table(
-        detailed_csv=DETAILED_RESULTS_TABLE,
+        clusters_csv=DETAILED_RESULTS_TABLE,
         output_html=out_clusters,
     )
     return out_summary, out_clusters
@@ -334,22 +334,21 @@ function sortTable(colIdx) {{
 
 
 def gen_html_from_cluster_detailed_table(
-    detailed_csv: str | None = None,
+    clusters_csv: str | None = None,
     output_html: str | None = None,
     title: str = "Cluster-level Results (one row per cluster)",
     base_pair_url: str | None = GITHUB_URL_HTML + "/{pair_id}.html",
 ) -> str:
-    # Use the global clusters CSV we write in postprocess_unified
-    if detailed_csv is None:
-        detailed_csv = str(Path(SUMMARY_RESULTS_TABLE).parent / "clusters_global_table.csv")
+    if clusters_csv is None:
+        # next to summary table
+        clusters_csv = os.path.join(os.path.dirname(SUMMARY_RESULTS_TABLE), "clusters_global_table.csv")
     if output_html is None:
         output_html = os.path.join(TABLES_RES, "protein_clusters_table.html")
 
-    _ensure_unified_csvs(force_rerun=False)
-    if not os.path.exists(detailed_csv):
-        raise FileNotFoundError(f"Clusters CSV not found: {detailed_csv}")
+    if not os.path.exists(clusters_csv):
+        raise FileNotFoundError(f"Clusters CSV not found: {clusters_csv}")
 
-    df = pd.read_csv(detailed_csv)
+    df = pd.read_csv(clusters_csv)
     if df.empty:
         os.makedirs(os.path.dirname(output_html), exist_ok=True)
         with open(output_html, "w", encoding="utf-8") as f:
@@ -357,49 +356,53 @@ def gen_html_from_cluster_detailed_table(
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
 
-    # ensure pair id is first column
-    pair_col = "pair_id" if "pair_id" in df.columns else ("fold_pair" if "fold_pair" in df.columns else None)
-    if pair_col is None:
-        raise KeyError("Expected 'pair_id' (or 'fold_pair') in clusters CSV.")
-    if pair_col != "pair_id":
-        df = df.rename(columns={pair_col: "pair_id"})
-    # preferred order
-    preferred = ["pair_id","cluster","n","neff","AF2","AF3","ESM2","ESM3","RE-MSAT-COM","RE-MSAT1","RE-MSAT2"]
+    # columns order
+    preferred = ["pair_id","cluster","n","neff",
+                 "AF2_TM1","AF2_TM2","AF3_TM1","AF3_TM2",
+                 "CMAP_RE1","CMAP_RE2",
+                 "ESM_SEQIDS","ESM_TM1_LIST","ESM_TM2_LIST"]
     cols = [c for c in preferred if c in df.columns] + [c for c in df.columns if c not in preferred]
     df = df[cols]
 
-    # round numeric display to 3 decimals
-    for c in df.columns:
-        if c in ("pair_id","cluster"): continue
-        s = pd.to_numeric(df[c], errors="coerce")
-        if s.notna().any():
-            df[c] = s.round(3)
-
-    # Append "Averages (std)" row
-    df = _append_mean_std_row(df, label_col="pair_id", label_text="Averages")
-
-    # Build the HTML (same styling and sorter)
+    # build header
     thead = "<tr>" + "".join(
-        f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
-        for i, col in enumerate(df.columns)
+        f'<th onclick="sortTable({i})">{html.escape(col)}</th>' for i, col in enumerate(df.columns)
     ) + "</tr>"
 
     rows = []
     for _, r in df.iterrows():
         pair = str(r["pair_id"])
-        link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair)) if pair not in ("Averages",) else "#"
-        # Build the first cell (linked pair_id except for the summary row)
-        if pair != "Averages":
-            link_html = f'<a href="{link}" target="_blank">{html.escape(pair)}</a>'
-        else:
-            link_html = html.escape(pair)
-        first_td = f'<td>{link_html}</td>'
-        tds = [first_td]
+        link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
+        link_html = f'<a href="{link}" target="_blank">{html.escape(pair)}</a>'
+        tds = [f"<td>{link_html}</td>"]
         for col in df.columns[1:]:
             val = r[col]
-            disp = "-" if pd.isna(val) else str(val)
-            tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
+            # numeric for sorting
+            try:
+                sv = float(val)
+            except Exception:
+                sv = float("nan")
+            disp = "-" if (pd.isna(val) or val == "") else str(val)
+            # keep 3-digit rounding if cell is numeric
+            if isinstance(val, (int, float)) and not pd.isna(val):
+                disp = f"{float(val):.3f}"
+                sv = float(val)
+            rows.append  # keep flake8 happy
+            tds.append(f'<td data-sort-value="{"" if pd.isna(sv) else f"{sv:.6f}"}">{html.escape(disp)}</td>')
         rows.append("<tr>" + "".join(tds) + "</tr>")
+
+    # --- Append Averages row (only for numeric cols; strings like ESM_SEQIDS get '-') ---
+    avg_tds = ['<td>Averages</td>']
+    for col in df.columns[1:]:
+        s = pd.to_numeric(df[col], errors="coerce")
+        if s.notna().any():
+            mu = s.mean()
+            sd = s.std(ddof=1) if s.count() > 1 else 0.0
+            disp = f"{mu:.3f} ({sd:.3f})"
+            avg_tds.append(f'<td data-sort-value="{mu:.6f}">{html.escape(disp)}</td>')
+        else:
+            avg_tds.append('<td data-sort-value=""></td>')
+    rows.append("<tr>" + "".join(avg_tds) + "</tr>")
 
     html_doc = f"""<!DOCTYPE html>
 <html lang="en">
