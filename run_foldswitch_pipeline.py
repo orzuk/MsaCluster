@@ -1153,7 +1153,6 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    ccmpred_bin = getattr(args, "ccmpred_bin", "/sci/labs/orzuk/orzuk/github/CCMpred/bin/ccmpred")
     threads = int(getattr(args, "ccmpred_threads", 8))
 
     def a3m_to_fa(a3m_path: Path, fasta_out: Path) -> bool:
@@ -1192,7 +1191,7 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
         if not a3m_to_fa(a3m, fa):
             print(f"[ccmpred] skip (empty): {a3m}")
             return
-        cmd = f"{shlex.quote(ccmpred_bin)} -t {threads} {shlex.quote(str(fa))} {shlex.quote(str(mat))}"
+        cmd = f"{shlex.quote(CCMPRED_EXE)} -t {threads} {shlex.quote(str(fa))} {shlex.quote(str(mat))}"
         if run_job_mode == "inline":
             subprocess.run(cmd, shell=True, check=True)
         else:
@@ -1814,11 +1813,8 @@ def main():
                help="If max chain length ≥ this, run ESM on CPU to avoid CUDA OOM (default: 800).")
 
     # ---- CCMpred options ----
-    p.add_argument("--ccmpred_bin",
-                   default="/sci/labs/orzuk/orzuk/github/CCMpred/bin/ccmpred",
-                   help="Path to CCMpred binary")
-    p.add_argument("--ccmpred_threads", type=int, default=8,
-                   help="Threads for CCMpred (-t)")
+    p.add_argument("--ccmpred_bin", default=CCMPRED_EXE, help="Path to CCMpred binary")
+    p.add_argument("--ccmpred_threads", type=int, default=8, help="Threads for CCMpred (-t)")
 
     # --- Tree options ---
     p.add_argument("--tree_max_seqs", type=int, default=5000,

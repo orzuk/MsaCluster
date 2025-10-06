@@ -40,7 +40,7 @@ def _detect_pymol_bin() -> str | None:
     if cand and os.path.isfile(cand):
         return cand
     # 2) known per-user install (adjust if you move it)
-    known = "/sci/labs/orzuk/orzuk/pymol-venv/bin/pymol"
+    known = PYMOL_EXE
     if os.path.isfile(known):
         return known
     # 3) in PATH

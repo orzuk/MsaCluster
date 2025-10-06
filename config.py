@@ -59,14 +59,9 @@ if user == 'steveabecassis':
     CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
     LOCAL_RUN = True
 
-
     # File create by the script cmap_analysis.py (in the analysis folder)
     CMAP_ANALYSIS_FILE = DATA_DIR + '/cmap_exact_analysis_tol0_2510.parq'
     # File create by the script esmfold_analysis.py (in the analysis folder)
-
-    # Set subdirectories for each part of the pipeline
-    PAIR_DIRS = {"AF":"output_AF", "ESMFold":"output_esm_fold", "Cmap":"output_cmaps", "MSA":"output_get_msa", "Cluster":"output_msa_cluster" }
-
 
 if user in ['zuk_laptop', 'orzuk']:
     if user == 'zuk_laptop':  # WINDOWS PC
@@ -81,6 +76,10 @@ if user in ['zuk_laptop', 'orzuk']:
             # Scripts for running different tools
             ESM_PATH = "/mnt/c/Code/Github/esm"
 
+# Set subdirectories for each part of the pipeline
+PAIR_DIRS = {"AF":"output_AF", "ESMFold":"output_esm_fold", "Cmap":"output_cmaps", "MSA":"output_get_msa", "Cluster":"output_msa_cluster" }
+
+
 DATA_DIR = MAIN_DIR + '/Pipeline'
 TABLES_DIR = MAIN_DIR + '/data'
 CMAP_RES_PATH = DATA_DIR + '/data/df_cmap_all.csv'
@@ -92,6 +91,9 @@ MSA_TRANS_MODEL_FILE = TABLES_DIR + '/df_cmap_all.csv'
 TMALIGN_EXE = MAIN_DIR + '/TMalign'
 USE_TMALIGN_BINARY = (os.path.isfile(TMALIGN_EXE) and os.access(TMALIGN_EXE, os.X_OK))
 
+CCMPRED_EXE = MAIN_DIR.replace("MsaCluster", "CCMpred/bin/ccmpred")
+
+PYMOL_EXE = MAIN_DIR.replace("github/MsaCluster", "/sci/labs/orzuk/orzuk/pymol-venv/bin/pymol")
 
 # Relative paths common to all users
 TABLES_RES = MAIN_DIR + '/docs'

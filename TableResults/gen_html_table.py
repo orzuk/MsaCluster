@@ -216,8 +216,8 @@ def gen_html_from_summary_table(
                 return f"{float(a):.3f}{tail}"
             df[c] = df[c].map(_fmt)
 
-    # Append "Averages (std)" row
-    df = _append_mean_std_row(df, label_col="pair_id", label_text="Averages")
+    # Append "Averages (std)" row (replaced)
+#    df = _append_mean_std_row(df, label_col="pair_id", label_text="Averages")
 
 
 
@@ -258,7 +258,7 @@ def gen_html_from_summary_table(
         rows.append(f"<tr{row_cls}>" + "".join(tds) + "</tr>")
 
     # ---- Averages row (2 decimals). Special handling for "MSA: DEPTH; #RES; #Clusters" ----
-    avg_label = '<a href="https://orzuk.github.io/MsaCluster/pairs_global_analysis.html" target="_blank">Average</a>'
+    avg_label = '<a href="https://orzuk.github.io/MsaCluster/pairs_global_analysis.html" target="_blank">Averages</a>'
     avg_tds = [f'<td>{avg_label}</td>']
 
     # Pre-compute means for the triple column if present
