@@ -237,14 +237,67 @@ def gen_html_from_summary_table(
         tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
         for col in df.columns[1:]:
             val = r[col]
-            disp = "-" if pd.isna(val) else str(val)
-            tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
+            if col == "#RES":
+                # show integer in normal rows
+                try:
+                    ival = int(float(val))
+                    disp = str(ival)
+                    sortv = str(ival)
+                except Exception:
+                    disp = "-" if pd.isna(val) else str(val)
+                    sortv = numeric_part(val)
+                tds.append(f'<td data-sort-value="{html.escape(str(sortv))}">{html.escape(disp)}</td>')
+            else:
+                disp = "-" if pd.isna(val) else str(val)
+                tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
         row_cls = ""
         if fade_min_clusters is not None:
             ncl = _clusters_in_row(r)
             if ncl is not None and ncl < fade_min_clusters:
                 row_cls = ' class="lowclust"'
         rows.append(f"<tr{row_cls}>" + "".join(tds) + "</tr>")
+
+    # ---- Averages row (2 decimals). Special handling for "MSA: DEPTH; #RES; #Clusters" ----
+    avg_label = '<a href="https://orzuk.github.io/MsaCluster/pairs_global_analysis.html" target="_blank">Average</a>'
+    avg_tds = [f'<td>{avg_label}</td>']
+
+    # Pre-compute means for the triple column if present
+    triple_col = "MSA: DEPTH; #RES; #Clusters"
+    triple_disp = ""
+    if triple_col in df.columns:
+        depths, reses, clusts = [], [], []
+        for s in df[triple_col].dropna():
+            parts = [p.strip() for p in str(s).split(";")]
+            def num(x):
+                try: return float(numeric_part(x))
+                except: return float("nan")
+            vals = [num(p) for p in parts] + [float("nan")] * 3
+            d, rnum, c = vals[0], vals[1], vals[2]
+            if not pd.isna(d):    depths.append(d)
+            if not pd.isna(rnum): reses.append(rnum)
+            if not pd.isna(c):    clusts.append(c)
+        def mean_or_nan(a):
+            return (sum(a)/len(a)) if a else float("nan")
+        md = mean_or_nan(depths)
+        mr = mean_or_nan(reses)
+        mc = mean_or_nan(clusts)
+        triple_disp = f"{md:.2f} ; {mr:.2f} ; {mc:.2f}"
+
+    # Build cells
+    for col in df.columns[1:]:
+        if col == triple_col:
+            avg_tds.append(f'<td data-sort-value="">{html.escape(triple_disp)}</td>')
+            continue
+        s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
+        if s.notna().any():
+            mu = s.mean()
+            sd = s.std(ddof=1) if s.count() > 1 else 0.0
+            disp = f"{mu:.2f} ({sd:.2f})"
+            avg_tds.append(f'<td data-sort-value="{mu:.6f}">{html.escape(disp)}</td>')
+        else:
+            avg_tds.append('<td data-sort-value=""></td>')
+    rows.append("<tr>" + "".join(avg_tds) + "</tr>")
+
 
     # --- Explanations (only for existing columns) ---
     expl_lines = []
@@ -371,34 +424,44 @@ def gen_html_from_cluster_detailed_table(
 
     rows = []
     for _, r in df.iterrows():
-        pair = str(r["pair_id"])
+        pair = str(r[pair_col])
         link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
-        link_html = f'<a href="{link}" target="_blank">{html.escape(pair)}</a>'
-        tds = [f"<td>{link_html}</td>"]
+        tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
         for col in df.columns[1:]:
             val = r[col]
-            # numeric for sorting
-            try:
-                sv = float(val)
-            except Exception:
-                sv = float("nan")
-            disp = "-" if (pd.isna(val) or val == "") else str(val)
-            # keep 3-digit rounding if cell is numeric
-            if isinstance(val, (int, float)) and not pd.isna(val):
-                disp = f"{float(val):.3f}"
-                sv = float(val)
-            rows.append  # keep flake8 happy
-            tds.append(f'<td data-sort-value="{"" if pd.isna(sv) else f"{sv:.6f}"}">{html.escape(disp)}</td>')
+
+            # special-case: clean cluster label if "unknown"
+            if col == "cluster":
+                disp = "" if (isinstance(val, str) and "unknown" in val.lower()) else ("" if pd.isna(val) else str(val))
+                tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
+                continue
+
+            # special-case: n / neff as integers
+            if col in ("n", "neff"):
+                try:
+                    ival = int(float(val))
+                    tds.append(f'<td data-sort-value="{ival}">{ival}</td>')
+                    continue
+                except Exception:
+                    pass
+
+            disp = "-" if pd.isna(val) or val == "" else str(val)
+            extra_cls = ' class="esmcol"' if col.startswith("ESM_") else ""
+            tds.append(f'<td{extra_cls} data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
         rows.append("<tr>" + "".join(tds) + "</tr>")
 
-    # --- Append Averages row (only for numeric cols; strings like ESM_SEQIDS get '-') ---
-    avg_tds = ['<td>Averages</td>']
-    for col in df.columns[1:]:
+
+    # --- Append Average row (2 decimals). Leave cluster cell empty. Skip string ESM columns ---
+    avg_tds = ['<td>Average</td>', '<td></td>']  # pair_id label, empty cluster id
+    for col in df.columns[2:]:
+        if col.startswith("ESM_"):
+            avg_tds.append('<td data-sort-value=""></td>')
+            continue
         s = pd.to_numeric(df[col], errors="coerce")
         if s.notna().any():
             mu = s.mean()
             sd = s.std(ddof=1) if s.count() > 1 else 0.0
-            disp = f"{mu:.3f} ({sd:.3f})"
+            disp = f"{mu:.2f} ({sd:.2f})"
             avg_tds.append(f'<td data-sort-value="{mu:.6f}">{html.escape(disp)}</td>')
         else:
             avg_tds.append('<td data-sort-value=""></td>')
@@ -419,6 +482,7 @@ def gen_html_from_cluster_detailed_table(
   a {{ color: #64B5F6; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
+  td.esmcol {{ white-space: normal; word-break: break-word; max-width: 520px; }}
 </style>
 </head>
 <body>
