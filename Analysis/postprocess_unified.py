@@ -234,16 +234,14 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         df_esm  = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_esm.csv"))
         df_cmap = _safe_read_csv(str(_ensure_pair_analysis(pair_id) / "df_cmap.csv"))
 
-        # Detailed rows (cluster-level)
-        det = []
-        if df_af is not None and not df_af.empty:
-            det.append(df_af.copy())
-        if df_esm is not None and not df_esm.empty:
-            det.append(df_esm.copy())
-        if det:
-            det = pd.concat(det, ignore_index=True)
-            det["fold_pair"] = pair_id
-            all_detailed.append(det)
+        # Detailed rows (ONE ROW PER CLUSTER for this pair)
+        try:
+            per_cluster = build_pair_cluster_table_one_row(pair_id, max_esm=10)
+            if per_cluster is not None and not per_cluster.empty:
+                all_detailed.append(per_cluster)
+        except Exception as e:
+            print(f"[unified] WARN per-cluster table for {pair_id}: {e}")
+
 
         # Build best-per-pair row + depth & #clusters
         tm_af  = _norm_tm_df(df_af,  "af2")
@@ -491,14 +489,8 @@ def build_pair_cluster_table_one_row(
       - cluster label is "Deep" or a 3-digit index "000","001",...
       - round numeric columns to 3 decimals.
     """
-    anal = Path("Pipeline") / pair_id / "output_msa_cluster"  # adjust if your analysis path differs
-    if not anal.exists():
-        # fallback: many repos use output_* under pair root
-        par = Path("Pipeline") / pair_id
-        for cand in ("output_msa_cluster", "analysis", "output"):
-            if (par / cand).exists():
-                anal = par / cand
-                break
+    # Always use the cached per-pair Analysis directory where df_af/df_esm/df_cmap live
+    anal = _ensure_pair_analysis(pair_id)
 
     df_af   = _safe_read_csv(anal / "df_af.csv")
     df_esm  = _safe_read_csv(anal / "df_esm.csv")
