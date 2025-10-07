@@ -111,10 +111,7 @@ def write_global_tables(*, force_rerun_csv: bool = False,
     )
 
     out_clusters = os.path.join(TABLES_RES, "protein_clusters_table.html")
-    gen_html_from_cluster_detailed_table(
-        clusters_csv=DETAILED_RESULTS_TABLE,
-        output_html=out_clusters,
-    )
+    gen_html_from_cluster_detailed_table(clusters_csv=DETAILED_RESULTS_TABLE, output_html=out_clusters)
     return out_summary, out_clusters
 
 

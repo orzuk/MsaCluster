@@ -207,13 +207,14 @@ def _pair_max_len_from_truth(pair_id: str) -> int:
         return n
     return max(_len(pdb1, c1), _len(pdb2, c2))
 
+
 def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
                                           write_out: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Fast path:
-      - READ cached per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv) – no recompute
-      - COMPUTE summary (one row per pair) incl. "#RES" and "MSA DEPTH (#Clusters)"
-      - COMPUTE detailed (ONE ROW PER CLUSTER; includes per-fold AF2/AF3 and ESM list columns)
+      - READ cached per-pair Analysis CSVs – no recompute
+      - COMPUTE summary (one row per pair)
+      - COMPUTE detailed (ONE ROW PER CLUSTER; includes per-fold AF2/AF3 + ESM list columns)
       - Optionally write SUMMARY_RESULTS_TABLE and DETAILED_RESULTS_TABLE
     """
     if not pairs:
@@ -229,24 +230,23 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         print("Building tables from pair:", pair_id)
 
-        # Summary inputs
         anal = _ensure_pair_analysis(pair_id)
         df_af   = _safe_read_csv(str(anal / "df_af.csv"))
         df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
         df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
 
-        # === DETAILED (B1a): ONE ROW PER CLUSTER using build_pair_cluster_table ===
+        # === DETAILED: ONE ROW PER CLUSTER ===
         try:
-            per_cluster = build_pair_cluster_table(pair_id)  # B1b gives AF2_TM1/2, AF3_TM1/2, ESM lists, etc.
+            per_cluster = build_pair_cluster_table(pair_id)
             if per_cluster is not None and not per_cluster.empty:
-                # keep both aliases for compatibility with downstream code
+                # keep both names for downstream code
                 per_cluster.insert(0, "pair_id", pair_id)
                 per_cluster.insert(0, "fold_pair", pair_id)
                 all_detailed.append(per_cluster)
         except Exception as e:
             print(f"[unified] WARN per-cluster table for {pair_id}: {e}")
 
-        # === SUMMARY row (unchanged from your logic) ===
+        # === SUMMARY (kept as you had) ===
         tm_af  = _norm_tm_df(df_af,  "af2")
         tm_esm = _norm_tm_df(df_esm, "esm2")
         tm_all = pd.concat([tm_af, tm_esm], ignore_index=True) if len(tm_af) or len(tm_esm) else pd.DataFrame()
@@ -254,12 +254,11 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         row = {"fold_pair": pair_id, "#RES": _pair_max_len_from_truth(pair_id)}
 
         deepmsa_file = _deepmsa_a3m_path(pair_id)
-        msa_depth = _count_a3m_sequences_fast(deepmsa_file)  # num. sequences
-        msa_width = _msa_width_a3m_columns(deepmsa_file)     # num. residues with gaps
-        n_clusters = _count_shallow_clusters_fast(pair_id)   # num. clusters
+        msa_depth = _count_a3m_sequences_fast(deepmsa_file)
+        msa_width = _msa_width_a3m_columns(deepmsa_file)
+        n_clusters = _count_shallow_clusters_fast(pair_id)
         row["MSA: DEPTH; #RES; #Clusters"] = f"{msa_depth}; {msa_width}; {n_clusters}"
 
-        # TRUE TM between the two known folds (symmetric max) — cached
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
         pair_dir_str = str(_pair_dir(pair_id))
         def _tm_sym_once(pa: str, pb: str) -> float:
@@ -268,7 +267,6 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
             return max(t12, t21)
         row["PAIR_TM"] = round(get_or_compute_true_tm(pair_dir_str, pdb1, pdb2, _tm_sym_once), 3)
 
-        # ΔG (pair-local energy CSV)
         f_energy = f"{DATA_DIR}/{pair_id}/Analysis/df_energy_global.csv"
         if os.path.isfile(f_energy):
             try:
@@ -283,20 +281,17 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
             except Exception:
                 row["ΔG1"] = np.nan; row["ΔG2"] = np.nan
 
-        # AF: Clust + Deep, per fold
         for tag, up in (("af2","AF2"), ("af3","AF3")):
             row[f"{up}Clust_TM1"] = _pick_best(tm_all, tag, "clust", 1)
             row[f"{up}Clust_TM2"] = _pick_best(tm_all, tag, "clust", 2)
             row[f"{up}Deep_TM1"]  = _pick_best(tm_all, tag, "deep",  1)
             row[f"{up}Deep_TM2"]  = _pick_best(tm_all, tag, "deep",  2)
 
-        # ESM overall bests
         row["ESM2_TM1"] = _pick_best_overall(tm_all, "esm2", 1)
         row["ESM2_TM2"] = _pick_best_overall(tm_all, "esm2", 2)
         row["ESM3_TM1"] = _pick_best_overall(tm_all, "esm3", 1)
         row["ESM3_TM2"] = _pick_best_overall(tm_all, "esm3", 2)
 
-        # CMAP maxima (MSA-Transformer)
         row["MSATrans_CMAP_PR1"] = _best_max(df_cmap, "t1_precision")
         row["MSATrans_CMAP_PR2"] = _best_max(df_cmap, "t2_precision")
         row["MSATrans_CMAP_RE1"] = _best_max(df_cmap, "t1_recall")
@@ -313,6 +308,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         detailed_df.to_csv(DETAILED_RESULTS_TABLE, index=False)
 
     return summary_df, detailed_df
+
 
 def _cmap_csv_path(pair_id: str) -> str:
     return f"{DATA_DIR}/{pair_id}/Analysis/df_cmap.csv"
@@ -443,7 +439,6 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
     df = df[cols].sort_values(["model", "cluster_num", "name"])
 
     df.to_csv(out_csv, index=False)
-
     return df
 
 def _read_cmap(pair_id: str) -> pd.DataFrame:
@@ -471,16 +466,13 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
       AF2_TM1, AF2_TM2, AF3_TM1, AF3_TM2,
       RE-MSAT-COM, RE-MSAT1, RE-MSAT2,
       ESM_SEQIDS, ESM_TM1_LIST, ESM_TM2_LIST
-
-    AF2/AF3 per-fold values = max over predictions within that cluster (per fold).
-    ESM_* are ;-joined lists (top 10 by TM1) with cleaned IDs.
     """
     anal = _ensure_pair_analysis(pair_id)
     df_af   = _safe_read_csv(str(anal / "df_af.csv"))
     df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
     df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
 
-    # --- cache stats for n/neff ---
+    # ---- cache clusters: sizes & neff ----
     cache_stats = {}
     cpath = anal / "cache.json"
     if cpath.is_file():
@@ -500,18 +492,18 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
             d = d.rename(columns={"cluster": "cluster_num"})
         d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
 
-        # select model (case-insensitive)
         if "model" in d.columns:
-            md = d["model"].astype(str).str.lower()
-            d = d[md == model_key.lower()]
+            md = d["model"].astype(str)
+            mask = md.str.upper() == model_key.upper()
+            d = d[mask]
 
         t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
         t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
         g = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
         return g.rename(columns={"TM1": f"{prefix}_TM1", "TM2": f"{prefix}_TM2"})
 
-    af2 = _tm_by_model(df_af,  "af2",  "AF2")
-    af3 = _tm_by_model(df_af,  "af3",  "AF3")
+    af2 = _tm_by_model(df_af,  "AF2",  "AF2")
+    af3 = _tm_by_model(df_af,  "AF3",  "AF3")
 
     # ---- CMAP / MSAT block (robust to alt column names) ----
     ms = pd.DataFrame()
@@ -523,7 +515,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
             d["_tag"] = d["cluster"].astype(str).map(_norm_tag)
         else:
             d["_tag"] = None
-
         ms = pd.DataFrame({
             "RE-MSAT-COM": d.get("common_f1", d.get("common_mcc", None)),
             "RE-MSAT1":    d.get("t1_f1",    d.get("t1_mcc",    None)),
@@ -539,16 +530,14 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
             d = d.rename(columns={"cluster": "cluster_num"})
         d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
 
-        # clean ID: strip 'ShallowMsa_###__' prefix; 'sample_007' -> '007'
-        def _clean_id(x):
+        def _clean_id(x: Any) -> str:
             s = str(x)
-            s = re.sub(r"^ShallowMsa_\d+__", "", s)
+            # strip 'Anything__' prefix; if 'sample_007' keep '007'
+            if "__" in s:
+                s = s.split("__")[-1]
             m = re.match(r"sample_(\d+)$", s)
             if m:
                 return f"{int(m.group(1)):03d}"
-            # also handle generic '...__ID' by taking the suffix after the last '__'
-            if "__" in s:
-                return s.split("__")[-1]
             return s
 
         d["ID"] = d.get("name").map(_clean_id)
@@ -573,7 +562,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     if not ms.empty:  out = out.join(ms,  how="left")
     if not esm_lists.empty: out = out.join(esm_lists, how="left")
 
-    # n & neff from cache (keys like "ShallowMsa_XXX" or "DeepMsa")
+    # add n & neff from cache (align by tag like 'ShallowMsa_007' or 'DeepMsa')
     def _get_stat(tag, key):
         s = cache_stats.get(tag)
         if s is None and tag != "DeepMsa":
@@ -582,7 +571,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
                 alt = f"ShallowMsa_{int(m.group(1)):03d}"
                 s = cache_stats.get(alt)
         return (s or {}).get(key, None)
-
     out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
     out["neff"] = [ _get_stat(t, "neff") for t in out.index ]
 
@@ -590,13 +578,10 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
 
     # compact display labels: DeepMsa -> Deep; ShallowMsa_007 -> "007"; blank 'unknown'
     def _short(s):
-        if s is None or (isinstance(s, float) and pd.isna(s)):
-            return ""
+        if s is None or (isinstance(s, float) and pd.isna(s)): return ""
         st = str(s).strip()
-        if st == "" or "unknown" in st.lower():
-            return ""
-        if st.lower().startswith("deep"):
-            return "Deep"
+        if st == "" or "unknown" in st.lower(): return ""
+        if st.lower().startswith("deep"): return "Deep"
         m = re.search(r"(\d+)$", st)
         return m.group(1) if m else st
     out["cluster"] = out["cluster"].map(_short)
@@ -614,6 +599,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     if len(num_cols):
         out[num_cols] = out[num_cols].round(3)
     return out
+
 
 def build_pair_cluster_table_one_row(
     pair_id: str,
