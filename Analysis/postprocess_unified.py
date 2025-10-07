@@ -258,7 +258,8 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         msa_depth = _count_a3m_sequences_fast(deepmsa_file)
         msa_width = _msa_width_a3m_columns(deepmsa_file)
         n_clusters = _count_shallow_clusters_fast(pair_id)
-        row["MSA: DEPTH; #RES; #Clusters"] = f"{int(msa_depth)}; {msa_width}; {n_clusters}"
+        row["MSA: DEPTH; #RES; #Clusters"] = f"{int(msa_depth)}; {int(msa_width)}; {int(n_clusters)}"
+        print("Set MSA: DEPTH; #RES; #Clusters:", row["MSA: DEPTH; #RES; #Clusters"])
 
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
         pair_dir_str = str(_pair_dir(pair_id))
@@ -305,6 +306,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
+    print("Now MSA DEPTH COLUMN:", summary_df["MSA: DEPTH; #RES; #Clusters"])
     print("write_out flag:", write_out)
 
     if write_out:
