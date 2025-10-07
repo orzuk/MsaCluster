@@ -300,12 +300,16 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         summary_rows.append(row)
 
-    print("ALL DETAILED DF:")
-    print(all_detailed.head())
+    print("ALL DETAILED list:")
+    print(all_detailed)
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
+    print("write_out flag:", write_out)
+
     if write_out:
+        print("WRITING SUMMARY CLUSTERS TABLE:")
+        print(summary_df.head())
         Path(SUMMARY_RESULTS_TABLE).parent.mkdir(parents=True, exist_ok=True)
         summary_df.to_csv(SUMMARY_RESULTS_TABLE, index=False)
 
