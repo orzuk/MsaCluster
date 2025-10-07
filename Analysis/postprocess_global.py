@@ -11,9 +11,6 @@ from utils.cache_utils import get_from_pair_cache
 from utils.utils import numify
 from config import PIPELINE_DIR, DOCS_DIR
 
-SUMMARY_CSV  = os.path.join(DOCS_DIR, "summary_final_res_all_pairs_df.csv")
-DETAIL_CSV   = os.path.join(DOCS_DIR, "detailed_final_res_all_pairs_df.csv")
-
 
 def _pair_id_from_dir(d: str) -> str:
     return os.path.basename(d.rstrip("/"))
@@ -80,12 +77,12 @@ def build_or_load_global_tables(force: bool = False,
                                 pairs_glob: str | None = None) -> tuple[str,str]:
     """
     Builds two CSVs:
-      - SUMMARY_CSV: one row per pair, with AF/ESM bests + PAIR_TM + ΔG + seq_id + msa stats
-      - DETAIL_CSV : your detailed per-pair row(s) from _read_pair_tables(d)
+      - SUMMARY_RESULTS_TABLE: one row per pair, with AF/ESM bests + PAIR_TM + ΔG + seq_id + msa stats
+      - DETAILED_RESULTS_TABLE : your detailed per-pair row(s) from _read_pair_tables(d)
     Also merges cache.json (seq_id, msa_depth, msa_width) if present.
     """
-    if (not force) and os.path.isfile(SUMMARY_CSV) and os.path.isfile(DETAIL_CSV):
-        return SUMMARY_CSV, DETAIL_CSV
+    if (not force) and os.path.isfile(SUMMARY_RESULTS_TABLE) and os.path.isfile(DETAIL_CSV):
+        return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE
 
     pair_dirs = sorted(glob.glob(os.path.join(PIPELINE_DIR, "*_*")))
     if pairs_glob:
@@ -115,9 +112,9 @@ def build_or_load_global_tables(force: bool = False,
 
     os.makedirs(DOCS_DIR, exist_ok=True)
     if not rows:
-        pd.DataFrame([]).to_csv(SUMMARY_CSV, index=False)
-        pd.DataFrame([]).to_csv(DETAIL_CSV, index=False)
-        return SUMMARY_CSV, DETAIL_CSV
+        pd.DataFrame([]).to_csv(SUMMARY_RESULTS_TABLE, index=False)
+        pd.DataFrame([]).to_csv(DETAILED_RESULTS_TABLE, index=False)
+        return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE
 
     # base table assembled from per-pair readers
     df = pd.DataFrame(rows)
@@ -146,7 +143,7 @@ def build_or_load_global_tables(force: bool = False,
         num_cols = _df.select_dtypes(include="number").columns
         _df[num_cols] = _df[num_cols].round(3)
 
-    summary.to_csv(SUMMARY_CSV, index=False)
-    detailed.to_csv(DETAIL_CSV, index=False)
-    return SUMMARY_CSV, DETAIL_CSV
+    summary.to_csv(SUMMARY_RESULTS_TABLE, index=False)
+    detailed.to_csv(DETAILED_RESULTS_TABLE, index=False)
+    return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE
 

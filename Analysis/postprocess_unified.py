@@ -238,6 +238,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         # === DETAILED: ONE ROW PER CLUSTER ===
         try:
             per_cluster = build_pair_cluster_table(pair_id)
+            print("Add cluster sub-table: ", per_cluster)
             if per_cluster is not None and not per_cluster.empty:
                 # keep both names for downstream code
                 per_cluster.insert(0, "pair_id", pair_id)
@@ -257,7 +258,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         msa_depth = _count_a3m_sequences_fast(deepmsa_file)
         msa_width = _msa_width_a3m_columns(deepmsa_file)
         n_clusters = _count_shallow_clusters_fast(pair_id)
-        row["MSA: DEPTH; #RES; #Clusters"] = f"{msa_depth}; {msa_width}; {n_clusters}"
+        row["MSA: DEPTH; #RES; #Clusters"] = f"{int(msa_depth)}; {msa_width}; {n_clusters}"
 
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
         pair_dir_str = str(_pair_dir(pair_id))
@@ -299,12 +300,17 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         summary_rows.append(row)
 
+    print("ALL DETAILED DF:")
+    print(all_detailed.head())
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
     if write_out:
         Path(SUMMARY_RESULTS_TABLE).parent.mkdir(parents=True, exist_ok=True)
         summary_df.to_csv(SUMMARY_RESULTS_TABLE, index=False)
+
+        print("WRITING DETAILED CLUSTERS TABLE:")
+        print(detailed_df.head())
         detailed_df.to_csv(DETAILED_RESULTS_TABLE, index=False)
 
     return summary_df, detailed_df
@@ -754,8 +760,8 @@ def build_pair_cluster_table_one_row(
 
 
 def build_all_pairs_clusters_table(
-    pairs_list_csv: str = "docs/summary_final_res_all_pairs_df.csv",
-    out_csv: str = "docs/TableResults/clusters_global_table.csv",
+    pairs_list_csv: str = DETAILED_RESULTS_TABLE,
+    out_csv: str = SUMMARY_RESULTS_TABLE,
     max_esm: int = 10,
 ) -> str:
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)

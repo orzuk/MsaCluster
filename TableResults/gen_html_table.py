@@ -278,7 +278,7 @@ def gen_html_from_summary_table(
         md = mean_or_nan(depths)
         mr = mean_or_nan(reses)
         mc = mean_or_nan(clusts)
-        triple_disp = f"{md:.2f} ; {mr:.2f} ; {mc:.2f}"
+        triple_disp = f"{int(md)} ; {mr:.2f} ; {mc:.2f}"
 
     # Build cells
     for col in df.columns[1:]:
