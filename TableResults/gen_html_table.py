@@ -414,6 +414,14 @@ def gen_html_from_cluster_detailed_table(
     cols = [c for c in preferred if c in df.columns] + [c for c in df.columns if c not in preferred]
     df = df[cols]
 
+    # Put the pair id column first for display & links
+    pair_col = "fold_pair" if "fold_pair" in df.columns else ("pair_id" if "pair_id" in df.columns else None)
+    if pair_col is None:
+        raise KeyError("Expected a 'fold_pair' (or 'pair_id') column in the detailed CSV.")
+    cols = [pair_col] + [c for c in df.columns if c != pair_col]
+    df = df[cols]
+
+
     # build header
     thead = "<tr>" + "".join(
         f'<th onclick="sortTable({i})">{html.escape(col)}</th>' for i, col in enumerate(df.columns)

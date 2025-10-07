@@ -469,6 +469,7 @@ def compute_tmscore_all_pairs():
 
     return tm_pairs_scores
 
+
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     """
     ONE row per cluster with columns:
@@ -476,6 +477,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
       AF2_TM1, AF2_TM2, AF3_TM1, AF3_TM2,
       RE-MSAT-COM, RE-MSAT1, RE-MSAT2,
       ESM_SEQIDS, ESM_TM1_LIST, ESM_TM2_LIST
+    Robust to missing 'cluster_num'/'cluster' by inferring from 'name'.
     """
     anal = _ensure_pair_analysis(pair_id)
     df_af   = _safe_read_csv(str(anal / "df_af.csv"))
@@ -493,69 +495,103 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         except Exception:
             cache_stats = {}
 
+    def _infer_tag_from_name(s: str) -> str | None:
+        if not isinstance(s, str):
+            return None
+        if "DeepMsa" in s:
+            return "DeepMsa"
+        m = re.search(r"ShallowMsa_(\d+)", s)
+        if m:
+            return f"ShallowMsa_{int(m.group(1)):03d}"
+        m = re.search(r"(\d+)$", s)  # last number as a fallback
+        if m:
+            return f"ShallowMsa_{int(m.group(1)):03d}"
+        return None
+
+    def _tag_series(d: Optional[pd.DataFrame]) -> pd.Series:
+        if d is None or d.empty:
+            return pd.Series([], dtype=object)
+        cols = [str(c) for c in d.columns]
+        if "cluster_num" in cols:
+            s = d["cluster_num"].astype(str)
+        elif "cluster" in cols:
+            s = d["cluster"].astype(str)
+        elif "name" in cols:
+            s = d["name"].astype(str).map(_infer_tag_from_name)
+        else:
+            s = pd.Series([None] * len(d))
+        def _norm(x):
+            if x is None or (isinstance(x, float) and pd.isna(x)):
+                return None
+            xs = str(x)
+            if xs.lower().startswith("deep"):
+                return "DeepMsa"
+            if "ShallowMsa_" in xs:
+                n = re.search(r"ShallowMsa_(\d+)", xs)
+                if n:
+                    return f"ShallowMsa_{int(n.group(1)):03d}"
+            m = re.search(r"(\d{1,3})$", xs)
+            if m:
+                return f"ShallowMsa_{int(m.group(1)):03d}"
+            return xs
+        return s.map(_norm)
+
     # ---- AF per-fold maxima (per model) ----
     def _tm_by_model(df: Optional[pd.DataFrame], model_key: str, prefix: str) -> pd.DataFrame:
         if df is None or df.empty:
             return pd.DataFrame(columns=[f"{prefix}_TM1", f"{prefix}_TM2"])
         d = df.copy()
-        if "cluster_num" not in d.columns and "cluster" in d.columns:
-            d = d.rename(columns={"cluster": "cluster_num"})
-        d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
-
+        d["_tag"] = _tag_series(d)
+        # Filter model (case-insensitive)
         if "model" in d.columns:
-            md = d["model"].astype(str)
-            mask = md.str.upper() == model_key.upper()
-            d = d[mask]
-
+            md = d["model"].astype(str).str.lower()
+            d = d[md == model_key.lower()]
         t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
         t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
-        g = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
+        g = d.assign(TM1=t1, TM2=t2).groupby("_tag", dropna=True)[["TM1","TM2"]].max()
         return g.rename(columns={"TM1": f"{prefix}_TM1", "TM2": f"{prefix}_TM2"})
 
-    af2 = _tm_by_model(df_af,  "AF2",  "AF2")
-    af3 = _tm_by_model(df_af,  "AF3",  "AF3")
+    af2 = _tm_by_model(df_af,  "af2",  "AF2")
+    af3 = _tm_by_model(df_af,  "af3",  "AF3")
 
-    # ---- CMAP / MSAT block (robust to alt column names) ----
+    # ---- CMAP / MSAT block ----
     ms = pd.DataFrame()
     if df_cmap is not None and not df_cmap.empty:
         d = df_cmap.copy()
-        if "cluster_num" in d.columns:
-            d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
-        elif "cluster" in d.columns:
-            d["_tag"] = d["cluster"].astype(str).map(_norm_tag)
-        else:
-            d["_tag"] = None
+        d["_tag"] = _tag_series(d)
         ms = pd.DataFrame({
             "RE-MSAT-COM": d.get("common_f1", d.get("common_mcc", None)),
             "RE-MSAT1":    d.get("t1_f1",    d.get("t1_mcc",    None)),
             "RE-MSAT2":    d.get("t2_f1",    d.get("t2_mcc",    None)),
             "_tag": d["_tag"]
-        }).groupby("_tag").max()
+        }).groupby("_tag", dropna=True).max()
 
     # ---- ESM list columns (IDs cleaned; 2 decimals; top-10 by TM1) ----
     esm_lists = pd.DataFrame()
     if df_esm is not None and not df_esm.empty:
         d = df_esm.copy()
-        if "cluster_num" not in d.columns and "cluster" in d.columns:
-            d = d.rename(columns={"cluster": "cluster_num"})
-        d["_tag"] = d["cluster_num"].astype(str).map(_norm_tag)
+        d["_tag"] = _tag_series(d)
 
-        def _clean_id(x: Any) -> str:
-            s = str(x)
-            # strip 'Anything__' prefix; if 'sample_007' keep '007'
-            if "__" in s:
-                s = s.split("__")[-1]
-            m = re.match(r"sample_(\d+)$", s)
-            if m:
-                return f"{int(m.group(1)):03d}"
-            return s
+        # choose an ID column
+        id_col = "name" if "name" in d.columns else ("sample_id" if "sample_id" in d.columns else None)
+        if id_col is None:
+            d["ID"] = ["" for _ in range(len(d))]
+        else:
+            def _clean_id(x):
+                s = str(x)
+                if "__" in s:  # strip prefix up to last '__'
+                    s = s.split("__")[-1]
+                m = re.match(r"sample_(\d+)$", s)
+                if m:
+                    return f"{int(m.group(1)):03d}"
+                return s
+            d["ID"] = d[id_col].map(_clean_id)
 
-        d["ID"] = d.get("name").map(_clean_id)
         t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce").round(2)
         t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce").round(2)
 
         blocks = []
-        for tag, sub in d.assign(TM1=t1, TM2=t2).groupby("_tag"):
+        for tag, sub in d.assign(TM1=t1, TM2=t2).groupby("_tag", dropna=True):
             sub = sub.sort_values("TM1", ascending=False).head(10)
             ids  = "; ".join([str(x) for x in sub["ID"].fillna("")])
             tm1s = "; ".join([("{:.2f}".format(v) if pd.notna(v) else "") for v in sub["TM1"]])
@@ -567,12 +603,11 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     # ---- assemble per-cluster table ----
     idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(cache_stats.keys()))
     out = pd.DataFrame(index=idx)
-    if not af2.empty: out = out.join(af2, how="left") if not out.empty else af2.copy()
-    if not af3.empty: out = out.join(af3, how="left")
-    if not ms.empty:  out = out.join(ms,  how="left")
-    if not esm_lists.empty: out = out.join(esm_lists, how="left")
+    for block in (af2, af3, ms, esm_lists):
+        if not block.empty:
+            out = out.join(block, how="left") if not out.empty else block.copy()
 
-    # add n & neff from cache (align by tag like 'ShallowMsa_007' or 'DeepMsa')
+    # n & neff from cache (keys like "ShallowMsa_XXX" or "DeepMsa")
     def _get_stat(tag, key):
         s = cache_stats.get(tag)
         if s is None and tag != "DeepMsa":
@@ -581,22 +616,25 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
                 alt = f"ShallowMsa_{int(m.group(1)):03d}"
                 s = cache_stats.get(alt)
         return (s or {}).get(key, None)
+
     out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
     out["neff"] = [ _get_stat(t, "neff") for t in out.index ]
 
+    # finalize
     out = out.reset_index().rename(columns={"index": "cluster"})
 
-    # compact display labels: DeepMsa -> Deep; ShallowMsa_007 -> "007"; blank 'unknown'
     def _short(s):
-        if s is None or (isinstance(s, float) and pd.isna(s)): return ""
+        if s is None or (isinstance(s, float) and pd.isna(s)):
+            return ""
         st = str(s).strip()
-        if st == "" or "unknown" in st.lower(): return ""
-        if st.lower().startswith("deep"): return "Deep"
+        if st == "" or "unknown" in st.lower():
+            return ""
+        if st.lower().startswith("deep"):
+            return "Deep"
         m = re.search(r"(\d+)$", st)
         return m.group(1) if m else st
     out["cluster"] = out["cluster"].map(_short)
 
-    # order & round
     wanted = [
         "cluster","n","neff",
         "AF2_TM1","AF2_TM2","AF3_TM1","AF3_TM2",
