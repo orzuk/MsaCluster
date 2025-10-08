@@ -632,6 +632,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
 
     # finalize
     out = out.reset_index().rename(columns={"index": "cluster"})
+    print("Inside build-pair finished reset index, out=", out)
     def _short(s):
         if s is None or (isinstance(s, float) and pd.isna(s)): return ""
         st = str(s).strip()
@@ -639,6 +640,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         if st.lower().startswith("deep"): return "Deep"
         m = re.search(r"(\d+)$", st)
         return m.group(1) if m else st
+    print("Inside build-pair finished finalized, out cluster: ", out["cluster"])
     out["cluster"] = out["cluster"].map(_short)
 
     print("Inside build-pair finished finalized")

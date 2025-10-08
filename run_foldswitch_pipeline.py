@@ -13,6 +13,9 @@ import numpy as np
 import pandas as pd
 import time
 
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+
 from config import *
 from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
 from utils.msa_utils import *
