@@ -242,7 +242,6 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
             if per_cluster is not None and not per_cluster.empty:
                 # keep both names for downstream code
                 per_cluster.insert(0, "pair_id", pair_id)
-                per_cluster.insert(0, "fold_pair", pair_id)
                 all_detailed.append(per_cluster)
         except Exception as e:
             print(f"[unified] WARN per-cluster table for {pair_id}: {e}")
@@ -252,7 +251,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         tm_esm = _norm_tm_df(df_esm, "esm2")
         tm_all = pd.concat([tm_af, tm_esm], ignore_index=True) if len(tm_af) or len(tm_esm) else pd.DataFrame()
 
-        row = {"fold_pair": pair_id, "#RES": _pair_max_len_from_truth(pair_id)}
+        row = {"pair_id": pair_id, "#RES": _pair_max_len_from_truth(pair_id)}
 
         deepmsa_file = _deepmsa_a3m_path(pair_id)
         msa_depth = _count_a3m_sequences_fast(deepmsa_file)
@@ -355,10 +354,21 @@ def _truth_pdbs(pair_id: str) -> tuple[str, str, str, str]:
     pdb2 = str(cand2 if cand2.is_file() else (_pair_dir(pair_id) / f"{p2}.pdb"))
     return pdb1, c1, pdb2, c2
 
+
 def _ensure_pair_analysis(pair_id: str) -> Path:
-    out = _pair_dir(pair_id) / "Analysis"
+    """
+    Return the per-pair analysis dir that contains the cached CSVs
+    (df_af.csv, df_esm.csv, df_cmap.csv). We try several standard
+    locations and prefer the first one that actually has any of them.
+    """
+    out = Path(DATA_DIR)  / pair_id / "Analysis"
+    if out.is_dir():
+        if any((out / fn).exists() for fn in ("df_af.csv", "df_esm.csv", "df_cmap.csv")):
+            return out
+    # Fallback (still lets us read cache.json for n/neff)
     out.mkdir(parents=True, exist_ok=True)
     return out
+
 
 def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
     """Aggregate AF2/AF3 TM-scores across all clusters/chains."""
@@ -384,7 +394,7 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
             tm2 = compute_tmscore_align(pdb2, str(pred), chain2=None)
 
             rows.append({
-                "fold_pair": pair_id,
+                "pair_id": pair_id,
                 "model": ver,  # AF2 vs AF3
                 "cluster_num": cluster,
                 "name": name,  # short
@@ -395,7 +405,7 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     if len(df):
         df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
-        df = df[["fold_pair", "model", "cluster_num", "name", "TMscore_fold1", "TMscore_fold2", "TMdiff"]]
+        df = df[["pair_id", "model", "cluster_num", "name", "TMscore_fold1", "TMscore_fold2", "TMdiff"]]
         df.sort_values(["model", "cluster_num", "name"], inplace=True)
         df.to_csv(out_csv, index=False)
     return df
@@ -421,7 +431,7 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
                 name = r["name"]
                 tm1 = compute_tmscore_align(pdb1, pred, chain2=None)
                 tm2 = compute_tmscore_align(pdb2, pred, chain2=None)
-                rows.append({"fold_pair": pair_id, "model": model_tag, "cluster_num":
+                rows.append({"pair_id": pair_id, "model": model_tag, "cluster_num":
                              (re.search(r"ShallowMsa_(\d+)", name).group(1)
                               if re.search(r"ShallowMsa_(\d+)", name) else "DeepMsa"),
                              "name": name, "pdb_path": pred,
@@ -432,7 +442,7 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
                 name = base.replace(f"_{model_tag}.pdb","").replace(".pdb","")
                 tm1 = compute_tmscore_align(pdb1, str(pred), chain2=None)
                 tm2 = compute_tmscore_align(pdb2, str(pred), chain2=None)
-                rows.append({"fold_pair": pair_id, "model": model_tag,
+                rows.append({"pair_id": pair_id, "model": model_tag,
                              "cluster_num": (re.search(r"ShallowMsa_(\d+)", name).group(1)
                                              if re.search(r"ShallowMsa_(\d+)", name) else "DeepMsa"),
                              "name": name, "pdb_path": str(pred),
@@ -447,7 +457,7 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
     df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
 
     # ⬅ Save WITHOUT pdb_path column so the CSV is clean
-    cols = ["fold_pair", "model", "cluster_num", "name", "TMscore_fold1", "TMscore_fold2", "TMdiff"]
+    cols = ["pair_id", "model", "cluster_num", "name", "TMscore_fold1", "TMscore_fold2", "TMdiff"]
     df = df[cols].sort_values(["model", "cluster_num", "name"])
 
     df.to_csv(out_csv, index=False)
@@ -474,12 +484,11 @@ def compute_tmscore_all_pairs():
 
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     """
-    ONE row per cluster with columns:
+    ONE row per cluster with columns (when available):
       cluster, n, neff,
       AF2_TM1, AF2_TM2, AF3_TM1, AF3_TM2,
       RE-MSAT-COM, RE-MSAT1, RE-MSAT2,
       ESM_SEQIDS, ESM_TM1_LIST, ESM_TM2_LIST
-    Robust to missing 'cluster_num'/'cluster' by inferring from 'name'.
     """
     anal = _ensure_pair_analysis(pair_id)
     df_af   = _safe_read_csv(str(anal / "df_af.csv"))
@@ -497,64 +506,50 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         except Exception:
             cache_stats = {}
 
-    def _infer_tag_from_name(s: str) -> str | None:
-        if not isinstance(s, str):
-            return None
-        if "DeepMsa" in s:
-            return "DeepMsa"
-        m = re.search(r"ShallowMsa_(\d+)", s)
-        if m:
-            return f"ShallowMsa_{int(m.group(1)):03d}"
-        m = re.search(r"(\d+)$", s)  # last number as a fallback
-        if m:
-            return f"ShallowMsa_{int(m.group(1)):03d}"
-        return None
-
+    # ---- cluster tag resolver (works with cluster_num/cluster/name) ----
+    SHALLOW_RE = re.compile(r"ShallowMsa[_\-]?(\d+)")
     def _tag_series(d: Optional[pd.DataFrame]) -> pd.Series:
         if d is None or d.empty:
             return pd.Series([], dtype=object)
         cols = [str(c) for c in d.columns]
         if "cluster_num" in cols:
-            s = d["cluster_num"].astype(str)
+            base = d["cluster_num"].astype(str)
         elif "cluster" in cols:
-            s = d["cluster"].astype(str)
+            base = d["cluster"].astype(str)
         elif "name" in cols:
-            s = d["name"].astype(str).map(_infer_tag_from_name)
+            base = d["name"].astype(str)
         else:
-            s = pd.Series([None] * len(d))
+            base = pd.Series([None] * len(d))
         def _norm(x):
-            if x is None or (isinstance(x, float) and pd.isna(x)):
+            if not isinstance(x, str):
                 return None
-            xs = str(x)
-            if xs.lower().startswith("deep"):
+            s = x
+            if "DeepMsa" in s:
                 return "DeepMsa"
-            if "ShallowMsa_" in xs:
-                n = re.search(r"ShallowMsa_(\d+)", xs)
-                if n:
-                    return f"ShallowMsa_{int(n.group(1)):03d}"
-            m = re.search(r"(\d{1,3})$", xs)
+            m = SHALLOW_RE.search(s)
             if m:
                 return f"ShallowMsa_{int(m.group(1)):03d}"
-            return xs
-        return s.map(_norm)
+            # last numeric suffix as fallback
+            m = re.search(r"(\d+)$", s)
+            return f"ShallowMsa_{int(m.group(1)):03d}" if m else None
+        return base.map(_norm)
 
-    # ---- AF per-fold maxima (per model) ----
-    def _tm_by_model(df: Optional[pd.DataFrame], model_key: str, prefix: str) -> pd.DataFrame:
+    # ---- AF per-fold maxima (per model, tolerant to 'model' column) ----
+    def _tm_by_model(df: Optional[pd.DataFrame], model_pat: str, prefix: str) -> pd.DataFrame:
         if df is None or df.empty:
             return pd.DataFrame(columns=[f"{prefix}_TM1", f"{prefix}_TM2"])
         d = df.copy()
         d["_tag"] = _tag_series(d)
-        # Filter model (case-insensitive)
         if "model" in d.columns:
-            md = d["model"].astype(str).str.lower()
-            d = d[md == model_key.lower()]
+            mm = d["model"].astype(str).str.upper()
+            d = d[mm.str.contains(model_pat, na=False)]  # e.g. "AF2" or "AF3"
         t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce")
         t2 = pd.to_numeric(d.get("TMscore_fold2"), errors="coerce")
         g = d.assign(TM1=t1, TM2=t2).groupby("_tag", dropna=True)[["TM1","TM2"]].max()
         return g.rename(columns={"TM1": f"{prefix}_TM1", "TM2": f"{prefix}_TM2"})
 
-    af2 = _tm_by_model(df_af,  "af2",  "AF2")
-    af3 = _tm_by_model(df_af,  "af3",  "AF3")
+    af2 = _tm_by_model(df_af,  "AF2", "AF2")
+    af3 = _tm_by_model(df_af,  "AF3", "AF3")
 
     # ---- CMAP / MSAT block ----
     ms = pd.DataFrame()
@@ -574,19 +569,17 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         d = df_esm.copy()
         d["_tag"] = _tag_series(d)
 
-        # choose an ID column
+        # choose ID column & clean
         id_col = "name" if "name" in d.columns else ("sample_id" if "sample_id" in d.columns else None)
         if id_col is None:
             d["ID"] = ["" for _ in range(len(d))]
         else:
             def _clean_id(x):
                 s = str(x)
-                if "__" in s:  # strip prefix up to last '__'
+                if "__" in s:  # strip prefix
                     s = s.split("__")[-1]
                 m = re.match(r"sample_(\d+)$", s)
-                if m:
-                    return f"{int(m.group(1)):03d}"
-                return s
+                return f"{int(m.group(1)):03d}" if m else s
             d["ID"] = d[id_col].map(_clean_id)
 
         t1 = pd.to_numeric(d.get("TMscore_fold1"), errors="coerce").round(2)
@@ -615,8 +608,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         if s is None and tag != "DeepMsa":
             m = re.search(r"(\d+)$", str(tag))
             if m:
-                alt = f"ShallowMsa_{int(m.group(1)):03d}"
-                s = cache_stats.get(alt)
+                s = cache_stats.get(f"ShallowMsa_{int(m.group(1)):03d}")
         return (s or {}).get(key, None)
 
     out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
@@ -624,15 +616,11 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
 
     # finalize
     out = out.reset_index().rename(columns={"index": "cluster"})
-
     def _short(s):
-        if s is None or (isinstance(s, float) and pd.isna(s)):
-            return ""
+        if s is None or (isinstance(s, float) and pd.isna(s)): return ""
         st = str(s).strip()
-        if st == "" or "unknown" in st.lower():
-            return ""
-        if st.lower().startswith("deep"):
-            return "Deep"
+        if st == "" or "unknown" in st.lower(): return ""
+        if st.lower().startswith("deep"): return "Deep"
         m = re.search(r"(\d+)$", st)
         return m.group(1) if m else st
     out["cluster"] = out["cluster"].map(_short)
@@ -644,7 +632,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         "ESM_SEQIDS","ESM_TM1_LIST","ESM_TM2_LIST",
     ]
     out = out[[c for c in wanted if c in out.columns]]
-
     num_cols = out.select_dtypes(include="number").columns
     if len(num_cols):
         out[num_cols] = out[num_cols].round(3)
@@ -878,13 +865,13 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
         # Detailed rows (cluster-level)
         if len(df_tm):
             det = df_tm.copy()
-            det["fold_pair"] = pair_id
+            det["pair_id"] = pair_id
             all_detailed.append(det)
 
         max_len = _pair_max_len_from_truth(pair_id)
         # Summary row (pair-level)
         summary_rows.append({
-            "fold_pair": pair_id,
+            "pair_id": pair_id,
             "#RES": max_len,
             **(best_tm or {}),
             **(best_cmap or {}),
@@ -898,7 +885,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
 
     # New: add tm-scores for true structures pairs
 #    tm_pairs_scores = compute_tmscore_all_pairs()
-#    summary_df['PAIR_TM'] = summary_df.apply(lambda row: tm_pairs_scores[row['fold_pair']][0], axis=1)
+#    summary_df['PAIR_TM'] = summary_df.apply(lambda row: tm_pairs_scores[row['pair_id']][0], axis=1)
     return summary_df, detailed_df
 
 if __name__ == "__main__":

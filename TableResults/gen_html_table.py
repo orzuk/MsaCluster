@@ -9,6 +9,9 @@ from config import *
 from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
 
 # --- add near the top (after imports / _ensure_unified_csvs) ---
+NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
+TRIPLET_COL = "MSA: DEPTH; #RES; #Clusters"
+
 
 # Single source of truth for the main comparison table
 DEFAULT_PREFERRED_COLS = [
@@ -56,18 +59,34 @@ def _ensure_unified_csvs(force_rerun: bool = False):
         except Exception as e:
             print(f"[gen_html] WARN: could not build unified CSVs automatically: {e}")
 
-NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
 
 def _append_mean_std_row(df: pd.DataFrame, label_col: str, label_text: str = "Averages") -> pd.DataFrame:
-    """Append a last row with per-column mean (std) for numeric columns.
-       Non-numeric columns get '-' except the label_col which gets label_text."""
     out = df.copy()
     means = {}
     for c in out.columns:
         if c == label_col:
             means[c] = label_text
             continue
-        # try parsing numeric (also when cells are strings like "0.78 (7)")
+        if c == TRIPLET_COL:
+            triples = []
+            for v in out[c]:
+                if pd.isna(v): continue
+                parts = [p.strip() for p in str(v).split(";")]
+                if len(parts) != 3: continue
+                nums = []
+                for p in parts:
+                    m = NUM_RE.match(p)
+                    nums.append(float(m.group(1)) if m else float("nan"))
+                if all(pd.notna(nums)):
+                    triples.append(nums)
+            if triples:
+                import numpy as _np
+                mu = _np.nanmean(_np.array(triples, dtype=float), axis=0)
+                means[c] = f"{mu[0]:.2f}; {mu[1]:.2f}; {mu[2]:.2f}"
+            else:
+                means[c] = "-"
+            continue
+
         s = out[c]
         if s.dtype.kind in "biufc":
             x = pd.to_numeric(s, errors="coerce")
@@ -76,7 +95,7 @@ def _append_mean_std_row(df: pd.DataFrame, label_col: str, label_text: str = "Av
         if x.notna().any():
             mu = float(x.mean())
             sd = float(x.std(ddof=1)) if x.count() > 1 else 0.0
-            means[c] = f"{mu:.3f} ({sd:.3f})"
+            means[c] = f"{mu:.2f} ({sd:.2f})"
         else:
             means[c] = "-"
     out = pd.concat([out, pd.DataFrame([means])], ignore_index=True)
@@ -213,16 +232,27 @@ def gen_html_from_summary_table(
                 return f"{float(a):.3f}{tail}"
             df[c] = df[c].map(_fmt)
 
-    # Append "Averages (std)" row (replaced)
-#    df = _append_mean_std_row(df, label_col="pair_id", label_text="Averages")
-
-
 
     # --- Table header (clickable for sorting) ---
     thead = "<tr>" + "".join(
         f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
         for i, col in enumerate(df.columns)
     ) + "</tr>"
+
+    def _format_triplet_cell(val, is_avg: bool) -> str:
+        if pd.isna(val):
+            return "-"
+        s = str(val)
+        parts = [p.strip() for p in s.split(";")]
+        out = []
+        for p in parts:
+            m = NUM_RE.match(p)
+            if not m:
+                out.append(p)
+                continue
+            x = float(m.group(1))
+            out.append(f"{x:.2f}" if is_avg else str(int(round(x))))
+        return "; ".join(out)
 
     # For sorting: pull numeric prefix from strings like "3219 (18)" -> "3219"
 
@@ -232,27 +262,31 @@ def gen_html_from_summary_table(
         pair = str(r["pair_id"])
         link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
         tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
+        is_avg = pair.lower().startswith("average")  # "Average" or "Averages"
+
         for col in df.columns[1:]:
             val = r[col]
-            if col == "#RES":
-                # show integer in normal rows
+
+            if col == TRIPLET_COL:
+                disp = _format_triplet_cell(val, is_avg)
+            elif col == "#RES" and not is_avg and pd.notna(val):
+                # show integers for #RES in normal rows
                 try:
-                    ival = int(float(val))
-                    disp = str(ival)
-                    sortv = str(ival)
+                    disp = str(int(round(float(val))))
                 except Exception:
                     disp = "-" if pd.isna(val) else str(val)
-                    sortv = numeric_part(val)
-                tds.append(f'<td data-sort-value="{html.escape(str(sortv))}">{html.escape(disp)}</td>')
             else:
                 disp = "-" if pd.isna(val) else str(val)
-                tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
+
+            tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
+
         row_cls = ""
         if fade_min_clusters is not None:
             ncl = _clusters_in_row(r)
             if ncl is not None and ncl < fade_min_clusters:
                 row_cls = ' class="lowclust"'
         rows.append(f"<tr{row_cls}>" + "".join(tds) + "</tr>")
+
 
     # ---- Averages row (2 decimals). Special handling for "MSA: DEPTH; #RES; #Clusters" ----
     avg_label = '<a href="https://orzuk.github.io/MsaCluster/pairs_global_analysis.html" target="_blank">Averages</a>'
@@ -420,7 +454,6 @@ def gen_html_from_cluster_detailed_table(
         raise KeyError("Expected a 'fold_pair' (or 'pair_id') column in the detailed CSV.")
     cols = [pair_col] + [c for c in df.columns if c != pair_col]
     df = df[cols]
-
 
     # build header
     thead = "<tr>" + "".join(
