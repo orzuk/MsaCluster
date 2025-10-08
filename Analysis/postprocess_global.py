@@ -81,7 +81,7 @@ def build_or_load_global_tables(force: bool = False,
       - DETAILED_RESULTS_TABLE : your detailed per-pair row(s) from _read_pair_tables(d)
     Also merges cache.json (seq_id, msa_depth, msa_width) if present.
     """
-    if (not force) and os.path.isfile(SUMMARY_RESULTS_TABLE) and os.path.isfile(DETAIL_CSV):
+    if (not force) and os.path.isfile(SUMMARY_RESULTS_TABLE) and os.path.isfile(DETAILED_RESULTS_TABLE):
         return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE
 
     pair_dirs = sorted(glob.glob(os.path.join(PIPELINE_DIR, "*_*")))
