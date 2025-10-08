@@ -509,6 +509,8 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         except Exception:
             cache_stats = {}
 
+    print("Inside build-pair finished cache")
+
     # ---- cluster tag resolver (works with cluster_num/cluster/name) ----
     SHALLOW_RE = re.compile(r"ShallowMsa[_\-]?(\d+)")
     def _tag_series(d: Optional[pd.DataFrame]) -> pd.Series:
@@ -554,6 +556,9 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     af2 = _tm_by_model(df_af,  "AF2", "AF2")
     af3 = _tm_by_model(df_af,  "AF3", "AF3")
 
+    print("Inside build-pair finished af")
+
+
     # ---- CMAP / MSAT block ----
     ms = pd.DataFrame()
     if df_cmap is not None and not df_cmap.empty:
@@ -598,12 +603,18 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         if blocks:
             esm_lists = pd.concat(blocks, axis=0)
 
+    print("Inside build-pair finished esm")
+
+
     # ---- assemble per-cluster table ----
     idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(cache_stats.keys()))
     out = pd.DataFrame(index=idx)
     for block in (af2, af3, ms, esm_lists):
         if not block.empty:
             out = out.join(block, how="left") if not out.empty else block.copy()
+
+    print("Inside build-pair finished assemble")
+
 
     # n & neff from cache (keys like "ShallowMsa_XXX" or "DeepMsa")
     def _get_stat(tag, key):
@@ -617,6 +628,8 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
     out["neff"] = [ _get_stat(t, "neff") for t in out.index ]
 
+    print("Inside build-pair finished neff")
+
     # finalize
     out = out.reset_index().rename(columns={"index": "cluster"})
     def _short(s):
@@ -628,6 +641,9 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         return m.group(1) if m else st
     out["cluster"] = out["cluster"].map(_short)
 
+    print("Inside build-pair finished finalized")
+
+
     wanted = [
         "cluster","n","neff",
         "AF2_TM1","AF2_TM2","AF3_TM1","AF3_TM2",
@@ -636,6 +652,9 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     ]
     out = out[[c for c in wanted if c in out.columns]]
     num_cols = out.select_dtypes(include="number").columns
+
+    print("Inside build-pair finished wanted")
+
     if len(num_cols):
         out[num_cols] = out[num_cols].round(3)
     return out
