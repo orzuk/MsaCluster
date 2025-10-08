@@ -9,7 +9,7 @@ sys.path.insert(0, ROOT)
 
 from utils.cache_utils import get_from_pair_cache
 from utils.utils import numify
-from config import PIPELINE_DIR, DOCS_DIR
+from config import *
 
 
 def _pair_id_from_dir(d: str) -> str:
