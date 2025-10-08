@@ -780,14 +780,21 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
         rep_cache[cluster_id] = S[int(np.argmin(Msum))]
         return rep_cache[cluster_id]
 
+    # replace the whole _closest_cluster with this version
     def _closest_cluster(c_from: int) -> int | None:
         """Return id of nearest *other* cluster to c_from; None if no candidate."""
-        # candidates are all clusters except c_from
-        cand = [c for c in assigns if c != c_from and len(assigns[c]) > 0]
+        # work on the local 'clusters' dict we mutate
+        cand = [c for c in clusters.keys() if c != c_from and len(clusters[c]) > 0]
         if not cand:
             return None
-        best = None
-        best_d = float("inf")
+        s_from = _rep_seq(c_from)  # <-- reuse the cached representative
+        best, best_d = None, float("inf")
+        for cj in cand:
+            d = gapaware_hamming(s_from, _rep_seq(cj))
+            if d < best_d:
+                best_d = d
+                best = cj
+        return best
 
         # distance by tree representatives if available, else by gap-aware Hamming of medoids
         def _rep_seq(ci):
@@ -818,7 +825,8 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
         # Iteratively merge clusters smaller than eff_min into their nearest neighbor
         # Stop when all clusters are >= eff_min or when no valid target exists.
         while True:
-            small = [c for c in sorted(assigns.keys()) if len(assigns[c]) < eff_min]
+            small = [c for c in sorted(clusters.keys()) if len(clusters[c]) < eff_min]
+
             if not small:
                 break
             progressed = False
@@ -827,8 +835,8 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
                 if target is None or target == cmin:
                     # No valid merge target; skip this one
                     continue
-                assigns[target].extend(assigns[cmin])
-                assigns[cmin] = []  # mark emptied
+                clusters[target].extend(clusters[cmin])
+                clusters[cmin] = []
                 merges += 1
                 progressed = True
             if not progressed:
