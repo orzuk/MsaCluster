@@ -934,7 +934,7 @@ def task_clean(pair_id: str, args) -> None:
         "Analysis", "tmp_msa_files", "tmp_esmfold", "jobs", "logs",
     ]
     rm_dirs_legacy = ["output_cmap_esm", "esm_cmap_output", "AF_preds", "chain_pdb_files", "fasta_chain_files"]
-    rm_globs = ["run_pipeline_for_*.out", "RunAF.out", "CmapESM.out", "*.out", "*.log", "*.err"]
+    rm_globs = ["run_pipeline_for_*.out", "RunAF.out", "CmapESM.out", "*.out", "*.log", "*.err", "*hdbscan*.pkl"]
 
     for d in rm_dirs_current + rm_dirs_legacy:
         p = pair_dir / d
