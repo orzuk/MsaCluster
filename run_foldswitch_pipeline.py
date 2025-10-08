@@ -929,7 +929,7 @@ def task_clean(pair_id: str, args) -> None:
 
     # derived-only clean (keep base inputs)
     rm_dirs_current = [
-        "output_get_msa", "output_msa_cluster", "output_AF",
+        "output_get_msa", "output_msa_cluster", "output_AF", "output_deltaG", "output_figs",
         "output_cmaps", "output_esm_fold", "output_phytree",
         "Analysis", "tmp_msa_files", "tmp_esmfold", "jobs", "logs",
     ]
@@ -956,6 +956,11 @@ def task_clean(pair_id: str, args) -> None:
                 if not dry:
                     try: f.unlink()
                     except: pass
+
+    for pat in pair_dir.glob("*hdbscan*.pkl"):
+        print("removing hdbscan pickle:", pat)
+        pat.unlink()
+
 
     _prune_stale_fastas(pair_id, pair_dir, dry)
 
