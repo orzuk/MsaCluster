@@ -629,7 +629,8 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     if '_tag' in out:
         print("cluster-tag name before: ", out["_tag"])
         out["_tag"] = out["_tag"].map(_short)
-        print("cluster-tag name before: ", out["_tag"])
+        print("cluster-tag name after: ", out["_tag"])
+        out.rename(columns={"_tag":"cluster"}, inplace=True)  # change to cluster
 
     wanted = [
         "cluster","n","neff",
