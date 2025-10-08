@@ -228,7 +228,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         if not pair_dir.is_dir():
             continue
 
-        print("Building tables from pair:", pair_id)
+#        print("Building tables from pair:", pair_id)
 
         anal = _ensure_pair_analysis(pair_id)
         df_af   = _safe_read_csv(str(anal / "df_af.csv"))
@@ -258,7 +258,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         msa_width = _msa_width_a3m_columns(deepmsa_file)
         n_clusters = _count_shallow_clusters_fast(pair_id)
         row["MSA: DEPTH; #RES; #Clusters"] = f"{int(msa_depth)}; {int(msa_width)}; {int(n_clusters)}"
-        print("Set MSA: DEPTH; #RES; #Clusters:", row["MSA: DEPTH; #RES; #Clusters"])
+#        print("Set MSA: DEPTH; #RES; #Clusters:", row["MSA: DEPTH; #RES; #Clusters"])
 
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
         pair_dir_str = str(_pair_dir(pair_id))
