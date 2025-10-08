@@ -300,13 +300,11 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         summary_rows.append(row)
 
-    print("ALL DETAILED list:")
-    print(all_detailed)
+#    print("ALL DETAILED list:")
+#    print(all_detailed)
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
-    print("Now MSA DEPTH COLUMN:", summary_df["MSA: DEPTH; #RES; #Clusters"])
-    print("write_out flag:", write_out)
 
     if write_out:
         print("WRITING SUMMARY CLUSTERS TABLE:")
@@ -628,8 +626,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         out["cluster"] = out["cluster"].map(_short)
     if '_tag' in out:
         out["_tag"] = out["_tag"].map(_short)
-    print("Inside build-pair finished finalized")
-
 
     wanted = [
         "cluster","n","neff",
@@ -639,8 +635,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     ]
     out = out[[c for c in wanted if c in out.columns]]
     num_cols = out.select_dtypes(include="number").columns
-
-    print("Inside build-pair finished wanted")
 
     if len(num_cols):
         out[num_cols] = out[num_cols].round(3)
