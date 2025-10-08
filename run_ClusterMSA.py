@@ -60,6 +60,19 @@ def _cond_idx(i,j,m):
     # SciPy condensed index
     return i*m - i*(i+1)//2 + (j - i - 1)
 
+def medoid_of_rows(rows: np.ndarray) -> int:
+    if len(rows) == 1: return int(rows[0])
+    r = rows.tolist(); R = len(r)
+    Msum = np.zeros(R, dtype=float)
+    for a in range(R-1):
+        sa = seqs[sample_idx[r[a]]]
+        for b in range(a+1, R):
+            sb = seqs[sample_idx[r[b]]]
+            d = gapaware_hamming(sa, sb)
+            Msum[a] += d; Msum[b] += d
+    return int(r[int(np.argmin(Msum))])
+
+
 def medoid_of_rows_condensed(rows: np.ndarray, m: int, cond_vec: np.ndarray) -> int:
     r = rows.astype(int)
     R = len(r)
@@ -294,17 +307,6 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
 
     # --- Helpers (no full D) ---
     def rows_of(c): return np.where(lab == c)[0]
-    def medoid_of_rows(rows: np.ndarray) -> int:
-        if len(rows) == 1: return int(rows[0])
-        r = rows.tolist(); R = len(r)
-        Msum = np.zeros(R, dtype=float)
-        for a in range(R-1):
-            sa = seqs[sample_idx[r[a]]]
-            for b in range(a+1, R):
-                sb = seqs[sample_idx[r[b]]]
-                d = gapaware_hamming(sa, sb)
-                Msum[a] += d; Msum[b] += d
-        return int(r[int(np.argmin(Msum))])
     def center_seq_of_c(c:int)->str:
         mr = medoid_of_rows(rows_per[c]); return seqs[sample_idx[mr]]
     def dist_c(c1, c2):
