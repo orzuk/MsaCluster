@@ -509,8 +509,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         except Exception:
             cache_stats = {}
 
-    print("Inside build-pair finished cache")
-
     # ---- cluster tag resolver (works with cluster_num/cluster/name) ----
     SHALLOW_RE = re.compile(r"ShallowMsa[_\-]?(\d+)")
     def _tag_series(d: Optional[pd.DataFrame]) -> pd.Series:
@@ -556,9 +554,6 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     af2 = _tm_by_model(df_af,  "AF2", "AF2")
     af3 = _tm_by_model(df_af,  "AF3", "AF3")
 
-    print("Inside build-pair finished af")
-
-
     # ---- CMAP / MSAT block ----
     ms = pd.DataFrame()
     if df_cmap is not None and not df_cmap.empty:
@@ -603,18 +598,12 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         if blocks:
             esm_lists = pd.concat(blocks, axis=0)
 
-    print("Inside build-pair finished esm")
-
-
     # ---- assemble per-cluster table ----
     idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(cache_stats.keys()))
     out = pd.DataFrame(index=idx)
     for block in (af2, af3, ms, esm_lists):
         if not block.empty:
             out = out.join(block, how="left") if not out.empty else block.copy()
-
-    print("Inside build-pair finished assemble")
-
 
     # n & neff from cache (keys like "ShallowMsa_XXX" or "DeepMsa")
     def _get_stat(tag, key):
@@ -640,9 +629,11 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         if st.lower().startswith("deep"): return "Deep"
         m = re.search(r"(\d+)$", st)
         return m.group(1) if m else st
-    print("Inside build-pair finished finalized, out cluster: ", out["cluster"])
-    out["cluster"] = out["cluster"].map(_short)
-
+#    print("Inside build-pair finished finalized, out cluster: ", out["cluster"])
+    if 'cluster' in out:
+        out["cluster"] = out["cluster"].map(_short)
+    if '_tag' in out:
+        out["_tag"] = out["_tag"].map(_short)
     print("Inside build-pair finished finalized")
 
 

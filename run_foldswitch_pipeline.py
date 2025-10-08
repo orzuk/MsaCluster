@@ -1525,7 +1525,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
 
     # === Build/refresh global cached tables (no heavy compute here) ===
     try:
-        from Analysis.postprocess_global import build_or_load_global_tables
         force_global = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
         summary_csv, detail_csv = build_or_load_global_tables(force=force_global)
         print(f"[global] summary: {summary_csv}")
