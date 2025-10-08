@@ -236,6 +236,9 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
 
         # === DETAILED: ONE ROW PER CLUSTER ===
+        print("FORCE Add cluster sub-table for: ", pair_id)
+        per_cluster = build_pair_cluster_table(pair_id)  # FORCE TO SEE ERROR
+        print("GOT FORCE Add cluster sub-table for: ", pair_id, per_cluster)
         try:
             per_cluster = build_pair_cluster_table(pair_id)
             print("Add cluster sub-table: ", per_cluster)
