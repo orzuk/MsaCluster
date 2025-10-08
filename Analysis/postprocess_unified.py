@@ -236,12 +236,9 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
 
         # === DETAILED: ONE ROW PER CLUSTER ===
-        print("FORCE Add cluster sub-table for: ", pair_id)
-        per_cluster = build_pair_cluster_table(pair_id)  # FORCE TO SEE ERROR
-        print("GOT FORCE Add cluster sub-table for: ", pair_id, per_cluster)
         try:
             per_cluster = build_pair_cluster_table(pair_id)
-            print("Add cluster sub-table: ", per_cluster)
+#            print("Add cluster sub-table: ", per_cluster)
             if per_cluster is not None and not per_cluster.empty:
                 # keep both names for downstream code
                 per_cluster.insert(0, "pair_id", pair_id)
@@ -617,11 +614,8 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     out["n"]    = [ _get_stat(t, "n")    for t in out.index ]
     out["neff"] = [ _get_stat(t, "neff") for t in out.index ]
 
-    print("Inside build-pair finished neff")
-
     # finalize
     out = out.reset_index().rename(columns={"index": "cluster"})
-    print("Inside build-pair finished reset index, out=", out)
     def _short(s):
         if s is None or (isinstance(s, float) and pd.isna(s)): return ""
         st = str(s).strip()
