@@ -60,7 +60,7 @@ def _cond_idx(i,j,m):
     # SciPy condensed index
     return i*m - i*(i+1)//2 + (j - i - 1)
 
-def medoid_of_rows(rows: np.ndarray) -> int:
+def medoid_of_rows(rows: np.ndarray, seqs: list[str], idx_map: np.ndarray | None = None) -> int:
     if len(rows) == 1: return int(rows[0])
     r = rows.tolist(); R = len(r)
     Msum = np.zeros(R, dtype=float)

@@ -1775,8 +1775,8 @@ def main():
     p.add_argument("--run_job_mode", default="inline", choices=["inline", "sbatch"])
 
     # --- Clustering options ---
-    p.add_argument("--cluster_alg", default="ahc", choices=["hdbscan", "tree", "ahc"],
-                   help="Clustering algorithm for --run_mode cluster_msa (default: ahc).")
+    p.add_argument("--cluster_alg", default="tree", choices=["hdbscan", "tree", "ahc"],
+                   help="Clustering algorithm for --run_mode cluster_msa (default: tree).")
     p.add_argument("--cluster_tree_path", default=None,
                    help="Path to Newick tree for --cluster_alg tree (e.g., Pipeline/<pair>/output_phytree/DeepMsa_tree.nwk).")
     p.add_argument("--cluster_max_clusters", type=int, default=100,
