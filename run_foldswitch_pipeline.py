@@ -1651,14 +1651,26 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     else:
         print("[pipeline] get_msa → skip (DeepMsa exists)")
 
-    # 3) cluster_msa
+    # 3) phylogenetic tree (needed for tree plots and analysis, clustering!)
+    try:
+        tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
+        if force_all or not tree_path.exists():
+            print("[pipeline] tree → running")
+            task_tree(pair_id, args)
+        else:
+            print("[pipeline] tree → skip (exists)")
+    except Exception as e:
+        print(f"[pipeline] tree → skipped: {e}")
+
+
+    # 4) cluster_msa
     if force_all or not _has_cluster_msas(pair_id):
         print("[pipeline] cluster_msa → running")
         task_cluster_msa(pair_id, "inline", args)
     else:
         print("[pipeline] cluster_msa → skip (clusters exist)")
 
-    # 4) AF (AF2/AF3/both). Always invoke; the task itself skips completed outdirs unless forced.
+    # 5) AF (AF2/AF3/both). Always invoke; the task itself skips completed outdirs unless forced.
     if force_all:
         setattr(args, "force_rerun_AF", "TRUE")  # only for AF stage
     print("[pipeline] AF → running (task will skip per-outdir if already complete)")
@@ -1670,7 +1682,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"[pipeline] AF → skipped: {e}")        
 
-    # 5) cmaps (MSA-Transformer)
+    # 6) cmaps (MSA-Transformer)
     try:
         if force_all or not _has_cmaps(pair_id):
             print("[pipeline] cmap_msa_transformer → running")
@@ -1680,14 +1692,14 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"[pipeline] cmap_msa_transformer → skipped: {e}")
 
-    # 5b) cmaps (CCMpred) — best-effort
+    # 6b) cmaps (CCMpred) — best-effort
     try:
         print("[pipeline] cmap_ccmpred → running")
         task_cmap_ccmpred(pair_id, "inline")
     except Exception as e:
         print(f"[pipeline] cmap_ccmpred → skipped: {e}")
 
-    # 6) ESMFold (esm2/esm3 or user-specified)    
+    # 7) ESMFold (esm2/esm3 or user-specified)
     wanted_models = ["esm2", "esm3"] if getattr(args, "esm_model", None) in (None, "both") else [args.esm_model]
     for model in wanted_models:
         try:
@@ -1700,16 +1712,6 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[pipeline] esmfold({model}) → skipped: {e}")
 
-    # 7) phylogenetic tree (needed for tree plots)
-    try:
-        tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
-        if force_all or not tree_path.exists():
-            print("[pipeline] tree → running")
-            task_tree(pair_id, args)
-        else:
-            print("[pipeline] tree → skip (exists)")
-    except Exception as e:
-        print(f"[pipeline] tree → skipped: {e}")
 
     # 8) ΔG energies (PyRosetta) — best-effort
     try:
