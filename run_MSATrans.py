@@ -103,34 +103,25 @@ if __name__ == '__main__':
     mdl = mdl.eval()
     batch_converter = mdl_alphabet.get_batch_converter()
 
-    # Remove old outputs (npy files) in the target directory
-    print("Removing old files: " + args.o + '/*.npy')
-    old = glob(os.path.join(args.o, '*.npy'))
-    print(old)
-    for f_old in old:
-        try:
-            os.remove(f_old)
-        except OSError:
-            pass
-
-    # Remove old outputs according to --clean policy
-    if args.clean != 'none':
-        if args.clean == 'all':
-            pattern = '*.npy'
-        else:  # matched
+    # Apply cleaning policy (default: keep everything)
+    pattern = None
+    if args.clean == 'all':
+        pattern = '*.npy'
+    elif args.clean == 'matched':
         # delete only files produced by this run configuration
-            prefix = f"{args.model}_{args.keyword}_" if args.keyword else f"{args.model}_"
+        if args.keyword:  # be conservative: with empty keyword, do nothing
+            prefix = f"{args.model}_{args.keyword}_"
             pattern = f"{prefix}*.npy"
+
+    if pattern:
         print(f"Removing old files: {args.o}/{pattern}")
         old = glob(os.path.join(args.o, pattern))
         print(old)
-
-    for f_old in old:
-        try:
-            os.remove(f_old)
-        except OSError:
-            pass
-
+        for f_old in old:
+            try:
+                os.remove(f_old)
+            except OSError:
+                pass
 
     # --- Predict ---
     if args.model == 'esm1b':

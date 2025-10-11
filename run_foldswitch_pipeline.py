@@ -1138,7 +1138,7 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
             f"python3 ./run_MSATrans.py "
             f"--input_msas {deep_alias} "
             f"-o {outdir} "
-            f"--model msa_t --keyword '' --clean matched"
+            f"--model msa_t --keyword DeepMsa --clean matched"
         )
         _run(cmd_deep, run_job_mode)
 
