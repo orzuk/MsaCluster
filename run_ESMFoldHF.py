@@ -24,14 +24,15 @@ Run examples
 
 """
 from __future__ import annotations
-import os, sys
+import os, sys, tempfile, subprocess
 import json, time
 import argparse
-import subprocess
 from typing import Dict, List, Tuple, Optional
 from transformers import EsmForProteinFolding, AutoTokenizer
 from pathlib import Path
-
+# Core deps
+import torch
+import numpy as np  # noqa: F401
 
 # Quiet TensorFlow chatter if present
 os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
@@ -51,9 +52,6 @@ except Exception:
 from utils.msa_utils import load_fasta
 from utils.protein_utils import extract_protein_sequence, process_sequence
 
-# Core deps
-import torch
-import numpy as np  # noqa: F401
 
 
 def _cluster_fastas_dir(pair_id: str) -> Path:
@@ -196,7 +194,6 @@ def _detect_esm2_checkpoint() -> str | None:
     Try to point to where ESMFold weights live. fair-esm uses torch.hub cache.
     """
     try:
-        import torch, os
         hub = Path(os.environ.get("TORCH_HOME", Path.home() / ".cache" / "torch"))
         for d in [hub / "hub" / "checkpoints", hub / "checkpoints"]:
             if d.exists():
@@ -209,7 +206,7 @@ def _detect_esm2_checkpoint() -> str | None:
 
 
 
-def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None):
+def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, outdir=None):
     backend, model = load_esmfold(device)
     if device != "cpu":
         model = model.to(device)
@@ -322,7 +319,6 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
             print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
 
         # 2) write a tiny temp FASTA (safer than pushing the sequence via argv)
-        import tempfile, os
         with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
             tf.write(f">{name}\n{seq}\n")
             fasta_path = tf.name
@@ -377,7 +373,6 @@ def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Pa
         if len(seq) != orig_len:
             print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
 
-        import tempfile, os, subprocess, sys
         with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
             tf.write(f">{name}\n{seq}\n")
             fasta_path = tf.name
@@ -540,12 +535,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     t2 = time.time()
     if model_tag == "esm2":
-        result = run_esm2_fold(
-            sequences, device,
-            chunk_size=args.esm_chunk,
-            num_recycles=args.esm_recycles,
-            amp_dtype=amp_dtype,
-        )
+        result = run_esm2_fold(sequences, device, chunk_size=args.esm_chunk,
+            num_recycles=args.esm_recycles, amp_dtype=amp_dtype, outdir=outdir)
     else:
 #        result = run_esm3_fold(sequences, device)
         result = run_esm3_fold_streaming(sequences, device, outdir, model_tag)

@@ -1816,7 +1816,7 @@ def main():
 
     # ESMFold options
     p.add_argument("--cluster_sample_n", type=int, default=10)
-    p.add_argument("--esm_model", default=None, choices=["esm2", "esm3", "both"])
+    p.add_argument("--esm_model", default="both", choices=["esm2", "esm3", "both"])
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     p.add_argument("--esm_gpu_len_threshold", type=int, default=800,
                help="If max chain length ≥ this, run ESM on CPU to avoid CUDA OOM (default: 800).")
