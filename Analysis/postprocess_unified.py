@@ -268,19 +268,43 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
             return max(t12, t21)
         row["PAIR_TM"] = round(get_or_compute_true_tm(pair_dir_str, pdb1, pdb2, _tm_sym_once), 3)
 
+        # ΔG (pair-local energy CSV) – PDB_ID may be without chain (e.g. "2qqj.pdb")
         f_energy = f"{DATA_DIR}/{pair_id}/Analysis/df_energy_global.csv"
         if os.path.isfile(f_energy):
             try:
                 dfe = pd.read_csv(f_energy)
+                # Normalize column names (guard against different casing)
+                colmap = {c.strip(): c for c in dfe.columns}
+                pid_col  = colmap.get("PDB_ID", "PDB_ID")
+                dg_col   = colmap.get("Delta_G", "Delta_G")
+                pair_col = colmap.get("Pair", None)
+
                 a, b = pair_id.split("_", 1)
-                def _pick(token):
-                    p = f"{token}.pdb"
-                    sub = dfe[dfe["PDB_ID"] == p]
-                    return float(sub["Delta_G"].iloc[0]) if not sub.empty else np.nan
+
+                def _cands(tok: str):
+                    tok = tok.strip()
+                    c = [f"{tok}.pdb"]
+                    if tok and tok[-1].isalpha():  # drop trailing chain, e.g. 2qqjA -> 2qqj
+                        c.append(f"{tok[:-1]}.pdb")
+                    return c
+
+                def _pick(tok: str):
+                    dfp = dfe if pair_col is None else dfe[dfe[pair_col] == pair_id]
+                    for cand in _cands(tok):
+                        sub = dfp[dfp[pid_col] == cand]
+                        if not sub.empty:
+                            try:
+                                return float(sub[dg_col].iloc[0])
+                            except Exception:
+                                pass
+                    return float("nan")
+
                 row["ΔG1"] = _pick(a)
                 row["ΔG2"] = _pick(b)
             except Exception:
-                row["ΔG1"] = np.nan; row["ΔG2"] = np.nan
+                row["ΔG1"] = float("nan"); row["ΔG2"] = float("nan")
+        else:
+            row["ΔG1"] = float("nan"); row["ΔG2"] = float("nan")
 
         for tag, up in (("af2","AF2"), ("af3","AF3")):
             row[f"{up}Clust_TM1"] = _pick_best(tm_all, tag, "clust", 1)
