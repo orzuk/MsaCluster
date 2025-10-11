@@ -88,6 +88,141 @@ SBATCH_HINTS = {
 
 
 # ------------------------- helpers -------------------------
+def _csv_bool(x) -> bool:
+    if isinstance(x, (bool, np.bool_)):
+        return bool(x)
+    s = str(x).strip().lower()
+    return s in ("true", "1", "yes", "y", "t")
+
+def _renumber_kept_clusters(pair_id: str) -> bool:
+    """
+    After cluster_msa, keep only clusters with kept==True and renumber them
+    to contiguous ShallowMsa_000.. ShallowMsa_{K-1} in:
+       - Pipeline/<pair>/output_msa_cluster/
+       - Pipeline/<pair>/output_msa_cluster_pairtrim/   (if present)
+    Also rewrites ShallowMsa_clusters.csv accordingly.
+
+    Returns True if any changes were made, False if no action was needed.
+    """
+    base = Path(f"Pipeline/{pair_id}")
+    cl_csv = base / "output_msa_cluster" / "ShallowMsa_clusters.csv"
+    if not cl_csv.is_file():
+        return False
+
+    df = pd.read_csv(cl_csv)
+    if "cluster" not in df.columns:
+        return False
+
+    # Determine kept set
+    if "kept" in df.columns:
+        kept_df = df[df["kept"].apply(_csv_bool)].copy()
+    else:
+        kept_df = df.copy()
+
+    if kept_df.empty:
+        # Nothing to keep → remove all shallow .a3m files (both dirs) and write empty CSV
+        for dname in ("output_msa_cluster", "output_msa_cluster_pairtrim"):
+            d = base / dname
+            if d.is_dir():
+                for p in d.glob("ShallowMsa_*.a3m"):
+                    try: p.unlink()
+                    except Exception: pass
+        kept_df[["cluster","n","neff","path"]] = [[]]  # ensure columns exist
+        kept_df.to_csv(cl_csv, index=False)
+        return True
+
+    # If already contiguous 0..K-1 AND filenames are aligned, skip
+    try:
+        old_ids = [int(c) for c in kept_df["cluster"].tolist()]
+    except Exception:
+        old_ids = kept_df["cluster"].tolist()  # fallback (strings)
+
+    sorted_old = sorted(old_ids)
+    already_contiguous = (sorted_old == list(range(len(sorted_old))))
+    if already_contiguous:
+        # Check that all files exist with the same numbering; if so, skip
+        ok = True
+        for dname in ("output_msa_cluster", "output_msa_cluster_pairtrim"):
+            d = base / dname
+            if not d.is_dir():
+                continue
+            for k in range(len(sorted_old)):
+                if not (d / f"ShallowMsa_{k:03d}.a3m").is_file():
+                    ok = False
+                    break
+            if not ok: break
+        if ok:
+            return False  # nothing to do
+
+    # Build mapping: old -> new (0..K-1 in cluster-sorted order)
+    # We keep the original ordering by 'cluster'
+    kept_df = kept_df.sort_values("cluster").reset_index(drop=True)
+    mapping = {}
+    for new_idx, (_, row) in enumerate(kept_df.iterrows()):
+        try:
+            old_idx = int(row["cluster"])
+        except Exception:
+            old_idx = row["cluster"]
+        mapping[old_idx] = new_idx
+
+    def _rename_in_dir(d: Path) -> None:
+        if not d.is_dir():
+            return
+
+        # Phase 1: move kept → temp names (avoid collisions)
+        temp_moves = []
+        for old_idx, new_idx in mapping.items():
+            src = d / f"ShallowMsa_{int(old_idx):03d}.a3m"
+            if src.exists():
+                tmp = d / f"__TMP_RENUM_{new_idx:03d}.a3m"
+                try:
+                    src.rename(tmp)
+                    temp_moves.append((tmp, d / f"ShallowMsa_{new_idx:03d}.a3m"))
+                except Exception:
+                    pass  # continue best-effort
+
+        # Remove all non-kept shallow MSAs
+        for p in d.glob("ShallowMsa_*.a3m"):
+            name = p.name
+            m = re.search(r"ShallowMsa_(\d+)\.a3m$", name)
+            if not m:
+                continue
+            old = int(m.group(1))
+            if old not in mapping:
+                try: p.unlink()
+                except Exception: pass
+
+        # Phase 2: finalize kept tmp → final
+        for tmp, dst in temp_moves:
+            try:
+                if dst.exists():
+                    dst.unlink()
+                tmp.rename(dst)
+            except Exception:
+                pass
+
+    # Apply to both dirs
+    _rename_in_dir(base / "output_msa_cluster")
+    _rename_in_dir(base / "output_msa_cluster_pairtrim")
+
+    # Rewrite the CSV with only kept clusters and the new numbering/paths
+    out_rows = []
+    for _, row in kept_df.iterrows():
+        old_idx = int(row["cluster"])
+        new_idx = mapping[old_idx]
+        n_val    = row["n"]    if "n" in row else None
+        neff_val = row["neff"] if "neff" in row else None
+        out_rows.append({
+            "cluster": new_idx,
+            "n": n_val,
+            "neff": neff_val,
+            "path": f"output_msa_cluster/ShallowMsa_{new_idx:03d}.a3m",
+            "kept": True
+        })
+    pd.DataFrame(out_rows, columns=["cluster","n","neff","path","kept"]).to_csv(cl_csv, index=False)
+
+    return True
+
 def _truth_pdb_paths_for_pair(pair_id: str) -> tuple[str, str]:
     # Prefer chain-sliced files if present
     from utils.utils import pair_str_to_tuple
@@ -1723,6 +1858,16 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         task_cluster_msa(pair_id, "inline", args)
     else:
         print("Clusters exist → skipped")
+
+    # 4b) Renumber kept clusters to 000..K-1 (always attempt; no-op if already contiguous)
+    try:
+        changed = _renumber_kept_clusters(pair_id)
+        if changed:
+            print("Kept clusters renumbered to 000..K-1 and CSV updated.")
+        else:
+            print("Clusters already contiguous / nothing to renumber.")
+    except Exception as e:
+        print(f"Renumber kept clusters skipped: {e}")
 
     # 5) AF predictions
     _step_hdr(5, "Run AF Predictions")
