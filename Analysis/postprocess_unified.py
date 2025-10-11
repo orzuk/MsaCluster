@@ -647,13 +647,13 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         return m.group(1) if m else st
 #    print("Inside build-pair finished finalized, out cluster: ", out["cluster"])
     if 'cluster' in out:
-        print("cluster name before: ", out["cluster"])
+#        print("cluster name before: ", out["cluster"])
         out["cluster"] = out["cluster"].map(_short)
-        print("cluster name after: ", out["cluster"])
+#        print("cluster name after: ", out["cluster"])
     if '_tag' in out:
-        print("cluster-tag name before: ", out["_tag"])
+#        print("cluster-tag name before: ", out["_tag"])
         out["_tag"] = out["_tag"].map(_short)
-        print("cluster-tag name after: ", out["_tag"])
+#        print("cluster-tag name after: ", out["_tag"])
         out.rename(columns={"_tag":"cluster"}, inplace=True)  # change to cluster
 
     wanted = [
