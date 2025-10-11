@@ -205,8 +205,7 @@ def _detect_esm2_checkpoint() -> str | None:
     return None
 
 
-
-def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, outdir=None):
+def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, outdir=None, model_tag="esm2"):
     backend, model = load_esmfold(device)
     if device != "cpu":
         model = model.to(device)
@@ -240,7 +239,7 @@ def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, o
                 _apply_knobs(cur_chunk, cur_recycles)
                 with torch.no_grad():
                     if use_amp and device == "cuda":
-                        with torch.cuda.amp.autocast(dtype=cur_dtype):
+                        with torch.amp.autocast("cuda", dtype=cur_dtype):
                             pdb_str = model.infer_pdb(seq)
                     else:
                         pdb_str = model.infer_pdb(seq)
