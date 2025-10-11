@@ -607,6 +607,29 @@ def _cluster_files(pair_id: str) -> tuple[str, list[str]]:
     clusters = sorted(glob(f"Pipeline/{pair_id}/output_msa_cluster/ShallowMsa_*.a3m"))
     return deep, clusters
 
+def _has_loaded(pair_id: str) -> bool:
+    """
+    Consider 'loaded' if for BOTH folds we already have either the chain-sliced PDB
+    Pipeline/<pair>/chain_pdb_files/<PDBID+CHAIN>.pdb or the base PDB
+    Pipeline/<pair>/<PDBID>.pdb present and non-empty.
+    """
+    a, b = pair_str_to_tuple(pair_id)  # e.g., ("2qqjA", "4qdsA")
+    base = Path("Pipeline") / pair_id
+
+    # A chain or base
+    a_chain = base / "chain_pdb_files" / f"{a}.pdb"
+    a_base  = base / f"{a[:-1]}.pdb"
+
+    # B chain or base
+    b_chain = base / "chain_pdb_files" / f"{b}.pdb"
+    b_base  = base / f"{b[:-1]}.pdb"
+
+    def _ok(p: Path) -> bool:
+        return p.is_file() and p.stat().st_size > 0
+
+    return (_ok(a_chain) or _ok(a_base)) and (_ok(b_chain) or _ok(b_base))
+
+
 def _has_deep_msa(pair_id: str) -> bool:
     f = Path(f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m")
     return f.is_file() and f.stat().st_size > 0
@@ -1630,6 +1653,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
 
 
 # All Pipeline
+# All Pipeline
 def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     """
     Full per-pair pipeline:
@@ -1639,128 +1663,167 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     """
     force_all = _bool_from_tf(getattr(args, "force_rerun", "FALSE"))
 
-    # 1) load PDB/FASTA (cheap; idempotent)
-    task_load(pair_id, args)
+    def _step_hdr(n: int, title: str) -> None:
+        line = f"Step {n}: {title}"
+        print("\n" + line + "\n" + "=" * len(line))
+
+    def _has_cmaps_shallow_local(pid: str) -> bool:
+        """Any cluster npy produced by run_MSATrans.py first pass."""
+        out = Path(f"Pipeline/{pid}/output_cmaps/msa_transformer")
+        # Typical files: msa_t_clusters_ShallowMsa_000.npy, ...
+        return any(out.glob("msa_t_clusters_ShallowMsa_*.npy"))
+
+    def _has_cmaps_deep_local(pid: str) -> bool:
+        """Any deep npy produced by run_MSATrans.py (either pass / naming)."""
+        out = Path(f"Pipeline/{pid}/output_cmaps/msa_transformer")
+        # We tolerate several historical names:
+        patterns = [
+            "msa_t__DeepMsa*.npy",          # old naming
+            "msa_t_DeepMsa_*.npy",          # new naming with keyword DeepMsa
+            "msa_t_clusters_MSA_deep.npy",  # deep was written in first pass
+            "msa_t_MSA_deep*.npy",
+        ]
+        for pat in patterns:
+            if any(out.glob(pat)):
+                return True
+        return False
+
+    # 1) load PDB/FASTA
+    _step_hdr(1, "Load Seqs")
+    if force_all or not _has_loaded(pair_id):
+        print("Running load …")
+        task_load(pair_id, args)
+    else:
+        print("Seqs already here → skipped")
 
     # 2) get_msa
+    _step_hdr(2, "Get MSA")
     if force_all or not _has_deep_msa(pair_id):
-        print("[pipeline] get_msa → running")
-#        task_get_msa(pair_id, "inline")
+        print("Running get_msa …")
         task_get_msa(pair_id, args.run_job_mode)
-
     else:
-        print("[pipeline] get_msa → skip (DeepMsa exists)")
+        print("DeepMsa exists → skipped")
 
-    # 3) phylogenetic tree (needed for tree plots and analysis, clustering!)
+    # 3) phylogenetic tree
+    _step_hdr(3, "Phylogenetic Tree")
     try:
         tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
         if force_all or not tree_path.exists():
-            print("[pipeline] tree → running")
+            print("Running tree …")
             task_tree(pair_id, args)
         else:
-            print("[pipeline] tree → skip (exists)")
+            print("Tree exists → skipped")
     except Exception as e:
-        print(f"[pipeline] tree → skipped: {e}")
-
+        print(f"Tree step skipped: {e}")
 
     # 4) cluster_msa
+    _step_hdr(4, "Cluster MSA")
     if force_all or not _has_cluster_msas(pair_id):
-        print("[pipeline] cluster_msa → running")
+        print("Running cluster_msa …")
         task_cluster_msa(pair_id, "inline", args)
     else:
-        print("[pipeline] cluster_msa → skip (clusters exist)")
+        print("Clusters exist → skipped")
 
-    # 5) AF (AF2/AF3/both). Always invoke; the task itself skips completed outdirs unless forced.
+    # 5) AF predictions
+    _step_hdr(5, "Run AF Predictions")
     if force_all:
         setattr(args, "force_rerun_AF", "TRUE")  # only for AF stage
-    print("[pipeline] AF → running (task will skip per-outdir if already complete)")
-    # Default to both versions inside the full pipeline unless user explicitly asked AF2-only.
+    # Default to both versions inside the pipeline unless user explicitly asked AF2-only.
     if getattr(args, "af_ver", None) not in ("2", "3", "both"):
         args.af_ver = "both"
     try:
+        print("Invoking AF task (per-outdir auto-skip inside) …")
         task_af(pair_id, args)
     except Exception as e:
-        print(f"[pipeline] AF → skipped: {e}")        
+        print(f"AF step skipped: {e}")
 
-    # 6) cmaps (MSA-Transformer)
+    # 6) CMAPs (MSA-Transformer)
+    _step_hdr(6, "MSA-Transformer CMAPs")
     try:
-        if force_all or not _has_cmaps(pair_id):
-            print("[pipeline] cmap_msa_transformer → running")
+        shallow_ok = _has_cmaps_shallow_local(pair_id)
+        deep_ok    = _has_cmaps_deep_local(pair_id)
+        if force_all or not (shallow_ok and deep_ok):
+            need_sh = "missing" if not shallow_ok else "ok"
+            need_dp = "missing" if not deep_ok else "ok"
+            print(f"Running MSA-Transformer … (shallow: {need_sh}, deep: {need_dp})")
             task_cmap_msa_transformer(pair_id, "inline")
         else:
-            print("[pipeline] cmap_msa_transformer → skip (cmaps exist)")
+            print("Shallow & deep CMAPs present → skipped")
     except Exception as e:
-        print(f"[pipeline] cmap_msa_transformer → skipped: {e}")
+        print(f"MSA-Transformer step skipped: {e}")
 
-    # 6b) cmaps (CCMpred) — best-effort
+    # 6b) CMAPs (CCMpred) — best-effort
+    _step_hdr(7, "CCMpred CMAPs")
     try:
-        print("[pipeline] cmap_ccmpred → running")
+        print("Invoking CCMpred (per-tag auto-skip inside) …")
         task_cmap_ccmpred(pair_id, "inline")
     except Exception as e:
-        print(f"[pipeline] cmap_ccmpred → skipped: {e}")
+        print(f"CCMpred step skipped: {e}")
 
     # 7) ESMFold (esm2/esm3 or user-specified)
+    _step_hdr(8, "ESMFold Predictions")
     wanted_models = ["esm2", "esm3"] if getattr(args, "esm_model", None) in (None, "both") else [args.esm_model]
     for model in wanted_models:
         try:
             a2 = deepcopy(args); a2.esm_model = model
             if force_all or not _has_esm_model(pair_id, model):
-                print(f"[pipeline] esmfold({model}) → running")
+                print(f"Running esmfold({model}) …")
                 task_esmfold(pair_id, a2)
             else:
-                print(f"[pipeline] esmfold({model}) → skip (outputs exist)")
+                print(f"esmfold({model}) outputs exist → skipped")
         except Exception as e:
-            print(f"[pipeline] esmfold({model}) → skipped: {e}")
-
+            print(f"esmfold({model}) step skipped: {e}")
 
     # 8) ΔG energies (PyRosetta) — best-effort
+    _step_hdr(9, "ΔG Energies")
     try:
         if force_all or not _has_deltaG(pair_id):
-            print("[pipeline] deltaG → running")
+            print("Running ΔG …")
             task_deltaG(pair_id)
         else:
-            print("[pipeline] deltaG → skip (exists)")
+            print("ΔG exists → skipped")
     except Exception as e:
-        print(f"[deltaG] skipped: {e}")
+        print(f"ΔG step skipped: {e}")
 
     # 9) plots (includes tree clusters if available)
+    _step_hdr(10, "Per-Pair Plots")
     try:
         ap = deepcopy(args)
         ap.plot_scope = "pair"
         ap.plot_trees = True
-        print("[pipeline] plot → running")
+        print("Generating plots …")
         task_plot(pair_id, ap)
     except Exception as e:
-        print(f"[plot] skipped: {e}")
+        print(f"Plot step skipped: {e}")
 
     # 10) per-pair post-process (writes Pipeline/<pair>/Analysis/df_*.csv)
+    _step_hdr(11, "Per-Pair Postprocess")
     try:
-        print("[pipeline] postprocess → running (per-pair)")
-        # Always compute for this pair; internal readers still skip unchanged unless forced.
-        post_processing_analysis(force_rerun=force_all or _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE")),
-                                 pairs=[pair_id])
+        print("Postprocessing (per-pair) …")
+        post_processing_analysis(
+            force_rerun=force_all or _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE")),
+            pairs=[pair_id]
+        )
     except Exception as e:
-        print(f"[postprocess-inline] WARN: {e}")
+        print(f"Postprocess step skipped: {e}")
 
-
-    # 11) OPTIONAL: per-pair HTML (execute notebook for this pair inside the same job)
+    # 11) OPTIONAL: per-pair HTML
+    _step_hdr(12, "Per-Pair HTML")
     if getattr(args, "reports", "none") in ("html", "all"):
         try:
-            print("[pipeline] html → running (per-pair)")
+            print("Generating per-pair HTML …")
             env = _jupyter_env_for_scratch()  # use scratch env
             cmd = (
                 f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py "
                 f"{shlex.quote(pair_id)} --kernel python3"
             )
-            # make HTML failures non-fatal so the job completes
             rc = subprocess.run(cmd, shell=True, check=False, env=env).returncode
             if rc != 0:
                 print(f"[html] nbconvert failed (rc={rc}) — will be retried later.")
         except Exception as e:
-            print(f"[html] skipped: {e}")
+            print(f"HTML step skipped: {e}")
     else:
-        print("[pipeline] html → skip (per-pair HTML disabled)")
-
+        print("Per-pair HTML disabled → skipped")
 
 
 # ------------------------- CLI / main -------------------------
