@@ -907,12 +907,14 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         return "".join(ch for ch in (s or "") if ch.isalpha()).upper()
 
     # Load base alignment entries
+    print("[write_pair_a3m_for_chain] cluster_a3m:", cluster_a3m)
     base_entries = read_msa(cluster_a3m) if cluster_a3m else read_msa(deep_a3m)
     if not base_entries:
         print(f"[error] Base alignment empty for {out_path}")
         return False
 
     # Load chain FASTA
+    print("[write_pair_a3m_for_chain] load chain fasta deep_a3m: ", deep_a3m)
     pair_dir = os.path.dirname(os.path.dirname(deep_a3m))  # .../Pipeline/<pair>
     chain_fa = os.path.join(pair_dir, "fasta_chain_files", f"{chain_tag}.fasta")
     ids, seqs = load_fasta(chain_fa)
@@ -923,6 +925,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     chain_key = chain_seq.upper()
 
     # Try to find an existing aligned row for this chain (by ungapped sequence)
+    print("[write_pair_a3m_for_chain] Find chain in base A3M: ")
     idx = {}
     for nm, aln in base_entries:
         idx.setdefault(_ungap_upper(aln), []).append((nm, aln))
@@ -930,6 +933,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         # perfect: chain already present in base A3M
         _, chain_aln = idx[chain_key][0]
     else:
+        print("[write_pair_a3m_for_chain] synthesize chain: ")
         # Need to synthesize an aligned row:
         # 1) get base "query" row (row 0) from A3M
         base_q_aln = base_entries[0][1]                # aligned with gaps
@@ -957,6 +961,9 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         cover = np.zeros(len(base_q_seq), dtype=np.int8)  # 1 = has residue, 0 = gap in chain
         c_map = {}  # map bpos -> chain residue index (for residue retrieval)
         cpos = 0
+
+        print("[write_pair_a3m_for_chain] loop on chain blocks: ")
+
         for (bs, be), (cs, ce) in zip(b_blocks, c_blocks):
             # gap in chain before this block:
             # bs - bpos bases correspond to gaps
@@ -971,6 +978,8 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         for (bs, be), (cs, ce) in zip(b_blocks, c_blocks):
             chain_aligned_residues.extend(list(chain_seq[cs:ce]))
         cair = iter(chain_aligned_residues)
+
+        print("[write_pair_a3m_for_chain] loop on chain alignedblocks: ")
 
         for ch in base_q_aln:
             if ch == '-':
@@ -987,6 +996,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
 
     # Write new A3M: chain first, then the base entries (skip duplicate of same ungapped seq)
     # --- NEW: drop columns where the chain has a gap so the query (first row) is ungapped ---
+    print("[write_pair_a3m_for_chain] keep: ")
     keep = [ch.isalpha() for ch in chain_aln]  # keep only letters in the query row
 
     def _filter_cols(s: str) -> str:
@@ -997,6 +1007,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     base_entries_f = [(nm, _filter_cols(aln)) for (nm, aln) in base_entries]
 
     # Write new A3M: chain first, then filtered base entries (skip exact duplicate)
+    print("[write_pair_a3m_for_chain] write output file: ", out_path)
     ensure_dir(os.path.dirname(out_path))
 
     with open(out_path, "w") as fh:
