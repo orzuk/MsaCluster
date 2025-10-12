@@ -939,7 +939,9 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         base_q_aln = base_entries[0][1]                # aligned with gaps
         base_q_seq = _ungap_upper(base_q_aln)          # ungapped
         # 2) align chain_seq <-> base_q_seq (global)
+        print("[write_pair_a3m_for_chain] init aligner: ")
         aligner = Align.PairwiseAligner()
+        print("[write_pair_a3m_for_chain] called aligner: ")
         aligner.mode = "global"
         # Reasonable scores for protein global alignment (tweak if needed)
         aligner.match_score = 1.0
@@ -947,9 +949,11 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         aligner.open_gap_score = -2.0
         aligner.extend_gap_score = -0.5
         aln = max(aligner.align(base_q_seq, chain_seq), key=lambda a: a.score)
+        print("[write_pair_a3m_for_chain] build a_base, a_chain: ")
         a_base, a_chain = str(aln).split("\n")[0:2]  # aligned strings without gaps marking?
         # The PairwiseAligner string format is not fixed; safer to use aligned coordinates:
         # Build projected chain row column-by-column against base_q_aln
+        print("[write_pair_a3m_for_chain] build chain_aln_list: ")
         chain_aln_list = []
         # Map positions in base_q_aln (with gaps) to positions in base_q_seq (ungapped)
         bpos = 0  # position in base_q_seq
