@@ -898,25 +898,17 @@ def _postprocess_af2_run(out_dir: str):
 
 def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
     """
-    Make a per-chain A3M for AlphaFold:
-
-    • If cluster_a3m is given (a clustered A3M built from a SEED PAIR), we:
-        1) read S1 and S2 aligned seed rows,
-        2) pick the mask (columns to keep) from the seed row matching this chain,
-        3) write the ungapped query (chain) first,
-        4) stream-mask every other row to the query column-frame (keep '-' where that row has a deletion).
-
-       This avoids any pairwise/global re-alignment – it's O(N·L) and robust.
-
-    • If cluster_a3m is None (DeepMsa path), we try to find an aligned row for this chain in the base A3M
-      by ungapped sequence; if found, we use its mask (keep letters in that aligned row); otherwise we
-      return False (no slow/expensive alignment fallback).
+    Build a per-chain A3M for AF:
+      • For clustered A3M: try to take the mask from a seed/aligned row for this chain.
+        - Accept headers: S1/S2, chain names (e.g., 1abcA/2xyzB), or any row whose ungapped == chain FASTA.
+      • If no suitable row is found in the cluster A3M, fall back to using the aligned row from DeepMsa.a3m.
+      • For DeepMsa (cluster_a3m is None): require an aligned row for the chain in DeepMsa and use it.
+    The query row is written ungapped; all other rows are column-masked (drop columns where the query has gaps).
     """
-
     def _ungap_upper(s: str) -> str:
         return "".join(ch for ch in (s or "") if ch.isalpha()).upper()
 
-    # --- Load chain query sequence (ungapped) from fasta_chain_files/<chain>.fasta ---
+    # load chain query seq
     pair_dir = os.path.dirname(os.path.dirname(deep_a3m))  # .../Pipeline/<pair>
     chain_fa = os.path.join(pair_dir, "fasta_chain_files", f"{chain_tag}.fasta")
     ids, seqs = load_fasta(chain_fa)
@@ -926,118 +918,124 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     chain_seq = "".join(ch for ch in seqs[0].strip() if ch.isalpha())
     chain_key = chain_seq.upper()
 
-    # ---------- CLUSTERED A3M BRANCH (preferred; uses S1/S2 mask) ----------
-    if cluster_a3m:
-        # Read S1/S2 aligned seed rows
-        s1, s2 = None, None
+    def read_entries(a3m_path: str):
+        return read_msa(a3m_path) if a3m_path else []
+
+    def build_index(entries):
+        idx = {}
+        for nm, aln in entries:
+            idx.setdefault(_ungap_upper(aln), []).append((nm, aln))
+        return idx
+
+    def write_masked(outp, query_seq_ungapped, entries, mask_keep, skip_ungap):
+        ensure_dir(os.path.dirname(outp))
+        with open(outp, "w", encoding="utf-8") as fh:
+            fh.write(f">{chain_tag}\n{query_seq_ungapped}\n")
+            for nm, aln in entries:
+                if _ungap_upper(aln) == skip_ungap:
+                    continue
+                masked = "".join(ch.upper() for ch, k in zip(aln, mask_keep) if k and ch != ".")
+                fh.write(f">{nm}\n{masked}\n")
+
+    # -------- helper to get a seed/mask from a clustered A3M --------
+    def seed_from_cluster(a3m_path: str):
+        if not a3m_path:
+            return None
         try:
-            with open(cluster_a3m, "r", encoding="utf-8", errors="ignore") as fin:
+            with open(a3m_path, "r", encoding="utf-8", errors="ignore") as fin:
+                rows = []
                 hdr = None
                 for line in fin:
-                    if not line.strip():
+                    line = line.rstrip("\n")
+                    if not line:
                         continue
                     if line.startswith(">"):
-                        hdr = line.split()[0]
+                        hdr = line[1:].split()[0]  # header w/o '>'
                     else:
-                        if hdr in (">S1", "S1") and s1 is None:
-                            s1 = line.rstrip("\n")
-                        elif hdr in (">S2", "S2") and s2 is None:
-                            s2 = line.rstrip("\n")
-                        if s1 is not None and s2 is not None:
-                            break
+                        rows.append((hdr, line))
         except FileNotFoundError:
-            print(f"[a3m] ERR missing {cluster_a3m}")
-            return False
+            print(f"[a3m] ERR missing {a3m_path}")
+            return None
+        if not rows:
+            print(f"[a3m] ERR empty {a3m_path}")
+            return None
 
-        if s1 is None or s2 is None:
-            print(f"[a3m] ERR missing S1/S2 in {cluster_a3m}")
-            return False
-        if len(s1) != len(s2):
-            print(f"[a3m] ERR S1/S2 length mismatch in {cluster_a3m}")
-            return False
+        # try header-based match first (S1/S2 or chain_tag)
+        L = len(rows[0][1])
+        candidates = {}
+        for hdr, aln in rows:
+            if hdr is None or len(aln) != L:
+                continue
+            if hdr in {"S1", "S2", chain_tag}:  # exact header match
+                candidates[hdr] = aln
 
-        L = len(s1)
-        u1, u2 = _ungap_upper(s1), _ungap_upper(s2)
-        # Choose mask by matching which seed ungaps equals the chain query
-        if u1 == chain_key:
-            seed = s1
-        elif u2 == chain_key:
-            seed = s2
-        else:
-            # Fallback: choose the closer in length (rare; should not happen if seeds are correct)
-            k1, k2 = sum(ch.isalpha() for ch in s1), sum(ch.isalpha() for ch in s2)
-            seed = s1 if abs(k1 - len(chain_seq)) <= abs(k2 - len(chain_seq)) else s2
-            print(f"[a3m] WARN {chain_tag}: seed ungap ≠ query; picked mask by length (k1={k1}, k2={k2}, |q|={len(chain_seq)})")
+        # also look for the *other* chain name if present
+        # e.g., if chain_tag is 1miqB and the other is 1qs8B, either could be the “seed”
+        # extract pair names from file system if available
+        other_hdrs = set()
+        try:
+            foldA, foldB = pair_str_to_tuple(os.path.basename(pair_dir))
+            other_hdrs.update([foldA, foldB])
+        except Exception:
+            pass
+        for hdr, aln in rows:
+            if hdr in other_hdrs:
+                candidates[hdr] = aln
 
-        keep = [ch != "-" for ch in seed]
-        kept = sum(keep)
-        if kept != len(chain_seq):
-            # Can happen if query FASTA trimmed vs seed; not fatal for AF
-            print(f"[a3m] WARN {chain_tag}: kept cols {kept} ≠ |query| {len(chain_seq)}")
+        # final fallback: any row whose ungapped == chain query
+        for hdr, aln in rows:
+            if _ungap_upper(aln) == chain_key:
+                candidates[hdr or "MATCH_BY_SEQ"] = aln
+                break
 
-        # Stream: write query + masked rows
-        ensure_dir(os.path.dirname(out_path))
-        with open(out_path, "w", encoding="utf-8") as fout:
-            # query first (ungapped)
-            fout.write(f">{chain_tag}\n{chain_seq}\n")
-            with open(cluster_a3m, "r", encoding="utf-8", errors="ignore") as fin:
-                for line in fin:
-                    if line.startswith(">"):
-                        fout.write(line)
-                    else:
-                        seq = line.rstrip("\n")
-                        if len(seq) != L:
-                            # malformed row, skip
-                            continue
-                        # keep '-' where the row has a deletion in kept columns; drop '.' if present
-                        masked = "".join(ch for ch, k in zip(seq, keep) if k and ch != ".")
-                        fout.write(masked + "\n")
+        if not candidates:
+            return None
 
-        print(f"[a3m] wrote {out_path}  (mask L={L}, keep={kept}, drop={L-kept})")
-        return True
+        # pick a candidate (prefer exact chain header; else any)
+        chosen_hdr = chain_tag if chain_tag in candidates else next(iter(candidates.keys()))
+        seed_aln = candidates[chosen_hdr]
+        return seed_aln, rows, L
 
-    # ---------- DEEP MSA BRANCH (no S1/S2; reuse existing aligned row if present) ----------
-    # Read base A3M entries
-    base_entries = read_msa(deep_a3m)
+    # ========== clustered A3M path ==========
+    if cluster_a3m:
+        seed = seed_from_cluster(cluster_a3m)
+        if seed is not None:
+            seed_aln, all_rows, L = seed
+            keep = [ch != "-" for ch in seed_aln]
+            # sanity: the number of kept columns should match len(query) in the ideal case
+            kept = sum(keep)
+            if kept != len(chain_seq):
+                print(f"[a3m] WARN {chain_tag}: keep={kept} vs |query|={len(chain_seq)} in {os.path.basename(cluster_a3m)}")
+            # stream from the cluster file to preserve order
+            ensure_dir(os.path.dirname(out_path))
+            with open(out_path, "w", encoding="utf-8") as fh:
+                fh.write(f">{chain_tag}\n{chain_seq}\n")
+                for hdr, aln in all_rows:
+                    if aln is None or len(aln) != L:
+                        continue
+                    masked = "".join(ch for ch, k in zip(aln, keep) if k and ch != ".")
+                    fh.write(f">{hdr}\n{masked}\n")
+            print(f"[a3m] wrote {out_path}  (mask L={L}, keep={kept}, drop={L-kept})")
+            return True
+
+        # no seed row found in cluster; fall back to DeepMsa
+        print(f"[a3m] WARN {chain_tag}: no seed row found in {os.path.basename(cluster_a3m)}; falling back to DeepMsa mask")
+
+    # ========== DeepMsa path (or fallback) ==========
+    base_entries = read_entries(deep_a3m)
     if not base_entries:
         print(f"[a3m] ERR base alignment empty for {out_path}")
         return False
-
-    # Build index by ungapped sequence; try to find an aligned row for this chain
-    idx = {}
-    for nm, aln in base_entries:
-        idx.setdefault(_ungap_upper(aln), []).append((nm, aln))
+    idx = build_index(base_entries)
     if chain_key not in idx:
-        print(f"[a3m] ERR {chain_tag}: no aligned row for chain in DeepMsa; not attempting global alignment.")
+        print(f"[a3m] ERR {chain_tag}: no aligned row for chain in DeepMsa; skipping.")
         return False
 
-    # Use the found aligned row as the mask source
     _, chain_aln = idx[chain_key][0]
-    keep = [ch.isalpha() for ch in chain_aln]  # keep only positions where the query has a residue
-
-    def _filter_cols(s: str) -> str:
-        # keep '-' characters, drop '.' if any, apply keep mask
-        out = []
-        for ch, k in zip(s, keep):
-            if not k:
-                continue
-            if ch == ".":
-                continue
-            out.append(ch.upper())
-        return "".join(out)
-
-    ensure_dir(os.path.dirname(out_path))
-    with open(out_path, "w", encoding="utf-8") as fh:
-        fh.write(f">{chain_tag}\n{_ungap_upper(chain_aln)}\n")  # ungapped query first
-        chain_key_up = _ungap_upper(chain_aln)
-        for nm, aln in base_entries:
-            if _ungap_upper(aln) == chain_key_up:
-                continue  # skip duplicate of the query row
-            fh.write(f">{nm}\n{_filter_cols(aln)}\n")
-
+    keep = [ch.isalpha() for ch in chain_aln]
+    write_masked(out_path, _ungap_upper(chain_aln), base_entries, keep, skip_ungap=_ungap_upper(chain_aln))
     print(f"[a3m] wrote {out_path}  (DeepMsa mask keep={sum(keep)})")
     return True
-
 
 def _submit_notebook_job(pair_id: str, kernel: str, args: argparse.Namespace) -> None:
     out = Path(f"Pipeline/{pair_id}/jobs")
