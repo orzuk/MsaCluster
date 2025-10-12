@@ -13,6 +13,9 @@ import numpy as np
 import pandas as pd
 import time
 
+import signal
+from contextlib import contextmanager
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
@@ -88,6 +91,21 @@ SBATCH_HINTS = {
 
 
 # ------------------------- helpers -------------------------
+@contextmanager
+def _alarm_timeout(seconds: int, what: str):
+    """Unix-only timeout; raises TimeoutError if block exceeds `seconds`."""
+    def _handler(signum, frame):
+        raise TimeoutError(f"timeout after {seconds}s in {what}")
+    old = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(int(seconds))
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+
+
+
 def _csv_bool(x) -> bool:
     if isinstance(x, (bool, np.bool_)):
         return bool(x)
@@ -1453,20 +1471,46 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     jobs = []  # (a3m_path, out_dir_base_name) — out_dir_base_name = "DeepMsa/<chain>" or "ShallowMsa_XXX/<chain>"
     for ch in chains:
         pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_DeepMsa__{ch}.a3m")
-        ok = _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m)
+        print(f"[af-plan] build pair A3M (DeepMsa): src={deep_a3m} → {pair_a3m}  chain={ch}", flush=True)
+        try:
+            with _alarm_timeout(180, f"_write_pair_a3m_for_chain(DeepMsa,{ch})"):
+                ok = _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m)
+        except TimeoutError as te:
+            print(f"[af-plan] DeepMsa→{ch}: TIMEOUT {te}; skipping", flush=True)
+            ok = False
+        except Exception as e:
+            print(f"[af-plan] DeepMsa→{ch}: EXC {e}; skipping", flush=True)
+            ok = False
         print(f"[af-plan] DeepMsa→{ch}: {'OK' if ok else 'FAIL'}  src={deep_a3m}", flush=True)
         if ok:
             jobs.append((pair_a3m, f"DeepMsa/{ch}"))
 
     for a3m in cluster_a3ms:
-        cl_stem = Path(a3m).stem  # e.g. ShallowMsa_007
+        cl_stem = Path(a3m).stem  # e.g., ShallowMsa_007
+        try:
+            fsize = os.path.getsize(a3m)
+        except Exception:
+            fsize = -1
+        print(f"[af-plan] scanning {cl_stem}  size={fsize / 1e6:.1f} MB  path={a3m}", flush=True)
+
         for ch in chains:
             pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_{cl_stem}__{ch}.a3m")
-            ok = _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m)
+            print(f"[af-plan] build pair A3M ({cl_stem}): src={a3m} → {pair_a3m}  chain={ch}", flush=True)
+            try:
+                with _alarm_timeout(180, f"_write_pair_a3m_for_chain({cl_stem},{ch})"):
+                    ok = _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m)
+            except TimeoutError as te:
+                print(f"[af-plan] {cl_stem}→{ch}: TIMEOUT {te}; skipping", flush=True)
+                ok = False
+            except Exception as e:
+                print(f"[af-plan] {cl_stem}→{ch}: EXC {e}; skipping", flush=True)
+                ok = False
+
             print(f"[af-plan] {cl_stem}→{ch}: {'OK' if ok else 'FAIL'}  src={a3m}", flush=True)
             if ok:
                 jobs.append((pair_a3m, f"{cl_stem}/{ch}"))
 
+    print(f"[af-plan] total AF jobs planned: {len(jobs)}", flush=True)
     if not jobs:
         print(f"[warn] No AF jobs to run for {pair_id}", flush=True)
         print(f"[diag] DeepMsa exists? {os.path.isfile(deep_a3m)}  path={deep_a3m}", flush=True)
@@ -1546,7 +1590,11 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
             if args.run_job_mode == "sbatch" or (not inside_slurm and not getattr(args, "allow_inline_af", False)):
                 stem = f"{Path(a3m_path).stem}"
                 log_path = os.path.join(log_dir, f"run_AF{ver}_{pair_id}__{stem}.out")
-                _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
+#                _run(f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}", "sbatch")
+                sb = f"sbatch {sbatch_opts} -o '{log_path}' --wrap {shlex.quote(cmd)}"
+                print(f"[af-sbatch] {sb}", flush=True)
+                _run(sb, "sbatch")
+
             else:
                 _run(cmd, "inline")
                 # NEW: after an inline run, immediately prepare artifacts needed for canonical export
