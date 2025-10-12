@@ -1442,6 +1442,10 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     cluster_dir = os.path.join(pair_dir, "output_msa_cluster")
     cluster_a3ms = sorted(glob(os.path.join(cluster_dir, "ShallowMsa_*.a3m")))
 
+    print(f"[af-plan] pair={pair_id} clusters-a3m={len(cluster_a3ms)}", flush=True)
+    if not cluster_a3ms:
+        print(f"[af-plan]   (no ShallowMsa_*.a3m under {cluster_dir})", flush=True)
+
     tmp_pairs_dir = os.path.join(pair_dir, "tmp_msa_files")
     ensure_dir(tmp_pairs_dir)
 
@@ -1449,21 +1453,31 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     jobs = []  # (a3m_path, out_dir_base_name) — out_dir_base_name = "DeepMsa/<chain>" or "ShallowMsa_XXX/<chain>"
     for ch in chains:
         pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_DeepMsa__{ch}.a3m")
-        if _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m):
+        ok = _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m)
+        print(f"[af-plan] DeepMsa→{ch}: {'OK' if ok else 'FAIL'}  src={deep_a3m}", flush=True)
+        if ok:
             jobs.append((pair_a3m, f"DeepMsa/{ch}"))
 
     for a3m in cluster_a3ms:
         cl_stem = Path(a3m).stem  # e.g. ShallowMsa_007
         for ch in chains:
             pair_a3m = os.path.join(tmp_pairs_dir, f"tmp_{cl_stem}__{ch}.a3m")
-            if _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m):
+            ok = _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m)
+            print(f"[af-plan] {cl_stem}→{ch}: {'OK' if ok else 'FAIL'}  src={a3m}", flush=True)
+            if ok:
                 jobs.append((pair_a3m, f"{cl_stem}/{ch}"))
 
     if not jobs:
-        print(f"[warn] No AF jobs to run for {pair_id}")
+        print(f"[warn] No AF jobs to run for {pair_id}", flush=True)
+        print(f"[diag] DeepMsa exists? {os.path.isfile(deep_a3m)}  path={deep_a3m}", flush=True)
+        print(f"[diag] Shallow a3m files found: {len(cluster_a3ms)} in {cluster_dir}", flush=True)
         return
 
     inside_slurm = _in_slurm_session()
+    mode_auto = ("sbatch" if (args.run_job_mode == "sbatch" or
+                              (not inside_slurm and not getattr(args, "allow_inline_af", False)))
+                 else "inline")
+    print(f"[af-plan] execution={mode_auto}  total_jobs={len(jobs)}  af_ver={af_ver}", flush=True)
 
     # New (respect CLI defaults)
     gres = getattr(args, "sbatch_gres", "gpu:1")
