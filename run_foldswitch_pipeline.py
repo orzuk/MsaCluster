@@ -948,6 +948,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         aligner.mismatch_score = -1.0
         aligner.open_gap_score = -2.0
         aligner.extend_gap_score = -0.5
+        print("[write_pair_a3m_for_chain] run aligner: base_q_seq, chain_seq: ", base_q_seq, chain_seq)
         aln = max(aligner.align(base_q_seq, chain_seq), key=lambda a: a.score)
         print("[write_pair_a3m_for_chain] build a_base, a_chain: ")
         a_base, a_chain = str(aln).split("\n")[0:2]  # aligned strings without gaps marking?
