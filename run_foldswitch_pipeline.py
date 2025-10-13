@@ -1002,6 +1002,18 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         if seed is not None:
             seed_aln, all_rows, L = seed
             keep = [ch != "-" for ch in seed_aln]
+            kept = sum(keep)
+            if kept != len(chain_seq):
+                print(f"[a3m] WARN {chain_tag}: seed mask (keep={kept}) "
+                      f"!= query length ({len(chain_seq)}); using DeepMsa mask instead")
+                base_entries = read_msa(deep_a3m)
+                idx = {"".join(ch for ch in aln if ch.isalpha()).upper(): aln for _, aln in base_entries}
+                if "".join(ch for ch in chain_seq if ch.isalpha()).upper() not in idx:
+                    print(f"[a3m] ERR {chain_tag}: cannot find aligned row in DeepMsa for fallback")
+                    return False
+                chain_aln = idx["".join(ch for ch in chain_seq if ch.isalpha()).upper()]
+                keep = [ch.isalpha() for ch in chain_aln]
+                # and proceed to write with this 'keep'
             # sanity: the number of kept columns should match len(query) in the ideal case
             kept = sum(keep)
             if kept != len(chain_seq):
@@ -1128,7 +1140,10 @@ def task_clean(pair_id: str, args) -> None:
     if level == "all":
         print(f"[clean:ALL] rm -rf {pair_dir}")
         if not dry:
+            print("[WET] Running actual clean:ALL")
             shutil.rmtree(pair_dir, ignore_errors=True)
+        else:
+            print("[DRY] skipping clean:ALL (dry run)")
         return
 
     # derived-only clean (keep base inputs)
