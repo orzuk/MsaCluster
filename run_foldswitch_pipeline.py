@@ -1113,7 +1113,10 @@ def task_clean(pair_id: str, args) -> None:
             if p.exists():
                 print(f"[clean:{','.join(targets)}] rm -rf {p}")
                 if not dry:
+                    print("[WET] Running actual clean")
                     shutil.rmtree(p, ignore_errors=True)
+                else:
+                    print("[DRY] Skipping actual clean")
 
         # special handling for logs: also remove root-level files
         if any(t in ("logs",) for t in targets):
@@ -1122,8 +1125,11 @@ def task_clean(pair_id: str, args) -> None:
                     if f.is_file():
                         print(f"[clean:logs] rm {f}")
                         if not dry:
+                            print("[WET] Running actual clean")
                             try: f.unlink()
                             except: pass
+                        else:
+                            print("[DRY] Skipping actual clean")
 
         # special handling for tmp: remove any tmp_* dirs
         if any(t in ("tmp",) for t in targets):
@@ -1131,7 +1137,10 @@ def task_clean(pair_id: str, args) -> None:
                 if p.is_dir():
                     print(f"[clean:tmp] rm -rf {p}")
                     if not dry:
+                        print("[WET] Running actual clean")
                         shutil.rmtree(p, ignore_errors=True)
+                    else:
+                        print("[DRY] Skipping actual clean")
 
         _prune_stale_fastas(pair_id, pair_dir, dry)
         return
@@ -1160,26 +1169,34 @@ def task_clean(pair_id: str, args) -> None:
         if p.exists():
             print(f"[clean] rm -rf {p}")
             if not dry:
+                print("[WET] Running actual clean")
                 shutil.rmtree(p, ignore_errors=True)
+            else:
+                print("[DRY] Skipping actual clean")
 
     for p in pair_dir.glob("tmp_*"):
         if p.is_dir():
             print(f"[clean] rm -rf {p}")
             if not dry:
+                print("[WET] Running actual clean")
                 shutil.rmtree(p, ignore_errors=True)
+            else:
+                print("[DRY] Skipping actual clean")
 
     for pat in rm_globs:
         for f in pair_dir.glob(pat):
             if f.is_file():
                 print(f"[clean] rm {f}")
                 if not dry:
+                    print("[WET] Running actual clean")
                     try: f.unlink()
                     except: pass
+                else:
+                    print("[DRY] Skipping actual clean")
 
     for pat in pair_dir.glob("*hdbscan*.pkl"):
         print("removing hdbscan pickle:", pat)
         pat.unlink()
-
 
     _prune_stale_fastas(pair_id, pair_dir, dry)
 
