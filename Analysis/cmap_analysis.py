@@ -501,7 +501,7 @@ def compute_cmap_metrics_for_pair(
 if __name__ == "__main__":
     ap = argparse.ArgumentParser("Compute MSA-Transformer CMAP metrics for pair(s)")
     ap.add_argument("pairs", nargs="*", help="pair IDs like 1dzlA_5keqF; if empty, process all")
-    ap.add_argument("--include_deep", action="store_true")
+    ap.add_argument("--include_deep", action="store_true", default=True)
     ap.add_argument("--thresh", type=float, default=0.4)
     ap.add_argument("--sep_min", type=int, default=6)
     ap.add_argument("--index_tol", type=int, default=0)

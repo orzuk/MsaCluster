@@ -264,7 +264,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
         pair_dir_str = str(_pair_dir(pair_id))
-        print("Compute TM: pair_dir_str:", pair_dir_str, "pdb1:", pdb1, "pdb2:", pdb2, " ; ", ctr_pairs,  " out of ", num_pairs)
+        print("Compute TrueTM: pair_id:", pair_id, " ; ", ctr_pairs,  " out of ", num_pairs)
         ctr_pairs += 1
         def _tm_sym_once(pa: str, pb: str) -> float:
             t12 = compute_tmscore_align(pa, pb, chain1=c1, chain2=c2)
@@ -493,8 +493,6 @@ def _read_cmap(pair_id: str) -> pd.DataFrame:
     """Read per-pair cmap metrics produced by cmap_analysis.py (don’t recompute here)."""
     csv = _pair_dir(pair_id) / "Analysis" / "df_cmap.csv"
     return pd.read_csv(csv) if csv.is_file() else pd.DataFrame()
-
-
 
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     """
