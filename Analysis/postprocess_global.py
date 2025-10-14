@@ -66,8 +66,8 @@ def _read_pair_tables(pair_dir: str) -> dict:
                 p = f"{token}.pdb"
                 row = dfe[dfe["PDB_ID"] == p]
                 return numify(row["Delta_G"].iloc[0]) if not row.empty else np.nan
-            out["ΔG1"] = _pick_token(a)
-            out["ΔG2"] = _pick_token(b)
+            out["ΔG1"] = round(_pick_token(a), 2)
+            out["ΔG2"] = round(_pick_token(b), 2)
     except Exception:
         pass
 

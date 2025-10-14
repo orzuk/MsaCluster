@@ -205,6 +205,11 @@ def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
     }
 
 # ---------------- public API ---------------- #
+def debug_check_ca_coords(pdb_path: str, chain: str | None = None):
+    coords, seq = _extract_ca_coords_and_seq(pdb_path, chain)  # whatever your internal parser is named
+    n = 0 if coords is None else coords.shape[0] if getattr(coords, "ndim", 0) == 2 else 0
+    print(f"[debug] {pdb_path} chain={chain} CA residues: {n}")
+    return n
 
 
 def get_or_compute_true_tm(pair_dir: str,
