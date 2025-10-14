@@ -67,6 +67,12 @@ def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "f
 
     # Reduce CUDA memory
     amp_ctx = contextlib.nullcontext()
+    if device == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.set_float32_matmul_precision("medium")
+        model = model.half()
+        amp_ctx = torch.amp.autocast("cuda", dtype=torch.float16)
+
     try:
         import torch
         if device == "cuda":
