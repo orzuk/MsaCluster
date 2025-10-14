@@ -383,7 +383,16 @@ def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Pa
             res = subprocess.run(cmd, capture_output=True, text=True,
                                  cwd=str(Path(script).parent), env=env)
             if res.returncode != 0:
-                raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
+                err = (res.stderr or "").strip()
+                print(f"[esm3] WARN: subprocess failed for {name}; skipping this sequence.\n"
+                      f"[esm3] short stderr: {err[:500]}", flush=True)
+                # optional: drop a marker so downstream tables show it was skipped
+                try:
+                    (outdir / f"{name}_{model_tag}.SKIPPED").write_text(err[:2000])
+                except Exception:
+                    pass
+                # do NOT append to outputs/index_rows; just continue to next sequence
+                continue
 
             pdb_str = res.stdout
             # STREAM WRITE NOW:
