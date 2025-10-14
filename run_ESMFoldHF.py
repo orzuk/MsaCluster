@@ -314,51 +314,75 @@ def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Pa
     repo_root = Path(__file__).resolve().parent
     env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
 
+    # Prefer big cache locations and stable CUDA allocator behavior
+    env.setdefault("HF_HOME", str(Path.home() / "huggingface"))
+    env.setdefault("HUGGINGFACE_HUB_CACHE", env["HF_HOME"])
+    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True,max_split_size_mb:64")
+
     print(f"[esm3] running {ESM3_INFER_SCRIPT} on {tmp_dir} sequences on {device}", flush=True)
 
-    # IMPORTANT: point the helper to the directory that already contains the
-    # sampled/sanitized FASTAs (e.g., Pipeline/<pair_id>/tmp_esmfold/*.fasta)
-    cmd = [sys.executable, str(ESM3_INFER_SCRIPT), "--fasta_dir", str(tmp_dir),   "--device", device] # <<< batch mode # "cuda" / "cpu" / "auto" (helper resolves)
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(repo_root), env=env)
-    # DEBUG: show helper stderr when it returns non-zero so we know why
-    if res.returncode != 0:
-        print(f"[esm3][helper stderr head]\n{(res.stderr or '')[:2000]}", flush=True)
+    # One-FASTA-per-process to minimize peak VRAM
+    fasta_files = sorted(tmp_dir.glob("*.fasta")) + sorted(tmp_dir.glob("*.fa")) + sorted(tmp_dir.glob("*.faa"))
+    if not fasta_files:
+        raise FileNotFoundError(f"[esm3] No FASTA files found in {tmp_dir}")
+
+    from shutil import copy2
+    import tempfile, gc
+
+    outputs = []
+    index_rows = []
+
+    for fa in fasta_files:
+        # Prepare a tiny temp dir that contains ONLY this one FASTA
+        with tempfile.TemporaryDirectory(prefix="esm3_one_") as workdir:
+            workdir = Path(workdir)
+            single = workdir / fa.name
+            copy2(fa, single)
+
+            cmd = [
+                sys.executable, str(ESM3_INFER_SCRIPT),
+                "--fasta_dir", str(workdir),      # same interface, but dir has a single file
+                "--device", device                 # force GPU; helper will not fall back
+            ]
+
+            # Stream output; if you prefer, switch to capture_output=True
+            res = subprocess.run(cmd, cwd=str(repo_root), env=env,
+                                 text=True, capture_output=True)
+
+            if res.returncode != 0:
+                head = (res.stderr or "")[:2000]
+                print(f"[esm3][helper stderr head]\n{head}", flush=True)
+                # do NOT crash the whole job; skip this sequence and continue
+                continue
+
+            out = res.stdout or ""
+            # Parse the single PDB block from the helper:
+            # >>>PDB_START <name>\n<PDB text>\n>>>PDB_END <name>
+            for block in out.split(">>>PDB_START "):
+                if not block.strip():
+                    continue
+                header, body = block.split("\n", 1)
+                name = header.strip()
+                pdb_txt, _ = body.split(">>>PDB_END", 1)
+
+                # Collect for the pipeline’s writer
+                outputs.append({
+                    "name": name,
+                    "pdb": pdb_txt,
+                    "plddt": None, "pae": None,
+                    "residue_index": []  # filled later; not needed for PDB write
+                })
+                index_rows.append((name, str(fa)))
+
+            # hard cleanup between sequences -> drop GPU caches from helper process
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            gc.collect()
 
     print(f"[esm3] Finished running {ESM3_INFER_SCRIPT} on {tmp_dir} sequences on {device}", flush=True)
 
-
-    # Parse stdout blocks emitted by infer_esm3.py:
-    # >>>PDB_START <name>\n<PDB text>\n>>>PDB_END <name>
-    out = res.stdout or ""
-    for block in out.split(">>>PDB_START "):
-        if not block.strip():
-            continue
-        header, body = block.split("\n", 1)
-        name = header.strip()
-        pdb_txt, _ = body.split(">>>PDB_END", 1)
-
-        # STREAM WRITE NOW (same helper you already use)
-        p = write_one_pdb(outdir, name, model_tag, pdb_txt)
-        print(f"[esm3] wrote {p}", flush=True)
-
-        # Minimal bookkeeping (adjust if your downstream expects more fields)
-        outputs.append({
-            "name": name,
-            "pdb": None,  # we already wrote the PDB to disk; avoid keeping big strings in RAM
-            "plddt": None,
-            "pae": None,
-            "residue_index": None  # optional; set to a list if downstream truly needs it
-        })
-        index_rows.append((name, str(p)))
-
-    # Any failures come on stderr from infer_esm3.py; write .SKIPPED markers
-    for line in (res.stderr or "").splitlines():
-        if line.startswith("[hf-esmfold] OOM/FAIL for "):
-            bad = line.split("for ", 1)[1].split(":", 1)[0].strip()
-            try:
-                (outdir / f"{bad}_{model_tag}.SKIPPED").write_text(line[:2000])
-            except Exception:
-                pass
 
     # Non-zero return just means some sequences were skipped; don't crash the run
     if res.returncode not in (0,):
