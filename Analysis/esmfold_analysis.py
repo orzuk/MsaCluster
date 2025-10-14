@@ -42,9 +42,13 @@ def compute_esmfold_pred_tmscores(fold_pair):
 
         if os.path.isfile(tsv):
             idx = pd.read_csv(tsv, sep="\t")  # columns: name, pdb_path
+            num_esm_pdb_files = len(idx)
+            ctr_pdb_file = 0
             for _, r in idx.iterrows():
                 pred_name = r["name"]
                 pred_pdb  = r["pdb_path"]
+                print("Compute TMscores for ESMFold PDB file: " + str(pred_pdb) + " ; " + str(ctr_pdb_file) + " out of " + str(num_esm_pdb_files))
+                ctr_pdb_file += 1
                 TMscore_fold1 = compute_tmscore_align(truth1_pdb, pred_pdb)
                 TMscore_fold2 = compute_tmscore_align(truth2_pdb, pred_pdb)
                 final_res.append({

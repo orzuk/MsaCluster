@@ -174,13 +174,6 @@ if __name__ == '__main__':
             # Columns to keep after removing columns that are all '-' across the selected rows
             keep_cols = [j for j in range(L_seed) if any(row[j].isupper() for row in C)]
 
-            # Row-1 (query) non-gap indices in SEED frame
-            q_hdr, q_seq = inputs[0]
-            q_mask = set(_ungapped_seed_indices(q_seq))
-
-            # Final idx in SEED frame = query non-gaps ∩ kept columns
-            idx_seed = np.asarray([j for j in keep_cols if j in q_mask], dtype=np.int32)
-
             # 4) Build the sequences actually fed to the tokenizer (kept columns only)
             inputs_kept = []
             for (h, s) in inputs:
@@ -188,7 +181,14 @@ if __name__ == '__main__':
                 seq_kept = "".join(cols[j] for j in keep_cols)
                 inputs_kept.append((h, seq_kept))
 
-            # 5) Tokenize the kept-frame inputs
+            # >>> NEW: Compute idx from *kept* query string, then map kept->seed <<<
+            q_hdr, q_kept = inputs_kept[0]
+            # positions in the kept frame where query has residues
+            q_kept_res_pos = [k for k, ch in enumerate(q_kept) if ch.isupper()]
+            # map kept positions back to seed-frame column indices
+            idx_seed = np.asarray([keep_cols[k] for k in q_kept_res_pos], dtype=np.int32)
+
+            # 5) Tokenize kept-frame inputs
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs_kept])
             batch_tokens = batch_tokens.to(next(mdl.parameters()).device)
 
@@ -198,21 +198,25 @@ if __name__ == '__main__':
                 print(f"[MSAT] Warning: MSA length {seqlen} > 1024; cropping to 1024.")
                 batch_tokens = batch_tokens[:, :, :1024]
                 # If you ever hit this branch, you'd also want to trim idx_seed accordingly.
-                # For your current lengths (~198), this won't trigger.
 
             # 6) Predict and save
             print('MSA-Transformer predicting...')
-            pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()  # (L_pred, L_pred)
+            pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()
 
-            out_base = f"{args.o}/{args.model}_{args.keyword}_{name}"
-            np.savez(
-                out_base + ".npz",
-                cmap=pred.astype(np.float32),
-                idx=idx_seed,                         # len(idx_seed) == pred.shape[0]
-                keep_cols=np.asarray(keep_cols, np.int32),  # optional, handy for debugging
-            )
+            # Debug guard to guarantee equality
+            if pred.shape[0] != len(idx_seed):
+                print(f"[MSAT][WARN] pred L={pred.shape[0]} != len(idx_seed)={len(idx_seed)}  "
+                      f"(name={name})  fixing by truncating to min length")
+                Lmin = min(pred.shape[0], len(idx_seed))
+                pred = pred[:Lmin, :Lmin]
+                idx_seed = idx_seed[:Lmin]
+
+            # Save
+            np.savez(out_base + ".npz",
+                     cmap=pred.astype(np.float32),
+                     idx=idx_seed,
+                     keep_cols=np.asarray(keep_cols, np.int32))
             print(f"wrote {out_base}.npz  (cmap {pred.shape}, idx {len(idx_seed)})")
-
 
     print("Finished! Runtime for " + str(len(msas)) + " alignments = "
           + str(time.time() - start_time) + " seconds")

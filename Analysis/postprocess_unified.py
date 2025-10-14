@@ -223,6 +223,8 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
     all_detailed = []
     summary_rows = []
 
+    num_pairs = len(pairs)
+    ctr_pairs = 0
     for pair_id in pairs:
         pair_dir = _pair_dir(pair_id)
         if not pair_dir.is_dir():
@@ -262,6 +264,8 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
         pair_dir_str = str(_pair_dir(pair_id))
+        print("Compute TM: pair_dir_str:", pair_dir_str, "pdb1:", pdb1, "pdb2:", pdb2 " ; ", ctr_pairs,  " out of ", num_pairs)
+        ctr_pairs += 1
         def _tm_sym_once(pa: str, pb: str) -> float:
             t12 = compute_tmscore_align(pa, pb, chain1=c1, chain2=c2)
             t21 = compute_tmscore_align(pb, pa, chain1=c2, chain2=c1)
@@ -490,18 +494,6 @@ def _read_cmap(pair_id: str) -> pd.DataFrame:
     csv = _pair_dir(pair_id) / "Analysis" / "df_cmap.csv"
     return pd.read_csv(csv) if csv.is_file() else pd.DataFrame()
 
-# New: function for computing TM-score between the two true structures chains
-def compute_tmscore_all_pairs():
-    all_pairs = list_protein_pairs()
-    num_pairs = len(all_pairs)
-    tm_pairs_scores = {pair_id: [0.0, 0.0] for pair_id in all_pairs}  # Prepare empty dict
-    for pair_id in all_pairs:
-        pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
-        tm_pairs_scores[pair_id][0] = compute_tmscore_align(pdb1, pdb2, chain1=c1, chain2=c2)
-        tm_pairs_scores[pair_id][1] = compute_tmscore_align(pdb2, pdb1, chain1=c2, chain2=c1)
-        print(f"{pair_id}: {tm_pairs_scores[pair_id][0]:.3f} | {tm_pairs_scores[pair_id][1]:.3f}")
-
-    return tm_pairs_scores
 
 
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
@@ -915,10 +907,8 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
 
-    # New: add tm-scores for true structures pairs
-#    tm_pairs_scores = compute_tmscore_all_pairs()
-#    summary_df['PAIR_TM'] = summary_df.apply(lambda row: tm_pairs_scores[row['pair_id']][0], axis=1)
     return summary_df, detailed_df
+
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Unified post-processing: build summary/detailed CSVs for the website.")

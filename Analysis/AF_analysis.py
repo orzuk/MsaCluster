@@ -31,13 +31,18 @@ def compute_AF_pred_tmscores(fold_pair):
 
     res = []
     af_pdb_files = [i for i in af_pdb_files if 'pdb' in str(i)]
+    num_pdb_files = len(af_pdb_files)
+    ctr_pdb_file = 0
     for af_pdb_file in tqdm(af_pdb_files):
         if ('pdb' in str(af_pdb_file)) & ('gz' not in str(af_pdb_file)):
+            print("Compute TMscores for AF PDB file: " + str(af_pdb_file) + " ; " + str(ctr_pdb_file) + " out of " + str(num_pdb_files))
             score_pdb1 = compute_tmscore_align(f'{AF_OUTPUT_DIR}/{af_pdb_file}',
                                                f'{path}/{folds[0][:-1]}.pdb', chain2=chains[0])
             score_pdb2 = compute_tmscore_align(f'{AF_OUTPUT_DIR}/{af_pdb_file}',
                                                f'{path}/{folds[1][:-1]}.pdb', chain2=chains[1])
             res.append({'pdb_file':af_pdb_file,'score_pdb1':score_pdb1,'score_pdb2':score_pdb2})
+        ctr_pdb_file += 1
+
     df_af = pd.DataFrame(res)
     df_af.loc[df_af.score_pdb1 > df_af.score_pdb2, 'Fold'] = folds[0][:-1]
     df_af.loc[df_af.score_pdb1 < df_af.score_pdb2, 'Fold'] = folds[1][:-1]
