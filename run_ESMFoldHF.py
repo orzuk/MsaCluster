@@ -313,19 +313,18 @@ def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Pa
     env = os.environ.copy()
     repo_root = Path(__file__).resolve().parent
     env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
-    script = repo_root / "infer_esm3.py"
 
-    print(f"[esm3] running {script} on {tmp_dir} sequences on {device}", flush=True)
+    print(f"[esm3] running {ESM3_INFER_SCRIPT} on {tmp_dir} sequences on {device}", flush=True)
 
     # IMPORTANT: point the helper to the directory that already contains the
     # sampled/sanitized FASTAs (e.g., Pipeline/<pair_id>/tmp_esmfold/*.fasta)
-    cmd = [sys.executable, str(script), "--fasta_dir", str(tmp_dir),   "--device", device] # <<< batch mode # "cuda" / "cpu" / "auto" (helper resolves)
+    cmd = [sys.executable, str(ESM3_INFER_SCRIPT), "--fasta_dir", str(tmp_dir),   "--device", device] # <<< batch mode # "cuda" / "cpu" / "auto" (helper resolves)
     res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(repo_root), env=env)
     # DEBUG: show helper stderr when it returns non-zero so we know why
     if res.returncode != 0:
         print(f"[esm3][helper stderr head]\n{(res.stderr or '')[:2000]}", flush=True)
 
-    print(f"[esm3] Finished running {script} on {tmp_dir} sequences on {device}", flush=True)
+    print(f"[esm3] Finished running {ESM3_INFER_SCRIPT} on {tmp_dir} sequences on {device}", flush=True)
 
 
     # Parse stdout blocks emitted by infer_esm3.py:
