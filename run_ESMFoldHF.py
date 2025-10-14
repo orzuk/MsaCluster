@@ -361,6 +361,13 @@ def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Pa
     if not script.exists():
         raise FileNotFoundError(f"ESM3 inference script not found: {script}")
 
+    # Derive tmp_dir = Pipeline/<pair_id>/tmp_esmfold
+    outdir = Path(outdir)  # in case it's a string
+    pair_dir = outdir.parent.parent  # output_esm_fold/esm3 -> output_esm_fold -> <pair_id>
+    tmp_dir = pair_dir / "tmp_esmfold"
+    if not tmp_dir.exists():
+        raise FileNotFoundError(f"[esm3] Expected FASTAs in {tmp_dir} but it doesn't exist.")
+
     # one-shot, directory-wide helper call (keeps one HF model loaded on GPU)
     outputs = []
     index_rows = []
