@@ -34,6 +34,8 @@ from utils.msa_utils import load_fasta   # returns (ids, seqs)
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF",
                       "expandable_segments:True,max_split_size_mb:64")
 
+def eprint(*a, **k): print(*a, file=sys.stderr, **k)
+
 def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "facebook/esmfold_v1") -> int:
     """
     Process all *.fasta in `fasta_dir` with a single HF ESMFold model load on GPU.
