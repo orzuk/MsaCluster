@@ -47,10 +47,10 @@ def compute_esmfold_pred_tmscores(fold_pair):
             for _, r in idx.iterrows():
                 pred_name = r["name"]
                 pred_pdb  = r["pdb_path"]
-                print("Compute TMscores for ESMFold PDB file: " + str(pred_pdb) + " ; " + str(ctr_pdb_file) + " out of " + str(num_esm_pdb_files))
+                print("Compute TMscores for ESMFold PDB file: " + str(pred_pdb) + " chains: " + str(chains) + " ; " + str(ctr_pdb_file) + " out of " + str(num_esm_pdb_files))
                 ctr_pdb_file += 1
                 TMscore_fold1 = compute_tmscore_align(truth1_pdb, pred_pdb, chain1=chains[0])
-                TMscore_fold2 = compute_tmscore_align(truth2_pdb, pred_pdb, chain1=chains[0])
+                TMscore_fold2 = compute_tmscore_align(truth2_pdb, pred_pdb, chain1=chains[1])
                 final_res.append({
                     "fold_pair": fold_pair,
                     "model": model_tag,
@@ -69,8 +69,9 @@ def compute_esmfold_pred_tmscores(fold_pair):
                 # infer a clean sample name (works with ShallowMsa_003__sample_007_esm2.pdb)
                 base = os.path.basename(pred_file)
                 pred_name = base.replace(f"_{model_tag}.pdb", "").replace(".pdb", "")
+                print("Fallback no TSV: Compute TMscores for ESMFold PDB file: " + str(pred_path) + " ; " + str(pred_path), "chains: " + str(chains))
                 TMscore_fold1 = compute_tmscore_align(truth1_pdb, pred_path, chain1=chains[0])
-                TMscore_fold2 = compute_tmscore_align(truth2_pdb, pred_path, chain1=chains[0])
+                TMscore_fold2 = compute_tmscore_align(truth2_pdb, pred_path, chain1=chains[1])
                 final_res.append({
                     "fold_pair": fold_pair,
                     "model": model_tag,
