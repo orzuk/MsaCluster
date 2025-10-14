@@ -160,62 +160,64 @@ if __name__ == '__main__':
 
     elif args.model == 'msa_t':
         for name, msa_rows in msas.items():
-            # 1) Put the least-gappy sequence first; this will be the query (row 1)
+            # ----------------- output path base (define first!) -----------------
+            out_base = f"{args.o}/{args.model}_{args.keyword}_{name}"
+
+            # 1) Make least-gappy sequence first (query row)
             msa_rows = _least_gappy_first(msa_rows)
 
             # 2) Subsample depth (keeps row 1)
             inputs = greedy_select(msa_rows, num_seqs=128)
 
-            # 3) Seed-frame column bookkeeping BEFORE tokenization
+            # 3) Seed-frame columns BEFORE tokenization
             C = [_a3m_cols(s) for (_, s) in inputs]
             L_seed = len(C[0])
             assert all(len(x) == L_seed for x in C), "Selected rows differ in seed-frame length"
 
-            # Columns to keep after removing columns that are all '-' across the selected rows
+            # Drop columns that are all '-' across the selected rows
             keep_cols = [j for j in range(L_seed) if any(row[j].isupper() for row in C)]
 
-            # 4) Build the sequences actually fed to the tokenizer (kept columns only)
+            # 4) Build kept-frame sequences (these are what we feed to the model)
             inputs_kept = []
             for (h, s) in inputs:
                 cols = _a3m_cols(s)
                 seq_kept = "".join(cols[j] for j in keep_cols)
                 inputs_kept.append((h, seq_kept))
 
-            # >>> NEW: Compute idx from *kept* query string, then map kept->seed <<<
+            # 5) Compute idx from *kept* query string, then map kept->seed via keep_cols
             q_hdr, q_kept = inputs_kept[0]
-            # positions in the kept frame where query has residues
             q_kept_res_pos = [k for k, ch in enumerate(q_kept) if ch.isupper()]
-            # map kept positions back to seed-frame column indices
             idx_seed = np.asarray([keep_cols[k] for k in q_kept_res_pos], dtype=np.int32)
 
-            # 5) Tokenize kept-frame inputs
+            # 6) Tokenize kept-frame inputs and predict
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs_kept])
             batch_tokens = batch_tokens.to(next(mdl.parameters()).device)
 
-            # ---- SAFETY CAP on sequence length ----
+            # Safety cap (unlikely needed for your lengths)
             seqlen = batch_tokens.size(-1)
             if seqlen > 1024:
                 print(f"[MSAT] Warning: MSA length {seqlen} > 1024; cropping to 1024.")
                 batch_tokens = batch_tokens[:, :, :1024]
-                # If you ever hit this branch, you'd also want to trim idx_seed accordingly.
+                # If you ever crop here, also crop q_kept_res_pos and idx_seed accordingly.
 
-            # 6) Predict and save
             print('MSA-Transformer predicting...')
-            pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()
+            pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()  # (L_pred, L_pred)
 
-            # Debug guard to guarantee equality
+            # Final guard: enforce exact match
             if pred.shape[0] != len(idx_seed):
-                print(f"[MSAT][WARN] pred L={pred.shape[0]} != len(idx_seed)={len(idx_seed)}  "
-                      f"(name={name})  fixing by truncating to min length")
+                print(f"[MSAT][WARN] pred L={pred.shape[0]} != len(idx_seed)={len(idx_seed)}  (name={name}) "
+                      f"-> truncating to min length for consistency")
                 Lmin = min(pred.shape[0], len(idx_seed))
                 pred = pred[:Lmin, :Lmin]
                 idx_seed = idx_seed[:Lmin]
 
-            # Save
-            np.savez(out_base + ".npz",
-                     cmap=pred.astype(np.float32),
-                     idx=idx_seed,
-                     keep_cols=np.asarray(keep_cols, np.int32))
+            # 7) Save one NPZ with both arrays
+            np.savez(
+                out_base + ".npz",
+                cmap=pred.astype(np.float32),
+                idx=idx_seed,
+                keep_cols=np.asarray(keep_cols, np.int32),
+            )
             print(f"wrote {out_base}.npz  (cmap {pred.shape}, idx {len(idx_seed)})")
 
     print("Finished! Runtime for " + str(len(msas)) + " alignments = "
