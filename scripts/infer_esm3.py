@@ -26,18 +26,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# --- use project utils (no re-implementations) ---
+from utils.msa_utils import load_fasta   # returns (ids, seqs)
 
 
-# --- use your project utils (no re-implementations) ---
-# Expect this script to run from repo root or that PYTHONPATH includes repo root.
-def eprint(*a, **k): print(*a, file=sys.stderr, **k)
-try:
-    from utils.msa_utils import load_fasta   # returns (ids, seqs)
-except Exception as ex:
-    eprint("[infer_esm3] Failed to import project utils. Ensure you run from repo root or set PYTHONPATH.")
-    eprint("Import error:", ex)
-    sys.exit(3)
-
+# Reduce CUDA fragmentation / improve allocation behavior
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF",
+                      "expandable_segments:True,max_split_size_mb:64")
 
 def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "facebook/esmfold_v1") -> int:
     """
@@ -65,23 +60,23 @@ def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "f
     eprint(f"[hf-esmfold] single-load {model_id} on {device}")
     model = EsmForProteinFolding.from_pretrained(model_id).to(device).eval()
 
-    # Reduce CUDA memory
-    amp_ctx = contextlib.nullcontext()
-    if device == "cuda":
+    # --- memory-friendly config (ADD) ---
+    # Try to lower model chunk size if available (safe no-op if missing)
+    for attr in ("set_chunk_size", "set_chunk_size_"):
+        if hasattr(model, attr):
+            try:
+                getattr(model, attr)(64)  # if still OOM later, try 32
+            except Exception:
+                pass
+
+    if torch.cuda.is_available():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.set_float32_matmul_precision("medium")
-        model = model.half()
+        model = model.half()  # cast weights to fp16 on CUDA
         amp_ctx = torch.amp.autocast("cuda", dtype=torch.float16)
-
-    try:
-        import torch
-        if device == "cuda":
-            torch.set_float32_matmul_precision("medium")
-            model = model.half()
-            amp_ctx = torch.amp.autocast("cuda", dtype=torch.float16)
-
-    except Exception:
-        pass
+    else:
+        amp_ctx = contextlib.nullcontext()
+    # ------------------------------------
 
     tok = AutoTokenizer.from_pretrained(model_id)
 
@@ -112,9 +107,8 @@ def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "f
                     v = v.half()
                 batch[k] = v
 
-            with torch.no_grad():
-                with amp_ctx:
-                    out = model(**batch)
+            with torch.no_grad(), amp_ctx:
+                out = model(**batch)
 
             to_pdb = getattr(model, "to_pdb", None) or getattr(model, "output_to_pdb", None)
             if to_pdb is None:
