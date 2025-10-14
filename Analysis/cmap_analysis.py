@@ -445,7 +445,7 @@ def compute_cmap_metrics_for_pair(
         def safe_metrics(Psub, Tsub):
             if Psub is None or Tsub is None or Psub.shape != Tsub.shape or Psub.size == 0:
                 return dict(precision=np.nan, recall=np.nan, f1=np.nan, jaccard=np.nan, mcc=np.nan)
-            pb = _bin_pred(Psub, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
+            pb = _bin_pred(Psub, prob_thresh=thresh, sep_min=sep_min, index_tol=index_tol)
             return _metrics(pb, Tsub)
 
         m_t1 = safe_metrics(P1,  T1S)
@@ -461,7 +461,7 @@ def compute_cmap_metrics_for_pair(
                 truth = (Tsub1.astype(bool) & ~Tsub2.astype(bool))
             else:
                 truth = (Tsub2.astype(bool) & ~Tsub1.astype(bool))
-            pb = _bin_pred(Psub, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
+            pb = _bin_pred(Psub, prob_thresh=thresh, sep_min=sep_min, index_tol=index_tol)
             return _metrics(pb, truth.astype(np.uint8))
 
         m_com = comb_metrics(PC,  T1C, T2C, "common")
