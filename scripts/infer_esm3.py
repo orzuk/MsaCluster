@@ -72,7 +72,8 @@ def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "f
         if device == "cuda":
             torch.set_float32_matmul_precision("medium")
             model = model.half()
-            amp_ctx = torch.cuda.amp.autocast(dtype=torch.float16)
+            amp_ctx = torch.amp.autocast("cuda", dtype=torch.float16)
+
     except Exception:
         pass
 
@@ -94,12 +95,16 @@ def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "f
 
         try:
             batch = tok([seq], return_tensors="pt", add_special_tokens=False)
-            # move to device and cast half on CUDA
-            for k,v in list(batch.items()):
-                if hasattr(v, "to"):
-                    batch[k] = v.to(device)
-                    if device == "cuda" and hasattr(batch[k], "half"):
-                        batch[k] = batch[k].half()
+
+            # NEW (only half floating tensors; keep indices as long)
+            for k, v in list(batch.items()):
+                if not hasattr(v, "to"):
+                    continue
+                v = v.to(device)
+                # Only cast *floating-point* tensors on CUDA
+                if device == "cuda" and v.dtype in (torch.float32, torch.bfloat16, torch.float64):
+                    v = v.half()
+                batch[k] = v
 
             with torch.no_grad():
                 with amp_ctx:
