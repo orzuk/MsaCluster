@@ -359,8 +359,10 @@ def _read_or_compute_cmap(pair_id: str, force: bool = False) -> pd.DataFrame:
         return pd.read_csv(out_csv)
 
     # need predictions to compute metrics
-    if not os.path.isdir(pred_dir) or not any(f.endswith(".npy") for f in os.listdir(pred_dir)):
-        print(f"[warn] No MSA-Transformer NPYs found at {pred_dir}; skipping CMAP metrics.")
+    has_cmap_outputs = (os.path.isdir(pred_dir) and
+            any(f.endswith((".npz", ".npy")) for f in os.listdir(pred_dir)))
+    if not has_cmap_outputs:
+        print(f"[warn] No MSA-Transformer outputs found at {pred_dir}; skipping CMAP metrics.")
         return pd.DataFrame()
 
     # import the callable (local import avoids import cycles at module load time)
