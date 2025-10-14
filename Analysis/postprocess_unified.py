@@ -303,8 +303,11 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
                                 pass
                     return float("nan")
 
-                row["ΔG1"] = _pick(a)
-                row["ΔG2"] = _pick(b)
+                print("Energy: pair_id:", pair_id, " ; a, b:", a, b)
+                print("type a, b:", type(a), type(b))
+                print("type pick a, b:", type(_pick(a)), type(_pick(b)))
+                row["ΔG1"] = round(_pick(a), 2)
+                row["ΔG2"] = round(_pick(b), 2)
             except Exception:
                 row["ΔG1"] = float("nan"); row["ΔG2"] = float("nan")
         else:
