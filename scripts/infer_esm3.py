@@ -53,9 +53,12 @@ def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "f
         eprint(f"[hf-esmfold] import failure: {e}")
         return 2
 
-    fastas = sorted(glob.glob(os.path.join(fasta_dir, "*.fasta")))
+    pat1 = os.path.join(fasta_dir, "*.fasta")
+    pat2 = os.path.join(fasta_dir, "*.fa")
+    fastas = sorted(set(glob.glob(pat1) + glob.glob(pat2)))
+    eprint(f"[hf-esmfold] scanning {fasta_dir} → found {len(fastas)} FASTAs")
     if not fastas:
-        eprint(f"[hf-esmfold] no *.fasta in {fasta_dir}")
+        eprint(f"[hf-esmfold] no FASTAs in {fasta_dir} (patterns tried: {pat1}, {pat2})")
         return 2
 
     # Load once on GPU
@@ -287,6 +290,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # --- Single sequence / single FASTA (existing behavior) ---
     name, seq = read_one_sequence(args)
 
+    print("[infer_esm3] try_esm3 on input sequence:", name, seq)
     pdb_txt = try_esm3(seq, device)          # your existing native-ESM3 attempt
     if pdb_txt is None:
         pdb_txt = run_hf_esmfold(seq, device)  # your existing HF fallback
