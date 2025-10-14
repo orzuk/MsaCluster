@@ -18,25 +18,114 @@ Env:
 """
 from __future__ import annotations
 from pathlib import Path
-import sys
+import os, sys, argparse, traceback, glob
+from typing import Optional, List, Tuple
+import contextlib
 # repo root = parent of scripts/
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import os, sys, argparse, traceback
-from typing import Optional, List, Tuple
 
-def eprint(*a, **k): print(*a, file=sys.stderr, **k)
 
 # --- use your project utils (no re-implementations) ---
 # Expect this script to run from repo root or that PYTHONPATH includes repo root.
+def eprint(*a, **k): print(*a, file=sys.stderr, **k)
 try:
     from utils.msa_utils import load_fasta   # returns (ids, seqs)
 except Exception as ex:
     eprint("[infer_esm3] Failed to import project utils. Ensure you run from repo root or set PYTHONPATH.")
     eprint("Import error:", ex)
     sys.exit(3)
+
+
+def run_multi_fasta_dir(fasta_dir: str, device: str = "cuda", model_id: str = "facebook/esmfold_v1") -> int:
+    """
+    Process all *.fasta in `fasta_dir` with a single HF ESMFold model load on GPU.
+    Prints one block per success to STDOUT delimited by:
+        >>>PDB_START <name>\n ...PDB...\n>>>PDB_END <name>
+    Logs go to STDERR. Returns 0 on full success, 2 if any sample failed.
+    """
+    try:
+        from transformers import AutoTokenizer, EsmForProteinFolding
+        import torch
+    except Exception as e:
+        eprint(f"[hf-esmfold] import failure: {e}")
+        return 2
+
+    fastas = sorted(glob.glob(os.path.join(fasta_dir, "*.fasta")))
+    if not fastas:
+        eprint(f"[hf-esmfold] no *.fasta in {fasta_dir}")
+        return 2
+
+    # Load once on GPU
+    eprint(f"[hf-esmfold] single-load {model_id} on {device}")
+    model = EsmForProteinFolding.from_pretrained(model_id).to(device).eval()
+
+    # Reduce CUDA memory
+    amp_ctx = contextlib.nullcontext()
+    try:
+        import torch
+        if device == "cuda":
+            torch.set_float32_matmul_precision("medium")
+            model = model.half()
+            amp_ctx = torch.cuda.amp.autocast(dtype=torch.float16)
+    except Exception:
+        pass
+
+    tok = AutoTokenizer.from_pretrained(model_id)
+
+    any_fail = False
+    for fa in fastas:
+        name = os.path.splitext(os.path.basename(fa))[0]
+        # read first sequence
+        try:
+            with open(fa) as f:
+                seq = "".join(line.strip() for line in f if not line.startswith(">"))
+            if not seq:
+                raise ValueError("empty sequence")
+        except Exception as e:
+            eprint(f"[hf-esmfold] FAIL read {name}: {e}")
+            any_fail = True
+            continue
+
+        try:
+            batch = tok([seq], return_tensors="pt", add_special_tokens=False)
+            # move to device and cast half on CUDA
+            for k,v in list(batch.items()):
+                if hasattr(v, "to"):
+                    batch[k] = v.to(device)
+                    if device == "cuda" and hasattr(batch[k], "half"):
+                        batch[k] = batch[k].half()
+
+            with torch.no_grad():
+                with amp_ctx:
+                    out = model(**batch)
+
+            to_pdb = getattr(model, "to_pdb", None) or getattr(model, "output_to_pdb", None)
+            if to_pdb is None:
+                raise RuntimeError("Model lacks to_pdb/output_to_pdb")
+            pdb = to_pdb(out)
+
+            # Emit a parseable block for the parent
+            sys.stdout.write(f">>>PDB_START {name}\n")
+            sys.stdout.write(pdb if pdb.endswith("\n") else (pdb + "\n"))
+            sys.stdout.write(f">>>PDB_END {name}\n")
+            sys.stdout.flush()
+
+        except RuntimeError as e:
+            # OOM or similar — log and continue
+            eprint(f"[hf-esmfold] OOM/FAIL for {name}: {e}")
+            any_fail = True
+            continue
+        except Exception as e:
+            eprint(f"[hf-esmfold] FAIL {name}: {e}")
+            any_fail = True
+            continue
+
+    return 2 if any_fail else 0
+
+
 
 def read_one_sequence(args) -> Tuple[str, str]:
     if args.sequence:
@@ -126,46 +215,90 @@ def run_hf_esmfold(sequence: str, device: str) -> str:
     from transformers import EsmForProteinFolding, AutoTokenizer
     import torch
     model_id = "facebook/esmfold_v1"
+
     eprint(f"[hf-esmfold] loading {model_id} on {device}")
     model = EsmForProteinFolding.from_pretrained(model_id).to(device).eval()
+
+    # ↓↓↓ reduce memory footprint on CUDA ↓↓↓
+    try:
+        import torch
+        if device == "cuda":
+            torch.set_float32_matmul_precision("medium")
+            model = model.half()
+    except Exception as _:
+        pass
+
     if hasattr(model, "infer_pdb"):
-        return model.infer_pdb(sequence)
-    # manual tokenization if infer_pdb is absent
+        # Some builds support AMP internally; still try to help CUDA
+        try:
+            import torch
+            if device == "cuda":
+                with torch.cuda.amp.autocast(dtype=torch.float16):
+                    return model.infer_pdb(sequence)
+        except Exception:
+            return model.infer_pdb(sequence)
+
+    # manual tokenization path
     tok = AutoTokenizer.from_pretrained(model_id)
     batch = tok([sequence], return_tensors="pt", add_special_tokens=False)
-    batch = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k,v in batch.items()}
+    try:
+        import torch
+        if device == "cuda":
+            batch = {k: (v.to(device).half() if isinstance(v, torch.Tensor) else v) for k, v in batch.items()}
+        else:
+            batch = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in batch.items()}
+    except Exception:
+        batch = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in batch.items()}
+
     with torch.no_grad():
-        out = model(**batch)
+        try:
+            import torch
+            if device == "cuda":
+                with torch.cuda.amp.autocast(dtype=torch.float16):
+                    out = model(**batch)
+            else:
+                out = model(**batch)
+        except Exception:
+            out = model(**batch)
+
     for conv in ["to_pdb", "output_to_pdb"]:
         if hasattr(model, conv):
             return getattr(model, conv)(out)
+
     raise RuntimeError("[hf-esmfold] Could not convert outputs to PDB.")
 
 # -------------------------------------- CLI ----------------------------------
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="ESM3 inference helper (prints PDB to stdout).")
+    ap = argparse.ArgumentParser(description="ESM3/ESMFold helper")
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--sequence", type=str, help="AA sequence")
-    g.add_argument("--fasta",    type=str, help="FASTA path (first record used)")
-    ap.add_argument("--device",  type=str, default="auto", help="cpu|cuda|mps|auto")
+    g.add_argument("--sequence",  type=str, help="AA sequence (single)")
+    g.add_argument("--fasta",     type=str, help="FASTA file (first record)")
+    g.add_argument("--fasta_dir", type=str, help="DIR with many *.fasta (batch mode)")
+    ap.add_argument("--device",   type=str, default="auto", help="cpu|cuda|mps|auto")
     args = ap.parse_args(argv)
 
-    name, seq = read_one_sequence(args)
     device = resolve_device(args.device)
 
-    # Try ESM3 first, then HF fallback
-    pdb_txt = try_esm3(seq, device)
+    # --- Batch mode: keep one model in memory on GPU ---
+    if args.fasta_dir:
+        rc = run_multi_fasta_dir(args.fasta_dir, device=device, model_id="facebook/esmfold_v1")
+        return rc
+
+    # --- Single sequence / single FASTA (existing behavior) ---
+    name, seq = read_one_sequence(args)
+
+    pdb_txt = try_esm3(seq, device)          # your existing native-ESM3 attempt
     if pdb_txt is None:
-        pdb_txt = run_hf_esmfold(seq, device)
+        pdb_txt = run_hf_esmfold(seq, device)  # your existing HF fallback
 
     if not isinstance(pdb_txt, str) or "ATOM" not in pdb_txt:
         eprint("[infer_esm3] backend returned non-PDB.")
         return 3
 
-    # print only PDB to stdout
     sys.stdout.write(pdb_txt if pdb_txt.endswith("\n") else (pdb_txt + "\n"))
     sys.stdout.flush()
     return 0
+
 
 if __name__ == "__main__":
     try:
