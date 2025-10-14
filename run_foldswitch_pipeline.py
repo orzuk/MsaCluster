@@ -1789,8 +1789,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     Controlled by --reports: none | tables | html | all
     Safe to run incrementally.
     """
-    import shlex, subprocess, sys
-    from pathlib import Path
 
     # Normalize pairs to strings like "1wp8C_5ejbC"
     norm_pairs = [
@@ -1819,6 +1817,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         if run_job_mode in ("local", "inline", ""):
             # Local/in-process: recompute per-pair CSVs
             try:
+                from Analysis.postprocess_unified import post_processing_analysis
                 post_processing_analysis(force_rerun=force_rerun, pairs=pair_dirs)
                 print(f"[postprocess] per-pair Analysis refreshed (local) for {len(pair_dirs)} pairs.")
             except Exception as e:

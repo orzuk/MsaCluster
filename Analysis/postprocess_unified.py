@@ -854,6 +854,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
         * detailed_df: one row per model/cluster/sample (TM & cmap when available)
     - Writes summary -> SUMMARY_RESULTS_TABLE, detailed -> DETAILED_RESULTS_TABLE
     """
+    print("Start Post-processing pairs!!!", flush=True)
     if not pairs:
         pairs = [f"{a}_{b}" for a, b in list_protein_pairs()]
 
@@ -865,7 +866,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
         if not pair_dir.is_dir():
             continue
 
-        print("Post-processing pair:", pair_id)
+        print("Post-processing pair:", pair_id, flush=True)
         # AF/ESM tables
         # AF + ESM tables
         df_af  = _read_or_compute_af(pair_id, force=force_rerun)
