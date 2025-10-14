@@ -1,6 +1,7 @@
 import os, sys
 import re
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 import argparse
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -10,7 +11,6 @@ from config import *
 from utils.utils import *
 from utils.align_utils import *
 
-CONTACT_CUTOFF = 8.0  # Å; adjust if you use a different truth definition
 
 def _read_two_seeds_from_a3m(a3m_path: str):
     """
@@ -158,48 +158,49 @@ def _metrics(pred_bin: np.ndarray, truth_bin: np.ndarray):
     return dict(precision=prec, recall=rec, f1=f1, jaccard=jac, mcc=mcc)
 
 
-def align_and_resize_contact_maps(cmap1, cmap2, window_size=10, step_size=1):
+def load_cmap_and_idx(path):
     """
-    Align two contact maps and resize them to match the smaller map's dimensions.
-    :param cmap1: First contact map (2D symmetric numpy array)
-    :param cmap2: Second contact map (2D symmetric numpy array)
-    :param window_size: Size of the sliding window for comparison
-    :param step_size: Step size for sliding the window
-    :return: Tuple of (aligned_cmap1, aligned_cmap2), both with dimensions of the smaller input map
+    Returns: (cmap: np.ndarray[L,L], idx: np.ndarray[L_idx], keep_cols or None)
+    - .npz (preferred): expects keys 'cmap', 'idx' (and optional 'keep_cols')
+    - legacy .npy dict: {'cmap':..., 'idx':...}
+    - legacy plain .npy: cmap only + sidecar .idx.npy (if present)
     """
+    if path.endswith(".npz"):
+        z = np.load(path)
+        return z["cmap"], z["idx"], (z["keep_cols"] if "keep_cols" in z.files else None)
+    arr = np.load(path, allow_pickle=True)
+    if isinstance(arr, np.ndarray) and arr.dtype == object:
+        d = arr.item()
+        return d["cmap"], d["idx"], d.get("keep_cols", None)
+    # plain array case:
+    cmap = arr
+    idx_path = path.replace(".npy", ".idx.npy")
+    if os.path.isfile(idx_path):
+        idx = np.load(idx_path)
+        return cmap, idx, None
+    raise FileNotFoundError(f"{path}: legacy npy without idx sidecar; re-run MSAT to produce .npz.")
 
-    # Determine which map is larger
-    if cmap1.shape[0] * cmap1.shape[1] >= cmap2.shape[0] * cmap2.shape[1]:
-        larger_cmap, smaller_cmap = cmap1, cmap2
+
+def seed_residue_indices(seed_a3m_path: str, tag: str):
+    # tag is "4dxrA" or "4dxtA"
+    lines = [ln.rstrip("\n") for ln in open(seed_a3m_path) if ln.strip()]
+    seqs, heads, cur = [], [], []
+    for ln in lines:
+        if ln.startswith(">"):
+            if cur: seqs.append("".join(cur)); cur=[]
+            heads.append(ln[1:].split()[0])
+        else:
+            cur.append(ln)
+    if cur: seqs.append("".join(cur))
+    if heads[0].startswith(tag):
+        s = seqs[0]
+    elif heads[1].startswith(tag):
+        s = seqs[1]
     else:
-        larger_cmap, smaller_cmap = cmap2, cmap1
+        raise RuntimeError(f"{tag} not found in {seed_a3m_path}")
+    cols = [c for c in s if c.isupper() or c == '-']
+    return np.asarray([i for i,c in enumerate(cols) if c.isupper()], dtype=np.int32)
 
-    best_score = float('-inf')
-    best_offset = (0, 0)
-
-    # Find the best alignment
-    for i in range(0, larger_cmap.shape[0] - smaller_cmap.shape[0] + 1, step_size):
-        for j in range(0, larger_cmap.shape[1] - smaller_cmap.shape[1] + 1, step_size):
-            window = larger_cmap[i:i + smaller_cmap.shape[0], j:j + smaller_cmap.shape[1]]
-            score = np.sum(window * smaller_cmap)  # Simple dot product for similarity
-
-            if score > best_score:
-                best_score = score
-                best_offset = (i, j)
-
-    # Extract the aligned portion from the larger map
-    aligned_larger = larger_cmap[best_offset[0]:best_offset[0] + smaller_cmap.shape[0],
-                     best_offset[1]:best_offset[1] + smaller_cmap.shape[1]]
-
-    # Ensure we return cmap1 and cmap2 in the correct order
-    if cmap1.shape[0] * cmap1.shape[1] >= cmap2.shape[0] * cmap2.shape[1]:
-        return aligned_larger, smaller_cmap
-    else:
-        return smaller_cmap, aligned_larger
-
-
-def load_cmap(path):
-    return np.load(path)
 
 def get_only_cmaps(cmap1,cmap2):
     diff_folds = cmap1 - cmap2
@@ -209,10 +210,6 @@ def get_only_cmaps(cmap1,cmap2):
     only_fold2[only_fold2 == 1] = 0
     only_fold2[only_fold2 == -1] = 1
     return only_fold1,only_fold2
-
-
-
-import numpy as np
 
 
 # Evaluate a predicted contact map against 2 ground truth contact maps
@@ -345,7 +342,6 @@ def compute_cmap_metrics_for_pair(
 
     T1 = _truth_contacts(coords1, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
     T2 = _truth_contacts(coords2, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
-    L1, L2 = T1.shape[0], T2.shape[0]
 
     # ---- 2) alignment frames from _seed_both.a3m (symmetric mapping)
     both_a3m = os.path.join(pair_dir, "_seed_both.a3m")
@@ -357,22 +353,6 @@ def compute_cmap_metrics_for_pair(
     keep2 = _uppercase_cols(s2) if s2 else []
     common_cols = _common_cols(s1, s2)
 
-    # map 'common' columns to residue indices in each fold
-    # For each alignment column with uppercase in both seeds, we know its residue index
-    # within each seed's ungapped sequence.
-    def _ungapped_positions(seed):
-        idxs = []
-        resi = 0
-        for i, ch in enumerate(seed or ""):
-            if ch.isalpha():
-                if ch.isupper():
-                    resi += 1
-                    idxs.append(resi-1)  # 0-based residue index in that seed
-                # lowercase: insertion (doesn't count for residue index)
-            else:
-                # '-' gap
-                pass
-        return idxs
 
     # Build position maps from alignment column -> residue index
     def _col_to_res(seed):
@@ -386,106 +366,110 @@ def compute_cmap_metrics_for_pair(
             # lowercase or '-' → no mapping
         return col2res
 
-    col2res1 = _col_to_res(s1) if s1 else {}
-    col2res2 = _col_to_res(s2) if s2 else {}
 
-    # For the common frame, we’ll need arrays that map common positions -> residue indices in each fold
-    c_to_r1 = [col2res1[c] for c in common_cols] if common_cols else []
-    c_to_r2 = [col2res2[c] for c in common_cols] if common_cols else []
-
-    # Sanity: lengths expected after collapsing
-    exp1 = len(keep1)
-    exp2 = len(keep2)
-    expC = len(common_cols)
-
-    # ---- 3) iterate predicted maps
+    # ---- 3) iterate predicted maps (npz with cmap+idx; also supports legacy npy)
     pred_dir = os.path.join(pair_dir, "output_cmaps", "msa_transformer")
     files = []
     if os.path.isdir(pred_dir):
         for fn in sorted(os.listdir(pred_dir)):
-            if fn.startswith("msa_t__") and fn.endswith(".npy"):
-                if (not include_deep) and ("MSA_deep" in fn):
-                    continue
-                files.append(os.path.join(pred_dir, fn))
+            if not fn.startswith("msa_t_"):  # keep all msa_t_* variants
+                continue
+            if not (fn.endswith(".npz") or fn.endswith(".npy")):
+                continue
+            if (not include_deep) and ("DeepMsa" in fn or "MSA_deep" in fn):
+                continue
+            files.append(os.path.join(pred_dir, fn))
+
+    # Build residue-index mappings from seed columns -> residue indices for each fold
+    # (col2res1/2 map a SEED column index -> residue index in that fold's truth matrix)
+    col2res1 = _col_to_res(s1) if s1 else {}
+    col2res2 = _col_to_res(s2) if s2 else {}
 
     rows = []
     for f in files:
-        P = np.load(f)  # NxN in alignment columns
-        N = P.shape[0]
-        if P.shape[0] != P.shape[1]:
-            # skip weird shapes
+        # Load prediction and the seed-frame idx it uses
+        try:
+            P, idx, keep_cols = load_cmap_and_idx(f)   # P: (L,L) ; idx: seed-frame indices row-1 covers
+        except Exception as e:
+            print("[cmap] WARN skipping", f, "->", e)
             continue
 
-        # collapse to fold1 frame
-        pred1 = None
-        if exp1 and max(keep1) < N:
-            pred1 = P[np.ix_(keep1, keep1)]
-            if pred1.shape[0] != L1:
-                # If unusual mismatch (e.g., missing residues), skip t1_* but still compute common
-                pred1 = None
+        if P.ndim != 2 or P.shape[0] != P.shape[1]:
+            print("[cmap] WARN skipping non-square", f, P.shape)
+            continue
 
-        # collapse to fold2 frame
-        pred2 = None
-        if exp2 and max(keep2) < N:
-            pred2 = P[np.ix_(keep2, keep2)]
-            if pred2.shape[0] != L2:
-                pred2 = None
+        # Map SEED indices -> P-axis positions
+        pos = {int(c): i for i, c in enumerate(idx)}
 
-        # common frame (symmetric; does not depend on choosing fold1 or fold2)
-        predC = None
-        if expC and max(common_cols) < N:
-            predC = P[np.ix_(common_cols, common_cols)]
-            # Build T1/T2 in that same common frame by remapping residue indices:
-            if expC and len(c_to_r1) == expC and len(c_to_r2) == expC:
-                T1C = T1[np.ix_(c_to_r1, c_to_r1)]
-                T2C = T2[np.ix_(c_to_r2, c_to_r2)]
+        # --- Build evaluation frames (SEED set ∩ pred idx), then map to P's axis
+        # Seed sets (as columns): keep1 = non-gaps in 4dxrA; keep2 = non-gaps in 4dxtA; common_cols = both non-gaps
+        I1_cols = sorted(set(keep1).intersection(idx))             # fold1 columns present in prediction
+        I2_cols = sorted(set(keep2).intersection(idx))             # fold2 columns present in prediction
+        IC_cols = sorted(set(common_cols).intersection(idx))       # common columns present in prediction
+        IU1_cols = sorted(set(keep1).difference(keep2).intersection(idx))  # uniq1 columns present
+        IU2_cols = sorted(set(keep2).difference(keep1).intersection(idx))  # uniq2 columns present
+
+        # Convert SEED columns -> P-axis indices
+        M1  = np.fromiter((pos[c] for c in I1_cols), dtype=int)
+        M2  = np.fromiter((pos[c] for c in I2_cols), dtype=int)
+        MC  = np.fromiter((pos[c] for c in IC_cols), dtype=int)
+        MU1 = np.fromiter((pos[c] for c in IU1_cols), dtype=int)
+        MU2 = np.fromiter((pos[c] for c in IU2_cols), dtype=int)
+
+        # Slice predictions into each frame
+        P1  = P[np.ix_(M1,  M1)]
+        P2  = P[np.ix_(M2,  M2)]
+        PC  = P[np.ix_(MC,  MC)]
+        PU1 = P[np.ix_(MU1, MU1)]
+        PU2 = P[np.ix_(MU2, MU2)]
+
+        # --- Build truth frames by mapping SEED columns -> residue indices
+        R1  = np.fromiter((col2res1[c] for c in I1_cols), dtype=int)  # length == P1.shape[0]
+        R2  = np.fromiter((col2res2[c] for c in I2_cols), dtype=int)
+        RC1 = np.fromiter((col2res1[c] for c in IC_cols), dtype=int)
+        RC2 = np.fromiter((col2res2[c] for c in IC_cols), dtype=int)
+        RU1 = np.fromiter((col2res1[c] for c in IU1_cols), dtype=int)
+        RU2 = np.fromiter((col2res2[c] for c in IU2_cols), dtype=int)
+
+        # Fold-specific truths
+        T1S = T1[np.ix_(R1, R1)] if len(R1) else None
+        T2S = T2[np.ix_(R2, R2)] if len(R2) else None
+
+        # Common/uniq truths (in the SAME per-frame sizes)
+        T1C = T1[np.ix_(RC1, RC1)] if len(RC1) else None
+        T2C = T2[np.ix_(RC2, RC2)] if len(RC2) else None
+        TU1 = T1[np.ix_(RU1, RU1)] if len(RU1) else None
+        TU2 = T2[np.ix_(RU2, RU2)] if len(RU2) else None
+
+        # --- Metrics
+        def safe_metrics(Psub, Tsub):
+            if Psub is None or Tsub is None or Psub.shape != Tsub.shape or Psub.size == 0:
+                return dict(precision=np.nan, recall=np.nan, f1=np.nan, jaccard=np.nan, mcc=np.nan)
+            pb = _bin_pred(Psub, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
+            return _metrics(pb, Tsub)
+
+        m_t1 = safe_metrics(P1,  T1S)
+        m_t2 = safe_metrics(P2,  T2S)
+
+        # For common/uniq, build truth masks by combining T1/T2 in the SAME sub-frame sizes
+        def comb_metrics(Psub, Tsub1, Tsub2, mode):
+            if Psub is None or Tsub1 is None or Tsub2 is None or Psub.shape != Tsub1.shape or Psub.shape != Tsub2.shape or Psub.size == 0:
+                return dict(precision=np.nan, recall=np.nan, f1=np.nan, jaccard=np.nan, mcc=np.nan)
+            if mode == "common":
+                truth = (Tsub1.astype(bool) & Tsub2.astype(bool))
+            elif mode == "uniq1":
+                truth = (Tsub1.astype(bool) & ~Tsub2.astype(bool))
             else:
-                T1C = None; T2C = None
-        else:
-            T1C = None; T2C = None
+                truth = (Tsub2.astype(bool) & ~Tsub1.astype(bool))
+            pb = _bin_pred(Psub, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
+            return _metrics(pb, truth.astype(np.uint8))
 
-        # --- metrics ---
-        # Fold1
-        t1_prec = t1_rec = t1_f1 = t1_jac = t1_mcc = np.nan
-        if pred1 is not None:
-            pb = _bin_pred(pred1, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
-            m  = _metrics(pb, T1)
-            t1_prec, t1_rec, t1_f1, t1_jac, t1_mcc = m["precision"], m["recall"], m["f1"], m["jaccard"], m["mcc"]
+        m_com = comb_metrics(PC,  T1C, T2C, "common")
+        m_u1  = comb_metrics(PU1, T1C, T2C, "uniq1") if (len(RC1)==len(RU1)) else comb_metrics(PU1, TU1, TU2, "uniq1")
+        m_u2  = comb_metrics(PU2, T1C, T2C, "uniq2") if (len(RC2)==len(RU2)) else comb_metrics(PU2, TU1, TU2, "uniq2")
 
-        # Fold2
-        t2_prec = t2_rec = t2_f1 = t2_jac = t2_mcc = np.nan
-        if pred2 is not None:
-            pb = _bin_pred(pred2, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
-            m  = _metrics(pb, T2)
-            t2_prec, t2_rec, t2_f1, t2_jac, t2_mcc = m["precision"], m["recall"], m["f1"], m["jaccard"], m["mcc"]
-
-        # Common / uniq-by-contact categories (symmetric)
-        com_prec = com_rec = com_f1 = com_jac = com_mcc = np.nan
-        u1_prec = u1_rec = u1_f1 = u1_jac = u1_mcc = np.nan
-        u2_prec = u2_rec = u2_f1 = u2_jac = u2_mcc = np.nan
-
-        if predC is not None and T1C is not None and T2C is not None:
-            pb = _bin_pred(predC, thresh=thresh, sep_min=sep_min, index_tol=index_tol)
-
-            common_mask = (T1C & T2C)
-            uniq1_mask  = (T1C & ~T2C)
-            uniq2_mask  = (T2C & ~T1C)
-
-            # evaluate each category by masking the truth and reusing the same pb grid
-            def _masked_metrics(pb, truth_mask):
-                return _metrics(pb, truth_mask)
-
-            mcom = _masked_metrics(pb, common_mask)
-            mu1  = _masked_metrics(pb, uniq1_mask)
-            mu2  = _masked_metrics(pb, uniq2_mask)
-
-            com_prec, com_rec, com_f1, com_jac, com_mcc = mcom["precision"], mcom["recall"], mcom["f1"], mcom["jaccard"], mcom["mcc"]
-            u1_prec,  u1_rec,  u1_f1,  u1_jac,  u1_mcc  = mu1["precision"],  mu1["recall"],  mu1["f1"],  mu1["jaccard"],  mu1["mcc"]
-            u2_prec,  u2_rec,  u2_f1,  u2_jac,  u2_mcc  = mu2["precision"],  mu2["recall"],  mu2["f1"],  mu2["jaccard"],  mu2["mcc"]
-
-        # File/meta
         base = os.path.basename(f)
-        if "MSA_deep" in base:
+        if "MSA_deep" in base or "DeepMsa" in base:
             clus = "DeepMsa"
         else:
             m = re.search(r"(ShallowMsa_\d+)", base)
@@ -498,16 +482,16 @@ def compute_cmap_metrics_for_pair(
             "thresh": thresh,
             "sep_min": sep_min,
             # per fold
-            "t1_precision": t1_prec, "t1_recall": t1_rec, "t1_f1": t1_f1, "t1_jaccard": t1_jac, "t1_mcc": t1_mcc,
-            "t2_precision": t2_prec, "t2_recall": t2_rec, "t2_f1": t2_f1, "t2_jaccard": t2_jac, "t2_mcc": t2_mcc,
+            "t1_precision": m_t1["precision"], "t1_recall": m_t1["recall"], "t1_f1": m_t1["f1"], "t1_jaccard": m_t1["jaccard"], "t1_mcc": m_t1["mcc"],
+            "t2_precision": m_t2["precision"], "t2_recall": m_t2["recall"], "t2_f1": m_t2["f1"], "t2_jaccard": m_t2["jaccard"], "t2_mcc": m_t2["mcc"],
             # symmetric categories
-            "common_precision": com_prec, "common_recall": com_rec, "common_f1": com_f1, "common_jaccard": com_jac, "common_mcc": com_mcc,
-            "uniq1_precision": u1_prec, "uniq1_recall": u1_rec, "uniq1_f1": u1_f1, "uniq1_jaccard": u1_jac, "uniq1_mcc": u1_mcc,
-            "uniq2_precision": u2_prec, "uniq2_recall": u2_rec, "uniq2_f1": u2_f1, "uniq2_jaccard": u2_jac, "uniq2_mcc": u2_mcc,
+            "common_precision": m_com["precision"], "common_recall": m_com["recall"], "common_f1": m_com["f1"], "common_jaccard": m_com["jaccard"], "common_mcc": m_com["mcc"],
+            "uniq1_precision": m_u1["precision"],  "uniq1_recall":  m_u1["recall"],  "uniq1_f1":  m_u1["f1"],  "uniq1_jaccard":  m_u1["jaccard"],  "uniq1_mcc":  m_u1["mcc"],
+            "uniq2_precision": m_u2["precision"],  "uniq2_recall":  m_u2["recall"],  "uniq2_f1":  m_u2["f1"],  "uniq2_jaccard":  m_u2["jaccard"],  "uniq2_mcc":  m_u2["mcc"],
         })
 
+
     # ---- 4) write CSV
-    import pandas as pd
     df = pd.DataFrame(rows)
     df.to_csv(out_csv, index=False)
     return df
@@ -526,7 +510,6 @@ if __name__ == "__main__":
     if args.pairs:
         todo = args.pairs
     else:
-        from utils.utils import list_protein_pairs
         todo = list_protein_pairs(parsed=False, sort_result=True)
 
     for pid in todo:

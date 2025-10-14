@@ -15,6 +15,24 @@ mpl.use("agg")
 
 torch.set_grad_enabled(False)
 
+# === MSA helper utilities (seed-frame operations) ===
+def _a3m_cols(seq: str):
+    """Return A3M 'columns' (uppercase AA or '-') for a raw a3m row."""
+    return [c for c in seq if c.isupper() or c == '-']
+
+def _ungapped_seed_indices(seq: str):
+    """Indices (0..L_seed-1) of columns where this row has a residue (uppercase)."""
+    cols = _a3m_cols(seq)
+    return [i for i, c in enumerate(cols) if c.isupper()]
+
+def _least_gappy_first(rows):
+    """
+    rows: list[(header, sequence_str)]
+    Return rows sorted descending by #uppercase in seed-frame columns;
+    this makes row-1 (query) the least-gappy sequence.
+    """
+    return sorted(rows, key=lambda hs: sum(ch.isupper() for ch in _a3m_cols(hs[1])), reverse=True)
+
 
 if __name__ == '__main__':
 
@@ -138,6 +156,8 @@ if __name__ == '__main__':
 
     elif args.model == 'msa_t':
         for name, msa_rows in msas.items():
+            msa_rows = _least_gappy_first(msa_rows)
+
             # reduce MSA rows to a manageable depth (keeps first row as query)
             inputs = greedy_select(msa_rows, num_seqs=128)
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
@@ -148,15 +168,32 @@ if __name__ == '__main__':
             if seqlen > 1024:
                 print(f"[MSAT] Warning: MSA length {seqlen} > 1024; cropping to 1024.")
                 batch_tokens = batch_tokens[:, :, :1024]
-            # ---------------------------------------
+
+
+            # --------------------------------------- SAVE TO NPZ FILES ---------------------------------------
 
             print('MSA-Transformer predicting...')
-            pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()
-            if args.saveformat == "text":
-                np.savetxt(f"{args.o}/{args.model}_{args.keyword}_{name}.npy", pred)
-            else:
-                np.save(f"{args.o}/{args.model}_{args.keyword}_{name}.npy", pred)
-            print(f"wrote {args.o}/{args.model}_{args.keyword}_{name}.npy")
+            pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()  # (L_pred, L_pred)
+
+            # --- Build idx (seed-frame indices of row-1 non-gap columns) ---
+            # NOTE: row-1 in the batch is msa_rows[0] after your selection/subsampling logic.
+            # IMPORTANT: if you subselect depth BEFORE tokenization, ensure msa_rows[0] is still first.
+            q_hdr, q_seq = inputs[0] if 'inputs' in locals() else msa_rows[0]
+            idx_seed = np.asarray(_ungapped_seed_indices(q_seq), dtype=np.int32)  # in seed frame
+
+            # If you ALSO drop all-gap columns across selected rows before tokenization, intersect here:
+            # keep_cols = np.asarray([j for j in range(len(_a3m_cols(q_seq))) if any(_a3m_cols(s)[j].isupper() for _,s in inputs)], dtype=np.int32)
+            # idx_seed = idx_seed[np.isin(idx_seed, keep_cols)]
+
+            # --- Save .npz with both cmap and idx ---
+            out_base = f"{args.o}/{args.model}_{args.keyword}_{name}"
+            np.savez(
+                out_base + ".npz",
+                cmap=pred.astype(np.float32),
+                idx=idx_seed,  # indices in 0..L_seed-1 (seed pairwise alignment)
+                # keep_cols=keep_cols if you maintain them (optional)
+            )
+            print(f"wrote {out_base}.npz  (cmap {pred.shape}, idx {len(idx_seed)})")
 
     print("Finished! Runtime for " + str(len(msas)) + " alignments = "
           + str(time.time() - start_time) + " seconds")
