@@ -85,7 +85,7 @@ if __name__ == '__main__':
         for msa_fil in input_a3ms
     }
 
-    # Derive pair root to locate DeepMsa.* robustly (works for .../output_msa_cluster and .../output_msa_cluster_pairtrim)
+    # Derive pair root to locate DeepMsa.* only when the user explicitly passed a DeepMsa file
     if len(args.input_msas) == 1 and os.path.isdir(args.input_msas[0]):
         base = args.input_msas[0]
     else:
@@ -96,16 +96,19 @@ if __name__ == '__main__':
                  .replace("/output_msa_cluster", "")
                  .replace("\\output_msa_cluster", ""))
 
-    deep_candidates = [
-        os.path.join(pair_root, "output_get_msa", "DeepMsa_pairtrim.a3m"),  # preferred
-        os.path.join(pair_root, "output_get_msa", "DeepMsa.a3m_pairtrim"),  # legacy alt
-        os.path.join(pair_root, "output_get_msa", "DeepMsa.a3m"),           # original
-    ]
-    for deep_path in deep_candidates:
-        if os.path.isfile(deep_path):
-            print(f"[MSAT] Using Deep MSA: {deep_path}")
-            msas["MSA_deep"] = read_msa(deep_path)
-            break
+    # Only auto-add DeepMsa if the input list itself contains a DeepMsa file name
+    is_input_explicit_deep = any("DeepMsa" in os.path.basename(p) for p in input_a3ms)
+    if is_input_explicit_deep:
+        deep_candidates = [
+            os.path.join(pair_root, "output_get_msa", "DeepMsa_pairtrim.a3m"),  # preferred
+            os.path.join(pair_root, "output_get_msa", "DeepMsa.a3m_pairtrim"),  # legacy alt
+            os.path.join(pair_root, "output_get_msa", "DeepMsa.a3m"),  # original
+        ]
+        for deep_path in deep_candidates:
+            if os.path.isfile(deep_path):
+                print(f"[MSAT] Using Deep MSA: {deep_path}")
+                msas["MSA_deep"] = read_msa(deep_path)
+                break
 
     # For esm1b we need single sequences (first row of each MSA)
     sequences = {name: msa[0] for name, msa in msas.items()}
@@ -122,24 +125,25 @@ if __name__ == '__main__':
     batch_converter = mdl_alphabet.get_batch_converter()
 
     # Apply cleaning policy (default: keep everything)
-    pattern = None
     if args.clean == 'all':
-        pattern = '*.npy'
+        patterns = ['*.npy', '*.npz']
     elif args.clean == 'matched':
-        # delete only files produced by this run configuration
-        if args.keyword:  # be conservative: with empty keyword, do nothing
+        patterns = []
+        if args.keyword:
             prefix = f"{args.model}_{args.keyword}_"
-            pattern = f"{prefix}*.npy"
+            patterns = [f"{prefix}*.npy", f"{prefix}*.npz"]
+    else:
+        patterns = []
 
-    if pattern:
-        print(f"Removing old files: {args.o}/{pattern}")
-        old = glob(os.path.join(args.o, pattern))
-        print(old)
-        for f_old in old:
-            try:
-                os.remove(f_old)
-            except OSError:
-                pass
+    if patterns:
+        for pattern in patterns:
+            print(f"Removing old files: {args.o}/{pattern}")
+            for f_old in glob(os.path.join(args.o, pattern)):
+                try:
+                    os.remove(f_old)
+                except OSError:
+                    pass
+
 
     # --- Predict ---
     if args.model == 'esm1b':
@@ -156,11 +160,36 @@ if __name__ == '__main__':
 
     elif args.model == 'msa_t':
         for name, msa_rows in msas.items():
+            # 1) Put the least-gappy sequence first; this will be the query (row 1)
             msa_rows = _least_gappy_first(msa_rows)
 
-            # reduce MSA rows to a manageable depth (keeps first row as query)
+            # 2) Subsample depth (keeps row 1)
             inputs = greedy_select(msa_rows, num_seqs=128)
-            batch_labels, batch_strs, batch_tokens = batch_converter([inputs])
+
+            # 3) Seed-frame column bookkeeping BEFORE tokenization
+            C = [_a3m_cols(s) for (_, s) in inputs]
+            L_seed = len(C[0])
+            assert all(len(x) == L_seed for x in C), "Selected rows differ in seed-frame length"
+
+            # Columns to keep after removing columns that are all '-' across the selected rows
+            keep_cols = [j for j in range(L_seed) if any(row[j].isupper() for row in C)]
+
+            # Row-1 (query) non-gap indices in SEED frame
+            q_hdr, q_seq = inputs[0]
+            q_mask = set(_ungapped_seed_indices(q_seq))
+
+            # Final idx in SEED frame = query non-gaps ∩ kept columns
+            idx_seed = np.asarray([j for j in keep_cols if j in q_mask], dtype=np.int32)
+
+            # 4) Build the sequences actually fed to the tokenizer (kept columns only)
+            inputs_kept = []
+            for (h, s) in inputs:
+                cols = _a3m_cols(s)
+                seq_kept = "".join(cols[j] for j in keep_cols)
+                inputs_kept.append((h, seq_kept))
+
+            # 5) Tokenize the kept-frame inputs
+            batch_labels, batch_strs, batch_tokens = batch_converter([inputs_kept])
             batch_tokens = batch_tokens.to(next(mdl.parameters()).device)
 
             # ---- SAFETY CAP on sequence length ----
@@ -168,32 +197,22 @@ if __name__ == '__main__':
             if seqlen > 1024:
                 print(f"[MSAT] Warning: MSA length {seqlen} > 1024; cropping to 1024.")
                 batch_tokens = batch_tokens[:, :, :1024]
+                # If you ever hit this branch, you'd also want to trim idx_seed accordingly.
+                # For your current lengths (~198), this won't trigger.
 
-
-            # --------------------------------------- SAVE TO NPZ FILES ---------------------------------------
-
+            # 6) Predict and save
             print('MSA-Transformer predicting...')
             pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()  # (L_pred, L_pred)
 
-            # --- Build idx (seed-frame indices of row-1 non-gap columns) ---
-            # NOTE: row-1 in the batch is msa_rows[0] after your selection/subsampling logic.
-            # IMPORTANT: if you subselect depth BEFORE tokenization, ensure msa_rows[0] is still first.
-            q_hdr, q_seq = inputs[0] if 'inputs' in locals() else msa_rows[0]
-            idx_seed = np.asarray(_ungapped_seed_indices(q_seq), dtype=np.int32)  # in seed frame
-
-            # If you ALSO drop all-gap columns across selected rows before tokenization, intersect here:
-            # keep_cols = np.asarray([j for j in range(len(_a3m_cols(q_seq))) if any(_a3m_cols(s)[j].isupper() for _,s in inputs)], dtype=np.int32)
-            # idx_seed = idx_seed[np.isin(idx_seed, keep_cols)]
-
-            # --- Save .npz with both cmap and idx ---
             out_base = f"{args.o}/{args.model}_{args.keyword}_{name}"
             np.savez(
                 out_base + ".npz",
                 cmap=pred.astype(np.float32),
-                idx=idx_seed,  # indices in 0..L_seed-1 (seed pairwise alignment)
-                # keep_cols=keep_cols if you maintain them (optional)
+                idx=idx_seed,                         # len(idx_seed) == pred.shape[0]
+                keep_cols=np.asarray(keep_cols, np.int32),  # optional, handy for debugging
             )
             print(f"wrote {out_base}.npz  (cmap {pred.shape}, idx {len(idx_seed)})")
+
 
     print("Finished! Runtime for " + str(len(msas)) + " alignments = "
           + str(time.time() - start_time) + " seconds")

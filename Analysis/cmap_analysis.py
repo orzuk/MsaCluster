@@ -107,10 +107,10 @@ def _truth_contacts(coords: np.ndarray, cutoff=CONTACT_CUTOFF, sep_min=6):
     return mask
 
 
-def _bin_pred(mat: np.ndarray, thresh=0.4, sep_min=6, index_tol=0):
+def _bin_pred(mat: np.ndarray, prob_thresh=0.4, sep_min=6, index_tol=0):
     """Threshold a probability CMAP; apply sep_min and optional +/- index tolerance."""
     n = mat.shape[0]
-    pred = (mat >= thresh)
+    pred = (mat >= prob_thresh)
     # remove diagonal & short-range
     for i in range(n):
         lo = max(0, i - (sep_min-1))
@@ -311,7 +311,7 @@ def evaluate_pred_cmap(
 def compute_cmap_metrics_for_pair(
     subdir: str,
     include_deep: bool = True,
-    thresh: float = 0.4,
+    thresh: float = 0.4,  # Threshold for ???
     sep_min: int = 6,
     index_tol: int = 0,
 ):
