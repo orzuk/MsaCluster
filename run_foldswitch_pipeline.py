@@ -1779,7 +1779,6 @@ def task_deltaG(pair_id: str) -> None:
 
     compute_global_and_residue_energies(pdb_pairs=[(pdb1, pdb2)], foldpair_ids=[pair_id], output_dir=str(out_dir), plot_dir=None)
 
-
 def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     """
     Unified post-processing / reports:
@@ -1790,6 +1789,8 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     Controlled by --reports: none | tables | html | all
     Safe to run incrementally.
     """
+    import shlex, subprocess, sys
+    from pathlib import Path
 
     # Normalize pairs to strings like "1wp8C_5ejbC"
     norm_pairs = [
@@ -1799,16 +1800,100 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     # For builders that auto-discover when None:
     pairs_arg = None if norm_pairs == ["ALL"] else norm_pairs
 
-    # 1) Per-pair metrics (heavy) — skip if --cached_only TRUE
+    # Map CLI flags
     cached_only = _bool_from_tf(getattr(args, "cached_only", "FALSE"))
-    if not cached_only:
-        try:
-            force = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
-            post_processing_analysis(force_rerun=force, pairs=pairs_arg)
-        except Exception as e:
-            print(f"[postprocess] WARN post_processing_analysis: {e}")
+    force_rerun = not cached_only or _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
+    run_job_mode = (getattr(args, "run_job_mode", "local") or "local").lower()
 
-    # === Build/refresh global cached tables (no heavy compute here) ===
+    # =========================
+    # PER-PAIR POSTPROCESS STEP
+    # =========================
+    if not cached_only:
+        # Figure out which pairs to process
+        if pairs_arg is None:
+            # auto-discover all pair dirs in Pipeline/
+            pair_dirs = [d.name for d in Path(DATA_DIR).iterdir() if d.is_dir()]
+        else:
+            pair_dirs = pairs_arg
+
+        if run_job_mode in ("local", "inline", ""):
+            # Local/in-process: recompute per-pair CSVs
+            try:
+                from Analysis.postprocess_unified import post_processing_analysis
+                post_processing_analysis(force_rerun=force_rerun, pairs=pair_dirs)
+                print(f"[postprocess] per-pair Analysis refreshed (local) for {len(pair_dirs)} pairs.")
+            except Exception as e:
+                print(f"[postprocess] WARN post_processing_analysis(local): {e}")
+        elif run_job_mode == "sbatch":
+            # Submit one job per pair; then a single unify job with dependency
+            jobs_dir = Path("Pipeline/jobs"); jobs_dir.mkdir(parents=True, exist_ok=True)
+
+            # sbatch resource knobs (with sane defaults)
+            pp_cpus = getattr(args, "postproc_cpus", 2)
+            pp_mem  = getattr(args, "postproc_mem",  "8G")
+            pp_time = getattr(args, "postproc_time", "02:00:00")
+            pp_part = getattr(args, "postproc_partition", None)
+
+            job_ids = []
+            for pid in pair_dirs:
+                cmd = (
+                    f"{shlex.quote(sys.executable)} Analysis/postprocess_unified.py "
+                    f"--pairs {shlex.quote(pid)} --mode full "
+                    + ("--force_rerun " if force_rerun else "")
+                )
+                log = jobs_dir / f"postproc_{pid}.out"
+                sbatch = [
+                    "sbatch",
+                    "--parsable",
+                    f"--job-name=pp_{pid}",
+                    f"--cpus-per-task={pp_cpus}",
+                    f"--mem={pp_mem}",
+                    f"--time={pp_time}",
+                    f"--output={log}",
+                    "--wrap", shlex.quote(cmd),
+                ]
+                if pp_part:
+                    sbatch.insert(1, f"--partition={pp_part}")
+                jid = subprocess.check_output(" ".join(sbatch), shell=True, text=True).strip()
+                job_ids.append(jid)
+                print(f"[postprocess] submitted per-pair job {jid} for {pid}")
+
+            # Submit a "unify" job that depends on all per-pair jobs
+            dep = ":".join(job_ids) if job_ids else ""
+            unify_cmd = f"{shlex.quote(sys.executable)} Analysis/postprocess_unified.py --mode unify"
+            # Allow this unify to also regenerate global CSV/HTML as requested
+            # We pass env var to tell postprocess_unified which reports to emit (optional).
+            unify_log = jobs_dir / "postproc_unify.out"
+            sbatch_unify = [
+                "sbatch",
+                "--parsable",
+                f"--job-name=pp_unify",
+                f"--cpus-per-task=2",
+                f"--mem=4G",
+                f"--time=01:00:00",
+                f"--output={unify_log}",
+                f"--dependency=afterok:{dep}" if dep else "",
+                "--wrap", shlex.quote(unify_cmd),
+            ]
+            # Remove empty arg if dep is empty
+            sbatch_unify = [x for x in sbatch_unify if x]
+            unify_jid = subprocess.check_output(" ".join(sbatch_unify), shell=True, text=True).strip()
+            print(f"[postprocess] submitted UNIFY job {unify_jid} depending on {len(job_ids)} jobs.")
+            # When using sbatch, we stop here and let unify produce tables/html.
+            print("[postprocess] sbatch mode: global tables/HTML will be generated by the unify job.")
+            return
+        else:
+            print(f"[postprocess] WARN unknown run_job_mode={run_job_mode}; running local fallback.")
+            try:
+                from Analysis.postprocess_unified import post_processing_analysis
+                post_processing_analysis(force_rerun=force_rerun, pairs=pair_dirs)
+            except Exception as e:
+                print(f"[postprocess] WARN post_processing_analysis(fallback): {e}")
+
+    # ================================
+    # GLOBAL CSV + HTML (LOCAL ONLY)
+    # ================================
+    # Only build immediately if we didn’t go through sbatch path.
     try:
         force_global = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
         summary_csv, detail_csv = build_or_load_global_tables(force=force_global)
@@ -1817,29 +1902,23 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"[postprocess] WARN global tables: {e}")
 
-    # 2) + 3) Global CSVs + HTML tables
     if args.reports in ("tables", "all"):
-        # 2) Build unified CSVs ...
         try:
-            build_unified_tables_from_cluster_dfs(pairs=pairs_arg, write_out=True)
+            build_unified_tables_from_cluster_dfs(pairs=(None if pairs_arg is None else pairs_arg), write_out=True)
             print(f"[reports] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
         except Exception as e:
             print(f"[reports] WARN building unified CSVs: {e}")
 
-
-        # 3.1) Generate HTML tables (single source-of-truth)
         try:
             os.makedirs(TABLES_RES, exist_ok=True)
             write_global_tables(force_rerun_csv=False, fade_min_clusters=2)
         except Exception as e:
             print(f"[reports] WARN write_global_tables: {e}")
 
-        # 3.2) Global plots page (unchanged)
         try:
             gen_html_for_global_plots(
                 images_dir=FIGURE_RES_DIR,
                 output_html=os.path.join("docs", "pairs_global_analysis.html"))
-            # Mirror to repo root for GitHub Pages (optional)
             src = os.path.join("docs", "pairs_global_analysis.html")
             dst = os.path.join(MAIN_DIR, "pairs_global_analysis.html")
             if os.path.isfile(src):
@@ -1848,14 +1927,11 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[reports] WARN building global plots page: {e}")
 
-
-    # 4) Per-pair HTML pages (new generator)
+    # Per-pair HTML generation unchanged (runs local/sbatch already below)
     if args.reports in ("html", "all"):
         try:
-            # keep only pairs that already have per-pair postprocess outputs
             ready = []
-            for p in (
-            norm_pairs if pairs_arg is not None else [d.name for d in Path(DATA_DIR).iterdir() if d.is_dir()]):
+            for p in (norm_pairs if pairs_arg is not None else [d.name for d in Path(DATA_DIR).iterdir() if d.is_dir()]):
                 if os.path.isfile(f"Pipeline/{p}/Analysis/df_af.csv"):
                     ready.append(p)
                 else:
@@ -1865,36 +1941,29 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
                 print("[html] no ready pairs; skipping per-pair HTML generation")
             else:
                 mode = getattr(args, "html_mode", "inline")
-                outdir = OUTPUT_PATH_NOTEBOOKS  # from config.py
+                outdir = OUTPUT_PATH_NOTEBOOKS
                 script = Path("TableResults/gen_pair_html.py")
-
-                # If user said ALL at CLI we respect that; otherwise pass explicit list
                 pairs_arg_str = "ALL" if pairs_arg is None else ",".join(ready)
-
                 cmd = (
                     f"{shlex.quote(sys.executable)} {shlex.quote(str(script))} "
                     f"--pairs {shlex.quote(pairs_arg_str)} "
                     f"--mode {shlex.quote(mode)} "
                     f"--output_dir {shlex.quote(str(outdir))}"
                 )
-
-                if args.run_job_mode == "sbatch":
-                    jobs_dir = Path("Pipeline/jobs");
-                    jobs_dir.mkdir(parents=True, exist_ok=True)
+                if run_job_mode == "sbatch":
+                    jobs_dir = Path("Pipeline/jobs"); jobs_dir.mkdir(parents=True, exist_ok=True)
                     log = jobs_dir / f"genhtml_{mode}.out"
                     cpus = getattr(args, "html_cpus", 2)
                     mem = getattr(args, "html_mem", "4G")
                     time = getattr(args, "html_time", "02:00:00")
                     part = getattr(args, "html_partition", None)
-
                     sbatch = [
-                        "sbatch",
+                        "sbatch", "--parsable",
                         f"--job-name=genhtml",
                         f"--cpus-per-task={cpus}",
                         f"--mem={mem}",
                         f"--time={time}",
                         f"--output={log}",
-                        "--parsable",
                         "--wrap", shlex.quote(cmd),
                     ]
                     if part: sbatch.insert(1, f"--partition={part}")
@@ -1909,7 +1978,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     print("[postprocess] done.", flush=True)
 
 
-# All Pipeline
 # All Pipeline
 def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     """
@@ -2270,8 +2338,6 @@ def main():
     if args.run_mode == "plot":
         task_plot(pair_id=foldpairs, args=args)        # Run global plots ONCE
         return
-
-
 
     for pair_id in foldpairs:
         print(f"=== {args.run_mode} :: {pair_id} ===", flush=True)
