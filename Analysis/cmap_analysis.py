@@ -385,6 +385,15 @@ def compute_cmap_metrics_for_pair(
     col2res1 = _col_to_res(s1) if s1 else {}
     col2res2 = _col_to_res(s2) if s2 else {}
 
+    # ----- NEW: guard against seed->residue mapping running past the PDB chain length
+    n1 = T1.shape[0]
+    n2 = T2.shape[0]
+
+    def _safe_cols(cols, col2res, nmax):
+        # keep only seed columns that map to a residue index within [0, nmax)
+        return [c for c in cols if (c in col2res) and (0 <= col2res[c] < nmax)]
+
+
     rows = []
     for f in files:
         # Load prediction and the seed-frame idx it uses
@@ -409,27 +418,51 @@ def compute_cmap_metrics_for_pair(
         IU1_cols = sorted(set(keep1).difference(keep2).intersection(idx))  # uniq1 columns present
         IU2_cols = sorted(set(keep2).difference(keep1).intersection(idx))  # uniq2 columns present
 
-        # Convert SEED columns -> P-axis indices
-        M1  = np.fromiter((pos[c] for c in I1_cols), dtype=int)
-        M2  = np.fromiter((pos[c] for c in I2_cols), dtype=int)
-        MC  = np.fromiter((pos[c] for c in IC_cols), dtype=int)
-        MU1 = np.fromiter((pos[c] for c in IU1_cols), dtype=int)
-        MU2 = np.fromiter((pos[c] for c in IU2_cols), dtype=int)
+        # ----- NEW: filter seed columns that map outside the truth chain length
+        I1_cols_f  = _safe_cols(I1_cols,  col2res1, n1)
+        I2_cols_f  = _safe_cols(I2_cols,  col2res2, n2)
+        IC_cols_f  = _safe_cols(IC_cols,  col2res1, n1)  # for "common", we’ll take T1C/T2C separately
+        IC_cols_f2 = _safe_cols(IC_cols,  col2res2, n2)  # keep a paired set for T2C
+        IU1_cols_f = _safe_cols(IU1_cols, col2res1, n1)
+        IU2_cols_f = _safe_cols(IU2_cols, col2res2, n2)
 
-        # Slice predictions into each frame
-        P1  = P[np.ix_(M1,  M1)]
-        P2  = P[np.ix_(M2,  M2)]
-        PC  = P[np.ix_(MC,  MC)]
-        PU1 = P[np.ix_(MU1, MU1)]
-        PU2 = P[np.ix_(MU2, MU2)]
+        # Convert SEED columns -> P-axis indices, using the FILTERED sets
+        M1  = np.fromiter((pos[c] for c in I1_cols_f),  dtype=int)
+        M2  = np.fromiter((pos[c] for c in I2_cols_f),  dtype=int)
+        MC  = np.fromiter((pos[c] for c in IC_cols_f),  dtype=int)   # same columns for P-common
+        MU1 = np.fromiter((pos[c] for c in IU1_cols_f), dtype=int)
+        MU2 = np.fromiter((pos[c] for c in IU2_cols_f), dtype=int)
 
-        # --- Build truth frames by mapping SEED columns -> residue indices
-        R1  = np.fromiter((col2res1[c] for c in I1_cols), dtype=int)  # length == P1.shape[0]
-        R2  = np.fromiter((col2res2[c] for c in I2_cols), dtype=int)
-        RC1 = np.fromiter((col2res1[c] for c in IC_cols), dtype=int)
-        RC2 = np.fromiter((col2res2[c] for c in IC_cols), dtype=int)
-        RU1 = np.fromiter((col2res1[c] for c in IU1_cols), dtype=int)
-        RU2 = np.fromiter((col2res2[c] for c in IU2_cols), dtype=int)
+        # Slice predictions into each frame (shapes will match truths below)
+        P1  = P[np.ix_(M1,  M1)]   if M1.size  else None
+        P2  = P[np.ix_(M2,  M2)]   if M2.size  else None
+        PC  = P[np.ix_(MC,  MC)]   if MC.size  else None
+        PU1 = P[np.ix_(MU1, MU1)]  if MU1.size else None
+        PU2 = P[np.ix_(MU2, MU2)]  if MU2.size else None
+
+        # --- Build truth frames by mapping SEED columns -> residue indices (FILTERED)
+        R1  = np.fromiter((col2res1[c] for c in I1_cols_f),  dtype=int)
+        R2  = np.fromiter((col2res2[c] for c in I2_cols_f),  dtype=int)
+        RC1 = np.fromiter((col2res1[c] for c in IC_cols_f),  dtype=int)
+        RC2 = np.fromiter((col2res2[c] for c in IC_cols_f2), dtype=int)
+        RU1 = np.fromiter((col2res1[c] for c in IU1_cols_f), dtype=int)
+        RU2 = np.fromiter((col2res2[c] for c in IU2_cols_f), dtype=int)
+
+
+        # Optional debug if anything was dropped
+        if (len(I1_cols_f)  != len(I1_cols) or
+            len(I2_cols_f)  != len(I2_cols) or
+            len(IC_cols_f)  != len(IC_cols) or
+            len(IU1_cols_f) != len(IU1_cols) or
+            len(IU2_cols_f) != len(IU2_cols)):
+            print(f"[cmap] NOTE {subdir} {os.path.basename(f)}: "
+                  f"dropped seed columns out of range "
+                  f"(fold1: {len(I1_cols)-len(I1_cols_f)} | "
+                  f"fold2: {len(I2_cols)-len(I2_cols_f)} | "
+                  f"common: {len(IC_cols)-len(IC_cols_f)} | "
+                  f"uniq1: {len(IU1_cols)-len(IU1_cols_f)} | "
+                  f"uniq2: {len(IU2_cols)-len(IU2_cols_f)})")
+
 
         # Fold-specific truths
         T1S = T1[np.ix_(R1, R1)] if len(R1) else None

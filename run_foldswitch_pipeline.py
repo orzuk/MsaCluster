@@ -104,8 +104,6 @@ def _alarm_timeout(seconds: int, what: str):
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old)
 
-
-
 def _csv_bool(x) -> bool:
     if isinstance(x, (bool, np.bool_)):
         return bool(x)
