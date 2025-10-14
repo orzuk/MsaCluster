@@ -227,7 +227,7 @@ def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, o
 
     for name, raw_seq in seqs:
         seq = process_sequence(raw_seq) or "".join(ch for ch in raw_seq if ch.isalpha())
-        print(f"[{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
+        print(f"[esm2][{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
 
         cur_chunk = int(chunk_size)
         cur_recycles = int(num_recycles)
@@ -356,62 +356,71 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
 
 def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Path, model_tag: str) -> Dict:
     if not ESM_PATH:
-        raise RuntimeError("ESM_PATH is not set in config.py or environment.")
+        raise RuntimeError("[esm3] ESM_PATH is not set in config.py or environment.")
     script = Path(ESM_PATH) / ESM3_INFER_SCRIPT
     if not script.exists():
         raise FileNotFoundError(f"ESM3 inference script not found: {script}")
 
+    # one-shot, directory-wide helper call (keeps one HF model loaded on GPU)
     outputs = []
     index_rows = []
-    for name, seq in seqs:
-        orig_len = len(seq)
-        seq = process_sequence(seq)
-        if not seq:
-            print(f"[esm3] skip {name}: empty after sanitization (was {orig_len} aa)")
+
+    # Build env + paths
+    env = os.environ.copy()
+    repo_root = Path(__file__).resolve().parent
+    env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
+    script = repo_root / "infer_esm3.py"
+
+    # IMPORTANT: point the helper to the directory that already contains the
+    # sampled/sanitized FASTAs (e.g., Pipeline/<pair_id>/tmp_esmfold/*.fasta)
+    cmd = [
+        sys.executable, str(script),
+        "--fasta_dir", str(tmp_dir),  # <<< batch mode
+        "--device", device  # "cuda" / "cpu" / "auto" (helper resolves)
+    ]
+
+    res = subprocess.run(
+        cmd, capture_output=True, text=True,
+        cwd=str(repo_root), env=env
+    )
+
+    # Parse stdout blocks emitted by infer_esm3.py:
+    # >>>PDB_START <name>\n<PDB text>\n>>>PDB_END <name>
+    out = res.stdout or ""
+    for block in out.split(">>>PDB_START "):
+        if not block.strip():
             continue
-        if len(seq) != orig_len:
-            print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
+        header, body = block.split("\n", 1)
+        name = header.strip()
+        pdb_txt, _ = body.split(">>>PDB_END", 1)
 
-        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
-            tf.write(f">{name}\n{seq}\n")
-            fasta_path = tf.name
-        try:
-            env = os.environ.copy()
-            repo_root = Path(__file__).resolve().parent
-            env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
-            cmd = [sys.executable, str(script), "--fasta", fasta_path, "--device", device]
-            res = subprocess.run(cmd, capture_output=True, text=True,
-                                 cwd=str(Path(script).parent), env=env)
-            if res.returncode != 0:
-                err = (res.stderr or "").strip()
-                print(f"[esm3] WARN: subprocess failed for {name}; skipping this sequence.\n"
-                      f"[esm3] short stderr: {err[:500]}", flush=True)
-                # optional: drop a marker so downstream tables show it was skipped
-                try:
-                    (outdir / f"{name}_{model_tag}.SKIPPED").write_text(err[:2000])
-                except Exception:
-                    pass
-                # do NOT append to outputs/index_rows; just continue to next sequence
-                continue
+        # STREAM WRITE NOW (same helper you already use)
+        p = write_one_pdb(outdir, name, model_tag, pdb_txt)
+        print(f"[esm3] wrote {p}", flush=True)
 
-            pdb_str = res.stdout
-            # STREAM WRITE NOW:
-            p = write_one_pdb(outdir, name, model_tag, pdb_str)
-            print(f"[esm3] wrote {p}", flush=True)
+        # Minimal bookkeeping (adjust if your downstream expects more fields)
+        outputs.append({
+            "name": name,
+            "pdb": None,  # we already wrote the PDB to disk; avoid keeping big strings in RAM
+            "plddt": None,
+            "pae": None,
+            "residue_index": None  # optional; set to a list if downstream truly needs it
+        })
+        index_rows.append((name, str(p)))
 
-            outputs.append({
-                "name": name,
-                "pdb": pdb_str,
-                "plddt": None,
-                "pae": None,
-                "residue_index": list(range(1, len(seq) + 1)),
-            })
-            index_rows.append((name, str(p)))
-        finally:
+    # Any failures come on stderr from infer_esm3.py; write .SKIPPED markers
+    for line in (res.stderr or "").splitlines():
+        if line.startswith("[hf-esmfold] OOM/FAIL for "):
+            bad = line.split("for ", 1)[1].split(":", 1)[0].strip()
             try:
-                os.unlink(fasta_path)
+                (outdir / f"{bad}_{model_tag}.SKIPPED").write_text(line[:2000])
             except Exception:
                 pass
+
+    # Non-zero return just means some sequences were skipped; don't crash the run
+    if res.returncode not in (0,):
+        print(f"[esm3] helper exit code {res.returncode}; some sequences may be skipped.", flush=True)
+
 
     # return standard shape; write_normalized_outputs will still create combined + index
     return {"backend": "esm3-subprocess", "chains": outputs}
