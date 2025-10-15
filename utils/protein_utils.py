@@ -52,9 +52,25 @@ deletekeys["*"] = None
 translation = str.maketrans(deletekeys)
 
 
+def pair_id2dir(pair_id: str) -> Path:
+    return PAIR_DIR / pair_id
+
+def truth_pdbs(pair_id: str) -> tuple[str, str, str, str]:
+    """Return (pdb1_path, chain1, pdb2_path, chain2). Prefers chain-sliced PDBs if present."""
+    a, b = pair_str_to_tuple(pair_id)
+    p1, c1 = a[:-1], a[-1]
+    p2, c2 = b[:-1], b[-1]
+    cand1 = pair_id2dir(pair_id) / "chain_pdb_files" / f"{a}.pdb"
+    cand2 = pair_id2dir(pair_id) / "chain_pdb_files" / f"{b}.pdb"
+    pdb1 = str(cand1 if cand1.is_file() else (pair_id2dir(pair_id) / f"{p1}.pdb"))
+    pdb2 = str(cand2 if cand2.is_file() else (pair_id2dir(pair_id) / f"{p2}.pdb"))
+    return pdb1, c1, pdb2, c2
+
+
+
 def pair_max_len_from_truth(pair_id: str) -> int:
     print("[calc max_len] pair_id:", pair_id, flush=True)
-    pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+    pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
     print("[calc max_len] pdb1:", pdb1, " c1:", c1, " pdb2:", pdb2, " c2:", c2, flush=True)
     def _len(pdb_path, chain_id):
         n, seen = 0, set()

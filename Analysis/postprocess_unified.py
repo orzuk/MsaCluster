@@ -13,7 +13,7 @@ sys.path.insert(0, ROOT)
 
 from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_TRANS_MODEL_FILE
 from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
-from utils.protein_utils import pair_max_len_from_truth
+from utils.protein_utils import pair_max_len_from_truth, pair_id2dir, truth_pdbs
 from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
@@ -206,7 +206,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
     num_pairs = len(pairs)
     ctr_pairs = 0
     for pair_id in pairs:
-        pair_dir = _pair_dir(pair_id)
+        pair_dir = pair_id2dir(pair_id)
         if not pair_dir.is_dir():
             continue
 
@@ -242,8 +242,8 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         row["MSA: DEPTH; #RES; #Clusters"] = f"{int(msa_depth)}; {int(msa_width)}; {int(n_clusters)}"
 #        print("Set MSA: DEPTH; #RES; #Clusters:", row["MSA: DEPTH; #RES; #Clusters"])
 
-        pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
-        pair_dir_str = str(_pair_dir(pair_id))
+        pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
+        pair_dir_str = str(pair_id2dir(pair_id))
         print("Compute TrueTM: pair_id:", pair_id, " ; ", ctr_pairs,  " out of ", num_pairs)
         ctr_pairs += 1
         def _tm_sym_once(pa: str, pb: str) -> float:
@@ -348,20 +348,6 @@ def _read_or_compute_cmap(pair_id: str, force: bool = False) -> pd.DataFrame:
     # import the callable (local import avoids import cycles at module load time)
     return compute_cmap_metrics_for_pair(pair_id, include_deep=True, thresh=0.4, sep_min=6, index_tol=0)
 
-def _pair_dir(pair_id: str) -> Path:
-    return PAIR_DIR / pair_id
-
-def _truth_pdbs(pair_id: str) -> tuple[str, str, str, str]:
-    """Return (pdb1_path, chain1, pdb2_path, chain2). Prefers chain-sliced PDBs if present."""
-    a, b = pair_str_to_tuple(pair_id)
-    p1, c1 = a[:-1], a[-1]
-    p2, c2 = b[:-1], b[-1]
-    cand1 = _pair_dir(pair_id) / "chain_pdb_files" / f"{a}.pdb"
-    cand2 = _pair_dir(pair_id) / "chain_pdb_files" / f"{b}.pdb"
-    pdb1 = str(cand1 if cand1.is_file() else (_pair_dir(pair_id) / f"{p1}.pdb"))
-    pdb2 = str(cand2 if cand2.is_file() else (_pair_dir(pair_id) / f"{p2}.pdb"))
-    return pdb1, c1, pdb2, c2
-
 
 def _ensure_pair_analysis(pair_id: str) -> Path:
     """
@@ -384,12 +370,12 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
     if out_csv.is_file() and not force:
         return pd.read_csv(out_csv)
 
-    pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+    pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
     rows = []
 
     # ONLY canonical top-level PDBs:
     for ver in ("AF2", "AF3"):
-        top = _pair_dir(pair_id) / "output_AF" / ver
+        top = pair_id2dir(pair_id) / "output_AF" / ver
         if not top.is_dir():
             continue
         for pred in sorted(top.glob("*.pdb")):  # <-- no recursion
@@ -426,10 +412,10 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
     if out_csv.is_file() and not force:
         return pd.read_csv(out_csv)
 
-    pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+    pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
     rows = []
     for model_tag in ("esm2", "esm3"):
-        mdir = _pair_dir(pair_id) / "output_esm_fold" / model_tag
+        mdir = pair_id2dir(pair_id) / "output_esm_fold" / model_tag
         if not mdir.is_dir():
             continue
         idx = mdir / "samples_index.tsv"
@@ -476,7 +462,7 @@ def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
 
 def _read_cmap(pair_id: str) -> pd.DataFrame:
     """Read per-pair cmap metrics produced by cmap_analysis.py (don’t recompute here)."""
-    csv = _pair_dir(pair_id) / "Analysis" / "df_cmap.csv"
+    csv = pair_id2dir(pair_id) / "Analysis" / "df_cmap.csv"
     return pd.read_csv(csv) if csv.is_file() else pd.DataFrame()
 
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
@@ -842,7 +828,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
     summary_rows = []
 
     for pair_id in tqdm(pairs, desc="postproc"):
-        pair_dir = _pair_dir(pair_id)
+        pair_dir = pair_id2dir(pair_id)
         if not pair_dir.is_dir():
             continue
 
