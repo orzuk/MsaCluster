@@ -1,5 +1,6 @@
 # postprocess_unified.py
 import os, re, glob, sys, json
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
@@ -11,13 +12,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_TRANS_MODEL_FILE
-from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
+from utils.utils import list_protein_pairs, pair_str_to_tuple, pick, pair_max_len_from_truth
 from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
-
-import numpy as np
-import pandas as pd
-
 
 PAIR_DIR = Path(DATA_DIR)
 
@@ -189,24 +186,6 @@ def _best_max(df: Optional[pd.DataFrame], col: str) -> str:
     s = pd.to_numeric(df[col], errors="coerce")
     return f"{s.max():.2f}" if s.notna().any() else "-"
 
-def _pair_max_len_from_truth(pair_id: str) -> int:
-    pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
-    def _len(pdb_path, chain_id):
-        n, seen = 0, set()
-        try:
-            with open(pdb_path) as fh:
-                for line in fh:
-                    if not line.startswith("ATOM"): continue
-                    if line[12:16].strip() != "CA": continue
-                    if chain_id and (line[21].strip() != chain_id): continue
-                    resnum = (line[22:27], line[26])
-                    if resnum not in seen:
-                        seen.add(resnum); n += 1
-        except Exception:
-            pass
-        return n
-    return max(_len(pdb1, c1), _len(pdb2, c2))
-
 
 def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
                                           write_out: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -253,7 +232,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         tm_esm = _norm_tm_df(df_esm, "esm2")
         tm_all = pd.concat([tm_af, tm_esm], ignore_index=True) if len(tm_af) or len(tm_esm) else pd.DataFrame()
 
-        row = {"pair_id": pair_id, "#RES": _pair_max_len_from_truth(pair_id)}
+        row = {"pair_id": pair_id, "#RES": pair_max_len_from_truth(pair_id)}
 
         deepmsa_file = _deepmsa_a3m_path(pair_id)
         msa_depth = _count_a3m_sequences_fast(deepmsa_file)
@@ -896,7 +875,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             det["pair_id"] = pair_id
             all_detailed.append(det)
 
-        max_len = _pair_max_len_from_truth(pair_id)
+        max_len = pair_max_len_from_truth(pair_id)
         # Summary row (pair-level)
         summary_rows.append({
             "pair_id": pair_id,

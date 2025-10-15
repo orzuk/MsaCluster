@@ -183,6 +183,8 @@ PAIR_DIR_RE = re.compile(r'^([0-9A-Za-z]{4}[A-Za-z0-9])_([0-9A-Za-z]{4}[A-Za-z0-
 # Which of the five AF2 models to use for prediction
 AF2_MODEL = 2
 
+ESM_MAX_LIGHT_SEQ_LEN = 800  # Above this try heavy jobs
+
 CONTACT_CUTOFF = 8.0  # Å; adjust if you use a different truth definition
 
 

@@ -381,6 +381,16 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
     mail = getattr(args, "sbatch_mail", None)
     mtyp = getattr(args, "sbatch_mail_type", None)
 
+    # --- NEW: auto-upgrade GPU for long chains when running esm3/both ---
+    try:
+        L = pair_max_len_from_truth(pair_id)  # or _pair_max_len_from_truth(pair_id) if you have it
+    except Exception:
+        L = 0
+    max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
+    if run_mode == "run_esmfold" and wants_esm3 and L >= max_len:
+        gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
+        print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {thr} ⇒ using {gres}", flush=True)
+
     inner = [
         shlex.quote(sys.executable),
         "run_foldswitch_pipeline.py",
@@ -487,6 +497,17 @@ def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     qos = getattr(args, "sbatch_qos", None)
     mail = getattr(args, "sbatch_mail", None)
     mtyp = getattr(args, "sbatch_mail_type", None)
+
+    # --- NEW: auto-upgrade GPU for long chains when running esm3/both ---
+    try:
+        L = pair_max_len_from_truth(pair_id)  # or _pair_max_len_from_truth(pair_id) if you have it
+    except Exception:
+        L = 0
+    max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
+    if run_mode == "run_esmfold" and wants_esm3 and L >= max_len:
+        gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
+        print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {thr} ⇒ using {gres}", flush=True)
+
 
     sbatch_opts = f"--gres={gres} --cpus-per-task={cpus} --mem={mem} --time={time}"
     if part: sbatch_opts += f" -p {shlex.quote(part)}"
@@ -2212,7 +2233,7 @@ def main():
     p.add_argument("--cluster_sample_n", type=int, default=10)
     p.add_argument("--esm_model", default="both", choices=["esm2", "esm3", "both"])
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
-    p.add_argument("--esm_gpu_len_threshold", type=int, default=800,
+    p.add_argument("--esm_gpu_len_threshold", type=int, default=ESM_MAX_LIGHT_SEQ_LEN,
                help="If max chain length ≥ this, run ESM on CPU to avoid CUDA OOM (default: 800).")
 
     # ---- CCMpred options ----
@@ -2301,6 +2322,10 @@ def main():
                    help="Optional --mail-type (e.g., END,FAIL,ALL)")
     p.add_argument("--sbatch_nodelist", default=None,
                help="Comma-separated Slurm nodelist, e.g. salmon-[01-10],dogfish-[01-02]")
+    p.add_argument("--sbatch_gres_heavy", default="gpu:l40s:1",
+                   help="Slurm --gres to use automatically when chain length >= threshold (default: gpu:l40s:1).")
+    p.add_argument("--esm_gpu_len_threshold", type=int, default=800,
+                   help="If max chain length >= this and esm3/both is selected, request --sbatch_gres_heavy.")
 
     # Slurm options for html output
     p.add_argument("--html_cpus", type=int, default=2)

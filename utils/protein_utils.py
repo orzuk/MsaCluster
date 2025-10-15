@@ -52,6 +52,26 @@ deletekeys["*"] = None
 translation = str.maketrans(deletekeys)
 
 
+def pair_max_len_from_truth(pair_id: str) -> int:
+    pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+    def _len(pdb_path, chain_id):
+        n, seen = 0, set()
+        try:
+            with open(pdb_path) as fh:
+                for line in fh:
+                    if not line.startswith("ATOM"): continue
+                    if line[12:16].strip() != "CA": continue
+                    if chain_id and (line[21].strip() != chain_id): continue
+                    resnum = (line[22:27], line[26])
+                    if resnum not in seen:
+                        seen.add(resnum); n += 1
+        except Exception:
+            pass
+        return n
+    return max(_len(pdb1, c1), _len(pdb2, c2))
+
+
+
 def remove_insertions(sequence: str) -> str:
     """ Removes any insertions into the sequence. Needed to load aligned sequences in an MSA. """
     return sequence.translate(translation)
