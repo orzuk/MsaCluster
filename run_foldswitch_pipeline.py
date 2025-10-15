@@ -2324,15 +2324,12 @@ def main():
                help="Comma-separated Slurm nodelist, e.g. salmon-[01-10],dogfish-[01-02]")
     p.add_argument("--sbatch_gres_heavy", default="gpu:l40s:1",
                    help="Slurm --gres to use automatically when chain length >= threshold (default: gpu:l40s:1).")
-    p.add_argument("--esm_gpu_len_threshold", type=int, default=800,
-                   help="If max chain length >= this and esm3/both is selected, request --sbatch_gres_heavy.")
 
     # Slurm options for html output
     p.add_argument("--html_cpus", type=int, default=2)
     p.add_argument("--html_mem",  default="4G")
     p.add_argument("--html_time", default="02:00:00")
     p.add_argument("--html_partition", default=None)
-
 
     args = p.parse_args()
     # allow: python run_foldswitch_pipeline.py --run_mode help
