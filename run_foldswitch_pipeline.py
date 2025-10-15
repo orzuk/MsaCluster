@@ -386,6 +386,9 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         L = pair_max_len_from_truth(pair_id)  # or _pair_max_len_from_truth(pair_id) if you have it
     except Exception:
         L = 0
+    print("[esm-sbatch] pair_id:", pair_id, "L:", L, flush=True)
+
+
     max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
     if run_mode == "run_esmfold" and L >= max_len:
         gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
@@ -503,6 +506,8 @@ def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
         L = pair_max_len_from_truth(pair_id)  # or _pair_max_len_from_truth(pair_id) if you have it
     except Exception:
         L = 0
+    print("[esm-sbatch-in-msaclust-pipeline] pair_id:", pair_id, "L:", L, flush=True)
+
     max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
     if run_mode == "run_esmfold" and L >= max_len:
         gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")

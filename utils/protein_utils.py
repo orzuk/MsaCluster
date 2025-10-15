@@ -59,6 +59,7 @@ def pair_max_len_from_truth(pair_id: str) -> int:
         try:
             with open(pdb_path) as fh:
                 for line in fh:
+                    print("LenCompute Trying line:", line)
                     if not line.startswith("ATOM"): continue
                     if line[12:16].strip() != "CA": continue
                     if chain_id and (line[21].strip() != chain_id): continue
