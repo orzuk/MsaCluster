@@ -54,6 +54,7 @@ translation = str.maketrans(deletekeys)
 
 def pair_max_len_from_truth(pair_id: str) -> int:
     pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
+    print("[calc max_len] pdb1:", pdb1, " c1:", c1, " pdb2:", pdb2, " c2:", c2, flush=True)
     def _len(pdb_path, chain_id):
         n, seen = 0, set()
         print("Open pdb_path:", pdb_path, " chain is:", chain_id, flush=True)
@@ -71,6 +72,8 @@ def pair_max_len_from_truth(pair_id: str) -> int:
             print("Failed to open pdb_path:", pdb_path, " chain is:", chain_id, flush=True)
             pass
         return n
+    print("len1: ", _len(pdb1, c1), flush=True)
+    print("len2: ", _len(pdb2, c2), flush=True)
     return max(_len(pdb1, c1), _len(pdb2, c2))
 
 
