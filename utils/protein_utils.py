@@ -53,6 +53,7 @@ translation = str.maketrans(deletekeys)
 
 
 def pair_max_len_from_truth(pair_id: str) -> int:
+    print("[calc max_len] pair_id:", pair_id, flush=True)
     pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
     print("[calc max_len] pdb1:", pdb1, " c1:", c1, " pdb2:", pdb2, " c2:", c2, flush=True)
     def _len(pdb_path, chain_id):

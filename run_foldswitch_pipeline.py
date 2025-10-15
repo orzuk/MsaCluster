@@ -383,6 +383,7 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
 
     # --- NEW: auto-upgrade GPU for long chains when running esm3/both ---
     try:
+        print("[esm-sbatch] before max_len pair_id:", pair_id, flush=True)
         L = pair_max_len_from_truth(pair_id)  # or _pair_max_len_from_truth(pair_id) if you have it
     except Exception:
         L = 0
