@@ -227,7 +227,7 @@ def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, o
 
     for name, raw_seq in seqs:
         seq = process_sequence(raw_seq) or "".join(ch for ch in raw_seq if ch.isalpha())
-        print(f"[esm2][{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
+        print(f"[{backend}] predicting {name} (len={len(seq)}) on {device} …", flush=True)
 
         cur_chunk = int(chunk_size)
         cur_recycles = int(num_recycles)
@@ -291,103 +291,127 @@ def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, o
 # --------------------------------------------------------------------------------------
 # ESM3 runner (subprocess to your local ESM repo script)
 # --------------------------------------------------------------------------------------
-def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Path, model_tag: str) -> Dict:
+
+def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
+    """
+    Call a local ESM3 inference script that prints PDB to stdout.
+    Expected CLI (adjust your script accordingly):
+        python <ESM_PATH>/<ESM3_INFER_SCRIPT> --sequence "ACDE..." --device <cpu|cuda|mps>
+    """
     if not ESM_PATH:
-        raise RuntimeError("[esm3] ESM_PATH is not set in config.py or environment.")
+        raise RuntimeError("ESM_PATH is not set in config.py or environment.")
     script = Path(ESM_PATH) / ESM3_INFER_SCRIPT
     if not script.exists():
         raise FileNotFoundError(f"ESM3 inference script not found: {script}")
 
-    # Derive tmp_dir = Pipeline/<pair_id>/tmp_esmfold
-    outdir = Path(outdir)  # in case it's a string
-    pair_dir = outdir.parent.parent  # output_esm_fold/esm3 -> output_esm_fold -> <pair_id>
-    tmp_dir = pair_dir / "tmp_esmfold"
-    if not tmp_dir.exists():
-        raise FileNotFoundError(f"[esm3] Expected FASTAs in {tmp_dir} but it doesn't exist.")
-
-    # one-shot, directory-wide helper call (keeps one HF model loaded on GPU)
     outputs = []
-    index_rows = []
+    for name, seq in seqs:
+        print(f"[esm3] predicting {name} (len={len(seq)}) via {script} …", flush=True)
 
-    # Build env + paths
-    env = os.environ.copy()
-    repo_root = Path(__file__).resolve().parent
-    env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
+        # 1) sanitize (removes '-', whitespace, non-ACDEFGHIKLMNPQRSTVWY)
+        orig_len = len(seq)
+        seq = process_sequence(seq)
+        if not seq:
+            print(f"[esm3] skip {name}: empty after sanitization (was {orig_len} aa)")
+            continue
+        if len(seq) != orig_len:
+            print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
 
-    # Prefer big cache locations and stable CUDA allocator behavior
-    env.setdefault("HF_HOME", str(Path.home() / "huggingface"))
-    env.setdefault("HUGGINGFACE_HUB_CACHE", env["HF_HOME"])
-    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True,max_split_size_mb:64")
+        # 2) write a tiny temp FASTA (safer than pushing the sequence via argv)
+        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
+            tf.write(f">{name}\n{seq}\n")
+            fasta_path = tf.name
 
-    print(f"[esm3] running {ESM3_INFER_SCRIPT} on {tmp_dir} sequences on {device}", flush=True)
+        try:
+            # 3) run from the ESM repo folder; pass --fasta
+            env = os.environ.copy()
+            # keep your current PYTHONPATH trick (if your infer script needs MsaCluster utils)
+            repo_root = Path(__file__).resolve().parent
+            env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
 
-    # One-FASTA-per-process to minimize peak VRAM
-    fasta_files = sorted(tmp_dir.glob("*.fasta")) + sorted(tmp_dir.glob("*.fa")) + sorted(tmp_dir.glob("*.faa"))
-    if not fasta_files:
-        raise FileNotFoundError(f"[esm3] No FASTA files found in {tmp_dir}")
-
-    from shutil import copy2
-    import tempfile, gc
-
-    outputs = []
-    index_rows = []
-
-    for fa in fasta_files:
-        # Prepare a tiny temp dir that contains ONLY this one FASTA
-        with tempfile.TemporaryDirectory(prefix="esm3_one_") as workdir:
-            workdir = Path(workdir)
-            single = workdir / fa.name
-            copy2(fa, single)
-
-            cmd = [
-                sys.executable, str(ESM3_INFER_SCRIPT),
-                "--fasta_dir", str(workdir),      # same interface, but dir has a single file
-                "--device", device                 # force GPU; helper will not fall back
-            ]
-
-            # Stream output; if you prefer, switch to capture_output=True
-            res = subprocess.run(cmd, cwd=str(repo_root), env=env,
-                                 text=True, capture_output=True)
-
+            cmd = [sys.executable, str(script), "--fasta", fasta_path, "--device", device]
+            res = subprocess.run(
+                cmd, capture_output=True, text=True,
+                cwd=str(Path(script).parent),  # <— run inside the ESM repo
+                env=env
+            )
             if res.returncode != 0:
-                head = (res.stderr or "")[:2000]
-                print(f"[esm3][helper stderr head]\n{head}", flush=True)
-                # do NOT crash the whole job; skip this sequence and continue
-                continue
+                raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
 
-            out = res.stdout or ""
-            # Parse the single PDB block from the helper:
-            # >>>PDB_START <name>\n<PDB text>\n>>>PDB_END <name>
-            for block in out.split(">>>PDB_START "):
-                if not block.strip():
-                    continue
-                header, body = block.split("\n", 1)
-                name = header.strip()
-                pdb_txt, _ = body.split(">>>PDB_END", 1)
-
-                # Collect for the pipeline’s writer
-                outputs.append({
-                    "name": name,
-                    "pdb": pdb_txt,
-                    "plddt": None, "pae": None,
-                    "residue_index": []  # filled later; not needed for PDB write
-                })
-                index_rows.append((name, str(fa)))
-
-            # hard cleanup between sequences -> drop GPU caches from helper process
+            pdb_str = res.stdout
+            outputs.append({
+                "name": name,
+                "pdb": pdb_str,
+                "plddt": None,
+                "pae": None,
+                "residue_index": list(range(1, len(seq) + 1)),
+            })
+        finally:
             try:
-                torch.cuda.empty_cache()
+                os.unlink(fasta_path)
             except Exception:
                 pass
-            gc.collect()
-
-    print(f"[esm3] Finished running {ESM3_INFER_SCRIPT} on {tmp_dir} sequences on {device}", flush=True)
+    return {"backend": "esm3-subprocess", "chains": outputs}
 
 
-    # Non-zero return just means some sequences were skipped; don't crash the run
-    if res.returncode not in (0,):
-        print(f"[esm3] helper exit code {res.returncode}; some sequences may be skipped.", flush=True)
+def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Path, model_tag: str) -> Dict:
+    if not ESM_PATH:
+        raise RuntimeError("ESM_PATH is not set in config.py or environment.")
+    script = Path(ESM_PATH) / ESM3_INFER_SCRIPT
+    if not script.exists():
+        raise FileNotFoundError(f"ESM3 inference script not found: {script}")
 
+    outputs = []
+    index_rows = []
+    for name, seq in seqs:
+        orig_len = len(seq)
+        seq = process_sequence(seq)
+        if not seq:
+            print(f"[esm3] skip {name}: empty after sanitization (was {orig_len} aa)")
+            continue
+        if len(seq) != orig_len:
+            print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
+
+        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
+            tf.write(f">{name}\n{seq}\n")
+            fasta_path = tf.name
+        try:
+            env = os.environ.copy()
+            repo_root = Path(__file__).resolve().parent
+            env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
+            cmd = [sys.executable, str(script), "--fasta", fasta_path, "--device", device]
+            res = subprocess.run(cmd, capture_output=True, text=True,
+                                 cwd=str(Path(script).parent), env=env)
+            if res.returncode != 0:
+                err = (res.stderr or "").strip()
+                print(f"[esm3] WARN: subprocess failed for {name}; skipping this sequence.\n"
+                      f"[esm3] short stderr: {err[:500]}", flush=True)
+                # optional: drop a marker so downstream tables show it was skipped
+                try:
+                    (outdir / f"{name}_{model_tag}.SKIPPED").write_text(err[:2000])
+                except Exception:
+                    pass
+                # do NOT append to outputs/index_rows; just continue to next sequence
+                continue
+
+            pdb_str = res.stdout
+            # STREAM WRITE NOW:
+            p = write_one_pdb(outdir, name, model_tag, pdb_str)
+            print(f"[esm3] wrote {p}", flush=True)
+
+            outputs.append({
+                "name": name,
+                "pdb": pdb_str,
+                "plddt": None,
+                "pae": None,
+                "residue_index": list(range(1, len(seq) + 1)),
+            })
+            index_rows.append((name, str(p)))
+        finally:
+            try:
+                os.unlink(fasta_path)
+            except Exception:
+                pass
 
     # return standard shape; write_normalized_outputs will still create combined + index
     return {"backend": "esm3-subprocess", "chains": outputs}
@@ -522,6 +546,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         result = run_esm2_fold(sequences, device, chunk_size=args.esm_chunk,
             num_recycles=args.esm_recycles, amp_dtype=amp_dtype, outdir=outdir)
     else:
+#        result = run_esm3_fold(sequences, device)
         result = run_esm3_fold_streaming(sequences, device, outdir, model_tag)
     t3 = time.time()
 
