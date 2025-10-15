@@ -56,6 +56,7 @@ def pair_max_len_from_truth(pair_id: str) -> int:
     pdb1, c1, pdb2, c2 = _truth_pdbs(pair_id)
     def _len(pdb_path, chain_id):
         n, seen = 0, set()
+        print("Open pdb_path:", pdb_path, " chain is:", chain_id, flush=True)
         try:
             with open(pdb_path) as fh:
                 for line in fh:
@@ -67,6 +68,7 @@ def pair_max_len_from_truth(pair_id: str) -> int:
                     if resnum not in seen:
                         seen.add(resnum); n += 1
         except Exception:
+            print("Failed to open pdb_path:", pdb_path, " chain is:", chain_id, flush=True)
             pass
         return n
     return max(_len(pdb1, c1), _len(pdb2, c2))
