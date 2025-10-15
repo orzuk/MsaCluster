@@ -2368,7 +2368,7 @@ def main():
             pair_id = f"{pair_id[0]}_{pair_id[1]}"
 
         # NEW: generic per-pair submit for single-step run modes
-        print(f"=== Check if sbatch ==== {args.run_mode} :: {pair_id} ===", flush=True)
+        print(f"=== Check if sbatch ==== {args.run_mode} :: {pair_id} === run_job_mode: {args.run_job_mode}", flush=True)
         if args.run_job_mode == "sbatch" and args.run_mode in HEAVY_PAIR_MODES:
             print("sbatch mode for heavy pair task", flush=True)
             extras = []
