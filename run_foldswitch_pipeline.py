@@ -2336,6 +2336,9 @@ def main():
     p.add_argument("--html_partition", default=None)
 
     args = p.parse_args()
+
+    print("run_foldswitch_pipeline.py args run_job_mode:", args.run_job_mode)
+
     # allow: python run_foldswitch_pipeline.py --run_mode help
     if args.run_mode == "help":
         p.print_help()
@@ -2356,10 +2359,11 @@ def main():
         return  # or sys.exit(0)
 
     # Run once for all pairs
-    scope = getattr(args, "plot_scope", "both")
     if args.run_mode == "plot":
         task_plot(pair_id=foldpairs, args=args)        # Run global plots ONCE
         return
+
+    print("run_foldswitch_pipeline.py before loopargs run_job_mode:", args.run_job_mode)
 
     for pair_id in foldpairs:
         print(f"=== {args.run_mode} :: {pair_id} ===", flush=True)
