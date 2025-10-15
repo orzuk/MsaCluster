@@ -12,7 +12,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_TRANS_MODEL_FILE
-from utils.utils import list_protein_pairs, pair_str_to_tuple, pick, pair_max_len_from_truth
+from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
+from utils.protein_utils import pair_max_len_from_truth
 from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
