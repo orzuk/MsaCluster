@@ -1522,7 +1522,6 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
         print(f"[esm] ERROR on GPU: {e}")
 
 
-
 def task_af(pair_id: str, args: argparse.Namespace) -> None:
     if _is_windows():
         raise SystemExit("AlphaFold must run on Linux.")
@@ -2369,7 +2368,9 @@ def main():
             pair_id = f"{pair_id[0]}_{pair_id[1]}"
 
         # NEW: generic per-pair submit for single-step run modes
+        print(f"=== Check if sbatch ==== {args.run_mode} :: {pair_id} ===", flush=True)
         if args.run_job_mode == "sbatch" and args.run_mode in HEAVY_PAIR_MODES:
+            print("sbatch mode for heavy pair task", flush=True)
             extras = []
 
             # ----- Slurm resource hints -> use *pipeline* args (sbatch_*) NOT raw sbatch flags -----
