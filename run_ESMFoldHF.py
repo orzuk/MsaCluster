@@ -52,8 +52,6 @@ except Exception:
 from utils.msa_utils import load_fasta
 from utils.protein_utils import extract_protein_sequence, process_sequence
 
-
-
 def _cluster_fastas_dir(pair_id: str) -> Path:
     return Path(DATA_DIR) / pair_id / "tmp_esmfold"
 

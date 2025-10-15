@@ -2438,6 +2438,8 @@ def main():
                 if getattr(args, "reports", "none") != "none":
                     extras += [f"--reports {args.reports}"]
 
+            # ----- Run the job -----
+            print(f"[submit] using sbatch for {args.run_mode} on {pair_id}", flush=True)
             _submit_pair_job(args.run_mode, pair_id, args, " ".join(extras))
             continue
 
