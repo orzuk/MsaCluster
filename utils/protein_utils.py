@@ -54,13 +54,18 @@ def pair_id2dir(pair_id: str) -> Path:
 
 def truth_pdbs(pair_id: str) -> tuple[str, str, str, str]:
     """Return (pdb1_path, chain1, pdb2_path, chain2). Prefers chain-sliced PDBs if present."""
+    print("[truth_pdbs] pair_id:", pair_id, flush=True)
     a, b = pair_str_to_tuple(pair_id)
+    print("[truth_pdbs] a,b:", a, b, flush=True)
     p1, c1 = a[:-1], a[-1]
     p2, c2 = b[:-1], b[-1]
+    print("[truth_pdbs] p1,c1:", p1, c1, " p2,c2:", p2, c2, flush=True)
     cand1 = pair_id2dir(pair_id) / "chain_pdb_files" / f"{a}.pdb"
     cand2 = pair_id2dir(pair_id) / "chain_pdb_files" / f"{b}.pdb"
+    print("[truth_pdbs] cand1:", cand1, " cand2:", cand2, flush=True)
     pdb1 = str(cand1 if cand1.is_file() else (pair_id2dir(pair_id) / f"{p1}.pdb"))
     pdb2 = str(cand2 if cand2.is_file() else (pair_id2dir(pair_id) / f"{p2}.pdb"))
+    print("[truth_pdbs] pdb1:", pdb1, " pdb2:", pdb2, flush=True)
     return pdb1, c1, pdb2, c2
 
 
