@@ -42,6 +42,10 @@ import numpy as np
 from types import SimpleNamespace
 
 
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, ROOT)
+from utils.utils import *
+
 # This is an efficient way to delete lowercase characters and insertion characters from a string
 deletekeys = dict.fromkeys(string.ascii_lowercase)
 deletekeys["."] = None
