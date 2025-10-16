@@ -861,5 +861,5 @@ if __name__ == "__main__":
     print(f"[postprocess] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
 
 # 3) Build global per-cluster table (one row per cluster)
-    build_all_pairs_clusters_table(pairs=args.pairs, write_out=True)
+    build_all_pairs_clusters_table() # pairs=args.pairs, write_out=True)
     print(f"[postprocess] clusters table written:\n  {Path(SUMMARY_RESULTS_TABLE).parent / 'clusters_global_table.csv'}")

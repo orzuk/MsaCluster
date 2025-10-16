@@ -49,6 +49,7 @@ def compute_df_esm(fold_pair: str, write: bool = True) -> pd.DataFrame:
 
         for name, pred_pdb in it:
             # TM vs each truth (respect chain IDs of the *truth* structure)
+            print("[esm_tm] ", fold_pair, model_tag, name)
             TM1 = compute_tmscore_align(str(truth1), pred_pdb, chain1=chains[0])
             TM2 = compute_tmscore_align(str(truth2), pred_pdb, chain1=chains[1])
             rows.append({
