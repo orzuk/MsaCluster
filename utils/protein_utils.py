@@ -19,11 +19,8 @@ from Bio import SeqIO, PDB, AlignIO
 from Bio.PDB import *
 from Bio.PDB.MMCIFParser import MMCIFParser
 
-import subprocess
-import re
-import pickle
-import os
-import sys
+from pathlib import Path
+import subprocess, re, pickle, os, sys
 # import urllib
 import mdtraj as md
 # import biotite.structure as bs
