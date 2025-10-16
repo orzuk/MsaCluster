@@ -16,8 +16,10 @@ from utils.msa_utils import *
 from utils.protein_utils import *
 from utils.cache_utils import get_from_pair_cache, put_in_pair_cache
 
+
 from config import * # uses TMALIGN_EXE and USE_TMALIGN_BINARY
 
+_MSACLUSTER_CACHED_ONLY = os.getenv("MSACLUSTER_CACHED_ONLY", "").strip().lower() in ("1", "true", "yes")
 
 # ---------------- helpers (use YOUR loaders) ---------------- #
 
@@ -212,22 +214,49 @@ def debug_check_ca_coords(pdb_path: str, chain: str | None = None):
     return n
 
 
-def get_or_compute_true_tm(pair_dir: str,
-                           pdbA_path: str,
-                           pdbB_path: str,
-                           compute_tm_fn) -> float:
+def get_or_compute_true_tm(
+    pair_dir: str,
+    pdbA_path: str,
+    pdbB_path: str,
+    compute_tm_fn,
+    *,
+    cached_only: bool | None = None,
+    force_recompute: bool = False,
+) -> float:
     """
-    Returns TM(trueA, trueB), computing once and caching under
-    Pipeline/<pair>/Analysis/cache.json : {"true_true_tm": <float>}
-    `compute_tm_fn(pdbA_path, pdbB_path)` should return a float TM in [0,1].
+    Returns TM(trueA, trueB), using pair-local cache:
+      Pipeline/<pair>/Analysis/cache.json key: "true_true_tm"
+
+    Behavior:
+      - If cache exists and not force_recompute -> return cached value.
+      - If cached_only (or MSACLUSTER_CACHED_ONLY=1) and cache missing -> return NaN (no compute).
+      - Otherwise compute once, cache, and return.
+
+    Args:
+      compute_tm_fn: callable(pdbA_path, pdbB_path) -> float in [0,1]
     """
-    cached = get_from_pair_cache(pair_dir, "true_true_tm")
-    if cached is not None:
-        return float(cached)
+    # decide caching mode: explicit arg wins, else env var, else False
+    if cached_only is None:
+        cached_only = _MSACLUSTER_CACHED_ONLY
+
+    key = "true_true_tm"
+    cached = get_from_pair_cache(pair_dir, key)
+
+    if (cached is not None) and not force_recompute:
+        try:
+            return float(cached)
+        except (TypeError, ValueError):
+            # fall through to recompute if corrupted cache
+            pass
+
+    if cached_only and not force_recompute:
+        # honor "do not compute" mode
+        return float("nan")
 
     tm = float(compute_tm_fn(pdbA_path, pdbB_path))
-    put_in_pair_cache(pair_dir, "true_true_tm", tm)
+    put_in_pair_cache(pair_dir, key, tm)
     return tm
+
 
 def tmalign_unified(
     pdb1: str, pdb2: str,
