@@ -406,64 +406,26 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
     return df
 
 
-def _read_or_compute_esm(pair_id: str, force: bool) -> pd.DataFrame:
-    """Read per-sample ESM TM-scores if cached; else compute quickly by scanning outputs."""
-    out_csv = _ensure_pair_analysis(pair_id) / "df_esm.csv"
+# --- in postprocess_unified.py ---
+
+def _read_or_compute_esm(pair_id: str, force: bool = False):
+    """
+    Return df_esm.csv as a DataFrame, computing it if missing or if force=True.
+    """
+    from pathlib import Path
+    import pandas as pd
+    # Import the single-source implementation
+    from Analysis.esmfold_analysis import compute_df_esm
+
+    pair_dir = Path(DATA_DIR) / pair_id
+    out_csv = pair_dir / "Analysis" / "df_esm.csv"
+
     if out_csv.is_file() and not force:
         return pd.read_csv(out_csv)
 
-    pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
-    rows = []
-    for model_tag in ("esm2", "esm3"):
-        mdir = pair_id2dir(pair_id) / "output_esm_fold" / model_tag
-        if not mdir.is_dir():
-            continue
-        idx = mdir / "samples_index.tsv"
-        if idx.is_file():
-            df_idx = pd.read_csv(idx, sep="\t")
-            for _, r in df_idx.iterrows():
-                pred = str(r["pdb_path"])
-                name = r["name"]
-                print("Compute TM-scores for ESMFold: ", model_tag, name)
-                tm1 = compute_tmscore_align(pdb1, pred, chain1=c1, chain2=None)
-                tm2 = compute_tmscore_align(pdb2, pred, chain1=c2, chain2=None)
-                rows.append({"pair_id": pair_id, "model": model_tag, "cluster_num":
-                             (re.search(r"ShallowMsa_(\d+)", name).group(1)
-                              if re.search(r"ShallowMsa_(\d+)", name) else "DeepMsa"),
-                             "name": name, "pdb_path": pred,
-                             "TMscore_fold1": tm1, "TMscore_fold2": tm2})
-        else:
-            for pred in sorted(mdir.glob("*.pdb")):
-                base = pred.name
-                name = base.replace(f"_{model_tag}.pdb","").replace(".pdb","")
-                print("No idxfile; Compute TM-scores for ESMFold: ", model_tag, name)
-                tm1 = compute_tmscore_align(pdb1, str(pred), chain1=c1, chain2=None)
-                tm2 = compute_tmscore_align(pdb2, str(pred), chain1=c2, chain2=None)
-                rows.append({"pair_id": pair_id, "model": model_tag,
-                             "cluster_num": (re.search(r"ShallowMsa_(\d+)", name).group(1)
-                                             if re.search(r"ShallowMsa_(\d+)", name) else "DeepMsa"),
-                             "name": name, "pdb_path": str(pred),
-                             "TMscore_fold1": tm1, "TMscore_fold2": tm2})
-    df = pd.DataFrame(rows)
-
-    # normalize: cluster label and clean sample name (no paths)
-    df["cluster_num"] = df["name"].str.extract(r"(ShallowMsa_\d+)", expand=False).fillna("DeepMsa")
-    df["name"] = df["name"].apply(lambda s: os.path.basename(str(s)).replace(".pdb", ""))
-
-    # helpful deltas
-    df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
-
-    # ⬅ Save WITHOUT pdb_path column so the CSV is clean
-    cols = ["pair_id", "model", "cluster_num", "name", "TMscore_fold1", "TMscore_fold2", "TMdiff"]
-    df = df[cols].sort_values(["model", "cluster_num", "name"])
-
-    df.to_csv(out_csv, index=False)
+    # Compute (and write) via the canonical implementation
+    df = compute_df_esm(pair_id, write=True)
     return df
-
-def _read_cmap(pair_id: str) -> pd.DataFrame:
-    """Read per-pair cmap metrics produced by cmap_analysis.py (don’t recompute here)."""
-    csv = pair_id2dir(pair_id) / "Analysis" / "df_cmap.csv"
-    return pd.read_csv(csv) if csv.is_file() else pd.DataFrame()
 
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     """
