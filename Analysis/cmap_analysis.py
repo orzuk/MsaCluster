@@ -148,13 +148,13 @@ def _metrics(pred_bin: np.ndarray, truth_bin: np.ndarray):
     fp = int(np.sum(p & ~t))
     fn = int(np.sum(~p & t))
     tn = int(np.sum(~p & ~t))
-    prec = tp / (tp + fp) if (tp+fp) else np.nan
-    rec  = tp / (tp + fn) if (tp+fn) else np.nan
-    f1   = 2*prec*rec / (prec+rec) if prec>0 and rec>0 else (1.0 if (prec==1 and rec==1) else (0.0 if (prec==0 or rec==0) else np.nan))
-    jac  = tp / (tp + fp + fn) if (tp+fp+fn) else np.nan
+    prec = tp / (tp + fp) if (tp+fp) else 0
+    rec  = tp / (tp + fn) if (tp+fn) else 0
+    f1 = (2 * prec * rec) / (prec + rec) if (prec + rec) else 0.0
+    jac = tp / (tp + fp + fn) if (tp + fp + fn) else 0.0
     # MCC
-    denom = (tp+fp)*(tp+fn)*(tn+fp)*(tn+fn)
-    mcc = ((tp*tn - fp*fn) / np.sqrt(denom)) if denom else np.nan
+    denom = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
+    mcc = ((tp * tn - fp * fn) / np.sqrt(denom)) if denom else 0.0
     return dict(precision=prec, recall=rec, f1=f1, jaccard=jac, mcc=mcc)
 
 
@@ -342,6 +342,10 @@ def compute_cmap_metrics_for_pair(
 
     T1 = _truth_contacts(coords1, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
     T2 = _truth_contacts(coords2, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
+
+    # Adapt sep_min for short chains (prevents empty truth)
+    if max(T1.shape[0], T2.shape[0]) < 60 and sep_min > 3:
+        sep_min = 3
 
     # ---- 2) alignment frames from _seed_both.a3m (symmetric mapping)
     both_a3m = os.path.join(pair_dir, "_seed_both.a3m")
