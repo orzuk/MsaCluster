@@ -3,7 +3,6 @@
 import string
 import shutil
 
-from config import *
 
 # import pcmap
 import torch
@@ -45,6 +44,7 @@ from types import SimpleNamespace
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 from utils.utils import *
+from config import *
 
 # This is an efficient way to delete lowercase characters and insertion characters from a string
 deletekeys = dict.fromkeys(string.ascii_lowercase)
@@ -54,7 +54,7 @@ translation = str.maketrans(deletekeys)
 
 
 def pair_id2dir(pair_id: str) -> Path:
-    return PAIR_DIR / pair_id
+    return DATA_DIR / pair_id
 
 def truth_pdbs(pair_id: str) -> tuple[str, str, str, str]:
     """Return (pdb1_path, chain1, pdb2_path, chain2). Prefers chain-sliced PDBs if present."""
