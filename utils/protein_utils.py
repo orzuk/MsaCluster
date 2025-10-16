@@ -55,8 +55,8 @@ translation = str.maketrans(deletekeys)
 def pair_id2dir(pair_id: str) -> Path:
     print("[pair_id2dir] pair_id:", pair_id, flush=True)
     print("[pair_id2dir] DATA_DIR:", DATA_DIR, flush=True)
-    print("[pair_id2dir] CONCAT: ", DATA_DIR / pair_id, flush=True)
-    return DATA_DIR / pair_id
+    print("[pair_id2dir] CONCAT: ", Path(DATA_DIR) / pair_id, flush=True)
+    return Path(DATA_DIR) / pair_id
 
 def truth_pdbs(pair_id: str) -> tuple[str, str, str, str]:
     """Return (pdb1_path, chain1, pdb2_path, chain2). Prefers chain-sliced PDBs if present."""
