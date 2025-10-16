@@ -420,15 +420,11 @@ def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Pa
 
 # New function allowing us to normalize outputs for both ESM2 and ESM3
 def write_normalized_outputs(result, outdir: Path, pair_id: str, model_tag: str, sequences, device: str) -> None:
-    """
-    For many samples we keep it flat (single directory) but encode the cluster
-    in the filename, e.g. ShallowMsa_003__sample_007_<model>.pdb
-    """
     outdir.mkdir(parents=True, exist_ok=True)
 
     index_rows = []
     for ch in result.get("chains", []):
-        name = (ch.get("name") or "unknown").strip()  # e.g., ShallowMsa_003__sample_007
+        name = (ch.get("name") or "unknown").strip()
         pdb_txt = (ch.get("pdb") or "").strip()
         if not pdb_txt:
             continue
@@ -437,7 +433,16 @@ def write_normalized_outputs(result, outdir: Path, pair_id: str, model_tag: str,
             f.write(pdb_txt if pdb_txt.endswith("\n") else pdb_txt + "\n")
         index_rows.append((name, str(pdb_path)))
 
-    # Optional combined multi-MODEL file (handy for quick viewing)
+    # --- Fallback: if nothing recorded in result, rebuild from disk ---
+    if not index_rows:
+        for p in sorted(outdir.glob(f"*_{model_tag}.pdb")):
+            base = p.name
+            name = base[: -(len(model_tag) + 5)]  # strip "_esmX.pdb"
+            if name.endswith(".pdb"):
+                name = name[:-4]
+            index_rows.append((name, str(p)))
+
+    # Combined multi-MODEL file (best-effort; skip if no chains)
     combo_path = outdir / f"{pair_id}__{model_tag}_combined.pdb"
     with open(combo_path, "w") as f:
         for i, ch in enumerate(result.get("chains", []), start=1):
