@@ -393,7 +393,7 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
     max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
     if run_mode == "run_esmfold" and L >= max_len:
         gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
-        print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {thr} ⇒ using {gres}", flush=True)
+        print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {max_len} ⇒ using {gres}", flush=True)
 
     inner = [
         shlex.quote(sys.executable),
