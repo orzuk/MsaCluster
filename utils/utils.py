@@ -163,7 +163,7 @@ def pair_str_to_tuple(s: str) -> tuple[str, str]:
     print("[pair2tuple] s.strip:", s, flush=True)
     if "_" not in s:
         raise ValueError(f"Pair must look like PDBidChain_PDBidChain, got: {s}")
-    print("[pair2tuple] after error a,b:", a,b, flush=True)
+    print("[pair2tuple] after error :",s, flush=True)
     a, b = s.split("_", 1)
     print("[pair2tuple] a,b:", a,b, flush=True)
     print("[pair2tuple] a.strip(),b.strip():", a.strip(),b.strip(), flush=True)
