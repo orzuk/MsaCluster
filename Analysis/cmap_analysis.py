@@ -106,58 +106,6 @@ def _truth_contacts(coords: np.ndarray, cutoff=CONTACT_CUTOFF, sep_min=6):
     mask = np.triu(mask, 1) | np.tril(mask, -1)
     return mask
 
-
-def _bin_pred(mat: np.ndarray, prob_thresh=0.4, sep_min=6, index_tol=0):
-    """Threshold a probability CMAP; apply sep_min and optional +/- index tolerance."""
-    n = mat.shape[0]
-    pred = (mat >= prob_thresh)
-    # remove diagonal & short-range
-    for i in range(n):
-        lo = max(0, i - (sep_min-1))
-        hi = min(n, i + (sep_min))
-        pred[i, lo:hi] = False
-    np.fill_diagonal(pred, False)
-    pred = np.triu(pred, 1) | np.tril(pred, -1)
-
-    if index_tol > 0:
-        # simple dilation on the binary grid within a Chebyshev radius 'index_tol'
-        pred_eff = pred.copy()
-        for di in range(-index_tol, index_tol+1):
-            for dj in range(-index_tol, index_tol+1):
-                if di == 0 and dj == 0:
-                    continue
-                sh = np.zeros_like(pred)
-                si0, si1 = max(0, -di), min(n, n-di)
-                sj0, sj1 = max(0, -dj), min(n, n-dj)
-                di0, dj0 = max(0, di), max(0, dj)
-                if si1 > si0 and sj1 > sj0:
-                    sh[di0:di0+(si1-si0), dj0:dj0+(sj1-sj0)] = pred[si0:si1, sj0:sj1]
-                pred_eff |= sh
-        pred = pred_eff
-    return pred
-
-
-def _metrics(pred_bin: np.ndarray, truth_bin: np.ndarray):
-    """Return precision, recall, F1, Jaccard, MCC on upper-tri entries."""
-    if pred_bin is None or truth_bin is None:
-        return dict(precision=np.nan, recall=np.nan, f1=np.nan, jaccard=np.nan, mcc=np.nan)
-    iu = np.triu_indices_from(truth_bin, 1)
-    p = pred_bin[iu].astype(bool)
-    t = truth_bin[iu].astype(bool)
-    tp = int(np.sum(p & t))
-    fp = int(np.sum(p & ~t))
-    fn = int(np.sum(~p & t))
-    tn = int(np.sum(~p & ~t))
-    prec = tp / (tp + fp) if (tp+fp) else 0
-    rec  = tp / (tp + fn) if (tp+fn) else 0
-    f1 = (2 * prec * rec) / (prec + rec) if (prec + rec) else 0.0
-    jac = tp / (tp + fp + fn) if (tp + fp + fn) else 0.0
-    # MCC
-    denom = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
-    mcc = ((tp * tn - fp * fn) / np.sqrt(denom)) if denom else 0.0
-    return dict(precision=prec, recall=rec, f1=f1, jaccard=jac, mcc=mcc)
-
-
 def load_cmap_and_idx(path):
     """
     Returns: (cmap: np.ndarray[L,L], idx: np.ndarray[L_idx], keep_cols or None)
@@ -478,55 +426,49 @@ def compute_cmap_metrics_for_pair(
         TU1 = T1[np.ix_(RU1, RU1)] if len(RU1) else None
         TU2 = T2[np.ix_(RU2, RU2)] if len(RU2) else None
 
-        # --- Metrics
-        def safe_metrics(Psub, Tsub):
-            if Psub is None or Tsub is None or Psub.shape != Tsub.shape or Psub.size == 0:
-                return dict(precision=np.nan, recall=np.nan, f1=np.nan, jaccard=np.nan, mcc=np.nan)
-            pb = _bin_pred(Psub, prob_thresh=thresh, sep_min=sep_min, index_tol=index_tol)
-            return _metrics(pb, Tsub)
+        # --- Metrics (single-source via evaluate_pred_cmap)
+        def eval_or_nan(Psub, T1sub, T2sub):
+            if Psub is None or T1sub is None or T2sub is None or Psub.size == 0:
+                # match column names returned by evaluate_pred_cmap
+                return {
+                    "t1_precision": np.nan, "t1_recall": np.nan, "t1_f1": np.nan, "t1_jaccard": np.nan,
+                    "t1_mcc": np.nan,
+                    "t2_precision": np.nan, "t2_recall": np.nan, "t2_f1": np.nan, "t2_jaccard": np.nan,
+                    "t2_mcc": np.nan,
+                    "common_precision": np.nan, "common_recall": np.nan, "common_f1": np.nan, "common_jaccard": np.nan,
+                    "common_mcc": np.nan,
+                    "uniq1_precision": np.nan, "uniq1_recall": np.nan, "uniq1_f1": np.nan, "uniq1_jaccard": np.nan,
+                    "uniq1_mcc": np.nan,
+                    "uniq2_precision": np.nan, "uniq2_recall": np.nan, "uniq2_f1": np.nan, "uniq2_jaccard": np.nan,
+                    "uniq2_mcc": np.nan,
+                }
+            return evaluate_pred_cmap(
+                Psub, T1sub, T2sub,
+                thresh=thresh, sep_min=sep_min, index_tol=index_tol, symmetrize=True
+            )
 
-        m_t1 = safe_metrics(P1,  T1S)
-        m_t2 = safe_metrics(P2,  T2S)
+        # t1/t2 frame: score on the fold-specific submaps
+        metrics_t12 = eval_or_nan(P1, T1S, T2S)  # will fill t1_* and t2_* keys
 
-        # For common/uniq, build truth masks by combining T1/T2 in the SAME sub-frame sizes
-        def comb_metrics(Psub, Tsub1, Tsub2, mode):
-            if Psub is None or Tsub1 is None or Tsub2 is None or Psub.shape != Tsub1.shape or Psub.shape != Tsub2.shape or Psub.size == 0:
-                return dict(precision=np.nan, recall=np.nan, f1=np.nan, jaccard=np.nan, mcc=np.nan)
-            if mode == "common":
-                truth = (Tsub1.astype(bool) & Tsub2.astype(bool))
-            elif mode == "uniq1":
-                truth = (Tsub1.astype(bool) & ~Tsub2.astype(bool))
-            else:
-                truth = (Tsub2.astype(bool) & ~Tsub1.astype(bool))
-            pb = _bin_pred(Psub, prob_thresh=thresh, sep_min=sep_min, index_tol=index_tol)
-            return _metrics(pb, truth.astype(np.uint8))
+        # common/uniq frames: score on their own submaps
+        metrics_com = eval_or_nan(PC, T1C, T2C)  # fills common_*
+        metrics_u1 = eval_or_nan(PU1, TU1, TU2)  # fills uniq1_*  (TU1/TU2 are the “unique” truths)
+        metrics_u2 = eval_or_nan(PU2, TU1, TU2)  # fills uniq2_*
 
-        m_com = comb_metrics(PC,  T1C, T2C, "common")
-        m_u1  = comb_metrics(PU1, T1C, T2C, "uniq1") if (len(RC1)==len(RU1)) else comb_metrics(PU1, TU1, TU2, "uniq1")
-        m_u2  = comb_metrics(PU2, T1C, T2C, "uniq2") if (len(RC2)==len(RU2)) else comb_metrics(PU2, TU1, TU2, "uniq2")
-
-        base = os.path.basename(f)
-        if "MSA_deep" in base or "DeepMsa" in base:
-            clus = "DeepMsa"
-        else:
-            m = re.search(r"(ShallowMsa_\d+)", base)
-            clus = m.group(1) if m else "Unknown"
-
-        rows.append({
+        # Merge into a single row dict
+        row = {
             "pair_id": subdir,
-            "file": base,
-            "cluster": clus,
-            "thresh": thresh,
-            "sep_min": sep_min,
-            # per fold
-            "t1_precision": m_t1["precision"], "t1_recall": m_t1["recall"], "t1_f1": m_t1["f1"], "t1_jaccard": m_t1["jaccard"], "t1_mcc": m_t1["mcc"],
-            "t2_precision": m_t2["precision"], "t2_recall": m_t2["recall"], "t2_f1": m_t2["f1"], "t2_jaccard": m_t2["jaccard"], "t2_mcc": m_t2["mcc"],
-            # symmetric categories
-            "common_precision": m_com["precision"], "common_recall": m_com["recall"], "common_f1": m_com["f1"], "common_jaccard": m_com["jaccard"], "common_mcc": m_com["mcc"],
-            "uniq1_precision": m_u1["precision"],  "uniq1_recall":  m_u1["recall"],  "uniq1_f1":  m_u1["f1"],  "uniq1_jaccard":  m_u1["jaccard"],  "uniq1_mcc":  m_u1["mcc"],
-            "uniq2_precision": m_u2["precision"],  "uniq2_recall":  m_u2["recall"],  "uniq2_f1":  m_u2["f1"],  "uniq2_jaccard":  m_u2["jaccard"],  "uniq2_mcc":  m_u2["mcc"],
-        })
+            "file": os.path.basename(f),
+            "cluster": cluster_name,
+            "thresh": float(thresh),
+            "sep_min": int(sep_min),
+        }
+        row.update({k: v for k, v in metrics_t12.items() if k.startswith(("t1_", "t2_"))})
+        row.update({k: v for k, v in metrics_com.items() if k.startswith("common_")})
+        row.update({k: v for k, v in metrics_u1.items() if k.startswith("uniq1_")})
+        row.update({k: v for k, v in metrics_u2.items() if k.startswith("uniq2_")})
 
+        rows.append(row)
 
     # ---- 4) write CSV
     df = pd.DataFrame(rows)
