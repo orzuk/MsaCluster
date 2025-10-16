@@ -40,7 +40,6 @@ import numpy as np
 
 from types import SimpleNamespace
 
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 from utils.utils import *
@@ -54,7 +53,9 @@ translation = str.maketrans(deletekeys)
 
 
 def pair_id2dir(pair_id: str) -> Path:
-    print("[pair_id2dir] pair_id:", pair_id, " DATA_DIR:", DATA_DIR, " CONCAT: ", DATA_DIR / pair_id, flush=True)
+    print("[pair_id2dir] pair_id:", pair_id, flush=True)
+    print("[pair_id2dir] DATA_DIR:", DATA_DIR, flush=True)
+    print("[pair_id2dir] CONCAT: ", DATA_DIR / pair_id, flush=True)
     return DATA_DIR / pair_id
 
 def truth_pdbs(pair_id: str) -> tuple[str, str, str, str]:
