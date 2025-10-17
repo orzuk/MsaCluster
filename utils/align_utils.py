@@ -274,6 +274,8 @@ def tmalign_unified(
             print(f"[TM-align] Binary failed ({e}); falling back to tmtools...")
     return _run_tmtools_python(pdb1, pdb2, chain1, chain2)
 
+
+# New: Also compute RMSD in Angstrom
 def compute_tmscore_align(
     pdb1: str, pdb2: str,
     chain1: Optional[str] = None,
