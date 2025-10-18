@@ -1669,8 +1669,10 @@ def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
         else:
             df_det["fold_pair"] = "UNK"
 
-    # Normalize model tags
-    df_det["model"] = df_det.get("model", "").astype(str).str.upper()
+    # Normalize model tags (robust if 'model' is missing)
+    if "model" not in df_det.columns:
+        df_det["model"] = ""  # create an empty column with the right length
+    df_det["model"] = df_det["model"].astype(str).str.upper()
 
     def _save_tm_scatter(sub_df: pd.DataFrame, model_tag: str, out_path: str) -> None:
         if sub_df.empty:
