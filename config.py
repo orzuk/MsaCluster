@@ -173,6 +173,21 @@ PAIR_TARGET_DIRS = {
 }
 
 
+# Tasks that do NOT need a GPU (easy to extend)
+NON_GPU_RUN_MODES = {
+    "plot",            # per-pair and global plotting
+    "gen_pair_html",   # build pair pages
+#    "postprocess",     # unify tables, global HTML could use tm score !!!
+    "tables",          # alias if you use it
+    "load",            # data loading / prep
+    "get_msa",         # fetch MSA
+    "cluster_msa",     # cluster the MSA
+#    "cmap",            # metrics/plots only (no inference)
+#    "msa_trans",       # plotting-only pass if you separate it
+    "af_plots",        # AF figure generation
+    # add more here as needed
+}
+
 
 # Whether to auto-copy figures from compute dirs to publish dirs when building HTML
 PUBLISH_FIGURES = True

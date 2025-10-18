@@ -368,8 +368,14 @@ def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
 def _repo_root() -> str:
     return str(Path(__file__).resolve().parent)
 
+
 def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extra_cli: str = "") -> None:
-    gres = getattr(args, "sbatch_gres", "gpu:1")
+    """
+    Submit a single per-pair job. For non-GPU run_modes we omit --gres entirely.
+    For run_esmfold we optionally auto-upgrade GPU type if sequences are long.
+    """
+    # Defaults from args (can still be overridden by per-mode hints earlier)
+    gres = getattr(args, "sbatch_gres", "gpu:1")       # will be nulled out for non-GPU modes
     cpus = int(getattr(args, "sbatch_cpus", 4))
     mem  = str(getattr(args, "sbatch_mem", "32G"))
     time = str(getattr(args, "sbatch_time", "24:00:00"))
@@ -381,19 +387,25 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
     mail = getattr(args, "sbatch_mail", None)
     mtyp = getattr(args, "sbatch_mail_type", None)
 
-    # --- NEW: auto-upgrade GPU for long chains when running esm3/both ---
-    try:
-        print("[esm-sbatch] before max_len pair_id:", pair_id, flush=True)
-        L = pair_max_len_from_truth(pair_id)  # or _pair_max_len_from_truth(pair_id) if you have it
-    except Exception:
-        L = 0
-    print("[esm-sbatch] pair_id:", pair_id, "L:", L, flush=True)
+    # Decide if this job needs a GPU at all
+    needs_gpu = run_mode not in NON_GPU_RUN_MODES
 
+    # --- Auto-upgrade GPU for long chains when running esmfold ---
+    if needs_gpu and run_mode == "run_esmfold":
+        try:
+            print("[esm-sbatch] before max_len pair_id:", pair_id, flush=True)
+            L = pair_max_len_from_truth(pair_id)
+        except Exception:
+            L = 0
+        print("[esm-sbatch] pair_id:", pair_id, "L:", L, flush=True)
 
-    max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
-    if run_mode == "run_esmfold" and L >= max_len:
-        gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
-        print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {max_len} ⇒ using {gres}", flush=True)
+        max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
+        if L >= max_len:
+            gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
+            print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {max_len} ⇒ using {gres}", flush=True)
+    else:
+        # Explicitly clear GPU request for non-GPU tasks
+        gres = None
 
     inner = [
         shlex.quote(sys.executable),
@@ -414,7 +426,6 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         sb = [
             "sbatch",
             "-J", f"{run_mode}_{pair_id}",
-            f"--gres={gres}",
             "-c", str(cpus),
             f"--mem={mem}",
             "-t", time,
@@ -423,6 +434,9 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
             "--output", out_path,
             "--wrap", wrap_str,
         ]
+        # Only request GPUs when needed
+        if gres:
+            sb += [f"--gres={gres}"]
         # If user specified a nodelist, prefer it and SKIP -p to avoid conflicts
         if nlist:
             sb += ["--nodelist", nlist]
@@ -455,8 +469,6 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
             print(f"[submitted] {run_mode} {pair_id} → job {jobid}", flush=True)
         else:
             raise
-
-
 
 
 def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
@@ -2493,6 +2505,11 @@ def main():
 
         elif args.run_mode == "compute_deltaG":
             task_deltaG(pair_id)
+
+        elif args.run_mode == "plot":
+            # We already did globals above; now do pair-specific plots
+            # When called via the inner job, args.plot_scope is "pair"
+            task_plot(pair_id, args)
 
         elif args.run_mode == "clean":  # Remove existing files to run the pipeline clean
             task_clean(pair_id, args)
