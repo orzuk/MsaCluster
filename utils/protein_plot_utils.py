@@ -470,6 +470,8 @@ def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
     return None
 
 
+def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id, pred_truth_slices=None):
+
 def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id):
     """
     Save three images into fig_dir_root:
@@ -486,12 +488,11 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
     if n_pred == 0:
         print("[plot] WARN: no predicted cmaps found after alignment; skipping cmap panels.")
         return
-    plot_array_contacts_and_predictions(
-        match_predicted_cmaps,
-        match_true_cmap,
-        save_file=save_root,          # saves ..._all_clusters_cmap.png
-        foldpair_id=foldpair_id       # also saves ..._best_clusters_cmap.png inside
-    )
+    plot_array_contacts_and_predictions(match_predicted_cmaps,
+                                        match_true_cmap,
+                                        save_file=save_root,
+                                        foldpair_id=foldpair_id,
+                                        pred_truth_slices=pred_truth_slices)
 
     # --- 3) Deep-only panel ---
     # Show what keys we actually got (handy for debugging)
@@ -1009,7 +1010,7 @@ def make_foldswitch_all_plots(
     keyA = pdbids[0] + pdbchains[0]  # e.g. "2qqjA"
     keyB = pdbids[1] + pdbchains[1]  # e.g. "4qdsA"
 
-    match_true_cmap, match_predicted_cmaps = align_truth_and_preds_via_msa_first2(
+    match_true_cmap, match_predicted_cmaps, pred_truth_slices = align_truth_and_preds_via_msa_first2(
         true_cmap=true_cmap,
         pred_cmaps=msa_transformer_pred,
         msa_path=msa_full,
@@ -1024,7 +1025,7 @@ def make_foldswitch_all_plots(
     # ---------- Plot CMAPs ----------
     if plot_contacts:
         print("All match_true len and match_predicted_cmaps len:",  len(match_true_cmap), len(match_predicted_cmaps))
-        _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id)
+        _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id, pred_truth_slices=pred_truth_slices)
 
     # ---------- Metrics on shared/unique contacts ----------
     shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
@@ -1321,8 +1322,17 @@ def plot_array_contacts_and_predictions(
     recall: dict[str, dict[str, float]] = {}
     for i, name in enumerate(preds.keys()):
         ax = axes[i]
+#        recall[name] = plot_foldswitch_contacts_and_predictions(
+#            preds[name], contacts, ax=ax, title=_cluster_short_disp(name), show_legend=False)
         recall[name] = plot_foldswitch_contacts_and_predictions(
-            preds[name], contacts, ax=ax, title=_cluster_short_disp(name), show_legend=False)
+            predictions=[pred_arr],  # unchanged
+            contacts=contacts,  # the global truth frame (455x455 here)
+            ax=ax,
+            title=_cluster_short_disp(name),
+            show_legend=False,
+            foldpair_id=foldpair_id,
+            targets_override=pred_truth_slices.get(name) if pred_truth_slices else None
+        )
 
 
     # hide leftover cells
@@ -1471,7 +1481,8 @@ def plot_foldswitch_contacts_and_predictions(
         title: Union[bool, str, Callable[[float], str]] = True,
         animated: bool = False,
         show_legend: bool = False,
-        save_flag: bool = False):
+        save_flag: bool = False,
+        targets_override=None):
 
     fold_ids = list(contacts.keys())
 
@@ -1502,6 +1513,15 @@ def plot_foldswitch_contacts_and_predictions(
     invalid_mask = np.abs(np.add.outer(np.arange(seqlen), -np.arange(seqlen))) < 6  # stripe around diagonal
     topl_val = [[], []]
     pred_contacts = [[], []]
+
+    # If we have per-pred truth slices, replace 'contacts' with the size-matched truths
+    if targets_override is not None:
+        # targets_override is {keyA: T1_for_pred, keyB: T2_for_pred, "cols": keep_cols}
+        contacts = {k: v for k, v in targets_override.items() if k in ("cols",)}
+        # Rebuild the contacts dict to the expected format: only A/B truth maps
+        contacts = {k: targets_override[k] for k in targets_override if k in ("cols",)}  # placeholder to keep "cols"
+        # Proper dict with A/B truths
+        contacts = {k: targets_override[k] for k in targets_override if k not in ("cols",)}
     _, _, contacts_united = match_predicted_and_true_contact_maps({title: predictions[0]}, contacts)  # only contacts matter, not predictions
     predictions_copy = copy.deepcopy(predictions)
     for p in range(2):
