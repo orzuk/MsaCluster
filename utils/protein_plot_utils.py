@@ -471,8 +471,6 @@ def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
 
 
 def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id, pred_truth_slices=None):
-
-def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id):
     """
     Save three images into fig_dir_root:
       1) {pair}_all_clusters_cmap.png   (grid of all clusters)
