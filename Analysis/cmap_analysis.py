@@ -10,7 +10,7 @@ sys.path.insert(0, ROOT)
 from config import *
 from utils.utils import *
 from utils.align_utils import *
-
+from utils.protein_utils import load_cmap_and_idx
 
 def _read_two_seeds_from_a3m(a3m_path: str):
     """
@@ -105,28 +105,6 @@ def _truth_contacts(coords: np.ndarray, cutoff=CONTACT_CUTOFF, sep_min=6):
     # make symmetric
     mask = np.triu(mask, 1) | np.tril(mask, -1)
     return mask
-
-def load_cmap_and_idx(path):
-    """
-    Returns: (cmap: np.ndarray[L,L], idx: np.ndarray[L_idx], keep_cols or None)
-    - .npz (preferred): expects keys 'cmap', 'idx' (and optional 'keep_cols')
-    - legacy .npy dict: {'cmap':..., 'idx':...}
-    - legacy plain .npy: cmap only + sidecar .idx.npy (if present)
-    """
-    if path.endswith(".npz"):
-        z = np.load(path)
-        return z["cmap"], z["idx"], (z["keep_cols"] if "keep_cols" in z.files else None)
-    arr = np.load(path, allow_pickle=True)
-    if isinstance(arr, np.ndarray) and arr.dtype == object:
-        d = arr.item()
-        return d["cmap"], d["idx"], d.get("keep_cols", None)
-    # plain array case:
-    cmap = arr
-    idx_path = path.replace(".npy", ".idx.npy")
-    if os.path.isfile(idx_path):
-        idx = np.load(idx_path)
-        return cmap, idx, None
-    raise FileNotFoundError(f"{path}: legacy npy without idx sidecar; re-run MSAT to produce .npz.")
 
 
 def seed_residue_indices(seed_a3m_path: str, tag: str):

@@ -815,8 +815,11 @@ def _has_deep_msa(pair_id: str) -> bool:
 def _has_cluster_msas(pair_id: str) -> bool:
     return bool(list(Path(f"Pipeline/{pair_id}/output_msa_cluster").glob("ShallowMsa_*.a3m")))
 
+
 def _has_cmaps(pair_id: str) -> bool:
-    return bool(list(Path(f"Pipeline/{pair_id}/output_cmaps/msa_transformer").glob("*.npy")))
+    p = Path(f"Pipeline/{pair_id}/output_cmaps/msa_transformer")
+    return any(p.glob("*.npz")) or any(p.glob("*.npy"))
+
 
 def _has_esm_model(pair_id: str, model: str) -> bool:
     d = Path(f"Pipeline/{pair_id}/output_esm_fold/{model}")
@@ -2359,10 +2362,14 @@ def main():
         task_postprocess(foldpairs, args)
         return  # or sys.exit(0)
 
-    # Run once for all pairs
+    # If we're plotting, do the global plots once locally, then fall through to per-pair handling.
     if args.run_mode == "plot":
-        task_plot(pair_id=foldpairs, args=args)        # Run global plots ONCE
-        return
+        a_global = deepcopy(args)
+        a_global.plot_scope = "global"
+        try:
+            task_plot(pair_id=None, args=a_global)
+        except Exception as e:
+            print(f"[plot] WARN global plots failed: {e}")
 
     print("run_foldswitch_pipeline.py before loopargs run_job_mode:", args.run_job_mode)
 
@@ -2439,6 +2446,9 @@ def main():
                     f"--hdbscan_min_samples {str(args.hdbscan_min_samples)}",
                     f"--hdbscan_cluster_selection {str(args.hdbscan_cluster_selection)}",
                 ]
+
+            if args.run_mode == "plot":
+                extras += ["--plot_scope pair"]
 
             if args.run_mode == "postprocess":
                 if getattr(args, "reports", "none") != "none":

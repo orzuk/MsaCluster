@@ -1,6 +1,14 @@
-from config import *
+from PIL import Image, ImageDraw, ImageFont  # NEW
+
+import pandas as pd
+import numpy as np
 import os, re, math, shutil  # make sure shutil is imported
 import subprocess, shlex, tempfile
+from Bio import Align
+from matplotlib.colors import ListedColormap, BoundaryNorm
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
@@ -13,20 +21,13 @@ except Exception:
     # Keep plotting utils importable on machines without PyMOL
     PYMOL_AVAILABLE = False
 
-from Bio import Align
+from config import *
 from utils.phytree_utils import *
 from scripts.MSA_Clust import *
 from utils.utils import *
 from utils.energy_utils import *
 from utils.align_utils import *
-from matplotlib.colors import ListedColormap, BoundaryNorm
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
-import matplotlib.pyplot as plt
-from PIL import Image, ImageDraw, ImageFont  # NEW
-
-import pandas as pd
-import numpy as np
+from utils.protein_utils import *
 
 # at top, near the PYMOL_AVAILABLE detection
 PYMOL_BIN = os.environ.get("PYMOL_BIN")  # path like /sci/.../pymol-venv/bin/pymol
@@ -922,7 +923,7 @@ def make_foldswitch_all_plots(
         for i in range(2)
     }
 
-    msa_pred_files = glob(os.path.join(fasta_dir, foldpair_id, "output_cmaps", "msa_transformer", "*.npy"))
+    msa_pred_files = glob(os.path.join(fasta_dir, foldpair_id, "output_cmaps", "msa_transformer", "*.npz"))
     msa_files = glob(os.path.join(fasta_dir, foldpair_id, "output_msa_cluster", "*.a3m"))
     msa_clusters = {os.path.basename(fp)[:-4]: read_msa(fp) for fp in msa_files}
 
@@ -953,13 +954,13 @@ def make_foldswitch_all_plots(
         base = os.path.splitext(os.path.basename(path))[0]  # e.g., "msa_t__ShallowMsa_008"
         key = base[len("msa_t__"):] if base.startswith("msa_t__") else base
         try:
-            msa_transformer_pred[key] = np.load(path, allow_pickle=True)
+            msa_transformer_pred[key], _, _ = load_cmap_and_idx(path) #  np.load(path, allow_pickle=True)
         except Exception:
             msa_transformer_pred[key] = np.genfromtxt(path)
     print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), " num=", len(msa_transformer_pred))
 
     if not msa_transformer_pred:
-        print(f"[plot:{foldpair_id}] No MSA-Transformer .npy files — skipping contact panels.")
+        print(f"[plot:{foldpair_id}] No MSA-Transformer .npz files — skipping contact panels.")
         return  # skip
 
     # ---------- Truth contacts ----------
@@ -1908,54 +1909,6 @@ def plot_viz_cmap(file, legend_plot):
         Patch(facecolor='lightblue', edgecolor='black', label='Experiment contact'),
         Patch(facecolor='purple', edgecolor='black', label='Unique State Experiment contact'),
         Patch(facecolor='blue', edgecolor='black', label='Experiment contact predicted'),
-        Patch(facecolor='magenta', edgecolor='black', label='Unique State Experiment contact predicted')
-    ]
-
-    # Add the legend
-    plt.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, 0.5))
-
-    # Set title and labels
-    plt.title(legend_plot)
-    plt.xlabel('Residue Index')
-    plt.ylabel('Residue Index')
-
-    # Adjust layout to make room for the legend
-    plt.tight_layout()
-
-    # Show the plot
-    plt.show()
-
-
-
-# Temp: why two versions??
-def plot_viz_cmap2(file1, file2, legend_plot):
-
-    print("Input to plot_viz_cmap2: ", file1, file2, legend_plot, flush=True)
-    # Load the two 2D numpy arrays
-    visualization_map1 = np.load(file1)
-    visualization_map2 = np.load(file2)
-
-    # Ensure both arrays have the same shape
-    assert visualization_map1.shape == visualization_map2.shape, "Both input arrays must have the same shape"
-
-    # Create a combined array
-    combined_map = np.tril(visualization_map1) + np.triu(visualization_map2, k=1)
-
-    # Create a custom colormap
-    colors = ['grey', 'blue', 'lightblue', 'purple', 'blue', 'magenta']
-    bounds = [0, 0.49, 0.99, 1.24, 1.49, 1.74, 2]
-    cmap = ListedColormap(colors)
-    norm = BoundaryNorm(bounds, cmap.N)
-
-    # Create the plot
-    plt.figure(figsize=(10, 8))
-    im = plt.imshow(combined_map, cmap=cmap, norm=norm, interpolation='nearest', origin='lower')
-
-    # Create legend elements
-    legend_elements = [
-        Patch(facecolor='lightblue', edgecolor='black', label='Experiment contact'),
-        Patch(facecolor='purple', edgecolor='black', label='Unique State Experiment contact'),
-        Patch(facecolor='blue', edgecolor='black', label='Predicted contacts'),
         Patch(facecolor='magenta', edgecolor='black', label='Unique State Experiment contact predicted')
     ]
 

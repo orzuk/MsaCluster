@@ -295,6 +295,29 @@ def convert_atomarray_to_recarray(atom_array):
     # Convert to a recarray so fields can be accessed as attributes:
     return np.rec.array(rec)
 
+def load_cmap_and_idx(path):
+    """
+    Returns: (cmap: np.ndarray[L,L], idx: np.ndarray[L_idx], keep_cols or None)
+    - .npz (preferred): expects keys 'cmap', 'idx' (and optional 'keep_cols')
+    - legacy .npy dict: {'cmap':..., 'idx':...}
+    - legacy plain .npy: cmap only + sidecar .idx.npy (if present)
+    """
+    if path.endswith(".npz"):
+        z = np.load(path)
+        return z["cmap"], z["idx"], (z["keep_cols"] if "keep_cols" in z.files else None)
+    arr = np.load(path, allow_pickle=True)
+    if isinstance(arr, np.ndarray) and arr.dtype == object:
+        d = arr.item()
+        return d["cmap"], d["idx"], d.get("keep_cols", None)
+    # plain array case:
+    cmap = arr
+    idx_path = path.replace(".npy", ".idx.npy")
+    if os.path.isfile(idx_path):
+        idx = np.load(idx_path)
+        return cmap, idx, None
+    raise FileNotFoundError(f"{path}: legacy npy without idx sidecar; re-run MSAT to produce .npz.")
+
+
 
 # Taken from esm:
 def extend(a, b, c, L, A, D):
