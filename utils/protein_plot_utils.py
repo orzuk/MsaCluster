@@ -1337,7 +1337,6 @@ def plot_array_contacts_and_predictions(
             ax=ax,
             title=_cluster_short_disp(name),
             show_legend=False,
-            foldpair_id=foldpair_id,
             targets_override=targets_override       # per-cluster size-matched truths
         )
 
