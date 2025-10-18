@@ -1295,12 +1295,17 @@ def plot_array_contacts_and_predictions(
     contacts,
     save_file="",
     *,
-    foldpair_id: str | None = None
+    foldpair_id: str | None = None,
+    pred_truth_slices: dict | None = None
 ):
     """
     Draw:
       • Grid of ALL clusters found in `predictions` -> {save_file}.png
       • One-panel BEST clusters (one cluster chosen per fold) -> {save_file.replace('all','best')}.png
+
+    `predictions` is a dict: {cluster_tag -> (predA, predB)} where predA/predB are 2D arrays (may be size-misaligned).
+    `contacts`    is a dict: {keyA -> trueA_full, keyB -> trueB_full}
+    `pred_truth_slices`     : {cluster_tag -> {keyA -> trueA_for_this_pred_size, keyB -> trueB_for_this_pred_size}}
     """
     preds = dict(predictions or {})
     n_pred = len(preds)
@@ -1308,51 +1313,49 @@ def plot_array_contacts_and_predictions(
         print("[plot] no predictions to plot.")
         return
 
-    # choose a near-square grid
+    fold_ids = list(contacts.keys())  # e.g., ["1dzlA", "5keqF"]
+
+    # --- choose a near-square grid for the "all clusters" panel ---
     n_row = int(math.ceil(math.sqrt(n_pred)))
     n_col = n_row - 1 if n_row * (n_row - 1) >= n_pred else n_row
 
     fig, axes = plt.subplots(n_row, n_col, figsize=(12, 12), layout="compressed")
-    axes = np.array(axes).reshape(-1)  # flatten safely for any 1D/2D case
+    axes = np.array(axes).reshape(-1)
 
-    # ---- draw all clusters and collect per-fold recall ----
-    fold_ids = list(contacts.keys())
+    # draw all clusters and collect per-fold recall
     recall: dict[str, dict[str, float]] = {}
-    for i, name in enumerate(preds.keys()):
+    names = list(preds.keys())
+    for i, name in enumerate(names):
         ax = axes[i]
-#        recall[name] = plot_foldswitch_contacts_and_predictions(
-#            preds[name], contacts, ax=ax, title=_cluster_short_disp(name), show_legend=False)
+        pred_ab = preds[name]  # tuple: (predA, predB)
+        # per-cluster size-matched truths if available
+        targets_override = pred_truth_slices.get(name) if pred_truth_slices else None
+
         recall[name] = plot_foldswitch_contacts_and_predictions(
-            predictions=[pred_arr],  # unchanged
-            contacts=contacts,  # the global truth frame (455x455 here)
+            predictions=pred_ab,
+            contacts=contacts,                      # global frame (455x455)
             ax=ax,
             title=_cluster_short_disp(name),
             show_legend=False,
             foldpair_id=foldpair_id,
-            targets_override=pred_truth_slices.get(name) if pred_truth_slices else None
+            targets_override=targets_override       # per-cluster size-matched truths
         )
 
-
-    # hide leftover cells
+    # hide leftovers
     for j in range(n_pred, len(axes)):
         axes[j].axis("off")
 
-    # ---- single global legend below the mosaic (one narrow row) ----
+    # global legend
     legend_handles = [
         Patch(facecolor='lightgray', edgecolor='#444', label='Shared Contacts'),
-        Patch(facecolor='darkgray', edgecolor='#444', label='Unique Contacts'),
-        Line2D([0], [0], marker='o', linestyle='None', color='red', label='False Positives', markersize=6),
-        Line2D([0], [0], marker='o', linestyle='None', color='blue', label='True Shared Positives', markersize=6),
-        Line2D([0], [0], marker='o', linestyle='None', color='green', label='True Unique Positives', markersize=6),
+        Patch(facecolor='darkgray',  edgecolor='#444', label='Unique Contacts'),
+        Line2D([0], [0], marker='o', linestyle='None', color='red',  label='False Positives',        markersize=6),
+        Line2D([0], [0], marker='o', linestyle='None', color='blue', label='True Shared Positives',  markersize=6),
+        Line2D([0], [0], marker='o', linestyle='None', color='green',label='True Unique Positives',  markersize=6),
     ]
-    legend_labels = [h.get_label() for h in legend_handles]
-
-    # put legend just below the axes area
-    fig.legend(handles=legend_handles, labels=legend_labels, loc='lower center', bbox_to_anchor=(0.5, -0.02),
-        ncol=5, frameon=False, fontsize=8)
-    # leave a bit more room for the legend
+    fig.legend(handles=legend_handles, loc='lower center', bbox_to_anchor=(0.5, -0.02),
+               ncol=5, frameon=False, fontsize=8)
     fig.subplots_adjust(bottom=0.18)
-
 
     if save_file:
         plt.savefig(save_file + ".png", dpi=200)
@@ -1362,16 +1365,32 @@ def plot_array_contacts_and_predictions(
     if not recall:
         return
 
-    # exclude deep from the "best" picker (as before)
+    # pick BEST per fold (exclude 'deep' if present)
     filtered = {k: v for k, v in recall.items() if "deep" not in k.lower()}
     pick_from = filtered if filtered else recall
 
-    best = find_max_keys(pick_from)  # {'foldA': (cluster, val), 'foldB': (...)}
+    best = find_max_keys(pick_from)  # {'foldA': (cluster, val), 'foldB': (cluster, val)}
     print("Best recall clusters:", best)
     best_names = {fold_ids[0]: best[fold_ids[0]][0], fold_ids[1]: best[fold_ids[1]][0]}
     print("Best recall cluster names:", best_names)
 
-    # optional ΔG overlay
+    # Build predictions tuple and target slices for the BEST panel:
+    #   predictions must be (pred_for_fold1, pred_for_fold2)
+    #   truths must be (truth_for_cluster_of_fold1, truth_for_cluster_of_fold2)
+    pred_best = (preds[best_names[fold_ids[0]]][0],  # fold1 pred
+                 preds[best_names[fold_ids[1]]][1])  # fold2 pred
+
+    targets_override_best = None
+    if pred_truth_slices:
+        # merge the per-fold truths from the two chosen clusters
+        tA = pred_truth_slices.get(best_names[fold_ids[0]] , {})
+        tB = pred_truth_slices.get(best_names[fold_ids[1]] , {})
+        targets_override_best = {
+            fold_ids[0]: tA.get(fold_ids[0], contacts[fold_ids[0]]),
+            fold_ids[1]: tB.get(fold_ids[1], contacts[fold_ids[1]]),
+        }
+
+    # optional ΔΔG overlay (unchanged logic)
     xvec = yvec = None
     if foldpair_id:
         energy_dir = os.path.join("Pipeline", foldpair_id, "output_deltaG")
@@ -1384,10 +1403,10 @@ def plot_array_contacts_and_predictions(
         except Exception as e:
             print(f"[plot] NOTE: ΔG overlay skipped for {foldpair_id}: {e}")
 
-    # render BEST single panel
+    # BEST single panel
     plt.figure(figsize=(10, 8))
     plot_foldswitch_contacts_and_predictions(
-        predictions=(preds[best_names[fold_ids[0]]], preds[best_names[fold_ids[1]]]),
+        predictions=pred_best,
         contacts=contacts,
         title="Best clusters",
         show_legend=True,
@@ -1396,6 +1415,7 @@ def plot_array_contacts_and_predictions(
             _cluster_short_disp(best_names[fold_ids[1]]),
         ),
         x_vector=xvec, y_vector=yvec,
+        targets_override=targets_override_best
     )
     if save_file:
         plt.savefig(save_file.replace("all", "best") + ".png", dpi=200)
@@ -1512,14 +1532,12 @@ def plot_foldswitch_contacts_and_predictions(
     topl_val = [[], []]
     pred_contacts = [[], []]
 
-    # If we have per-pred truth slices, replace 'contacts' with the size-matched truths
+
+    # If we have per-pred truth slices, replace the global contacts
     if targets_override is not None:
-        # targets_override is {keyA: T1_for_pred, keyB: T2_for_pred, "cols": keep_cols}
-        contacts = {k: v for k, v in targets_override.items() if k in ("cols",)}
-        # Rebuild the contacts dict to the expected format: only A/B truth maps
-        contacts = {k: targets_override[k] for k in targets_override if k in ("cols",)}  # placeholder to keep "cols"
-        # Proper dict with A/B truths
-        contacts = {k: targets_override[k] for k in targets_override if k not in ("cols",)}
+        # keep only the two fold keys (e.g., {"1dzlA": T1, "5keqF": T2})
+        contacts = {k: targets_override[k] for k in list(contacts.keys()) if k in targets_override}
+
     _, _, contacts_united = match_predicted_and_true_contact_maps({title: predictions[0]}, contacts)  # only contacts matter, not predictions
     predictions_copy = copy.deepcopy(predictions)
     for p in range(2):
@@ -1543,8 +1561,8 @@ def plot_foldswitch_contacts_and_predictions(
     if isinstance(title, str):
         title_text: Optional[str] = title
     elif title:
-        long_range_pl0 = compute_precisions(predictions_copy[0], contacts, minsep=24)["P@L"].item()
-        long_range_pl1 = compute_precisions(predictions_copy[1], contacts, minsep=24)["P@L"].item()
+        long_range_pl0 = compute_precisions(predictions_copy[0], contacts[fold_ids[0]], minsep=24)["P@L"].item()
+        long_range_pl1 = compute_precisions(predictions_copy[1], contacts[fold_ids[1]], minsep=24)["P@L"].item()
         if callable(title):
             title_text = title(long_range_pl0 + long_range_pl1)
         else:
