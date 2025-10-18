@@ -954,7 +954,8 @@ def make_foldswitch_all_plots(
         base = os.path.splitext(os.path.basename(path))[0]  # e.g., "msa_t__ShallowMsa_008"
         key = base[len("msa_t__"):] if base.startswith("msa_t__") else base
         try:
-            msa_transformer_pred[key], _, _ = load_cmap_and_idx(path) #  np.load(path, allow_pickle=True)
+            pair_cmap, pair_idx, keep_cols = load_cmap_and_idx(path) #  np.load(path, allow_pickle=True)
+            msa_transformer_idx[key] = (pair_cmap, pair_idx)
         except Exception:
             msa_transformer_pred[key] = np.genfromtxt(path)
     print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), " num=", len(msa_transformer_pred))

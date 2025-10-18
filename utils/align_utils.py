@@ -325,74 +325,98 @@ def align_cmaps_by_sequence(
 
 
 def align_truth_and_preds_via_msa_first2(
-    true_cmap: dict,          # {keyA: (L1,L1), keyB: (L2,L2)}
-    pred_cmaps: dict,         # {name: (Lmsa,Lmsa)} from the SAME full MSA
-    msa_path: str,            # Pipeline/<pair>/output_get_msa/DeepMsa.a3m  (the FULL MSA)
-    keyA: str | None = None,  # e.g. '2qqjA' (header substring to find row)
-    keyB: str | None = None,  # e.g. '4qdsA'
+    true_cmap: dict,          # {keyA: T1 (L1xL1), keyB: T2 (L2xL2)}
+    pred_cmaps: dict,         # {name: P or (P, idx)}; idx are MSA column indices used to build P
+    msa_path: str,            # Pipeline/<pair>/_seed_both(.a3m or _pairtrim).a3m
+    keyA: str | None = None,  # e.g. '1dzlA'
+    keyB: str | None = None,  # e.g. '5keqF'
     verbose: bool = True,
 ) -> tuple[dict, dict]:
     """
-    Align 2 true cmaps and K predicted cmaps via the alignment of seq1 & seq2
-    INSIDE the full MSA used for predictions (DeepMsa.a3m).
-    """
-    # preds: all square, same size
-    sizes = {M.shape[0] for M in pred_cmaps.values()}
-    if any(M.shape[0] != M.shape[1] for M in pred_cmaps.values()):
-        raise ValueError("All predicted contact maps must be square.")
-    if len(sizes) != 1:
-        raise ValueError(f"Predicted cmaps have multiple sizes: {sorted(sizes)}")
-    (Lmsa_pred,) = tuple(sizes)
+    Align 2 truth cmaps and K predicted cmaps via the alignment of the two query
+    rows inside the FULL MSA. Predicted maps may have different sizes (depending
+    on their per-file seed-column subset `idx`), and we slice each one into the
+    same residue frame before comparing/plotting.
 
-    # pick the two truth maps
+    pred_cmaps values can be:
+      - ndarray P (legacy)  -> treated as if idx = range(P.shape[0]) in MSA order
+      - (P, idx) tuple      -> preferred; idx are SEED-column positions used by P
+    """
+    # ---- sanity: truths
     if len(true_cmap) != 2:
         raise ValueError(f"true_cmap must have exactly 2 entries; got {len(true_cmap)}.")
-    (tA_key, A_map), (tB_key, B_map) = list(true_cmap.items())
-    L1, L2 = A_map.shape[0], B_map.shape[0]
+    (tA_key, T1), (tB_key, T2) = list(true_cmap.items())
+    if T1.shape[0] != T1.shape[1] or T2.shape[0] != T2.shape[1]:
+        raise ValueError("Truth maps must be square.")
+    L1, L2 = T1.shape[0], T2.shape[0]
 
-    # read the TWO QUERY ROWS from the FULL MSA
+    # ---- MSA: get the two query rows and map MSA columns -> residue indices in each truth
     alnA, alnB = find_two_query_rows_in_a3m(msa_path, keyA=keyA, keyB=keyB)
     if len(alnA) != len(alnB):
         raise ValueError("Two query rows in full MSA have different lengths.")
     Lmsa = len(alnA)
-
-    # if needed, crop preds to MSA length
-    if Lmsa_pred != Lmsa and verbose:
-        print(f"[align_msa_first2] WARNING: pred size ({Lmsa_pred}) != MSA length ({Lmsa}); cropping to min.")
-    L = min(Lmsa_pred, Lmsa)
-    alnA = alnA[:L]; alnB = alnB[:L]
-
-    residxA = msa_row_to_residx(alnA)
+    residxA = msa_row_to_residx(alnA)  # len Lmsa ; -1 where gap/lowercase
     residxB = msa_row_to_residx(alnB)
 
-    # keep columns where both queries are non-gap AND indices in bounds of truth maps
-    base = (residxA >= 0) & (residxB >= 0)
-    inA  = base & (residxA < L1)
-    inB  = base & (residxB < L2)
-    cols = np.where(inA & inB)[0]
+    # helper to coerce entries into (P, idx)
+    def _coerce(name, entry):
+        if isinstance(entry, tuple) and len(entry) == 2:
+            P, idx = entry
+            idx = np.asarray(idx, dtype=int)
+            if P.ndim != 2 or P.shape[0] != P.shape[1]:
+                raise ValueError(f"{name}: predicted map must be square; got {P.shape}")
+            return P, idx
+        # legacy: ndarray with no idx
+        P = entry
+        if P.ndim != 2 or P.shape[0] != P.shape[1]:
+            raise ValueError(f"{name}: predicted map must be square; got {P.shape}")
+        # assume contiguous seed columns 0..L-1 (not ideal, but keeps backward compat)
+        Lp = P.shape[0]
+        idx = np.arange(Lp, dtype=int)
+        if Lp > Lmsa and verbose:
+            print(f"[align_msa_first2] WARN {name}: P size ({Lp}) > MSA length ({Lmsa}); cropping to {Lmsa}")
+            P = P[:Lmsa, :Lmsa]
+            idx = idx[:Lmsa]
+        return P, idx
 
-    if verbose:
-        print(f"[align_msa_first2] Lmsa={L} | Ltrue=({L1},{L2}) | "
-              f"both-ungapped={int(base.sum())} | kept={len(cols)}")
+    # columns usable for truths (both ungapped and in-bounds)
+    base_good = (residxA >= 0) & (residxB >= 0) & (residxA < L1) & (residxB < L2)
 
-    if cols.size == 0:
-        raise ValueError("No usable overlap after bounds check (likely unresolved residues).")
-
-    idxA = residxA[cols]
-    idxB = residxB[cols]
-
+    # ---- build matched truths (the *maximal* frame they can support)
+    cols_truth = np.where(base_good)[0]
+    if cols_truth.size == 0:
+        raise ValueError("No usable MSA columns where both queries have residues within truth bounds.")
+    idxA_truth = residxA[cols_truth]
+    idxB_truth = residxB[cols_truth]
     match_true = {
-        tA_key: A_map[np.ix_(idxA, idxA)],
-        tB_key: B_map[np.ix_(idxB, idxB)],
+        tA_key: T1[np.ix_(idxA_truth, idxA_truth)],
+        tB_key: T2[np.ix_(idxB_truth, idxB_truth)],
     }
 
+    # ---- per-prediction slicing using its own idx subset
     match_pred = {}
-    for name, M in pred_cmaps.items():
-        M_ = M[:L, :L] if M.shape[0] != L else M
-        match_pred[name] = M_[np.ix_(cols, cols)]
+    for name, entry in pred_cmaps.items():
+        P, idx = _coerce(name, entry)           # P:(k x k), idx: seed-column numbers
+        # keep only columns present in this prediction AND valid for truths
+        keep_cols = np.intersect1d(cols_truth, idx, assume_unique=False)
+        if keep_cols.size == 0:
+            if verbose:
+                print(f"[align_msa_first2] NOTE {name}: no overlapping columns with truths; skipping.")
+            continue
+
+        # map seed-column -> axis index in P
+        pos = {int(c): i for i, c in enumerate(idx)}
+        i_sel = np.fromiter((pos[int(c)] for c in keep_cols), dtype=int, count=keep_cols.size)
+
+        # slice P into that common frame
+        P_common = P[np.ix_(i_sel, i_sel)]
+        match_pred[name] = P_common
+
+    if verbose:
+        print(f"[align_msa_first2] Lmsa={Lmsa} | kept columns (truth frame)={cols_truth.size} | "
+              f"pred files kept={len(match_pred)}/{len(pred_cmaps)}")
 
     return match_true, match_pred
-
 
 
 # Match between cmaps, get only aligned indices
