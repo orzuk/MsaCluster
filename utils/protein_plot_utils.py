@@ -998,11 +998,11 @@ def make_foldswitch_all_plots(
     print("true_cmap type and len, and len([0]):", type(true_cmap), len(true_cmap), len(true_cmap[pdbids[0] + pdbchains[0]]))
     # new (safe):
     first_key = next(iter(msa_transformer_pred.keys()), None)
-    first_len = (msa_transformer_pred[first_key].shape[0] if first_key is not None else 0)
+    first_len = (msa_transformer_pred[first_key][0].shape[0] if first_key is not None else 0)
     print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), "first_len:", first_len)
 
     print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
-    print(" pred_cmaps sizes: ", [cmap.shape for cmap in msa_transformer_pred.values()])
+    print(" pred_cmaps sizes: ", [cmap[0].shape for cmap in msa_transformer_pred.values()])
     msa_full_default = os.path.join("Pipeline", foldpair_id, "output_get_msa", "DeepMsa.a3m")
     msa_full_trim = os.path.join("Pipeline", foldpair_id, "output_get_msa", "DeepMsa_pairtrim.a3m")
     msa_full = msa_full_trim if os.path.isfile(msa_full_trim) else msa_full_default
