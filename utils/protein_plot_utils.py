@@ -955,8 +955,9 @@ def make_foldswitch_all_plots(
         key = base[len("msa_t__"):] if base.startswith("msa_t__") else base
         try:
             pair_cmap, pair_idx, keep_cols = load_cmap_and_idx(path) #  np.load(path, allow_pickle=True)
-            msa_transformer_idx[key] = (pair_cmap, pair_idx)
+            msa_transformer_pred[key] = (pair_cmap, pair_idx)
         except Exception:
+            print("[make_all_plots] Failed to load", path)
             msa_transformer_pred[key] = np.genfromtxt(path)
     print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), " num=", len(msa_transformer_pred))
 
