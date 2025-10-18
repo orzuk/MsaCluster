@@ -244,9 +244,9 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
         pair_dir_str = str(pair_id2dir(pair_id))
-        print("Compute TrueTM: pair_id:", pair_id, " ; ", ctr_pairs,  " out of ", num_pairs)
         ctr_pairs += 1
         def _tm_sym_once(pa: str, pb: str) -> float:
+            print("Compute TrueTM: pair_id:", pa, " ; ", pb, " chains: ", c1, c2)
             t12 = compute_tmscore_align(pa, pb, chain1=c1, chain2=c2)
             t21 = compute_tmscore_align(pb, pa, chain1=c2, chain2=c1)
             return max(t12, t21)

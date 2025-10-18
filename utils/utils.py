@@ -154,8 +154,6 @@ def pair_str_to_tuple(s: str) -> tuple[str, str]:
     """
     '1dzlA_5keqF' -> ('1dzlA','5keqF')
     """
-    print("[pair2tuple] pair_id:", s, flush=True)
-
     if isinstance(s, tuple) or isinstance(s, list): # ready correct format
         print("Return list/tuple!", s, type(s), len(s), flush=True)
         return s
