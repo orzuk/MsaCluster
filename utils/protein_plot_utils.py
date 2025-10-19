@@ -1484,15 +1484,14 @@ def plot_contacts_and_predictions(
 
 # Plot contacts and predictions for TWO folds !!!
 def plot_foldswitch_contacts_and_predictions(
-        predictions: Union[torch.Tensor, np.ndarray],
-        contacts: Union[torch.Tensor, np.ndarray],
+        predictions: Union[torch.Tensor, np.ndarray, Tuple[np.ndarray, np.ndarray]],
+        contacts: Union[torch.Tensor, np.ndarray, Dict[str, np.ndarray]],
         x_vector=None,
         y_vector=None,
         cluster_names=None,
         vector_cmap="viridis",
         ax: Optional[mpl.axes.Axes] = None,
-        # artists: Optional[ContactAndPredictionArtists] = None,
-        cmap: str = "gray_r",  # "Blues",
+        cmap: str = "gray_r",
         ms: float = 3,
         hit_sign: str = 'x',
         title: Union[bool, str, Callable[[float], str]] = True,
@@ -1501,62 +1500,91 @@ def plot_foldswitch_contacts_and_predictions(
         save_flag: bool = False,
         targets_override=None):
 
+    # 0) If we have per-pred truth slices, replace the global contacts FIRST
+    if targets_override is not None:
+        contacts = {k: targets_override[k] for k in list(contacts.keys()) if k in targets_override}
+
     fold_ids = list(contacts.keys())
 
-    # Handle single or double predictions
+    # 1) Handle predictions type and move tensors to numpy
     if not isinstance(predictions, tuple):
-        predictions = [predictions, predictions]
+        predictions = [predictions, predictions]   # duplicate single map for both folds
         two_predictions = False
     else:
         two_predictions = True
+    preds_np: List[np.ndarray] = []
     for p in range(2):
-        if isinstance(predictions[p], torch.Tensor):
-            predictions[p] = predictions[p].detach().cpu().numpy()
-    predictions = tuple(predictions)
+        arr = predictions[p]
+        if isinstance(arr, torch.Tensor):
+            arr = arr.detach().cpu().numpy()
+        preds_np.append(np.asarray(arr))
 
-    for fold in fold_ids: # always two contact maps
-        if isinstance(contacts[fold], torch.Tensor):
-            contacts[fold] = contacts[fold].detach().cpu().numpy()
+    # 2) Ensure contacts are numpy and get common length AFTER override
+    for k in fold_ids:
+        if isinstance(contacts[k], torch.Tensor):
+            contacts[k] = contacts[k].detach().cpu().numpy()
+        contacts[k] = np.asarray(contacts[k])
+
     if ax is None:
         ax = plt.gca()
 
-    if len(fold_ids) == 1:  # same PDB ID, duplicate
-        fold_ids[1] = fold_ids[0]
-    seqlen = contacts[fold_ids[0]].shape[0]  # take length of the first
-    relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
-    top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}  # first is lower left, second is upper right
-    #    masked_image = np.ma.masked_where(bottom_mask, predictions)
-#    masked_image = np.ma.masked_where(top_bottom_mask[list(fold_ids)[0]], predictions[0])
-    invalid_mask = np.abs(np.add.outer(np.arange(seqlen), -np.arange(seqlen))) < 6  # stripe around diagonal
-    topl_val = [[], []]
-    pred_contacts = [[], []]
+    # If the two folds have identical PDB ID we keep both entries for logic below
+    if len(fold_ids) == 1:
+        fold_ids = [fold_ids[0], fold_ids[0]]
 
+    # Use the contacts shape as the panel size (truths are already size-matched by caller)
+    seqlen = int(contacts[fold_ids[0]].shape[0])
 
-    # If we have per-pred truth slices, replace the global contacts
-    if targets_override is not None:
-        # keep only the two fold keys (e.g., {"1dzlA": T1, "5keqF": T2})
-        contacts = {k: targets_override[k] for k in list(contacts.keys()) if k in targets_override}
+    # Build the split mask for lower/upper triangles once from seqlen
+    rel = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
+    top_bottom_mask = {
+        fold_ids[0]: (rel < 0),   # first fold -> lower triangle
+        fold_ids[1]: (rel > 0)    # second fold -> upper triangle
+    }
 
-    _, _, contacts_united = match_predicted_and_true_contact_maps({title: predictions[0]}, contacts)  # only contacts matter, not predictions
-    predictions_copy = copy.deepcopy(predictions)
+    # 3) Build the "no-near-diagonal" mask per prediction from its own size
+    #    (avoid the previous mismatch where mask used seqlen=truth size)
+    display_sep_min = 6
+    predictions_copy: List[np.ndarray] = [p.copy() for p in preds_np]
+    topl_val = [0.0, 0.0]
+    pred_contacts: List[np.ndarray] = [None, None]  # boolean masks
+
     for p in range(2):
-        predictions_copy[p][invalid_mask] = float("-inf") # don't show predictions near diagonal
-        topl_val[p] = np.sort(predictions_copy[p].reshape(-1))[-seqlen]
-        pred_contacts[p] = predictions_copy[p] >= topl_val[p]
-#        print("fold ", p , fold_ids[p], " toplval=", topl_val[p], " num prediction=", sum(pred_contacts[p]))
+        Lp = predictions_copy[p].shape[0]
+        if Lp == 0:
+            # degenerate, but avoid crashes
+            predictions_copy[p] = np.zeros((seqlen, seqlen), dtype=float)
+            pred_contacts[p] = np.zeros((seqlen, seqlen), dtype=bool)
+            continue
+        idx = np.arange(Lp)
+        invalid_mask_p = (np.abs(idx[:, None] - idx[None, :]) < display_sep_min)
+        # Hide near-diagonal in the heatmap
+        predictions_copy[p][invalid_mask_p] = float("-inf")
+        # Choose top-Lp contacts per prediction (consistent with its own size)
+        topl_val[p] = np.sort(predictions_copy[p].ravel())[-Lp]
+        pred_contacts[p] = (predictions_copy[p] >= topl_val[p])
 
+    # 4) Build the united contacts panel (shared/unique) from the (possibly overridden) truths
+    #    Only contacts matter here, not predictions; we just pass a dummy dict with one pred
+    _, _, contacts_united = match_predicted_and_true_contact_maps({str(title): predictions_copy[0]}, contacts)
+
+    # 5) Compute per-fold hit categories and recall
     true_positives, true_positives_unique, false_positives, other_contacts = {}, {}, {}, {}
     recall = {}
-
     p = 0
     for fold in fold_ids:
-        true_positives[fold] = contacts[fold] & pred_contacts[p] & top_bottom_mask[fold]
+        # NB: pred_contacts[p] has shape Lp x Lp, but contacts[fold] is seqlen x seqlen.
+        # In the current pipeline, targets_override makes seqlen == Lp for both folds.
+        true_positives[fold]        = contacts[fold] & pred_contacts[p] & top_bottom_mask[fold]
         true_positives_unique[fold] = (np.transpose(contacts_united) == 2) & pred_contacts[p] & top_bottom_mask[fold]
-        false_positives[fold] = ~contacts[fold] & pred_contacts[p] & top_bottom_mask[fold]
-        other_contacts[fold] = contacts[fold] & ~pred_contacts[p] & top_bottom_mask[fold]
-        recall[fold] = sum(true_positives[fold]) / ( sum(true_positives[fold]) + sum(other_contacts[fold] ) )
+        false_positives[fold]       = (~contacts[fold]) & pred_contacts[p] & top_bottom_mask[fold]
+        other_contacts[fold]        = contacts[fold] & (~pred_contacts[p]) & top_bottom_mask[fold]
+        tp = np.count_nonzero(true_positives[fold])
+        miss = np.count_nonzero(other_contacts[fold])
+        recall[fold] = (tp / (tp + miss)) if (tp + miss) > 0 else 0.0
         p += 1
 
+    # 6) Title with P@L per fold (use each fold's truth)
     if isinstance(title, str):
         title_text: Optional[str] = title
     elif title:
@@ -1569,85 +1597,63 @@ def plot_foldswitch_contacts_and_predictions(
     else:
         title_text = None
 
-    # Start drawing
-    # Check if vectors are provided
-    include_vectors = x_vector is not None or y_vector is not None
-
-    # Create the figure and axes
+    # 7) Start drawing (optionally with ΔΔG strips)
+    include_vectors = (x_vector is not None) or (y_vector is not None)
     if include_vectors:
         fig = plt.figure(figsize=(10, 10))
-        gs = GridSpec(2, 2, width_ratios=[1, 0.03], height_ratios=[0.03, 1], figure=fig, wspace=0.05, hspace=0.05)
+        gs = GridSpec(2, 2, width_ratios=[1, 0.03], height_ratios=[0.03, 1],
+                      figure=fig, wspace=0.05, hspace=0.05)
         ax = fig.add_subplot(gs[1, 0])
 
-    colors = ['white', 'lightgray', 'darkgray']  # background, unique, shared
-    custom_cmap = ListedColormap(colors)
+    # Background (shared/unique)
+    colors_bg = ['white', 'lightgray', 'darkgray']
+    custom_cmap = ListedColormap(colors_bg)
     img = ax.imshow(contacts_united, cmap=custom_cmap, animated=animated)
 
-    ms = ms * 50 / seqlen
-    # Create legend entries with square markers for contacts
-    shared_contacts = ax.scatter([], [], marker='s', c='lightgray', s=ms * 50, label='Shared Contacts')
-    unique_contacts = ax.scatter([], [], marker='s', c='darkgray', s=ms * 50, label='Unique Contacts')
+    ms_scaled = ms * 50 / seqlen
+    shared_contacts = ax.scatter([], [], marker='s', c='lightgray', s=ms_scaled * 50, label='Shared Contacts')
+    unique_contacts = ax.scatter([], [], marker='s', c='darkgray',  s=ms_scaled * 50, label='Unique Contacts')
 
     categories = ["false_positives", "true_positives", "true_positives_unique"]
-    colors = ["r", "b", "g"]
-    relative_size = [1,1,1.5]
+    colors_pt  = ["r", "b", "g"]
+    relative_size = [1, 1, 1.5]
     labels = ["False Positives", "True Shared Positives", "True Unique Positives"]
     plots = []
-    offset = -0.15  # Amount to shift circles to the left
+    offset = -0.15
     for i, category in enumerate(categories):
         x_coords, y_coords = np.where(locals()[category][fold_ids[0]])
-        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors[i], ms=ms*relative_size[i], label=labels[i])[0])
+        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors_pt[i], ms=ms_scaled*relative_size[i], label=labels[i])[0])
         x_coords, y_coords = np.where(locals()[category][fold_ids[1]])
-        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors[i], ms=ms*relative_size[i])[0])
+        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors_pt[i], ms=ms_scaled*relative_size[i])[0])
 
-    # Add a single colorbar for x_vector and y_vector
+    # Optional ΔΔG colorbars
     if include_vectors:
+        from matplotlib.gridspec import GridSpec as _GridSpec  # just to ensure availability
         ax_xvec = fig.add_subplot(gs[0, 0], sharex=ax)
         ax_yvec = fig.add_subplot(gs[1, 1], sharey=ax)
-        # Normalize vector values
         combined_vector = np.concatenate([x_vector.flatten(), y_vector.flatten()])
         norm = plt.Normalize(vmin=combined_vector.min(), vmax=combined_vector.max())
-
-        # Plot x_vector heatmap
         ax_xvec.imshow(x_vector[np.newaxis, :], aspect="auto", cmap=vector_cmap, norm=norm)
-#        original_aspect_x = ax_xvec.get_data_ratio()  # Get the current aspect ratio
-#        ax_xvec.imshow(x_vector[np.newaxis, :], aspect=original_aspect_x *0.7, cmap=vector_cmap, norm=norm)  # Reduce width by 30%
         ax_xvec.axis("off")
-
-        # Plot y_vector heatmap
         ax_yvec.imshow(y_vector[:, np.newaxis], aspect="auto", cmap=vector_cmap, norm=norm)
-#        original_aspect_y = ax_yvec.get_data_ratio()
-#        ax_yvec.imshow(y_vector[:, np.newaxis], aspect=original_aspect_y *0.7, cmap=vector_cmap, norm=norm)  # Reduce height by 30%
         ax_yvec.axis("off")
-
-        # Add colorbar for vectors
-        cbar_ax = fig.add_axes([0.93, 0.3, 0.02, 0.4])  # [left, bottom, width, height]
+        cbar_ax = fig.add_axes([0.93, 0.3, 0.02, 0.4])
         cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=vector_cmap), cax=cbar_ax)
         cbar.set_label("ΔΔG (kcal/mol)", rotation=90, labelpad=-45, va='bottom')
-
-        plt.tight_layout(rect=[0, 0, 0.9, 1])  # Leave space for the colorbar
+        plt.tight_layout(rect=[0, 0, 0.9, 1])
 
     if show_legend:
         legend_elements = [
             Line2D([0], [0], marker='s', color='lightgray', label='Shared Contacts', markersize=10, linestyle='None'),
             Line2D([0], [0], marker='s', color='darkgray', label='Unique Contacts', markersize=10, linestyle='None'),
-            Line2D([0], [0], marker='o', color='red', label='False Positives', markersize=6, linestyle='None'),
-            Line2D([0], [0], marker='o', color='blue', label='True Shared Positives', markersize=6, linestyle='None'),
-            Line2D([0], [0], marker='o', color='green', label='True Unique Positives', markersize=6, linestyle='None')]
-        # Add the legend to the plot
-        ax.legend(
-            handles=legend_elements,
-            loc="upper center",  # Place legend at the top center
-            bbox_to_anchor=(0.5, -0.075),  # Adjust position just above the plot
-            ncol=5,  # Reduce the number of columns
-            frameon=False,  # Remove legend box
-            fontsize=7,  # Smaller font size
-            columnspacing=0.9,  # Reduce spacing between columns
-            handletextpad=0.5,  # Reduce spacing between handles and text
-            borderaxespad=0.2)  # Adjust padding between the legend and axes
+            Line2D([0], [0], marker='o', color='red',   label='False Positives', markersize=6, linestyle='None'),
+            Line2D([0], [0], marker='o', color='blue',  label='True Shared Positives', markersize=6, linestyle='None'),
+            Line2D([0], [0], marker='o', color='green', label='True Unique Positives', markersize=6, linestyle='None'),
+        ]
+        ax.legend(handles=legend_elements, loc="upper center", bbox_to_anchor=(0.5, -0.075),
+                  ncol=5, frameon=False, fontsize=7, columnspacing=0.9, handletextpad=0.5, borderaxespad=0.2)
 
     ax.axis("square")
-#    print("Recall is: ", {k:round(recall[k], 4) for k in recall}, " fold ids is: ", fold_ids)
 
     if cluster_names is None:
         ax.set_xlabel(f"{fold_ids[0]}, recall={round(recall[fold_ids[0]], 4)}", fontsize=12)
@@ -1658,13 +1664,17 @@ def plot_foldswitch_contacts_and_predictions(
         ax.set_xlabel(f"{fold_ids[0]}, recall={round(recall[fold_ids[0]], 4)} — {cx}", fontsize=12)
         ax.set_ylabel(f"{fold_ids[1]}, recall={round(recall[fold_ids[1]], 4)} — {cy}", fontsize=12)
 
-
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
 
-#    predictions = save_predictions
+    if isinstance(title, str):
+        ax.set_title(title)
+    elif title:
+        ax.set_title(title_text)
+
     if save_flag:
-        plt.savefig('%s.pdf' % title, bbox_inches='tight')
+        plt.savefig(f"{title}.pdf", bbox_inches='tight')
+
     return recall
 
 
