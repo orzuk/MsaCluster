@@ -1483,6 +1483,7 @@ def plot_contacts_and_predictions(
 
 
 # Plot contacts and predictions for TWO folds !!!
+# Plot contacts and predictions for TWO folds !!!
 def plot_foldswitch_contacts_and_predictions(
         predictions: Union[torch.Tensor, np.ndarray, Tuple[np.ndarray, np.ndarray]],
         contacts: Union[torch.Tensor, np.ndarray, Dict[str, np.ndarray]],
@@ -1500,91 +1501,128 @@ def plot_foldswitch_contacts_and_predictions(
         save_flag: bool = False,
         targets_override=None):
 
+    # --- helper: coerce any array to 2-D square or return None on failure
+    def _ensure_square_2d(arr: Any, fallback_L: int, tag: str):
+        if isinstance(arr, torch.Tensor):
+            arr = arr.detach().cpu().numpy()
+        arr = np.asarray(arr)
+        # Already a square matrix?
+        if arr.ndim == 2 and arr.shape[0] == arr.shape[1]:
+            return arr.astype(float, copy=False)
+        # Flattened vector that is a perfect square? reshape it.
+        if arr.ndim == 1:
+            n = arr.size
+            L = int(np.sqrt(n))
+            if L * L == n and L > 0:
+                return arr.reshape(L, L).astype(float, copy=False)
+        # Scalar or malformed -> fallback zeros so we don't crash
+        if fallback_L > 0:
+            print(f"[plot] WARN: prediction '{tag}' is not 2D square (shape={arr.shape}); "
+                  f"using zeros of size {fallback_L}x{fallback_L}")
+            return np.zeros((fallback_L, fallback_L), dtype=float)
+        return None
+
     # 0) If we have per-pred truth slices, replace the global contacts FIRST
     if targets_override is not None:
         contacts = {k: targets_override[k] for k in list(contacts.keys()) if k in targets_override}
 
     fold_ids = list(contacts.keys())
 
-    # 1) Handle predictions type and move tensors to numpy
-    if not isinstance(predictions, tuple):
-        predictions = [predictions, predictions]   # duplicate single map for both folds
-        two_predictions = False
-    else:
-        two_predictions = True
-    preds_np: List[np.ndarray] = []
-    for p in range(2):
-        arr = predictions[p]
-        if isinstance(arr, torch.Tensor):
-            arr = arr.detach().cpu().numpy()
-        preds_np.append(np.asarray(arr))
-
-    # 2) Ensure contacts are numpy and get common length AFTER override
+    # 1) Ensure contacts are numpy
     for k in fold_ids:
         if isinstance(contacts[k], torch.Tensor):
             contacts[k] = contacts[k].detach().cpu().numpy()
         contacts[k] = np.asarray(contacts[k])
 
-    if ax is None:
-        ax = plt.gca()
-
-    # If the two folds have identical PDB ID we keep both entries for logic below
+    # If only one fold key made it this far (rare), duplicate its name for downstream logic
     if len(fold_ids) == 1:
         fold_ids = [fold_ids[0], fold_ids[0]]
 
-    # Use the contacts shape as the panel size (truths are already size-matched by caller)
+    # Use the (overridden) truth size as the panel size
     seqlen = int(contacts[fold_ids[0]].shape[0])
 
-    # Build the split mask for lower/upper triangles once from seqlen
+    # 2) Handle predictions type and coerce to 2D square now
+    if not isinstance(predictions, tuple):
+        predictions = [predictions, predictions]   # duplicate single map for both folds
+
+    preds_np: List[np.ndarray] = []
+    for i in range(2):
+        fixed = _ensure_square_2d(predictions[i], seqlen, f"fold{i}")
+        if fixed is None:
+            # as a last resort, prevent crash with zeros
+            fixed = np.zeros((seqlen, seqlen), dtype=float)
+        preds_np.append(fixed)
+
+    if ax is None:
+        ax = plt.gca()
+
+    # 3) Split mask for lower/upper triangles (built once from truth size)
     rel = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
     top_bottom_mask = {
-        fold_ids[0]: (rel < 0),   # first fold -> lower triangle
-        fold_ids[1]: (rel > 0)    # second fold -> upper triangle
+        fold_ids[0]: (rel < 0),   # first fold -> lower-left triangle
+        fold_ids[1]: (rel > 0)    # second fold -> upper-right triangle
     }
 
-    # 3) Build the "no-near-diagonal" mask per prediction from its own size
-    #    (avoid the previous mismatch where mask used seqlen=truth size)
+    # 4) Build the "no-near-diagonal" mask per prediction from its own size
     display_sep_min = 6
     predictions_copy: List[np.ndarray] = [p.copy() for p in preds_np]
     topl_val = [0.0, 0.0]
-    pred_contacts: List[np.ndarray] = [None, None]  # boolean masks
+    pred_contacts: List[np.ndarray] = [None, None]
 
     for p in range(2):
         Lp = predictions_copy[p].shape[0]
-        if Lp == 0:
-            # degenerate, but avoid crashes
+        if Lp <= 1:
             predictions_copy[p] = np.zeros((seqlen, seqlen), dtype=float)
             pred_contacts[p] = np.zeros((seqlen, seqlen), dtype=bool)
             continue
         idx = np.arange(Lp)
         invalid_mask_p = (np.abs(idx[:, None] - idx[None, :]) < display_sep_min)
-        # Hide near-diagonal in the heatmap
+        # hide near-diagonal predictions in the heatmap
         predictions_copy[p][invalid_mask_p] = float("-inf")
-        # Choose top-Lp contacts per prediction (consistent with its own size)
-        topl_val[p] = np.sort(predictions_copy[p].ravel())[-Lp]
+        # choose top-Lp contacts per prediction (consistent with its own size)
+        flat = predictions_copy[p].ravel()
+        # if everything is -inf (all masked), avoid NaNs
+        if np.all(~np.isfinite(flat)):
+            topl_val[p] = np.inf  # will produce all False below
+        else:
+            topl_val[p] = np.sort(flat)[-Lp]
         pred_contacts[p] = (predictions_copy[p] >= topl_val[p])
 
-    # 4) Build the united contacts panel (shared/unique) from the (possibly overridden) truths
-    #    Only contacts matter here, not predictions; we just pass a dummy dict with one pred
+    # 5) Build the united contacts panel from truths (contacts only)
+    #    Only contacts matter here, not predictions; pass a dummy dict with one pred
     _, _, contacts_united = match_predicted_and_true_contact_maps({str(title): predictions_copy[0]}, contacts)
 
-    # 5) Compute per-fold hit categories and recall
+    # 6) Compute per-fold hit categories and recall
     true_positives, true_positives_unique, false_positives, other_contacts = {}, {}, {}, {}
     recall = {}
     p = 0
     for fold in fold_ids:
-        # NB: pred_contacts[p] has shape Lp x Lp, but contacts[fold] is seqlen x seqlen.
-        # In the current pipeline, targets_override makes seqlen == Lp for both folds.
-        true_positives[fold]        = contacts[fold] & pred_contacts[p] & top_bottom_mask[fold]
-        true_positives_unique[fold] = (np.transpose(contacts_united) == 2) & pred_contacts[p] & top_bottom_mask[fold]
-        false_positives[fold]       = (~contacts[fold]) & pred_contacts[p] & top_bottom_mask[fold]
-        other_contacts[fold]        = contacts[fold] & (~pred_contacts[p]) & top_bottom_mask[fold]
+        # Note: after targets_override, contacts[fold] is seqlen x seqlen and
+        #       (by construction above) pred_contacts[p] is Lp x Lp. In the pipeline,
+        #       the aligner slices truths to the pred frame, so seqlen == Lp here.
+        C = np.asarray(contacts[fold], dtype=bool)
+        P = np.asarray(pred_contacts[p], dtype=bool)
+        top_mask = np.asarray(top_bottom_mask[fold], dtype=bool)
+        # Defensive: if shapes still mismatch, crop to the common square
+        if C.shape != P.shape:
+            Lc = min(C.shape[0], P.shape[0])
+            C = C[:Lc, :Lc]; P = P[:Lc, :Lc]; top_mask = top_mask[:Lc, :Lc]
+
+        true_positives[fold]        = C  & P & top_mask
+        # contacts_united == 2 denotes unique contacts to this fold in your convention
+        tu = (np.transpose(contacts_united) == 2)  # shape should match seqlen x seqlen
+        if tu.shape != P.shape:
+            Lc = min(tu.shape[0], P.shape[0])
+            tu = tu[:Lc, :Lc]
+        true_positives_unique[fold] = tu & P & top_mask
+        false_positives[fold]       = (~C) & P & top_mask
+        other_contacts[fold]        = C & (~P) & top_mask
         tp = np.count_nonzero(true_positives[fold])
         miss = np.count_nonzero(other_contacts[fold])
         recall[fold] = (tp / (tp + miss)) if (tp + miss) > 0 else 0.0
         p += 1
 
-    # 6) Title with P@L per fold (use each fold's truth)
+    # 7) Title with P@L per fold (use each fold's truth)
     if isinstance(title, str):
         title_text: Optional[str] = title
     elif title:
@@ -1597,7 +1635,7 @@ def plot_foldswitch_contacts_and_predictions(
     else:
         title_text = None
 
-    # 7) Start drawing (optionally with ΔΔG strips)
+    # 8) Optional ΔΔG strips
     include_vectors = (x_vector is not None) or (y_vector is not None)
     if include_vectors:
         fig = plt.figure(figsize=(10, 10))
@@ -1611,24 +1649,24 @@ def plot_foldswitch_contacts_and_predictions(
     img = ax.imshow(contacts_united, cmap=custom_cmap, animated=animated)
 
     ms_scaled = ms * 50 / seqlen
-    shared_contacts = ax.scatter([], [], marker='s', c='lightgray', s=ms_scaled * 50, label='Shared Contacts')
-    unique_contacts = ax.scatter([], [], marker='s', c='darkgray',  s=ms_scaled * 50, label='Unique Contacts')
+    # dummy legend anchors (kept for consistency)
+    ax.scatter([], [], marker='s', c='lightgray', s=ms_scaled * 50, label='Shared Contacts')
+    ax.scatter([], [], marker='s', c='darkgray',  s=ms_scaled * 50, label='Unique Contacts')
 
     categories = ["false_positives", "true_positives", "true_positives_unique"]
     colors_pt  = ["r", "b", "g"]
     relative_size = [1, 1, 1.5]
     labels = ["False Positives", "True Shared Positives", "True Unique Positives"]
-    plots = []
     offset = -0.15
+
     for i, category in enumerate(categories):
         x_coords, y_coords = np.where(locals()[category][fold_ids[0]])
-        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors_pt[i], ms=ms_scaled*relative_size[i], label=labels[i])[0])
+        ax.plot(x_coords + offset, y_coords, hit_sign, c=colors_pt[i], ms=ms_scaled*relative_size[i], label=labels[i])
         x_coords, y_coords = np.where(locals()[category][fold_ids[1]])
-        plots.append(ax.plot(x_coords + offset, y_coords, hit_sign, c=colors_pt[i], ms=ms_scaled*relative_size[i])[0])
+        ax.plot(x_coords + offset, y_coords, hit_sign, c=colors_pt[i], ms=ms_scaled*relative_size[i])
 
-    # Optional ΔΔG colorbars
+    # Vectors colorbars
     if include_vectors:
-        from matplotlib.gridspec import GridSpec as _GridSpec  # just to ensure availability
         ax_xvec = fig.add_subplot(gs[0, 0], sharex=ax)
         ax_yvec = fig.add_subplot(gs[1, 1], sharey=ax)
         combined_vector = np.concatenate([x_vector.flatten(), y_vector.flatten()])
