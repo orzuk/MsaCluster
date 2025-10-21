@@ -11,6 +11,19 @@ from utils.cache_utils import get_from_pair_cache
 from utils.utils import numify
 from config import *
 
+def _add_seqid_column(df):
+    seqids = []
+    for pid in df["pair_id"]:
+        try:
+            seqids.append(seq_identity_for_pair(pid))
+        except Exception as e:
+            # keep going if MSA missing for some pairs
+            print(f"[postprocess] WARN: seqid failed for {pid}: {e}")
+            seqids.append(np.nan)
+    df["SEQ_ID"] = seqids
+    return df
+
+
 
 def _pair_id_from_dir(d: str) -> str:
     return os.path.basename(d.rstrip("/"))
@@ -137,6 +150,11 @@ def build_or_load_global_tables(force: bool = False,
 
     summary  = df[[c for c in keep_cols if c in df.columns]].copy()
     detailed = df.copy()
+
+    # ... where you finish constructing df_summary / df_detailed:
+    summary = _add_seqid_column(summary)
+    # if you also want it in the detailed table:
+    detailed = _add_seqid_column(detailed)
 
     # nicer formatting
     for _df in (summary, detailed):

@@ -163,6 +163,19 @@ def gen_html_from_summary_table(
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
 
+    # If SEQ_ID exists, add a formatted column for display (keep raw numeric in df)
+    if "SEQ_ID" in df.columns:
+        df["SEQ_ID%"] = df["SEQ_ID"].map(lambda x: f"{x:.1f}%" if pd.notnull(x) else "")
+
+    # Column ordering: insert "SEQ_ID%" right after "PAIR_TM"
+    cols = list(df.columns)
+    if "PAIR_TM" in cols and "SEQ_ID%" in cols:
+        # move "SEQ_ID%" to just after "PAIR_TM"
+        cols.remove("SEQ_ID%")
+        tm_pos = cols.index("PAIR_TM")
+        cols.insert(tm_pos + 1, "SEQ_ID%")
+        df = df[cols]
+
     # Identify the column that carries cluster count in parentheses
     cluster_col = None
     for c in df.columns:

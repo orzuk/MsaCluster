@@ -206,6 +206,54 @@ def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
         "rmsd": float(res.rmsd),
     }
 
+
+# === Sequence identity computed from the two query rows in the seed MSA ===
+def _guess_seed_msa_path(pair_id: str) -> str:
+    """Try several canonical locations for the pair's seed MSA and return the first that exists."""
+    from pathlib import Path
+    cand = [
+        f"Pipeline/{pair_id}/_seed_both_pairtrim.a3m",
+        f"Pipeline/{pair_id}/_seed_both.a3m",
+        f"Pipeline/{pair_id}/MSA/_seed_both_pairtrim.a3m",
+        f"Pipeline/{pair_id}/MSA/_seed_both.a3m",
+        f"Pipeline/{pair_id}/msa/_seed_both_pairtrim.a3m",
+        f"Pipeline/{pair_id}/msa/_seed_both.a3m",
+    ]
+    for p in cand:
+        if Path(p).exists():
+            return p
+    raise FileNotFoundError(f"No seed MSA found for {pair_id}. Tried: {cand}")
+
+def _pair_keys_from_id(pair_id: str) -> tuple[str, str]:
+    """'1dzlA_5keqF' -> ('1dzlA','5keqF')"""
+    a, b = pair_id.split("_", 1)
+    return a, b
+
+def seq_identity_from_seed_msa(msa_path: str, keyA: str, keyB: str) -> float:
+    """
+    Identity% between the two query sequences taken directly from the seed MSA:
+      count(matches where both not gaps) / count(columns where both not gaps) * 100
+    'X' and lower-case are treated as residues (not gaps); only '-' is a gap.
+    """
+    alnA, alnB = find_two_query_rows_in_a3m(msa_path, keyA=keyA, keyB=keyB)
+    if len(alnA) != len(alnB):
+        raise ValueError("Query rows in MSA have different lengths.")
+    match = 0
+    denom = 0
+    for aa, bb in zip(alnA, alnB):
+        if aa != '-' and bb != '-':
+            denom += 1
+            if aa.upper() == bb.upper():
+                match += 1
+    return (100.0 * match / denom) if denom > 0 else 0.0
+
+def seq_identity_for_pair(pair_id: str) -> float:
+    """Convenience wrapper: guess MSA path and compute identity for a pair_id."""
+    msa_path = _guess_seed_msa_path(pair_id)
+    keyA, keyB = _pair_keys_from_id(pair_id)
+    return seq_identity_from_seed_msa(msa_path, keyA, keyB)
+
+
 # ---------------- public API ---------------- #
 def debug_check_ca_coords(pdb_path: str, chain: str | None = None):
     coords, seq = _extract_ca_coords_and_seq(pdb_path, chain)  # whatever your internal parser is named
