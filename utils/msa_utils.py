@@ -1,5 +1,6 @@
 from Bio import SeqIO, AlignIO, pairwise2
-from Bio.Align import substitution_matrices
+from Bio.Align import substitution_matrices, PairwiseAligner
+
 
 import parasail  # pip/conda package: parasail
 import requests
@@ -174,6 +175,44 @@ def get_align_indexes(
         raise ValueError("No matched residues found from sequence alignment.")
 
     return idxA, idxB
+
+
+# utils/seq_utils.py (or utils/protein_utils.py)
+
+def sequence_identity_percent(seq1: str, seq2: str) -> float:
+    """
+    Global alignment identity in percent, counting exact matches over aligned (non-gap) positions.
+    Returns a float in [0, 100].
+    """
+    aligner = PairwiseAligner()
+    # Needleman–Wunsch style global alignment
+    aligner.mode = "global"
+    # Simple DNA/protein-ish scoring that measures identity, not similarity
+    aligner.match_score = 1.0
+    aligner.mismatch_score = 0.0
+    # Penalize gaps so we don't collapse; modest affine-like penalties
+    aligner.open_gap_score = -1.0
+    aligner.extend_gap_score = -0.5
+
+    aln = aligner.align(seq1, seq2)[0]
+    a = aln.aligned  # tuple (list of blocks for seq1, list of blocks for seq2)
+    # Build aligned strings to count matches cleanly
+    s1_aln, s2_aln = aln.format().splitlines()[1], aln.format().splitlines()[3]  # formatted 3-line block
+    # If format() changes in your Biopython version, fallback:
+    # s1_aln = str(aln).splitlines()[1]
+    # s2_aln = str(aln).splitlines()[3]
+
+    matches = 0
+    aligned = 0
+    for c1, c2 in zip(s1_aln, s2_aln):
+        if c1 == '-' or c2 == '-':
+            continue
+        aligned += 1
+        if c1 == c2:
+            matches += 1
+    if aligned == 0:
+        return 0.0
+    return 100.0 * matches / aligned
 
 
 def trim_a3m_for_pair_union(a3m_path, out_path, s1_tokens, s2_tokens, max_len=None):
