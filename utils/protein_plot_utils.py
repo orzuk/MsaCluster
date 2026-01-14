@@ -239,11 +239,15 @@ def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.Da
     else:
         return out
 
-    cols = {
-        "RE-MSAT-COM": pick(d, ["common_mcc", "common_f1", "common_recall", "common_jaccard"]),
-        "RE-MSAT1":    pick(d, ["uniq1_mcc", "t1_mcc", "t1_f1", "t1_recall", "uniq1_recall", "t1_jaccard"]),
-        "RE-MSAT2":    pick(d, ["uniq2_mcc", "t2_mcc", "t2_f1", "t2_recall", "uniq2_recall", "t2_jaccard"]),
+    cand_cols = {
+        "RE-MSAT-COM": ["common_mcc", "common_f1", "common_recall", "common_jaccard"],
+        "RE-MSAT1":    ["uniq1_mcc", "t1_mcc", "t1_f1", "t1_recall", "uniq1_recall", "t1_jaccard"],
+        "RE-MSAT2":    ["uniq2_mcc", "t2_mcc", "t2_f1", "t2_recall", "uniq2_recall", "t2_jaccard"],
     }
+    if not any(any(c in d.columns for c in cols) for cols in cand_cols.values()):
+        return out
+
+    cols = {k: pick(d, v) for k, v in cand_cols.items()}
     dd = pd.DataFrame(cols)
     dd["_tag"] = d["_tag"]
 
@@ -252,7 +256,9 @@ def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.Da
 
     # keep only the columns that actually exist and reindex to heatmap row order
     keep = [c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in agg.columns]
-    return agg.reindex(cluster_index)[keep]
+    out_df = agg.reindex(cluster_index)[keep]
+    out_df = out_df.dropna(axis=1, how="all")
+    return out_df
 
 
 def _cluster_short_label_from_leaf(leaf_name, ete_leaves_cluster_ids):
@@ -419,9 +425,12 @@ def _prepare_tree_heatmap_inputs(
             group_titles.append("ESM")
 
     if not ms_df.empty:
-        blocks.append(ms_df)
-        col_groups.append([c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in ms_df.columns])
-        group_titles.append("MSAT")
+        # drop empty columns; skip group if all-NaN
+        ms_df = ms_df.dropna(axis=1, how="all")
+        if not ms_df.empty:
+            blocks.append(ms_df)
+            col_groups.append([c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in ms_df.columns])
+            group_titles.append("MSAT")
 
     if not blocks:
         # return an empty-but-valid frame so the caller can decide to skip

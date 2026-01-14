@@ -923,11 +923,16 @@ def compose_tree_and_heatmap(
         return out_png
 
     # ----- layout: tree | heatmap area | stacked colorbars
-    # Estimate width for heatmaps from number of columns so the whole figure looks stable
+    # Clamp ratios so the heatmap is visible even for a few columns.
     n_cols = sum(len([c for c in g if c in df_leaf.columns]) for g in col_groups)
-    heatmap_ratio = 0.06 + 0.03 * n_cols
-    tree_ratio = max(0.01, 1.0 - heatmap_ratio - 0.05)  # reserve ~5% for cbar column
-    width_ratios = [tree_ratio, heatmap_ratio, 0.05]
+    cbar_ratio = 0.05
+    heatmap_ratio = 0.06 + 0.035 * n_cols
+    heatmap_ratio = min(max(0.40, heatmap_ratio), 0.65)
+    tree_ratio = 1.0 - heatmap_ratio - cbar_ratio
+    if tree_ratio < 0.25:
+        tree_ratio = 0.25
+        heatmap_ratio = 1.0 - tree_ratio - cbar_ratio
+    width_ratios = [tree_ratio, heatmap_ratio, cbar_ratio]
 
     fig = plt.figure(figsize=base_figsize)
     gs = fig.add_gridspec(
