@@ -2137,7 +2137,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     _step_hdr(7, "CCMpred CMAPs")
     try:
         print("Invoking CCMpred (per-tag auto-skip inside) …")
-            task_cmap_ccmpred(pair_id, "inline", args)
+        task_cmap_ccmpred(pair_id, "inline", args)
     except Exception as e:
         print(f"CCMpred step skipped: {e}")
 
