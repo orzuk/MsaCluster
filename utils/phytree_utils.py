@@ -289,8 +289,7 @@ def phytree_from_msa(msa_file, output_tree_file,
     Biopython tree (also written to output_tree_file).
     """
     if not ETE_TREEVIEW_AVAILABLE:
-        print("[phytree] skipping tree from msa render: PyQt5/Qt not available")
-        return
+        print("[phytree] PyQt5/Qt not available; tree will be built without rendering.")
 
     if seed is not None:
         random.seed(int(seed))
@@ -1203,4 +1202,3 @@ def reconstruct_ancestral_sequences(tree_file, alignment_file, output_file):
 
 # Example usage
 # reconstruct_ancestral_sequences('path/to/tree_file.newick', 'path/to/alignment_file.fasta', 'output.txt')
-

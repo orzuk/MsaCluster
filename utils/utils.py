@@ -77,7 +77,7 @@ def pdb_to_contact_map(
 
     # pairwise distances (Å); vectorized
     diffs = coords[:, None, :] - coords[None, :, :]
-    dist_mat = np.sqrt(np.einsum("ijk,ijk->ij", diffs, diffs, optimize=True), dtype=float)
+    dist_mat = np.sqrt(np.einsum("ijk,ijk->ij", diffs, diffs, optimize=True))
     if include_diag:
         np.fill_diagonal(dist_mat, 0.0)
     cmap = (dist_mat <= float(cutoff_A)).astype(np.uint8)
@@ -204,7 +204,7 @@ def list_protein_pairs(parsed: bool = True, sort_result: bool = True) -> (
 def ensure_dir(p: str) -> None:
     Path(p).mkdir(parents=True, exist_ok=True)
 
-def pick(colnames):
+def pick(d: pd.DataFrame, colnames):
     """Return the first present column as numeric series, else NaNs."""
     for c in colnames:
         if c in d.columns:
@@ -338,4 +338,3 @@ echo "ALL DONE for {pair_id}"
         f.write(sb)
     os.chmod(script_path, 0o755)
     return script_path
-

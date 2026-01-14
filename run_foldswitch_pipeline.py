@@ -34,7 +34,8 @@ try:
     # NB: in repo this module sits under utils/. Keep your original import path.
     from utils.energy_utils import compute_global_and_residue_energies
 except ImportError:
-    raise SystemExit("[RosettaFold ERROR] PyRosetta utilities are unavailable in this env.")
+    compute_global_and_residue_energies = None
+    print("[RosettaFold WARN] PyRosetta utilities are unavailable; ΔG step will be skipped.", flush=True)
 
 from Analysis.postprocess_global import build_or_load_global_tables
 from Analysis.postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs
@@ -514,7 +515,7 @@ def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     mail = getattr(args, "sbatch_mail", None)
     mtyp = getattr(args, "sbatch_mail_type", None)
 
-    # --- NEW: auto-upgrade GPU for long chains when running esm3/both ---
+    # --- NEW: auto-upgrade GPU for long chains (full pipeline) ---
     try:
         L = pair_max_len_from_truth(pair_id)  # or _pair_max_len_from_truth(pair_id) if you have it
     except Exception:
@@ -522,9 +523,9 @@ def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     print("[esm-sbatch-in-msaclust-pipeline] pair_id:", pair_id, "L:", L, flush=True)
 
     max_len = int(getattr(args, "esm_gpu_len_threshold", ESM_MAX_LIGHT_SEQ_LEN))
-    if run_mode == "run_esmfold" and L >= max_len:
+    if L >= max_len:
         gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
-        print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {thr} ⇒ using {gres}", flush=True)
+        print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {max_len} ⇒ using {gres}", flush=True)
 
 
     sbatch_opts = f"--gres={gres} --cpus-per-task={cpus} --mem={mem} --time={time}"
@@ -725,8 +726,6 @@ def _update_basic_cache(pair_id: str) -> None:
         if seqs:
             cache["msa_depth"] = len(seqs)
             cache["msa_width"] = len(seqs[0])
-
-    st = StageTimer("Computing Neff for clusters for cache", verbose)
 
     # C) Per-cluster size & Neff
     clus_dir = pair_dir / "output_msa_cluster"
@@ -1425,7 +1424,7 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
             pass
 
 
-def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
+def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace) -> None:
     """
     Run CCMpred on DeepMsa and on every ShallowMsa_XXX in output_msa_cluster.
     Outputs: Pipeline/<pair>/output_cmaps/ccmpred/<tag>.ccmpred.npy (APC-corrected)
@@ -1437,6 +1436,7 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
+    ccmpred_bin = getattr(args, "ccmpred_bin", CCMPRED_EXE)
     threads = int(getattr(args, "ccmpred_threads", 8))
 
     def a3m_to_fa(a3m_path: Path, fasta_out: Path) -> bool:
@@ -1475,7 +1475,7 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str) -> None:
         if not a3m_to_fa(a3m, fa):
             print(f"[ccmpred] skip (empty): {a3m}")
             return
-        cmd = f"{shlex.quote(CCMPRED_EXE)} -t {threads} {shlex.quote(str(fa))} {shlex.quote(str(mat))}"
+        cmd = f"{shlex.quote(ccmpred_bin)} -t {threads} {shlex.quote(str(fa))} {shlex.quote(str(mat))}"
         if run_job_mode == "inline":
             subprocess.run(cmd, shell=True, check=True)
         else:
@@ -1714,6 +1714,8 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
         _export_canonical_best_pdbs(pair_id, ver)
 
 def task_tree(pair_id: str, args: argparse.Namespace) -> None:
+    if phytree_from_msa is None:
+        raise RuntimeError("phytree_from_msa is unavailable (missing optional dependencies).")
     msa_file = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
     out = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
     ensure_dir(os.path.dirname(out))
@@ -1802,6 +1804,8 @@ def task_deltaG(pair_id: str) -> None:
       Pipeline/<pair>/Analysis/df_ddg_aligned.csv              (aligned ΔΔG table)
       Pipeline/<pair>/output_deltaG/deltaG_diff_*.jpg          (plot)
     """
+    if compute_global_and_residue_energies is None:
+        raise RuntimeError("PyRosetta utilities are unavailable; cannot compute ΔG.")
 
     pair_dir = Path("Pipeline") / pair_id
     out_dir  = pair_dir / "output_deltaG"
@@ -2032,8 +2036,9 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     def _has_cmaps_shallow_local(pid: str) -> bool:
         """Any cluster npy produced by run_MSATrans.py first pass."""
         out = Path(f"Pipeline/{pid}/output_cmaps/msa_transformer")
-        # Typical files: msa_t_clusters_ShallowMsa_000.npy, ...
-        return any(out.glob("msa_t_clusters_ShallowMsa_*.npy"))
+        # Typical files: msa_t_clusters_ShallowMsa_000.npy or .npz
+        return bool(list(out.glob("msa_t_clusters_ShallowMsa_*.npy")) or
+                    list(out.glob("msa_t_clusters_ShallowMsa_*.npz")))
 
     def _has_cmaps_deep_local(pid: str) -> bool:
         """Any deep npy produced by run_MSATrans.py (either pass / naming)."""
@@ -2041,9 +2046,13 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         # We tolerate several historical names:
         patterns = [
             "msa_t__DeepMsa*.npy",          # old naming
-            "msa_t_DeepMsa_*.npy",          # new naming with keyword DeepMsa
+            "msa_t__DeepMsa*.npz",          # new default format
+            "msa_t_DeepMsa_*.npy",          # keyword DeepMsa
+            "msa_t_DeepMsa_*.npz",
             "msa_t_clusters_MSA_deep.npy",  # deep was written in first pass
+            "msa_t_clusters_MSA_deep.npz",
             "msa_t_MSA_deep*.npy",
+            "msa_t_MSA_deep*.npz",
         ]
         for pat in patterns:
             if any(out.glob(pat)):
@@ -2128,7 +2137,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     _step_hdr(7, "CCMpred CMAPs")
     try:
         print("Invoking CCMpred (per-tag auto-skip inside) …")
-        task_cmap_ccmpred(pair_id, "inline")
+            task_cmap_ccmpred(pair_id, "inline", args)
     except Exception as e:
         print(f"CCMpred step skipped: {e}")
 
@@ -2485,7 +2494,7 @@ def main():
             task_cmap_msa_transformer(pair_id, args.run_job_mode)
 
         elif args.run_mode == "run_cmap_ccmpred":
-            task_cmap_ccmpred(pair_id, args.run_job_mode)
+            task_cmap_ccmpred(pair_id, args.run_job_mode, args)
 
         elif args.run_mode == "run_esmfold":
             if args.esm_model == "both":

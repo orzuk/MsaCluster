@@ -61,15 +61,26 @@ def _cond_idx(i,j,m):
     return i*m - i*(i+1)//2 + (j - i - 1)
 
 def medoid_of_rows(rows: np.ndarray, seqs: list[str], idx_map: np.ndarray | None = None) -> int:
-    if len(rows) == 1: return int(rows[0])
-    r = rows.tolist(); R = len(r)
+    """
+    Return the medoid row index within `rows`.
+    - rows: indices in the *local* space (e.g., sample indices)
+    - seqs: list of sequences in the *global* space
+    - idx_map: optional array mapping local indices -> global indices
+    """
+    if len(rows) == 1:
+        return int(rows[0])
+    r = rows.tolist()
+    R = len(r)
+    if idx_map is None:
+        idx_map = np.arange(len(seqs))
     Msum = np.zeros(R, dtype=float)
-    for a in range(R-1):
-        sa = seqs[sample_idx[r[a]]]
-        for b in range(a+1, R):
-            sb = seqs[sample_idx[r[b]]]
+    for a in range(R - 1):
+        sa = seqs[int(idx_map[r[a]])]
+        for b in range(a + 1, R):
+            sb = seqs[int(idx_map[r[b]])]
             d = gapaware_hamming(sa, sb)
-            Msum[a] += d; Msum[b] += d
+            Msum[a] += d
+            Msum[b] += d
     return int(r[int(np.argmin(Msum))])
 
 
@@ -307,8 +318,9 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
 
     # --- Helpers (no full D) ---
     def rows_of(c): return np.where(lab == c)[0]
-    def center_seq_of_c(c:int)->str:
-        mr = medoid_of_rows(rows_per[c]); return seqs[sample_idx[mr]]
+    def center_seq_of_c(c: int) -> str:
+        mr = medoid_of_rows(rows_per[c], seqs, idx_map=sample_idx)
+        return seqs[sample_idx[mr]]
     def dist_c(c1, c2):
         return gapaware_hamming(center_seq_of_c(c1), center_seq_of_c(c2))
 
@@ -333,7 +345,7 @@ def cluster_ahc(headers: List[str], seqs: List[str], args) -> Dict[int, List[int
                 _log(f"[compute-kxk-cluster-centers] Cluster i={i} out of {len(active)}; Cluster label={c}", verbose)
             i += 1
             r = rows_per[c]
-            centers_seq[c] = seqs[sample_idx[medoid_of_rows(r)]]
+            centers_seq[c] = seqs[sample_idx[medoid_of_rows(r, seqs, idx_map=sample_idx)]]
 
         # KxK center distance matrix
         act_list = list(active)
@@ -800,7 +812,7 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
         def _rep_seq(ci):
             # reuse any representative you cache; else pick a quick medoid
             ids = assigns[ci]
-            return seqs[ids[0]] if len(ids) == 1 else seqs[medoid_of_rows(np.array(ids, dtype=int))]
+            return seqs[ids[0]] if len(ids) == 1 else seqs[medoid_of_rows(np.array(ids, dtype=int), seqs)]
 
         s_from = _rep_seq(c_from)
         for cj in cand:

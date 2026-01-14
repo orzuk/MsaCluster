@@ -9,6 +9,7 @@ sys.path.insert(0, ROOT)
 
 from utils.cache_utils import get_from_pair_cache
 from utils.utils import numify
+from utils.align_utils import seq_identity_for_pair
 from config import *
 
 def _add_seqid_column(df):

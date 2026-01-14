@@ -240,9 +240,9 @@ def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.Da
         return out
 
     cols = {
-        "RE-MSAT-COM": pick(["common_mcc", "common_f1", "common_recall", "common_jaccard"]),
-        "RE-MSAT1":    pick(["uniq1_mcc", "t1_mcc", "t1_f1", "t1_recall", "uniq1_recall", "t1_jaccard"]),
-        "RE-MSAT2":    pick(["uniq2_mcc", "t2_mcc", "t2_f1", "t2_recall", "uniq2_recall", "t2_jaccard"]),
+        "RE-MSAT-COM": pick(d, ["common_mcc", "common_f1", "common_recall", "common_jaccard"]),
+        "RE-MSAT1":    pick(d, ["uniq1_mcc", "t1_mcc", "t1_f1", "t1_recall", "uniq1_recall", "t1_jaccard"]),
+        "RE-MSAT2":    pick(d, ["uniq2_mcc", "t2_mcc", "t2_f1", "t2_recall", "uniq2_recall", "t2_jaccard"]),
     }
     dd = pd.DataFrame(cols)
     dd["_tag"] = d["_tag"]
