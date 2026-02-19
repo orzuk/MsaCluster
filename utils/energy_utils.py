@@ -6,9 +6,8 @@ except ImportError:
     PYROSETTA_AVAILABLE = False
 
 import csv
+import contextlib
 import matplotlib.pyplot as plt
-
-import tempfile
 
 from config import *
 import os
@@ -16,32 +15,9 @@ import sys
 import numpy as np
 import pandas as pd
 
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-#current_dir = os.path.dirname(os.path.abspath(__file__))
-#parent_dir = os.path.dirname(current_dir)
-#if parent_dir not in sys.path:
-#    sys.path.append(parent_dir)
-
 from utils.protein_utils import *
 from Bio.pairwise2 import format_alignment
 from Bio import pairwise2
-
-
-# Direct the output of rosetta to log file
-class RedirectStdStreams:
-    """
-    Context manager to redirect stdout and stderr.
-    """
-    def __init__(self, stdout=None, stderr=None):
-        self._stdout = stdout or sys.stdout
-        self._stderr = stderr or sys.stderr
-
-    def __enter__(self):
-        self.old_stdout, self.old_stderr = sys.stdout, sys.stderr
-        sys.stdout, sys.stderr = self._stdout, self._stderr
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        sys.stdout, sys.stderr = self.old_stdout, self.old_stderr
 
 
 def clean_sequence(residue_energies):
@@ -474,7 +450,7 @@ def compute_deltaG_with_pyrosetta(pdb_path: str, log_file_path: str = None):
                            "Install it or run this step on the Linux cluster.")
     if log_file_path:
         with open(log_file_path, "w") as log_file:
-            with RedirectStdStreams(stdout=log_file, stderr=log_file):
+            with contextlib.redirect_stdout(log_file), contextlib.redirect_stderr(log_file):
                 pyrosetta.init()
                 return _compute_deltaG_internal(pdb_path)
     else:

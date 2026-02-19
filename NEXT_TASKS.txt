@@ -10,72 +10,34 @@ Guided by Karpathy's rules:
   4. Goal-Driven         - define success criteria, verify
 
 ================================================================================
-PHASE 1: BUG FIXES (high priority, low risk)
+PHASE 1: BUG FIXES (high priority, low risk) -- COMPLETED
 ================================================================================
 
-[BUG-1] Analysis/AF_analysis.py - glob import misuse
-  File:   Analysis/AF_analysis.py:8,30
-  Issue:  `from glob import *` or `import glob` then `glob(...)` vs `glob.glob(...)`
-  Fix:    Use `from glob import glob` or call `glob.glob(...)`.
-  Verify: Run AF_analysis.py on one pair without error.
+[BUG-1] DONE - Analysis/AF_analysis.py - glob import fixed
+  Commit: e344236
 
-[BUG-2] Analysis/cmap_analysis.py - undefined `cluster_name`
-  File:   Analysis/cmap_analysis.py (inside compute_cmap_metrics_for_pair)
-  Issue:  `cluster_name` used in row dict but never assigned in the loop.
-          Likely should be extracted from the filename (e.g. ShallowMsa_001).
-  Fix:    Add: cluster_name = extract from os.path.basename(f)
-  Verify: Run cmap_analysis.py on one pair, check df_cmap.csv has cluster col.
+[BUG-2] DONE - Analysis/cmap_analysis.py - cluster_name now extracted from filename
+  Commit: e344236
 
-[BUG-3] Analysis/postprocess_global.py - missing `json` import
-  File:   Analysis/postprocess_global.py
-  Issue:  `json.load()` used in build_or_load_global_tables() but `json` not
-          imported at top of file.
-  Fix:    Add `import json` to imports.
-  Verify: Run build_or_load_global_tables() without NameError.
+[BUG-3] DONE - Analysis/postprocess_global.py - json import added (file later deleted in DUP-1)
+  Commit: e344236
 
-[BUG-4] scripts/Analysis_retry.py - hardcoded Mac paths
-  File:   scripts/Analysis_retry.py
-  Issue:  Uses /Users/steveabecassis/Desktop/Pipeline (hardcoded).
-  Fix:    Use config.DATA_DIR or accept CLI arg.
-  Verify: Script runs with configured DATA_DIR.
+[BUG-4] DONE - scripts/Analysis_retry.py - uses config.DATA_DIR + CLI --pipeline_dir arg
+  Commit: e344236
 
 ================================================================================
-PHASE 2: DEAD CODE REMOVAL (Karpathy rule 2: simplicity)
+PHASE 2: DEAD CODE REMOVAL (Karpathy rule 2: simplicity) -- COMPLETED
 ================================================================================
 
-[DEAD-1] scripts/compute_energy_ignore_disulfides.py
-  Status: Empty file (0 lines).
-  Action: Delete.
-
-[DEAD-2] scripts/MSA_Clust.py
-  Status: Deprecated wrapper that just calls run_ClusterMSA.py.
-  Action: Delete (or keep if external scripts reference it). Check usages first.
-
-[DEAD-3] olds/old/ directory (14 legacy files)
-  Status: Archived old implementations. Not imported anywhere.
-  Action: Can be deleted entirely if git history is sufficient.
-  Files:  Analysis_retry.py, EsmFold_new.py, PlotUtils.py, analyse_pdb_outputs.py,
-          cmap_viz.py, dev.py, get_esmfold_all_data.py, get_raw_data.py,
-          get_tm_align_score.py, get_tm_score.py, monitoring.py, plot_cmap.py,
-          test.py, unused_functions.py
-
-[DEAD-4] config_copy.py
-  Status: Exact copy of config.py (backup).
-  Action: Delete -- git provides version history.
-
-[DEAD-5] sandbox.py
-  Status: Dev scratch file.
-  Action: Delete or move to olds/.
-
-[DEAD-6] analyze_dependencies.py
-  Status: One-off dev tool for finding imports. Now superseded by
-          CODE_STRUCTURE.txt.
-  Action: Delete or move to olds/.
-
-[DEAD-7] Shell analysis scripts at root level
-  Files:  analyze_functions3.sh, find_duplicate_functions.sh,
-          find_python_file_dependencies.sh
-  Action: Delete -- superseded by this documentation.
+[DEAD-1] DONE - scripts/compute_energy_ignore_disulfides.py deleted
+[DEAD-2] DONE - scripts/MSA_Clust.py deleted (stale import in protein_plot_utils.py removed)
+[DEAD-3] KEPT - olds/old/ directory retained per user preference (reference archive)
+[DEAD-4] DONE - config_copy.py deleted
+[DEAD-5] DONE - sandbox.py deleted
+[DEAD-6] DONE - analyze_dependencies.py deleted
+[DEAD-7] DONE - Shell scripts deleted (analyze_functions3.sh, find_duplicate_functions.sh,
+         find_python_file_dependencies.sh)
+  Commit: e344236
 
 ================================================================================
 PHASE 3: SIMPLIFY LARGE FILES (Karpathy rule 2)
@@ -108,42 +70,29 @@ PHASE 3: SIMPLIFY LARGE FILES (Karpathy rule 2)
   Verify:   Tree mode and plot mode still work.
 
 ================================================================================
-PHASE 4: CONSOLIDATE DUPLICATE LOGIC (Karpathy rule 3)
+PHASE 4: CONSOLIDATE DUPLICATE LOGIC (Karpathy rule 3) -- COMPLETED
 ================================================================================
 
-[DUP-1] Two postprocess modules with different schemas
-  Files:  Analysis/postprocess_unified.py vs Analysis/postprocess_global.py
-  Issue:  postprocess_global.py expects columns (model, kind, fold, TM) while
-          postprocess_unified.py uses (TMscore_fold1, TMscore_fold2).
-  Plan:   Determine which is the canonical version (likely postprocess_unified.py).
-          Merge any unique functionality from postprocess_global.py into it.
-          Delete postprocess_global.py.
-  Verify: Global tables are still generated correctly.
+[DUP-1] DONE - postprocess_global.py merged into postprocess_unified.py
+  _add_seqid_column() and build_or_load_global_tables() ported.
+  postprocess_global.py deleted. Import in run_foldswitch_pipeline.py updated.
+  Commit: bc5c914
 
-[DUP-2] Contact map computation in multiple places
-  Files:  utils/utils.py:pdb_to_contact_map()
-          utils/protein_utils.py:read_seq_coord_contacts_from_pdb()
-          Analysis/cmap_analysis.py:_truth_contacts(), _coords_from_pdb_chain()
-  Issue:  Three different implementations of "PDB -> contact map".
-  Plan:   Consolidate into one function in protein_utils.py with clear API.
-          Other files should call that single function.
-  Verify: Contact maps are identical before and after refactor.
+[DUP-2] DONE - Contact map computation consolidated
+  _coords_from_pdb_chain() + _truth_contacts() in cmap_analysis.py replaced
+  with _truth_contact_map() that calls pdb_to_contact_map() from utils/utils.py.
+  Commit: bc5c914
 
-[DUP-3] PDB sequence extraction in multiple places
-  Files:  utils/protein_utils.py:extract_protein_sequence()
-          utils/energy_utils.py:clean_sequence()
-          Analysis/cmap_analysis.py:_coords_from_pdb_chain()
-  Issue:  Multiple ways to extract sequence/coordinates from PDB.
-  Plan:   Standardize on protein_utils.py functions.
+[DUP-3] RESOLVED - PDB extraction: no further consolidation needed
+  Remaining implementations serve genuinely different contexts:
+  - pdb_to_contact_map() (utils.py) - canonical CA contact map via BioPython
+  - read_seq_coord_contacts_from_pdb() (protein_utils.py) - Biotite full extraction
+  - _coords_seq_from_pdb() (align_utils.py) - BioPython CA for TM-align
+  - extract_protein_sequence() (protein_utils.py) - BioPython seq with non-std mapping
 
-[DUP-4] TM-score computation wrappers
-  Files:  utils/align_utils.py has tmalign_unified(), compute_tmscore_align(),
-          _run_tmalign_binary(), _run_tmtools_python()
-  Issue:  Multiple layers of wrapping. compute_tmscore_align -> tmalign_unified
-          -> _run_tmalign_binary or _run_tmtools_python.
-  Plan:   This layering is actually reasonable (binary vs Python fallback).
-          Just ensure the public API is clean: compute_tmscore_align() is the
-          only function callers should use.
+[DUP-4] NO ACTION - TM-score wrapping layers are reasonable
+  compute_tmscore_align() -> tmalign_unified() -> binary or tmtools fallback
+  is a clean public API with appropriate internal layering.
 
 ================================================================================
 PHASE 5: REDUCE OVER-ENGINEERING (Karpathy rule 2)
@@ -164,36 +113,34 @@ PHASE 5: REDUCE OVER-ENGINEERING (Karpathy rule 2)
           The HF ESMFold fallback is reasonable.
 
 ================================================================================
-PHASE 6: IMPROVE ROBUSTNESS (from existing code review)
+PHASE 6: IMPROVE ROBUSTNESS (from existing code review) -- COMPLETED
 ================================================================================
 
-[ROBUST-1] Bare except clauses
-  Files:  scripts/Analysis_retry.py, scripts/get_sample_msa_algn.py
-  Issue:  `except:` silently swallows all errors.
-  Fix:    Use `except Exception as e:` and log the error.
+[ROBUST-1] DONE - Bare except clauses fixed
+  Analysis_retry.py: fixed in BUG-4 (commit e344236)
+  get_sample_msa_algn.py: 3 bare excepts → except Exception as e + logging
+  Commit: d08203f
 
-[ROBUST-2] Wildcard imports
-  Files:  Analysis/cmap_analysis.py (`from utils.utils import *`)
-          scripts/run_tree_reconstruct.py (`from utils.phytree_utils import *`)
-  Issue:  Makes it unclear what names are in scope (caused BUG-2).
-  Fix:    Replace with explicit imports.
+[ROBUST-2] DONE - Wildcard imports replaced with explicit imports
+  cmap_analysis.py: from config/utils.utils/utils.align_utils import *
+    → CONTACT_CUTOFF, DATA_DIR, pdb_to_contact_map, list_protein_pairs
+    (align_utils wildcard removed entirely — nothing was used from it)
+  run_tree_reconstruct.py: from utils.phytree_utils import *
+    → phytree_from_msa + added missing os, time imports
+  Commit: d08203f
 
-[ROBUST-3] Missing __init__.py files
-  Dirs:   utils/, Analysis/, TableResults/
-  Issue:  No __init__.py means these aren't proper Python packages (relies on
-          sys.path manipulation).
-  Plan:   Add __init__.py to each, or at minimum ensure imports work
-          consistently.
+[ROBUST-3] DONE - Added empty __init__.py to utils/, Analysis/, TableResults/
+  Commit: d08203f
 
 ================================================================================
-PRIORITY ORDER
+PRIORITY ORDER (updated)
 ================================================================================
 
-  1. Phase 1 (Bug Fixes)        - immediate, low risk
-  2. Phase 2 (Dead Code)         - quick wins, reduces cognitive load
-  3. Phase 4 (Consolidate Dups)  - reduces confusion, fewer places to maintain
-  4. Phase 6 (Robustness)        - prevents future bugs
-  5. Phase 5 (Over-engineering)  - minor simplifications
+  1. Phase 1 (Bug Fixes)        - DONE
+  2. Phase 2 (Dead Code)         - DONE
+  3. Phase 4 (Consolidate Dups)  - DONE
+  4. Phase 6 (Robustness)        - DONE
+  5. Phase 5 (Over-engineering)  - next: minor simplifications
   6. Phase 3 (Split Large Files) - biggest structural change, do last
 
 ================================================================================

@@ -20,7 +20,6 @@ DIRECTORY TREE
 
 MsaCluster/
 |-- config.py                  # Central config: paths, constants, multi-user
-|-- config_copy.py             # Backup of config
 |-- run_foldswitch_pipeline.py # MAIN ENTRY POINT - orchestrates all stages
 |-- run_getMSA.py              # Stage: MSA generation via ColabFold/MMseqs2
 |-- run_ClusterMSA.py          # Stage: MSA clustering into shallow sub-MSAs
@@ -28,9 +27,7 @@ MsaCluster/
 |-- run_ESMFoldHF.py           # Stage: ESMFold structure prediction
 |-- Analysis_params.py         # Analysis parameter defaults
 |-- a3m_toaf3json.py           # Convert A3M to AF3 JSON input format
-|-- analyze_dependencies.py    # Dev tool: find imports/dependencies
 |-- monitoring.py              # Pipeline monitoring utilities
-|-- sandbox.py                 # Dev/experimental scratch file
 |
 |-- utils/                     # Core shared libraries (8 files)
 |   |-- align_utils.py         #   TM-align, sequence identity, cmap alignment
@@ -42,20 +39,17 @@ MsaCluster/
 |   |-- protein_utils.py       #   PDB loading, sequence, contacts, evaluation
 |   |-- utils.py               #   General helpers (pair listing, SLURM, etc.)
 |
-|-- Analysis/                  # Post-processing & analysis (6 files)
+|-- Analysis/                  # Post-processing & analysis (5 files)
 |   |-- AF_analysis.py         #   AF prediction TM-scores
 |   |-- cmap_analysis.py       #   Contact map metrics (P/R/F1/MCC)
 |   |-- esmfold_analysis.py    #   ESMFold prediction TM-scores
-|   |-- postprocess_unified.py #   Main postprocessing: summary & detail tables
-|   |-- postprocess_global.py  #   Older global table builder (alternate schema)
+|   |-- postprocess_unified.py #   Main postprocessing: summary, detail & global tables
 |   |-- NotebookGen/
 |       |-- generate_notebooks.py  # Execute template notebook per pair -> HTML
 |
-|-- scripts/                   # Standalone utility scripts (9 files)
+|-- scripts/                   # Standalone utility scripts (6 files)
 |   |-- __init__.py            #   Package marker (empty)
-|   |-- MSA_Clust.py           #   DEPRECATED: wrapper -> run_ClusterMSA.py
-|   |-- Analysis_retry.py      #   Batch retry of AF analysis (hardcoded paths)
-|   |-- compute_energy_ignore_disulfides.py  # Empty placeholder
+|   |-- Analysis_retry.py      #   Batch retry of AF analysis (uses config.DATA_DIR)
 |   |-- get_pdb_files.py       #   Download PDB from RCSB
 |   |-- get_sample_msa_algn.py #   Sample MSA sequences via UniProt+ColabFold
 |   |-- infer_esm3.py          #   ESM3/ESMFold CLI (tries ESM3, falls back HF)
@@ -291,17 +285,17 @@ FILE-BY-FILE FUNCTION INDEX
   compute_df_esm(fold_pair, write)
     TM-scores for ESMFold predictions, classify fold direction.
 
---- Analysis/postprocess_unified.py (865 lines) ---
+--- Analysis/postprocess_unified.py (~925 lines) ---
   post_processing_analysis(pairs)
     Full recomputation of all analysis tables.
   build_unified_tables_from_cluster_dfs(pairs)
     Fast rebuild from cached CSVs.
   build_pair_cluster_table(pair_id)
     Per-cluster row assembly for a pair.
-
---- Analysis/postprocess_global.py (169 lines) ---
-  build_or_load_global_tables(force)
-    Build summary+detailed CSVs from all pairs.
+  _add_seqid_column(df)                   [ported from postprocess_global.py]
+    Append SEQ_ID column via pairwise sequence identity.
+  build_or_load_global_tables(force)      [ported from postprocess_global.py]
+    Build (or load cached) summary + detailed CSVs for all pairs.
 
 ================================================================================
 DEPENDENCY GRAPH (which files import from which)
@@ -354,10 +348,7 @@ Analysis/esmfold_analysis.py
 
 Analysis/postprocess_unified.py
   <- config, utils/utils, utils/protein_utils, utils/align_utils,
-     Analysis/cmap_analysis
-
-Analysis/postprocess_global.py
-  <- config, utils/cache_utils, utils/utils, utils/align_utils
+     utils/cache_utils, Analysis/cmap_analysis
 
 run_foldswitch_pipeline.py
   <- config, utils/* (all), Analysis/* (all)
@@ -399,27 +390,18 @@ PAIR_TARGET_DIRS   = dict mapping stage names to output subdirectory names
 KNOWN ISSUES / BUGS FOUND DURING REVIEW
 ================================================================================
 
-1. Analysis/AF_analysis.py: `glob` imported as module but called as function
-   (`glob(...)` should be `glob.glob(...)`)
+ALL FIXED (commits e344236 and bc5c914):
+  1. AF_analysis.py glob import       -> fixed
+  2. cmap_analysis.py cluster_name     -> fixed (extracted from filename)
+  3. postprocess_global.py json import -> file deleted (merged into unified)
+  4. Analysis_retry.py hardcoded paths -> uses config.DATA_DIR
+  5. Empty compute_energy file         -> deleted
+  6. MSA_Clust.py deprecated wrapper   -> deleted
+  7. Duplicate postprocess modules     -> merged into postprocess_unified.py
 
-2. Analysis/cmap_analysis.py: `cluster_name` variable used but never defined
-   in compute_cmap_metrics_for_pair() -- likely depends on wildcard import
-
-3. Analysis/postprocess_global.py: `json` module used in function body but
-   not imported at top of file (would cause NameError)
-
-4. scripts/Analysis_retry.py: Hardcoded Mac paths
-   (/Users/steveabecassis/Desktop/Pipeline)
-
-5. scripts/compute_energy_ignore_disulfides.py: Empty file (placeholder)
-
-6. scripts/MSA_Clust.py: Deprecated wrapper (should consider removing)
-
-7. Two postprocess modules (postprocess_unified.py vs postprocess_global.py)
-   with different CSV column schemas -- potential source of confusion
-
-8. protein_plot_utils.py at 2022 lines is very large and could benefit from
-   splitting
+REMAINING:
+  8. protein_plot_utils.py at 2022 lines is very large and could benefit from
+     splitting (see NEXT_TASKS.txt Phase 3)
 
 ================================================================================
 LINE COUNTS (approximate, excluding blanks/comments)
@@ -427,19 +409,18 @@ LINE COUNTS (approximate, excluding blanks/comments)
 
 utils/protein_plot_utils.py    2022
 utils/phytree_utils.py         1210
-Analysis/postprocess_unified.py 865
+Analysis/postprocess_unified.py ~925  (grew: absorbed postprocess_global.py)
 utils/protein_utils.py          844
 utils/msa_utils.py              724
 utils/energy_utils.py           554
 utils/align_utils.py            512
-Analysis/cmap_analysis.py       485
+Analysis/cmap_analysis.py      ~450  (shrank: consolidated into _truth_contact_map)
 run_ESMFoldHF.py               ~400
 run_ClusterMSA.py              ~350
 utils/utils.py                  341
 run_MSATrans.py                ~300
 run_getMSA.py                  ~250
 scripts/infer_esm3.py           243
-Analysis/postprocess_global.py  169
 Analysis/NotebookGen/gen_notebooks.py 137
 config.py                      ~130
 Analysis/esmfold_analysis.py    121
@@ -449,8 +430,7 @@ Analysis/AF_analysis.py          65
 scripts/run_tree_reconstruct.py  55
 scripts/plot_protein.py          47
 utils/cache_utils.py             32
-scripts/MSA_Clust.py             23
 scripts/get_pdb_files.py         21
 run_foldswitch_pipeline.py    ~2800  (main orchestrator)
 
-TOTAL: ~13,000+ lines of Python
+TOTAL: ~12,000+ lines of Python (down from ~13,000 after cleanup)

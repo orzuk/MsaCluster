@@ -106,19 +106,23 @@ python3 run_foldswitch_pipeline.py --run_mode msaclust_pipeline --foldpair_ids 1
 
 The repository includes additional scripts for analysis and table generation.
 
-### Analysis Folder
-- `cmap_analysis.py` – analyze contact maps from MSA Transformer.  
-- `cmap_viz.py` – produce visualization plots.  
-- `esmfold_analysis.py` – analyze ESMFold outputs.  
-- `generate_notebooks.py` – create HTML notebooks for exploration.  
+### Analysis Folder (`Analysis/`)
+- `AF_analysis.py` – compute TM-scores between AlphaFold predictions and ground truth.
+- `cmap_analysis.py` – evaluate contact maps from MSA Transformer vs truth.
+- `esmfold_analysis.py` – compute TM-scores for ESMFold/ESM3 predictions.
+- `postprocess_unified.py` – build per-pair and per-cluster summary tables.
+- `postprocess_global.py` – aggregate all pairs into global result tables.
+- `NotebookGen/generate_notebooks.py` – create HTML notebooks for exploration.
 
-### TableResults Folder
-- `gen_html_table.py` – generate HTML summary table.  
-- `gen_latex_table.py` – generate LaTeX tables.  
-- `get_raw_data.py` – extract raw data at cluster level.  
-- `get_tm_align_score.py` – compute TM-scores.  
-- `summary_table.py` – produce summary tables for reporting.  
+### TableResults Folder (`TableResults/`)
+- `gen_html_table.py` – generate interactive HTML summary table.
+- `gen_latex_table.py` – generate LaTeX tables for paper.
+- `gen_pair_html.py` – generate per-pair HTML pages with 3D structures, contact maps, and trees.
 
 ### Pipeline Folder
-Contains `.sh` wrappers for cluster jobs (`RunAF_params.sh`, `get_msa_params.sh`, etc.).  
+Contains `.sh` wrappers for cluster jobs (`RunAF_params.sh`, `get_msa_params.sh`, etc.).
 Adapt them to your environment when using `--run_job_mode sbatch`.
+
+### Documentation
+- `PROJECT_SUMMARY.md` – comprehensive codebase summary and architecture overview.
+- `METHODS_AND_ANALYSES.md` – detailed technical methods, parameters, and metrics.
