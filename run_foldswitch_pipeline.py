@@ -37,8 +37,7 @@ except ImportError:
     compute_global_and_residue_energies = None
     print("[RosettaFold WARN] PyRosetta utilities are unavailable; ΔG step will be skipped.", flush=True)
 
-from Analysis.postprocess_global import build_or_load_global_tables
-from Analysis.postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs
+from Analysis.postprocess_unified import post_processing_analysis, build_unified_tables_from_cluster_dfs, build_or_load_global_tables
 from TableResults.gen_html_table import *
 
 from Bio import Align  # PairwiseAligner (modern replacement)

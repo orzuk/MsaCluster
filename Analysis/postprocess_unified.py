@@ -11,10 +11,11 @@ import argparse
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
-from config import DATA_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_TRANS_MODEL_FILE
+from config import DATA_DIR, PIPELINE_DIR, DOCS_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE, MSA_TRANS_MODEL_FILE
 from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
 from utils.protein_utils import pair_max_len_from_truth, pair_id2dir, truth_pdbs
-from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm
+from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm, seq_identity_for_pair
+from utils.cache_utils import get_from_pair_cache
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
 PAIR_DIR = Path(DATA_DIR)
@@ -863,3 +864,60 @@ if __name__ == "__main__":
 # 3) Build global per-cluster table (one row per cluster)
     build_all_pairs_clusters_table() # pairs=args.pairs, write_out=True)
     print(f"[postprocess] clusters table written:\n  {Path(SUMMARY_RESULTS_TABLE).parent / 'clusters_global_table.csv'}")
+
+
+# ---------------------------------------------------------------------------
+# Ported from postprocess_global.py (now single source of truth)
+# ---------------------------------------------------------------------------
+
+def _add_seqid_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Append a SEQ_ID column via pairwise sequence identity."""
+    seqids = []
+    for pid in df["pair_id"]:
+        try:
+            seqids.append(seq_identity_for_pair(pid))
+        except Exception as e:
+            print(f"[postprocess] WARN: seqid failed for {pid}: {e}")
+            seqids.append(np.nan)
+    df["SEQ_ID"] = seqids
+    return df
+
+
+def build_or_load_global_tables(force: bool = False,
+                                pairs_glob: str | None = None) -> tuple[str, str]:
+    """
+    Build (or load cached) summary + detailed CSVs for all pairs.
+
+    Wraps build_unified_tables_from_cluster_dfs and adds SEQ_ID column.
+    """
+    if (not force
+            and os.path.isfile(SUMMARY_RESULTS_TABLE)
+            and os.path.isfile(DETAILED_RESULTS_TABLE)):
+        return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE
+
+    # Determine pairs to process
+    pairs = None
+    if pairs_glob:
+        pair_dirs = sorted(glob.glob(os.path.join(PIPELINE_DIR, pairs_glob)))
+        pairs = [os.path.basename(d) for d in pair_dirs
+                 if os.path.isdir(os.path.join(d, "Analysis"))]
+
+    summary_df, detailed_df = build_unified_tables_from_cluster_dfs(
+        pairs=pairs, write_out=False)
+
+    # Add sequence identity
+    if not summary_df.empty:
+        summary_df = _add_seqid_column(summary_df)
+    if not detailed_df.empty and "pair_id" in detailed_df.columns:
+        detailed_df = _add_seqid_column(detailed_df)
+
+    # Round numeric columns
+    for _df in (summary_df, detailed_df):
+        if not _df.empty:
+            num_cols = _df.select_dtypes(include="number").columns
+            _df[num_cols] = _df[num_cols].round(3)
+
+    os.makedirs(DOCS_DIR, exist_ok=True)
+    summary_df.to_csv(SUMMARY_RESULTS_TABLE, index=False)
+    detailed_df.to_csv(DETAILED_RESULTS_TABLE, index=False)
+    return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE

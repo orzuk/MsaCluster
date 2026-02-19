@@ -61,49 +61,28 @@ def _common_cols(seed1: str, seed2: str):
     return sorted(list(K1.intersection(K2)))
 
 
-def _coords_from_pdb_chain(pdb_path: str, chain_id: str | None):
-    """Extract CA coords (N×3). Falls back to CB if needed."""
+def _truth_contact_map(pdb_path: str, chain_id: str | None,
+                       cutoff: float = CONTACT_CUTOFF, sep_min: int = 6) -> np.ndarray | None:
+    """
+    Build a binary truth contact map from a PDB file.
+
+    Uses pdb_to_contact_map() from utils.utils (single source of truth for
+    CA-based contact computation), then applies sequence-separation filtering.
+    """
     if not os.path.isfile(pdb_path):
         return None
-    ca = []
-    cb = []
-    with open(pdb_path) as fh:
-        for line in fh:
-            if not line.startswith("ATOM"):
-                continue
-            if chain_id and line[21].strip() != chain_id:
-                continue
-            atom = line[12:16].strip()
-            if atom not in ("CA", "CB"):
-                continue
-            try:
-                x = float(line[30:38]); y = float(line[38:46]); z = float(line[46:54])
-            except Exception:
-                continue
-            if atom == "CA":
-                ca.append((x,y,z))
-            elif atom == "CB":
-                cb.append((x,y,z))
-    arr = np.array(ca if ca else cb, dtype=np.float32)
-    return arr if len(arr) else None
-
-
-def _truth_contacts(coords: np.ndarray, cutoff=CONTACT_CUTOFF, sep_min=6):
-    """Return boolean NxN contact mask from coordinates."""
-    if coords is None or len(coords) == 0:
+    try:
+        cmap, _ = pdb_to_contact_map(pdb_path, chain=chain_id,
+                                     cutoff_A=cutoff, include_diag=False)
+    except ValueError:
         return None
-    X = coords
-    d2 = np.sum((X[:,None,:] - X[None,:,:])**2, axis=2)
-    mask = d2 <= (cutoff*cutoff)
-    # remove diagonal & short-range
+    mask = cmap.astype(bool)
     n = mask.shape[0]
+    # Zero out short-range contacts (|i-j| < sep_min)
     for i in range(n):
-        lo = max(0, i - (sep_min-1))
-        hi = min(n, i + (sep_min))
+        lo = max(0, i - (sep_min - 1))
+        hi = min(n, i + sep_min)
         mask[i, lo:hi] = False
-    np.fill_diagonal(mask, False)
-    # make symmetric
-    mask = np.triu(mask, 1) | np.tril(mask, -1)
     return mask
 
 
@@ -261,17 +240,16 @@ def compute_cmap_metrics_for_pair(
     pdb1  = cand1 if os.path.isfile(cand1) else os.path.join(pair_dir, f"{p1}.pdb")
     pdb2  = cand2 if os.path.isfile(cand2) else os.path.join(pair_dir, f"{p2}.pdb")
 
-    coords1 = _coords_from_pdb_chain(pdb1, c1)
-    coords2 = _coords_from_pdb_chain(pdb2, c2)
-    if coords1 is None or coords2 is None:
-        raise RuntimeError("Could not load truth coordinates for one or both chains")
-
-    T1 = _truth_contacts(coords1, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
-    T2 = _truth_contacts(coords2, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
+    T1 = _truth_contact_map(pdb1, c1, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
+    T2 = _truth_contact_map(pdb2, c2, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
+    if T1 is None or T2 is None:
+        raise RuntimeError("Could not load truth contacts for one or both chains")
 
     # Adapt sep_min for short chains (prevents empty truth)
     if max(T1.shape[0], T2.shape[0]) < 60 and sep_min > 3:
         sep_min = 3
+        T1 = _truth_contact_map(pdb1, c1, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
+        T2 = _truth_contact_map(pdb2, c2, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
 
     # ---- 2) alignment frames from _seed_both.a3m (symmetric mapping)
     both_a3m = os.path.join(pair_dir, "_seed_both.a3m")
