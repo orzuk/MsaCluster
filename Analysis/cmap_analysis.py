@@ -326,6 +326,10 @@ def compute_cmap_metrics_for_pair(
 
     rows = []
     for f in files:
+        # Extract cluster name from filename (e.g. "msa_t_ShallowMsa_001.npz" -> "ShallowMsa_001")
+        fn_base = os.path.splitext(os.path.basename(f))[0]
+        cluster_name = re.sub(r'^msa_t_', '', fn_base)
+
         # Load prediction and the seed-frame idx it uses
         try:
             P, idx, keep_cols = load_cmap_and_idx(f)   # P: (L,L) ; idx: seed-frame indices row-1 covers

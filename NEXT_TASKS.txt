@@ -1,0 +1,223 @@
+================================================================================
+NEXT_TASKS.txt - MsaCluster Pending Work & Simplification Plan
+Generated: 2026-02-19
+================================================================================
+
+Guided by Karpathy's rules:
+  1. Think Before Coding - surface assumptions, ask when unclear
+  2. Simplicity First    - minimum code, no speculative features
+  3. Surgical Changes    - touch only what you must
+  4. Goal-Driven         - define success criteria, verify
+
+================================================================================
+PHASE 1: BUG FIXES (high priority, low risk)
+================================================================================
+
+[BUG-1] Analysis/AF_analysis.py - glob import misuse
+  File:   Analysis/AF_analysis.py:8,30
+  Issue:  `from glob import *` or `import glob` then `glob(...)` vs `glob.glob(...)`
+  Fix:    Use `from glob import glob` or call `glob.glob(...)`.
+  Verify: Run AF_analysis.py on one pair without error.
+
+[BUG-2] Analysis/cmap_analysis.py - undefined `cluster_name`
+  File:   Analysis/cmap_analysis.py (inside compute_cmap_metrics_for_pair)
+  Issue:  `cluster_name` used in row dict but never assigned in the loop.
+          Likely should be extracted from the filename (e.g. ShallowMsa_001).
+  Fix:    Add: cluster_name = extract from os.path.basename(f)
+  Verify: Run cmap_analysis.py on one pair, check df_cmap.csv has cluster col.
+
+[BUG-3] Analysis/postprocess_global.py - missing `json` import
+  File:   Analysis/postprocess_global.py
+  Issue:  `json.load()` used in build_or_load_global_tables() but `json` not
+          imported at top of file.
+  Fix:    Add `import json` to imports.
+  Verify: Run build_or_load_global_tables() without NameError.
+
+[BUG-4] scripts/Analysis_retry.py - hardcoded Mac paths
+  File:   scripts/Analysis_retry.py
+  Issue:  Uses /Users/steveabecassis/Desktop/Pipeline (hardcoded).
+  Fix:    Use config.DATA_DIR or accept CLI arg.
+  Verify: Script runs with configured DATA_DIR.
+
+================================================================================
+PHASE 2: DEAD CODE REMOVAL (Karpathy rule 2: simplicity)
+================================================================================
+
+[DEAD-1] scripts/compute_energy_ignore_disulfides.py
+  Status: Empty file (0 lines).
+  Action: Delete.
+
+[DEAD-2] scripts/MSA_Clust.py
+  Status: Deprecated wrapper that just calls run_ClusterMSA.py.
+  Action: Delete (or keep if external scripts reference it). Check usages first.
+
+[DEAD-3] olds/old/ directory (14 legacy files)
+  Status: Archived old implementations. Not imported anywhere.
+  Action: Can be deleted entirely if git history is sufficient.
+  Files:  Analysis_retry.py, EsmFold_new.py, PlotUtils.py, analyse_pdb_outputs.py,
+          cmap_viz.py, dev.py, get_esmfold_all_data.py, get_raw_data.py,
+          get_tm_align_score.py, get_tm_score.py, monitoring.py, plot_cmap.py,
+          test.py, unused_functions.py
+
+[DEAD-4] config_copy.py
+  Status: Exact copy of config.py (backup).
+  Action: Delete -- git provides version history.
+
+[DEAD-5] sandbox.py
+  Status: Dev scratch file.
+  Action: Delete or move to olds/.
+
+[DEAD-6] analyze_dependencies.py
+  Status: One-off dev tool for finding imports. Now superseded by
+          CODE_STRUCTURE.txt.
+  Action: Delete or move to olds/.
+
+[DEAD-7] Shell analysis scripts at root level
+  Files:  analyze_functions3.sh, find_duplicate_functions.sh,
+          find_python_file_dependencies.sh
+  Action: Delete -- superseded by this documentation.
+
+================================================================================
+PHASE 3: SIMPLIFY LARGE FILES (Karpathy rule 2)
+================================================================================
+
+[SPLIT-1] utils/protein_plot_utils.py (2022 lines)
+  Problem:  Too large; mixes contact-map plotting, 3D rendering, tree heatmap,
+            global statistics, and image annotation.
+  Plan:     Split into 3-4 focused modules:
+            - utils/plot_contacts.py    (contact map grid/panel functions)
+            - utils/plot_3d.py          (PyMOL rendering, py3Dmol HTML)
+            - utils/plot_tree.py        (tree+heatmap composition, already partly in phytree_utils)
+            - utils/plot_global.py      (cross-pair scatter plots)
+            Keep protein_plot_utils.py as a thin re-export layer for backward compat.
+  Verify:   All existing callers still work. run_foldswitch_pipeline.py plot mode
+            produces same output.
+
+[SPLIT-2] run_foldswitch_pipeline.py (~2800 lines)
+  Problem:  Monolithic orchestrator with all pipeline stages in one file.
+  Plan:     Each run_<stage> function is already mostly self-contained.
+            Extract each stage into its own module under a `pipeline/` package.
+            Keep run_foldswitch_pipeline.py as a thin CLI dispatcher.
+  Verify:   `python run_foldswitch_pipeline.py --run_mode msaclust_pipeline`
+            produces same results.
+
+[SPLIT-3] utils/phytree_utils.py (1210 lines)
+  Problem:  Mixes tree construction, visualization, and ancestral reconstruction.
+  Plan:     Separate tree_build (construction, pruning, I/O) from tree_viz
+            (heatmap, rendering, image annotation).
+  Verify:   Tree mode and plot mode still work.
+
+================================================================================
+PHASE 4: CONSOLIDATE DUPLICATE LOGIC (Karpathy rule 3)
+================================================================================
+
+[DUP-1] Two postprocess modules with different schemas
+  Files:  Analysis/postprocess_unified.py vs Analysis/postprocess_global.py
+  Issue:  postprocess_global.py expects columns (model, kind, fold, TM) while
+          postprocess_unified.py uses (TMscore_fold1, TMscore_fold2).
+  Plan:   Determine which is the canonical version (likely postprocess_unified.py).
+          Merge any unique functionality from postprocess_global.py into it.
+          Delete postprocess_global.py.
+  Verify: Global tables are still generated correctly.
+
+[DUP-2] Contact map computation in multiple places
+  Files:  utils/utils.py:pdb_to_contact_map()
+          utils/protein_utils.py:read_seq_coord_contacts_from_pdb()
+          Analysis/cmap_analysis.py:_truth_contacts(), _coords_from_pdb_chain()
+  Issue:  Three different implementations of "PDB -> contact map".
+  Plan:   Consolidate into one function in protein_utils.py with clear API.
+          Other files should call that single function.
+  Verify: Contact maps are identical before and after refactor.
+
+[DUP-3] PDB sequence extraction in multiple places
+  Files:  utils/protein_utils.py:extract_protein_sequence()
+          utils/energy_utils.py:clean_sequence()
+          Analysis/cmap_analysis.py:_coords_from_pdb_chain()
+  Issue:  Multiple ways to extract sequence/coordinates from PDB.
+  Plan:   Standardize on protein_utils.py functions.
+
+[DUP-4] TM-score computation wrappers
+  Files:  utils/align_utils.py has tmalign_unified(), compute_tmscore_align(),
+          _run_tmalign_binary(), _run_tmtools_python()
+  Issue:  Multiple layers of wrapping. compute_tmscore_align -> tmalign_unified
+          -> _run_tmalign_binary or _run_tmtools_python.
+  Plan:   This layering is actually reasonable (binary vs Python fallback).
+          Just ensure the public API is clean: compute_tmscore_align() is the
+          only function callers should use.
+
+================================================================================
+PHASE 5: REDUCE OVER-ENGINEERING (Karpathy rule 2)
+================================================================================
+
+[OVER-1] utils/energy_utils.py - RedirectStdStreams context manager
+  Issue:  Custom stdout/stderr redirection. Could use contextlib.redirect_stdout.
+  Plan:   Replace with stdlib.
+
+[OVER-2] utils/msa_utils.py - parasail with BioPython fallback
+  Issue:  Dual alignment backends add complexity.
+  Plan:   If parasail is always available in the environment, remove the
+          BioPython fallback. If not, keep it but add a clear comment.
+
+[OVER-3] scripts/infer_esm3.py - overly generic ESM3 loader
+  Issue:  Tries many different ESM3 API entry points by name.
+  Plan:   If only one ESM3 version is used, simplify to just that API.
+          The HF ESMFold fallback is reasonable.
+
+================================================================================
+PHASE 6: IMPROVE ROBUSTNESS (from existing code review)
+================================================================================
+
+[ROBUST-1] Bare except clauses
+  Files:  scripts/Analysis_retry.py, scripts/get_sample_msa_algn.py
+  Issue:  `except:` silently swallows all errors.
+  Fix:    Use `except Exception as e:` and log the error.
+
+[ROBUST-2] Wildcard imports
+  Files:  Analysis/cmap_analysis.py (`from utils.utils import *`)
+          scripts/run_tree_reconstruct.py (`from utils.phytree_utils import *`)
+  Issue:  Makes it unclear what names are in scope (caused BUG-2).
+  Fix:    Replace with explicit imports.
+
+[ROBUST-3] Missing __init__.py files
+  Dirs:   utils/, Analysis/, TableResults/
+  Issue:  No __init__.py means these aren't proper Python packages (relies on
+          sys.path manipulation).
+  Plan:   Add __init__.py to each, or at minimum ensure imports work
+          consistently.
+
+================================================================================
+PRIORITY ORDER
+================================================================================
+
+  1. Phase 1 (Bug Fixes)        - immediate, low risk
+  2. Phase 2 (Dead Code)         - quick wins, reduces cognitive load
+  3. Phase 4 (Consolidate Dups)  - reduces confusion, fewer places to maintain
+  4. Phase 6 (Robustness)        - prevents future bugs
+  5. Phase 5 (Over-engineering)  - minor simplifications
+  6. Phase 3 (Split Large Files) - biggest structural change, do last
+
+================================================================================
+SCIENTIFIC/PIPELINE TASKS (non-refactoring)
+================================================================================
+
+From existing PROJECT_SUMMARY.md and README.md:
+
+[SCI-1] Run full pipeline on all 93 pairs
+  Status: Partially complete (many Pipeline/ dirs exist with outputs).
+  Next:   Check which pairs are missing results, run remaining.
+
+[SCI-2] Validate contact map metrics
+  Status: cmap_analysis.py has a bug (cluster_name undefined).
+  Next:   Fix bug first, then rerun on all pairs.
+
+[SCI-3] Complete ESM3 predictions
+  Status: infer_esm3.py supports ESM3 but may not have been run on all pairs.
+  Next:   Run ESM3 inference on all pairs where missing.
+
+[SCI-4] Generate final figures and tables
+  Status: postprocess_unified.py and global_pairs_statistics_plots() exist.
+  Next:   Run full postprocess + plot pipeline on complete dataset.
+
+[SCI-5] Update GitHub Pages
+  Status: docs/ directory has HTML reports.
+  Next:   Regenerate after fixing bugs and completing pipeline runs.

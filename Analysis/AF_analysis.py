@@ -4,8 +4,8 @@ from tqdm import tqdm
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
-import glob
-from utils.align_utils import *
+from glob import glob
+from utils.align_utils import compute_tmscore_align
 from utils.utils import list_protein_pairs
 from config import *
 

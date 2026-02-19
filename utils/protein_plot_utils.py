@@ -23,7 +23,6 @@ except Exception:
 
 from config import *
 from utils.phytree_utils import *
-from scripts.MSA_Clust import *
 from utils.utils import *
 from utils.energy_utils import *
 from utils.align_utils import *
