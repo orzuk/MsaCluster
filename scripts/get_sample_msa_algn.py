@@ -57,11 +57,13 @@ def main():
                             break
                         else:
                             continue
-                    except:
+                    except Exception as e:
+                        print(f"[get_sample_msa] WARN: skipping {id}: {e}")
                         continue
                 with open(f'{output_folder}/{msa[:-4]}/{id[1:]}.fasta', 'w') as f_out:
                     f_out.write('>' + id + '\n' + seq)
-            except:
+            except Exception as e:
+                print(f"[get_sample_msa] WARN: sample {sample_cnt} failed: {e}")
                 continue
             result_dir = Path(f'{output_folder}/{msa[:-4]}')
             queries, is_complex = get_queries(f'{output_folder}/{msa[:-4]}/{id[1:]}.fasta', 'random')
@@ -95,7 +97,8 @@ def main():
                         flag = 0
                     df.write("%s\n" % i)
                     df.write('\n')
-                except:
+                except Exception as e:
+                    print(f"[get_sample_msa] WARN: write failed: {e}")
                     continue
 
 

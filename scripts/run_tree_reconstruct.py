@@ -1,7 +1,6 @@
-# import itertools
-# import os
-# from pathlib import Path
-from utils.phytree_utils import *
+import os
+import time
+from utils.phytree_utils import phytree_from_msa
 from glob import glob
 
 import torch

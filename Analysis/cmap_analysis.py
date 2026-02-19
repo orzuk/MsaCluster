@@ -7,9 +7,8 @@ import argparse
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
-from config import *
-from utils.utils import *
-from utils.align_utils import *
+from config import CONTACT_CUTOFF, DATA_DIR
+from utils.utils import pdb_to_contact_map, list_protein_pairs
 from utils.protein_utils import load_cmap_and_idx
 
 def _read_two_seeds_from_a3m(a3m_path: str):
