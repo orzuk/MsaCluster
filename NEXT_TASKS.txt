@@ -43,17 +43,16 @@ PHASE 2: DEAD CODE REMOVAL (Karpathy rule 2: simplicity) -- COMPLETED
 PHASE 3: SIMPLIFY LARGE FILES (Karpathy rule 2)
 ================================================================================
 
-[SPLIT-1] utils/protein_plot_utils.py (2022 lines)
-  Problem:  Too large; mixes contact-map plotting, 3D rendering, tree heatmap,
-            global statistics, and image annotation.
-  Plan:     Split into 3-4 focused modules:
-            - utils/plot_contacts.py    (contact map grid/panel functions)
-            - utils/plot_3d.py          (PyMOL rendering, py3Dmol HTML)
-            - utils/plot_tree.py        (tree+heatmap composition, already partly in phytree_utils)
-            - utils/plot_global.py      (cross-pair scatter plots)
-            Keep protein_plot_utils.py as a thin re-export layer for backward compat.
-  Verify:   All existing callers still work. run_foldswitch_pipeline.py plot mode
-            produces same output.
+[SPLIT-1] DONE - utils/protein_plot_utils.py (2022 → ~634 lines)
+  Split into 3 focused submodules + orchestrator:
+    - utils/plot_contacts.py  (~606 lines) contact map grid/panel + restored functions
+    - utils/plot_3d.py        (~556 lines) PyMOL/py3Dmol rendering
+    - utils/plot_global.py    (~217 lines) cross-pair scatter plots
+    - utils/protein_plot_utils.py kept as orchestrator with tree/CSV helpers +
+      make_foldswitch_all_plots, re-exports public functions for backward compat.
+  Tree+heatmap composition stays in protein_plot_utils.py (not split to plot_tree.py
+  because it's tightly coupled to the orchestrator logic).
+  Commit: 834a466 (submodules) + pending (orchestrator rewrite)
 
 [SPLIT-2] run_foldswitch_pipeline.py (~2800 lines)
   Problem:  Monolithic orchestrator with all pipeline stages in one file.
@@ -98,9 +97,15 @@ PHASE 4: CONSOLIDATE DUPLICATE LOGIC (Karpathy rule 3) -- COMPLETED
 PHASE 5: REDUCE OVER-ENGINEERING (Karpathy rule 2)
 ================================================================================
 
-[OVER-1] utils/energy_utils.py - RedirectStdStreams context manager
-  Issue:  Custom stdout/stderr redirection. Could use contextlib.redirect_stdout.
-  Plan:   Replace with stdlib.
+[OVER-1] DONE - utils/energy_utils.py - RedirectStdStreams context manager
+  Replaced custom class with contextlib.redirect_stdout/stderr.
+  Commit: 834a466
+
+[OVER-1b] DONE - utils/utils.py - mdtraj/contact_map top-level import
+  Issue:  Top-level `import mdtraj` blocked all pipeline modes when mdtraj
+          was not installed (e.g. AF2 venv on cluster).
+  Fix:    Moved mdtraj + contact_map imports inside save_org_cmaps().
+          Removed unused ContactDifference import.
 
 [OVER-2] utils/msa_utils.py - parasail with BioPython fallback
   Issue:  Dual alignment backends add complexity.
