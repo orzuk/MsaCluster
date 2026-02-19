@@ -2,7 +2,13 @@ from Bio import SeqIO, AlignIO, pairwise2
 from Bio.Align import substitution_matrices, PairwiseAligner
 
 
-import parasail  # pip/conda package: parasail
+try:
+    import parasail  # pip/conda package: parasail
+    _HAS_PARASAIL = True
+except ImportError:
+    parasail = None  # type: ignore[assignment]
+    _HAS_PARASAIL = False
+
 import requests
 from io import StringIO
 from typing import List, Tuple, Dict
@@ -12,15 +18,10 @@ from collections import Counter
 from pathlib import Path
 import math
 
-# ...
-
-
-_HAS_PARASAIL = True # Assume import parasail will work
-
 # Identity matrix for "standard" (globalxx-like but with positive gap costs)
 _ID_ALPHABET = "ARNDCQEGHILKMFPSTWYVBZXUO"
-_ID_MATRIX = parasail.matrix_create(_ID_ALPHABET, 1, 0)  # match=1, mismatch=0
-_BLOSUM62   = parasail.blosum62
+_ID_MATRIX = parasail.matrix_create(_ID_ALPHABET, 1, 0) if _HAS_PARASAIL else None
+_BLOSUM62   = parasail.blosum62 if _HAS_PARASAIL else None
 _BLOSUM_ALPHABET = set("ARNDCQEGHILKMFPSTWYVBZX")  # no J/U/O in common blosum tables
 _CIGAR_RE = re.compile(r"(\d+)([=XMDISH])")  # include S/H just in case
 
