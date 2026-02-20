@@ -215,9 +215,19 @@ Three types of negative controls needed (from paper_scientific_issues.txt):
            --control_type MatchedSingleFold --run_job_mode sbatch
   Expected result: high TM-scores across clusters (no fold switching).
 
-[CTRL-3] Random Single-Domain Proteins -- TODO
-  ~100 random single-domain proteins from PISCES or SCOPe.
-  Need: PISCES/SCOPe query + filtering.
+[CTRL-3] Random Single-Domain Proteins -- DONE (100 proteins selected)
+  100 random single-chain X-ray structures from RCSB PDB.
+  Setup: scripts/setup_random_controls.py -> Pipeline/Controls/RandomSingleFold/
+  Queries RCSB PDB Search API v2 for: X-ray, resolution < 2.5A, single protein
+  chain, length 50-500 AA. Excludes fold-switching PDB IDs, samples 100 (seed=42).
+  Caches RCSB results to data/cache/. Reference CSV: data/random_singlefold_controls.csv.
+  Run setup:
+    python scripts/setup_random_controls.py              # 100 proteins (default)
+    python scripts/setup_random_controls.py --n 50       # custom count
+  Run pipeline:
+    python run_controls_pipeline.py --run_mode full_pipeline --protein_ids ALL \
+           --control_type RandomSingleFold --run_job_mode sbatch
+  Expected result: high TM-scores across clusters (no fold switching).
 
 ================================================================================
 SCIENTIFIC/PIPELINE TASKS (non-refactoring)

@@ -82,6 +82,7 @@ DATA_DIR = PIPELINE_BASE_DIR + '/FoldPairs'       # fold-switching pair director
 CONTROLS_BASE_DIR = PIPELINE_BASE_DIR + '/Controls'
 PORTER_IDP_DIR    = CONTROLS_BASE_DIR + '/PorterIDP'
 MATCHED_CONTROLS_DIR = CONTROLS_BASE_DIR + '/MatchedSingleFold'
+RANDOM_CONTROLS_DIR  = CONTROLS_BASE_DIR + '/RandomSingleFold'
 
 TABLES_DIR = MAIN_DIR + '/data'
 CMAP_RES_PATH = TABLES_DIR + '/df_cmap_all.csv'
