@@ -368,6 +368,23 @@ def create_control_dir(ctrl: dict) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+def _save_csv(results: list[dict]) -> None:
+    """Write results to CSV (merging with any existing file)."""
+    import pandas as pd
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    if os.path.isfile(OUTPUT_CSV):
+        try:
+            df_old = pd.read_csv(OUTPUT_CSV)
+            df_new = pd.DataFrame(results)
+            df_all = pd.concat([df_old, df_new], ignore_index=True)
+            df_all = df_all.drop_duplicates(subset=["pair_id"], keep="last")
+        except Exception:
+            df_all = pd.DataFrame(results)
+    else:
+        df_all = pd.DataFrame(results)
+    df_all.to_csv(OUTPUT_CSV, index=False)
+
+
 def load_pairs(pair_id_filter: str | None = None) -> list[tuple[str, str]]:
     """Read fold-switching pairs from data/foldswitch_PDB_IDs_full.txt."""
     pairs = []
@@ -447,31 +464,18 @@ def main():
             # Remove sequence from CSV output (large)
             row = {k: v for k, v in ctrl.items() if k != "sequence"}
             results.append(row)
+            existing.add(pair_id)
             print(f"  => MATCH: {ctrl['control_pdb']} "
                   f"(UniProt:{ctrl['control_uniprot']}, "
                   f"identity={ctrl['seq_identity']:.1%}, "
                   f"len={ctrl['seq_len']})", flush=True)
+
+            # Save incrementally so progress survives crashes
+            if not args.dry_run:
+                _save_csv(results)
         else:
             failed += 1
             print(f"  => NO MATCH found", flush=True)
-
-    # Save results
-    if results and not args.dry_run:
-        # Merge with existing
-        if os.path.isfile(OUTPUT_CSV):
-            try:
-                df_old = pd.read_csv(OUTPUT_CSV)
-                df_new = pd.DataFrame(results)
-                df_all = pd.concat([df_old, df_new], ignore_index=True)
-                df_all = df_all.drop_duplicates(subset=["pair_id"], keep="last")
-            except Exception:
-                df_all = pd.DataFrame(results)
-        else:
-            df_all = pd.DataFrame(results)
-
-        os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
-        df_all.to_csv(OUTPUT_CSV, index=False)
-        print(f"\nSaved {len(df_all)} controls to {OUTPUT_CSV}")
 
     # Summary
     print(f"\n{'='*60}")
