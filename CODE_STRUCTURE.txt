@@ -29,13 +29,16 @@ MsaCluster/
 |-- a3m_toaf3json.py           # Convert A3M to AF3 JSON input format
 |-- monitoring.py              # Pipeline monitoring utilities
 |
-|-- utils/                     # Core shared libraries (8 files)
+|-- utils/                     # Core shared libraries (11 files)
 |   |-- align_utils.py         #   TM-align, sequence identity, cmap alignment
 |   |-- cache_utils.py         #   JSON-based per-pair caching
 |   |-- energy_utils.py        #   PyRosetta delta-G, per-residue energy, DDG
 |   |-- msa_utils.py           #   MSA I/O, alignment, trimming, Neff computation
 |   |-- phytree_utils.py       #   Phylogenetic tree build/viz/manipulation
-|   |-- protein_plot_utils.py  #   All visualization (cmaps, 3D, trees, global)
+|   |-- plot_3d.py             #   PyMOL/py3Dmol 3D structure rendering
+|   |-- plot_contacts.py       #   Contact map grid/panel visualization
+|   |-- plot_global.py         #   Cross-pair scatter plots
+|   |-- protein_plot_utils.py  #   Plot orchestrator (delegates to plot_*.py)
 |   |-- protein_utils.py       #   PDB loading, sequence, contacts, evaluation
 |   |-- utils.py               #   General helpers (pair listing, SLURM, etc.)
 |
@@ -47,7 +50,7 @@ MsaCluster/
 |   |-- NotebookGen/
 |       |-- generate_notebooks.py  # Execute template notebook per pair -> HTML
 |
-|-- scripts/                   # Standalone utility scripts (6 files)
+|-- scripts/                   # Standalone utility scripts
 |   |-- __init__.py            #   Package marker (empty)
 |   |-- Analysis_retry.py      #   Batch retry of AF analysis (uses config.DATA_DIR)
 |   |-- get_pdb_files.py       #   Download PDB from RCSB
@@ -55,6 +58,17 @@ MsaCluster/
 |   |-- infer_esm3.py          #   ESM3/ESMFold CLI (tries ESM3, falls back HF)
 |   |-- plot_protein.py        #   PyMOL alignment+rendering script
 |   |-- run_tree_reconstruct.py#   CLI for phylogenetic tree from MSA
+|   |-- setup_porter_idp.py    #   Extract Porter 2022 IDP controls from Excel
+|   |-- smoke_test.sh          #   Quick pipeline smoke test
+|   |-- shell/                 #   Pipeline shell scripts (16 files, moved from Pipeline/)
+|       |-- get_msa_params.sh  #     MSA generation via ColabFold
+|       |-- RunAF_params.sh    #     AlphaFold prediction parameters
+|       |-- RunAF2_Colabfold.sh#     AF2 via ColabFold
+|       |-- RunAF3_Colabfold.sh#     AF3 via ColabFold
+|       |-- RunEsmFold_params.sh#    ESMFold prediction parameters
+|       |-- cif_to_pdb.sh      #     CIF to PDB conversion
+|       |-- tree_reconstruct_params.sh  # Phylogenetic tree reconstruction
+|       |-- ...                #     (+ 9 more shell scripts)
 |
 |-- TableResults/              # Report generation (3 files)
 |   |-- gen_html_table.py      #   Interactive HTML summary table
@@ -75,25 +89,33 @@ MsaCluster/
 |   |-- figures/global/        #   Global comparison plots
 |   |-- detailed_final_res_all_pairs_df.csv
 |
-|-- Pipeline/                  # Per-pair working directories
-|   |-- <pairID>/              #   One directory per protein pair
-|       |-- *.fasta            #     Chain FASTA files
-|       |-- *_pdb_contacts.npy #     Ground truth contact maps
-|       |-- _seed_both.a3m     #     Seed MSA with both chains
-|       |-- fasta_chain_files/ #     Per-chain FASTAs
-|       |-- chain_pdb_files/   #     Per-chain PDBs
-|       |-- output_get_msa/    #     Deep MSA output
-|       |-- output_msa_cluster/#     Shallow MSA clusters (ShallowMsa_###.a3m)
-|       |-- output_phytree/    #     Phylogenetic tree (.nwk)
-|       |-- AF_preds/          #     AlphaFold predictions
-|       |-- output_cmap_esm/   #     MSA-Transformer contact maps (.npz)
-|       |-- output_cmaps/      #     Contact map predictions
-|       |-- output_esm_fold/   #     ESMFold predictions
-|       |-- Analysis/          #     Per-pair result CSVs & cache
-|           |-- df_af.csv      #       AF TM-scores per cluster
-|           |-- df_esm.csv     #       ESM TM-scores per cluster
-|           |-- df_cmap.csv    #       Contact map metrics per cluster
-|           |-- cache.json     #       Cached values (TM, seq_id, etc.)
+|-- Pipeline/                  # Root pipeline directory
+|   |-- FoldPairs/             #   Fold-switching protein pair directories
+|   |   |-- <pairID>/          #     One directory per protein pair (93 pairs)
+|   |       |-- *.fasta        #       Chain FASTA files
+|   |       |-- *_pdb_contacts.npy #   Ground truth contact maps
+|   |       |-- _seed_both.a3m #       Seed MSA with both chains
+|   |       |-- fasta_chain_files/ #   Per-chain FASTAs
+|   |       |-- chain_pdb_files/   #   Per-chain PDBs
+|   |       |-- output_get_msa/    #   Deep MSA output
+|   |       |-- output_msa_cluster/#   Shallow MSA clusters (ShallowMsa_###.a3m)
+|   |       |-- output_phytree/    #   Phylogenetic tree (.nwk)
+|   |       |-- AF_preds/          #   AlphaFold predictions
+|   |       |-- output_cmap_esm/   #   MSA-Transformer contact maps (.npz)
+|   |       |-- output_cmaps/      #   Contact map predictions
+|   |       |-- output_esm_fold/   #   ESMFold predictions
+|   |       |-- Analysis/          #   Per-pair result CSVs & cache
+|   |           |-- df_af.csv      #     AF TM-scores per cluster
+|   |           |-- df_esm.csv     #     ESM TM-scores per cluster
+|   |           |-- df_cmap.csv    #     Contact map metrics per cluster
+|   |           |-- cache.json     #     Cached values (TM, seq_id, etc.)
+|   |-- Controls/              #   Negative control protein directories
+|   |   |-- PorterIDP/         #     99 IDP controls (Porter & Looger 2022, DisProt)
+|   |       |-- <UniprotID>/   #       One directory per IDP protein
+|   |           |-- <UniprotID>.fasta  # Protein sequence
+|   |-- Results/               #   Global pipeline results & figures
+|   |-- pdb_files/             #   Shared PDB files
+|   |-- output/                #   Legacy output directory
 |
 |-- olds/old/                  # Archived/legacy code (14 files)
 |-- Install/                   # Environment setup scripts
@@ -122,8 +144,10 @@ PIPELINE STAGES (run_foldswitch_pipeline.py --run_mode <mode>)
 FILE-BY-FILE FUNCTION INDEX
 ================================================================================
 
---- config.py (130 lines) ---
-  Defines: MAIN_DIR, DATA_DIR, PIPELINE_DIR, OUTPUT_PATH_NOTEBOOKS,
+--- config.py (~140 lines) ---
+  Defines: MAIN_DIR, PIPELINE_BASE_DIR, DATA_DIR (= .../FoldPairs),
+           CONTROLS_BASE_DIR, PORTER_IDP_DIR, PIPELINE_DIR (alias),
+           ENERGY_DIR, FIGURE_RES_DIR, OUTPUT_PATH_NOTEBOOKS,
            DOCS_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE,
            MSA_TRANS_MODEL_FILE, CONTACT_CUTOFF, PAIR_TARGET_DIRS,
            TM_ALIGN_BINARY, COLABFOLD_BATCH, etc.
@@ -400,8 +424,10 @@ ALL FIXED (commits e344236 and bc5c914):
   7. Duplicate postprocess modules     -> merged into postprocess_unified.py
 
 REMAINING:
-  8. protein_plot_utils.py at 2022 lines is very large and could benefit from
-     splitting (see NEXT_TASKS.txt Phase 3)
+  8. protein_plot_utils.py split DONE (SPLIT-1): orchestrator + plot_3d.py,
+     plot_contacts.py, plot_global.py submodules
+  9. run_foldswitch_pipeline.py at ~2800 lines could benefit from splitting
+     (see NEXT_TASKS.txt Phase 3, SPLIT-2)
 
 ================================================================================
 LINE COUNTS (approximate, excluding blanks/comments)

@@ -96,7 +96,7 @@ def _cluster_short_disp(tag: str) -> str:
 
 
 def _pair_analysis_dir(pair_id: str) -> str:
-    return os.path.join("Pipeline", pair_id, "Analysis")
+    return os.path.join("Pipeline", "FoldPairs", pair_id, "Analysis")
 
 
 def _load_pair_csvs(pair_id: str):
@@ -352,7 +352,7 @@ def make_foldswitch_all_plots(
     print("Plot for foldpair_id: " + foldpair_id)
 
     # ---------- Paths & ensure a single per-pair figure dir ----------
-    fig_dir_root = os.path.join("Pipeline", foldpair_id, "output_figs")
+    fig_dir_root = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_figs")
     os.makedirs(fig_dir_root, exist_ok=True)
 
     # ---------- Inputs ----------
@@ -438,8 +438,8 @@ def make_foldswitch_all_plots(
 
     print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
     print(" pred_cmaps sizes: ", [cmap[0].shape for cmap in msa_transformer_pred.values()])
-    msa_full_default = os.path.join("Pipeline", foldpair_id, "output_get_msa", "DeepMsa.a3m")
-    msa_full_trim = os.path.join("Pipeline", foldpair_id, "output_get_msa", "DeepMsa_pairtrim.a3m")
+    msa_full_default = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_get_msa", "DeepMsa.a3m")
+    msa_full_trim = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_get_msa", "DeepMsa_pairtrim.a3m")
     msa_full = msa_full_trim if os.path.isfile(msa_full_trim) else msa_full_default
     keyA = pdbids[0] + pdbchains[0]
     keyB = pdbids[1] + pdbchains[1]
@@ -475,7 +475,7 @@ def make_foldswitch_all_plots(
     }
 
     # ---------- Tree & overlays ----------
-    phytree_file = os.path.join('Pipeline', foldpair_id, 'output_phytree', 'DeepMsa_tree.nwk')
+    phytree_file = os.path.join('Pipeline', 'FoldPairs', foldpair_id, 'output_phytree', 'DeepMsa_tree.nwk')
     print("Load Biopython treefile: " + phytree_file)
     bio_tree = Phylo.read(phytree_file, "newick")
     print("Convert to ete3 tree:")
@@ -598,7 +598,7 @@ def make_foldswitch_all_plots(
     make_interactive = plot3dformat in ('interactive', 'both')
     try:
         _render_true_structures(
-            pair_dir=os.path.join('Pipeline', foldpair_id),
+            pair_dir=os.path.join('Pipeline', 'FoldPairs', foldpair_id),
             pdb1=f"{pdbids[0]}.pdb",
             pdb2=f"{pdbids[1]}.pdb",
             out_dir=fig_dir_root,

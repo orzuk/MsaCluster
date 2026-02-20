@@ -498,7 +498,7 @@ def run_compute_deltaG_with_output(pdb_pair_files, foldpair_ids, output_file="/d
     for pdb_pair_file, foldpair_id in zip(pdb_pair_files, foldpair_ids):
         print(f"Computing ΔG for {pdb_pair_file}  pair using PyRosetta...")
         for fold in range(2):
-            log_file_path = "Pipeline/output_deltaG/pyrosetta_" + foldpair_ids[fold] + ".log"
+            log_file_path = os.path.join(ENERGY_DIR, "pyrosetta_" + foldpair_ids[fold] + ".log")
             print("Rosetta Log file: ", log_file_path)
             pdb_path, deltaG, additional_info = compute_deltaG_with_pyrosetta(pdb_pair_file[fold], log_file_path)
 

@@ -135,7 +135,7 @@ def _pred_pdb_path(pair_id: str, family: str, ver: str, cluster: str, pdbid: str
     """family = 'AF' or 'ESM'; ver e.g. '2' or '3'."""
     tag = _normalize_cluster_tag(cluster)
     base = f"output_{family}/{family}{ver}/{tag}__{pdbid}{chain}.pdb"
-    return os.path.join("Pipeline", pair_id, base)
+    return os.path.join("Pipeline", "FoldPairs", pair_id, base)
 
 
 def _best_cluster_from_table(pair_id: str, table: str, model_tag: str, fold_idx: int) -> tuple[str, float] | None:
@@ -143,7 +143,7 @@ def _best_cluster_from_table(pair_id: str, table: str, model_tag: str, fold_idx:
     Generic best-cluster picker from df_{table}.csv.
     Returns (canonical_cluster_tag, TMscore) for fold_idx {0,1}.
     """
-    df_path = os.path.join('Pipeline', pair_id, 'Analysis', f'df_{table}.csv')
+    df_path = os.path.join('Pipeline', 'FoldPairs', pair_id, 'Analysis', f'df_{table}.csv')
     if not os.path.isfile(df_path):
         return None
     try:
@@ -265,7 +265,7 @@ def _best_cluster_from_df(pair_id: str, model_ver: str, fold_idx: int) -> str | 
     Return canonical cluster tag ('DeepMsa' or 'ShallowMsa_###') for the best TMscore
     in Pipeline/<pair>/Analysis/df_af.csv for AF{model_ver} and fold_idx in {0,1}.
     """
-    df_path = os.path.join('Pipeline', pair_id, 'Analysis', 'df_af.csv')
+    df_path = os.path.join('Pipeline', 'FoldPairs', pair_id, 'Analysis', 'df_af.csv')
     if not os.path.isfile(df_path):
         return None
     d = pd.read_csv(df_path)
@@ -299,7 +299,7 @@ def _best_esm_from_df(pair_id: str, model_ver: str, fold_idx: int):
     Return (cluster_tag, sample_idx) for the best TMscore in df_esm.csv
     for ESM{model_ver} and fold_idx in {0,1}.
     """
-    df_path = os.path.join('Pipeline', pair_id, 'Analysis', 'df_esm.csv')
+    df_path = os.path.join('Pipeline', 'FoldPairs', pair_id, 'Analysis', 'df_esm.csv')
     if not os.path.isfile(df_path):
         return None
     d = pd.read_csv(df_path)
@@ -340,9 +340,9 @@ def _render_true_vs_best_esm(pair_id: str, pdbids: list[str], pdbchains: list[st
             continue
         cluster_tag, sample_idx = picked
 
-        true_pdb = os.path.join('Pipeline', pair_id, f"{pdbids[idx]}.pdb")
+        true_pdb = os.path.join('Pipeline', 'FoldPairs', pair_id, f"{pdbids[idx]}.pdb")
         pred_pdb = os.path.join(
-            'Pipeline', pair_id, 'output_esm_fold', f"esm{model_ver}",
+            'Pipeline', 'FoldPairs', pair_id, 'output_esm_fold', f"esm{model_ver}",
             f"{cluster_tag}__sample_{sample_idx:03d}_esm{model_ver}.pdb"
         )
         if not (os.path.isfile(true_pdb) and os.path.isfile(pred_pdb)):
@@ -393,7 +393,7 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
             continue
 
         cluster, tm = pick
-        true_pdb = os.path.join('Pipeline', pair_id, f"{pdbids[idx]}.pdb")
+        true_pdb = os.path.join('Pipeline', 'FoldPairs', pair_id, f"{pdbids[idx]}.pdb")
         pred_pdb = _pred_pdb_path(pair_id, family, ver, cluster, pdbids[idx], pdbchains[idx])
 
         if not (os.path.isfile(true_pdb) and os.path.isfile(pred_pdb)):
@@ -428,7 +428,7 @@ def _render_true_vs_best_models_generic(pair_id: str, pdbids: list[str], pdbchai
 def _render_ddg_aligned_image(pair_id: str, pdbids: list[str], pdbchains: list[str], fig_dir_root: str) -> None:
     """Build the aligned per-residue DDG image into output_figs/."""
     os.makedirs(fig_dir_root, exist_ok=True)
-    pair_dir = os.path.join("Pipeline", pair_id)
+    pair_dir = os.path.join("Pipeline", "FoldPairs", pair_id)
     anal_dir = os.path.join(pair_dir, "Analysis")
     out_png = os.path.join(fig_dir_root, f"{pair_id}_ddg_aligned.png")
 

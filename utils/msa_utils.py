@@ -497,7 +497,7 @@ def find_row_idx(headers, tokens, default=None):
 
 def build_pair_seed_a3m_from_pair(
     pair_id: str,
-    data_dir: str = "Pipeline",
+    data_dir: str = "Pipeline/FoldPairs",
     prefer_chain_files: bool = True,
     out_name: str = "_seed_both.a3m",
     align_mode: str = "blosum"  # "blosum" or "standard"

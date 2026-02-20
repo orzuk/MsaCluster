@@ -12,7 +12,7 @@ set -euo pipefail
 
 # ------------------ args & paths ------------------
 PAIR_ID="${1:?Usage: RunAF_params.sh <PAIR_ID> [BASE_DIR] }"
-BASE_DIR="${2:-Pipeline}"
+BASE_DIR="${2:-Pipeline/FoldPairs}"
 PAIR_DIR="${BASE_DIR}/${PAIR_ID}"
 
 MSA_DEEP="${PAIR_DIR}/output_get_msa"

@@ -120,7 +120,7 @@ def _renumber_kept_clusters(pair_id: str) -> bool:
 
     Returns True if any changes were made, False if no action was needed.
     """
-    base = Path(f"Pipeline/{pair_id}")
+    base = Path(f"Pipeline/FoldPairs/{pair_id}")
     cl_csv = base / "output_msa_cluster" / "ShallowMsa_clusters.csv"
     if not cl_csv.is_file():
         return False
@@ -242,7 +242,7 @@ def _renumber_kept_clusters(pair_id: str) -> bool:
 def _truth_pdb_paths_for_pair(pair_id: str) -> tuple[str, str]:
     # Prefer chain-sliced files if present
     from utils.utils import pair_str_to_tuple
-    pair_dir = Path("Pipeline") / pair_id
+    pair_dir = Path("Pipeline/FoldPairs") / pair_id
     a, b = pair_str_to_tuple(pair_id)  # e.g., ("2qqjA","4qdsA")
     c1, c2 = a[-1], b[-1]
     cand1 = pair_dir / "chain_pdb_files" / f"{a}.pdb"
@@ -258,9 +258,9 @@ def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True) -> str:
     gap-gap columns and length explosions for MSA-Transformer/CCMpred.
     Returns the directory that contains the pair-trimmed cluster A3Ms.
     """
-    deep_src = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
-    clus_src = f"Pipeline/{pair_id}/output_msa_cluster"
-    clus_dst = f"Pipeline/{pair_id}/output_msa_cluster_pairtrim"
+    deep_src = f"Pipeline/FoldPairs/{pair_id}/output_get_msa/DeepMsa.a3m"
+    clus_src = f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster"
+    clus_dst = f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster_pairtrim"
     ensure_dir(clus_dst)
 
     pA, pB = pair_str_to_tuple(pair_id)
@@ -269,18 +269,18 @@ def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True) -> str:
     max_len = 1024 if cap_1024 else None
 
     # Deep (also keeps a .colmap.txt alongside)
-    deep_dst = f"Pipeline/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
+    deep_dst = f"Pipeline/FoldPairs/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
     keep = trim_a3m_for_pair_union(deep_src, deep_dst, s1_tokens, s2_tokens, max_len=max_len)
 
     # Also make a trimmed seed for analysis (so indices match predictions)
     try:
-        seed_src = f"Pipeline/{pair_id}/_seed_both.a3m"
+        seed_src = f"Pipeline/FoldPairs/{pair_id}/_seed_both.a3m"
         if os.path.isfile(seed_src):
             # project first two rows by the same 'keep'
             lines = Path(seed_src).read_text().splitlines(True)
             headers, seqs = parse_a3m_records(lines, strip_inserts=True)
             seeds2 = project_columns(seqs[:2], keep)
-            with open(f"Pipeline/{pair_id}/_seed_both_pairtrim.a3m", "w") as fh:
+            with open(f"Pipeline/FoldPairs/{pair_id}/_seed_both_pairtrim.a3m", "w") as fh:
                 fh.write(">S1\n" + seeds2[0] + "\n>S2\n" + seeds2[1] + "\n")
     except Exception as e:
         print(f"[seed_pairtrim] WARN: {e}")
@@ -309,7 +309,7 @@ def _extract_seq_ca_only(pdb_path: str, chain: str) -> str:
 def _has_deltaG(pair_id: str) -> bool:
     """Return True if both chain-level ΔG files exist for this pair."""
     pA, pB = pair_str_to_tuple(pair_id)     # e.g., '1wp8C','5ejbC'
-    out_dir = Path("Pipeline/output_deltaG")
+    out_dir = Path(ENERGY_DIR)
     a = out_dir / f"deltaG_{pA[:-1]}.txt"   # 'deltaG_1wp8.txt'
     b = out_dir / f"deltaG_{pB[:-1]}.txt"   # 'deltaG_5ejb.txt'
     return a.exists() and b.exists()
@@ -418,7 +418,7 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         inner.append(extra_cli)
     wrap_str = " ".join(inner)
 
-    job_dir = Path(f"Pipeline/{pair_id}/jobs")
+    job_dir = Path(f"Pipeline/FoldPairs/{pair_id}/jobs")
     job_dir.mkdir(parents=True, exist_ok=True)
     out_path = str(job_dir / f"{run_mode}_{pair_id}.out")
 
@@ -478,7 +478,7 @@ def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     """
 
     # Logs per pair
-    jobs_dir = Path(f"Pipeline/{pair_id}/jobs")
+    jobs_dir = Path(f"Pipeline/FoldPairs/{pair_id}/jobs")
     jobs_dir.mkdir(parents=True, exist_ok=True)
     log = jobs_dir / f"msaclust_{pair_id}.out"
 
@@ -579,7 +579,7 @@ def _export_canonical_best_pdbs(pair_id: str, ver: str) -> None:
     Walk .../output_AF/AF{ver}/{DeepMsa|ShallowMsa_xxx}/{chain}/
     and copy the best PDB to .../output_AF/AF{ver}/<ClusterLabel>__<chain>.pdb
     """
-    root = Path(f"Pipeline/{pair_id}/output_AF/AF{ver}")
+    root = Path(f"Pipeline/FoldPairs/{pair_id}/output_AF/AF{ver}")
     if not root.exists():
         return
     for cluster_dir in sorted(root.iterdir()):
@@ -636,7 +636,7 @@ def _convert_existing_af3(out_dir: str, mode: str = "all") -> None:
     run_dirs = sorted({csv.parent for csv in base.rglob("*_ranking_scores.csv")})
     if not run_dirs:
         return
-    helper = Path("Pipeline") / "cif_to_pdb.sh"
+    helper = Path("scripts/shell") / "cif_to_pdb.sh"
     for rd in run_dirs:
         cmd = f"bash {shlex.quote(str(helper))} {shlex.quote(str(rd))} --mode {shlex.quote(mode)}"
         subprocess.run(cmd, shell=True, check=False)
@@ -673,7 +673,7 @@ def _update_basic_cache(pair_id: str) -> None:
       - clusters: { "ShallowMsa_000": {"n": ..., "neff": ...}, ... }
     Safe: only writes keys it can compute.
     """
-    pair_dir = Path(f"Pipeline/{pair_id}")
+    pair_dir = Path(f"Pipeline/FoldPairs/{pair_id}")
     analysis = pair_dir / "Analysis"
     analysis.mkdir(parents=True, exist_ok=True)
     cache_path = analysis / "cache.json"
@@ -791,8 +791,8 @@ def _run(cmd: str, mode: str) -> None:
 
 
 def _cluster_files(pair_id: str) -> tuple[str, list[str]]:
-    deep = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"   # <-- FIXED
-    clusters = sorted(glob(f"Pipeline/{pair_id}/output_msa_cluster/ShallowMsa_*.a3m"))
+    deep = f"Pipeline/FoldPairs/{pair_id}/output_get_msa/DeepMsa.a3m"   # <-- FIXED
+    clusters = sorted(glob(f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster/ShallowMsa_*.a3m"))
     return deep, clusters
 
 def _has_loaded(pair_id: str) -> bool:
@@ -802,7 +802,7 @@ def _has_loaded(pair_id: str) -> bool:
     Pipeline/<pair>/<PDBID>.pdb present and non-empty.
     """
     a, b = pair_str_to_tuple(pair_id)  # e.g., ("2qqjA", "4qdsA")
-    base = Path("Pipeline") / pair_id
+    base = Path("Pipeline/FoldPairs") / pair_id
 
     # A chain or base
     a_chain = base / "chain_pdb_files" / f"{a}.pdb"
@@ -819,20 +819,20 @@ def _has_loaded(pair_id: str) -> bool:
 
 
 def _has_deep_msa(pair_id: str) -> bool:
-    f = Path(f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m")
+    f = Path(f"Pipeline/FoldPairs/{pair_id}/output_get_msa/DeepMsa.a3m")
     return f.is_file() and f.stat().st_size > 0
 
 def _has_cluster_msas(pair_id: str) -> bool:
-    return bool(list(Path(f"Pipeline/{pair_id}/output_msa_cluster").glob("ShallowMsa_*.a3m")))
+    return bool(list(Path(f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster").glob("ShallowMsa_*.a3m")))
 
 
 def _has_cmaps(pair_id: str) -> bool:
-    p = Path(f"Pipeline/{pair_id}/output_cmaps/msa_transformer")
+    p = Path(f"Pipeline/FoldPairs/{pair_id}/output_cmaps/msa_transformer")
     return any(p.glob("*.npz")) or any(p.glob("*.npy"))
 
 
 def _has_esm_model(pair_id: str, model: str) -> bool:
-    d = Path(f"Pipeline/{pair_id}/output_esm_fold/{model}")
+    d = Path(f"Pipeline/FoldPairs/{pair_id}/output_esm_fold/{model}")
     if not d.is_dir():
         return False
     tsv = d / "samples_index.tsv"
@@ -857,7 +857,7 @@ def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = Fals
     """
     created = []
     deep, clusters = _cluster_files(pair_id)
-    outdir = f"Pipeline/{pair_id}/tmp_esmfold"
+    outdir = f"Pipeline/FoldPairs/{pair_id}/tmp_esmfold"
     ensure_dir(outdir)
 
 
@@ -1088,7 +1088,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
     return True
 
 def _submit_notebook_job(pair_id: str, kernel: str, args: argparse.Namespace) -> None:
-    out = Path(f"Pipeline/{pair_id}/jobs")
+    out = Path(f"Pipeline/FoldPairs/{pair_id}/jobs")
     out.mkdir(parents=True, exist_ok=True)
     log = out / f"nb_{pair_id}.out"
     cpus = getattr(args, "html_cpus", 2)
@@ -1122,7 +1122,7 @@ def task_clean(pair_id: str, args) -> None:
     dry     = _bool_from_tf(getattr(args, "clean_dry_run", "TRUE"))
     level   = getattr(args, "clean_level", "derived")
     targets = getattr(args, "clean_targets", None)
-    pair_dir = Path(f"Pipeline/{pair_id}")
+    pair_dir = Path(f"Pipeline/FoldPairs/{pair_id}")
 
     if not pair_dir.exists():
         print(f"[clean] skip (missing): {pair_id}")
@@ -1241,7 +1241,7 @@ def task_clean(pair_id: str, args) -> None:
 
 def task_load(pair_id: str, args: argparse.Namespace) -> None:
     foldA, foldB = pair_str_to_tuple(pair_id)
-    cur_family_dir = f"Pipeline/{pair_id}"
+    cur_family_dir = f"Pipeline/FoldPairs/{pair_id}"
     ensure_dir(cur_family_dir)
     force = _bool_from_tf(getattr(args, "force_rerun", "FALSE"))
     load_seq_and_struct(
@@ -1257,7 +1257,7 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     Build a 2-sequence seed A3M from BOTH chains of the pair, then run get_msa to
     produce Pipeline/<pair>/output_get_msa/DeepMsa.a3m.
     """
-    pair_dir  = f"Pipeline/{pair_id}"
+    pair_dir  = f"Pipeline/FoldPairs/{pair_id}"
     foldA, foldB = pair_str_to_tuple(pair_id)
     pdbids    = [foldA[:-1], foldB[:-1]]
     pdbchains = [foldA[-1],  foldB[-1]]
@@ -1265,13 +1265,13 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
     print("Making fasta chain files: ")
     ensure_chain_fastas(pair_dir, pdbids, pdbchains)
 
-    seed_a3m = build_pair_seed_a3m_from_pair(pair_id, data_dir="Pipeline")
+    seed_a3m = build_pair_seed_a3m_from_pair(pair_id, data_dir="Pipeline/FoldPairs")
     out_dir  = f"{pair_dir}/output_get_msa"
     ensure_dir(out_dir)
 
     # Resolve repo root and sbatch script absolutely
     repo_root = Path(__file__).resolve().parent
-    sbatch_script = repo_root / "Pipeline" / "get_msa_params.sh"
+    sbatch_script = repo_root / "scripts" / "shell" / "get_msa_params.sh"
     sbatch_exists = sbatch_script.is_file()
     print(f"[get_msa] run_job_mode={run_job_mode} sbatch_script={sbatch_script} exists={sbatch_exists}")
 
@@ -1312,14 +1312,14 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
     # If tree mode and no explicit tree is provided, try a sensible default location
     tree_arg = ""
     if alg == "tree":
-        pair_dir = os.path.join("Pipeline", pair_id)
+        pair_dir = os.path.join("Pipeline", "FoldPairs", pair_id)
 
         # 1) If user provided a path, use it as-is (convert to pair-relative if it redundantly includes the pair prefix)
         tree_path = args.cluster_tree_path
         if tree_path:
             if not os.path.isabs(tree_path):
-                # If user passed "Pipeline/<pair_id>/...", strip that prefix because we cd into pair_dir
-                pref = os.path.join("Pipeline", pair_id) + os.sep
+                # If user passed "Pipeline/FoldPairs/<pair_id>/...", strip that prefix because we cd into pair_dir
+                pref = os.path.join("Pipeline", "FoldPairs", pair_id) + os.sep
                 if tree_path.startswith(pref):
                     tree_path = tree_path[len(pref):]
         else:
@@ -1374,7 +1374,7 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     but save the deep output as 'msa_t__DeepMsa.npy' (no 'pairtrim' in the name).
     """
 
-    outdir = f"Pipeline/{pair_id}/output_cmaps/msa_transformer"
+    outdir = f"Pipeline/FoldPairs/{pair_id}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
 
     # 1) Make trimmed Deep + trimmed clusters (≤1024)
@@ -1391,7 +1391,7 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
     _run(cmd, run_job_mode)
 
     # 3) Deep (trimmed) — but force basename 'DeepMsa' for output naming
-    deep_trim = f"Pipeline/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
+    deep_trim = f"Pipeline/FoldPairs/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
     if os.path.isfile(deep_trim):
         # Make a tiny temp input folder and place a copy named exactly 'DeepMsa.a3m'
         # (Copy instead of symlink to avoid FS/permission surprises.)
@@ -1429,7 +1429,7 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
     Outputs: Pipeline/<pair>/output_cmaps/ccmpred/<tag>.ccmpred.npy (APC-corrected)
     """
 
-    pair_dir = Path(f"Pipeline/{pair_id}")
+    pair_dir = Path(f"Pipeline/FoldPairs/{pair_id}")
     out_dir = pair_dir / "output_cmaps" / "ccmpred"
     tmp_dir = pair_dir / "tmp_ccmpred"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1511,7 +1511,7 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     _sample_to_tmp_fastas(pair_id, args.cluster_sample_n, include_deep=False)
 
     # Decide device: if sequences are very long, prefer CPU to avoid CUDA OOM
-    tmp_dir = Path(f"Pipeline/{pair_id}/tmp_esmfold")
+    tmp_dir = Path(f"Pipeline/FoldPairs/{pair_id}/tmp_esmfold")
     max_len = 0
     for fa in sorted(tmp_dir.glob("*.fasta")):
         with open(fa) as f:
@@ -1523,7 +1523,7 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
     # Prefer GPU by default; only use 'cuda' unless the user explicitly says otherwise
     device = args.esm_device or "cuda"
 
-    ensure_dir(f"Pipeline/{pair_id}/output_esm_fold/{args.esm_model}")
+    ensure_dir(f"Pipeline/FoldPairs/{pair_id}/output_esm_fold/{args.esm_model}")
 
     # Always require a GPU when device is 'cuda' or 'auto'
     require_cuda_flag = " --require_cuda" if device in ("cuda", "auto") else ""
@@ -1543,7 +1543,7 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
 
     af_ver = str(getattr(args, "af_ver", "both")).lower()  # default: do both
 
-    pair_dir = f"Pipeline/{pair_id}"
+    pair_dir = f"Pipeline/FoldPairs/{pair_id}"
     foldA, foldB = pair_str_to_tuple(pair_id)
     pdbids = [foldA[:-1], foldB[:-1]]
     pdbchains = [foldA[-1],  foldB[-1]]
@@ -1636,14 +1636,14 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     def _cmd_for(ver: str, a3m_path: str, out_dir: str) -> str:
         if ver == "2":
             return (
-                f"bash ./Pipeline/RunAF2_Colabfold.sh "
+                f"bash ./scripts/shell/RunAF2_Colabfold.sh "
                 f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
                 f"--num-models 5 --num-recycle 1 --model-type alphafold2_ptm"
             )  # do not save large pickle files
         elif ver == "3":
             # AF3 runner converts A3M->JSON and runs AF3; also export top PDB
             return (
-                f"bash ./Pipeline/RunAF3_Colabfold.sh "
+                f"bash ./scripts/shell/RunAF3_Colabfold.sh "
                 f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
                 f"--pdb=rank1"
             )
@@ -1715,8 +1715,8 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
 def task_tree(pair_id: str, args: argparse.Namespace) -> None:
     if phytree_from_msa is None:
         raise RuntimeError("phytree_from_msa is unavailable (missing optional dependencies).")
-    msa_file = f"Pipeline/{pair_id}/output_get_msa/DeepMsa.a3m"
-    out = f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk"
+    msa_file = f"Pipeline/FoldPairs/{pair_id}/output_get_msa/DeepMsa.a3m"
+    out = f"Pipeline/FoldPairs/{pair_id}/output_phytree/DeepMsa_tree.nwk"
     ensure_dir(os.path.dirname(out))
 
     # Effective cap: default 5000; <=0 → no cap (use all).
@@ -1725,7 +1725,7 @@ def task_tree(pair_id: str, args: argparse.Namespace) -> None:
         cap = None  # all sequences -> no stratification
 
     # Use stratified sampling when capped: ensure ≥1 per ShallowMsa_###, then fill random.
-    cluster_dir = f"Pipeline/{pair_id}/output_msa_cluster" if cap is not None else None
+    cluster_dir = f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster" if cap is not None else None
 
     # If there are more clusters than the cap, bump the cap to #clusters
     eff_cap = cap
@@ -1785,7 +1785,7 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
         print("pid is: ", pA + "_" + pB)
         make_foldswitch_all_plots(
             pdbids=pdbids,
-            fasta_dir="Pipeline",
+            fasta_dir="Pipeline/FoldPairs",
             foldpair_id=pA + "_" + pB,
             pdbchains=pdbchains,
             plot_tree_clusters=bool(plot_trees),
@@ -1806,7 +1806,7 @@ def task_deltaG(pair_id: str) -> None:
     if compute_global_and_residue_energies is None:
         raise RuntimeError("PyRosetta utilities are unavailable; cannot compute ΔG.")
 
-    pair_dir = Path("Pipeline") / pair_id
+    pair_dir = Path("Pipeline/FoldPairs") / pair_id
     out_dir  = pair_dir / "output_deltaG"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1866,7 +1866,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
                 print(f"[postprocess] WARN post_processing_analysis(local): {e}")
         elif run_job_mode == "sbatch":
             # Submit one job per pair; then a single unify job with dependency
-            jobs_dir = Path("Pipeline/jobs"); jobs_dir.mkdir(parents=True, exist_ok=True)
+            jobs_dir = Path("Pipeline/FoldPairs/jobs"); jobs_dir.mkdir(parents=True, exist_ok=True)
 
             # sbatch resource knobs (with sane defaults)
             pp_cpus = getattr(args, "postproc_cpus", 2)
@@ -1972,10 +1972,10 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
         try:
             ready = []
             for p in (norm_pairs if pairs_arg is not None else [d.name for d in Path(DATA_DIR).iterdir() if d.is_dir()]):
-                if os.path.isfile(f"Pipeline/{p}/Analysis/df_af.csv"):
+                if os.path.isfile(f"Pipeline/FoldPairs/{p}/Analysis/df_af.csv"):
                     ready.append(p)
                 else:
-                    print(f"[html] skip {p}: missing Pipeline/{p}/Analysis/df_af.csv")
+                    print(f"[html] skip {p}: missing Pipeline/FoldPairs/{p}/Analysis/df_af.csv")
 
             if not ready:
                 print("[html] no ready pairs; skipping per-pair HTML generation")
@@ -1991,7 +1991,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
                     f"--output_dir {shlex.quote(str(outdir))}"
                 )
                 if run_job_mode == "sbatch":
-                    jobs_dir = Path("Pipeline/jobs"); jobs_dir.mkdir(parents=True, exist_ok=True)
+                    jobs_dir = Path("Pipeline/FoldPairs/jobs"); jobs_dir.mkdir(parents=True, exist_ok=True)
                     log = jobs_dir / f"genhtml_{mode}.out"
                     cpus = getattr(args, "html_cpus", 2)
                     mem = getattr(args, "html_mem", "4G")
@@ -2034,14 +2034,14 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
 
     def _has_cmaps_shallow_local(pid: str) -> bool:
         """Any cluster npy produced by run_MSATrans.py first pass."""
-        out = Path(f"Pipeline/{pid}/output_cmaps/msa_transformer")
+        out = Path(f"Pipeline/FoldPairs/{pid}/output_cmaps/msa_transformer")
         # Typical files: msa_t_clusters_ShallowMsa_000.npy or .npz
         return bool(list(out.glob("msa_t_clusters_ShallowMsa_*.npy")) or
                     list(out.glob("msa_t_clusters_ShallowMsa_*.npz")))
 
     def _has_cmaps_deep_local(pid: str) -> bool:
         """Any deep npy produced by run_MSATrans.py (either pass / naming)."""
-        out = Path(f"Pipeline/{pid}/output_cmaps/msa_transformer")
+        out = Path(f"Pipeline/FoldPairs/{pid}/output_cmaps/msa_transformer")
         # We tolerate several historical names:
         patterns = [
             "msa_t__DeepMsa*.npy",          # old naming
@@ -2077,7 +2077,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     # 3) phylogenetic tree
     _step_hdr(3, "Phylogenetic Tree")
     try:
-        tree_path = Path(f"Pipeline/{pair_id}/output_phytree/DeepMsa_tree.nwk")
+        tree_path = Path(f"Pipeline/FoldPairs/{pair_id}/output_phytree/DeepMsa_tree.nwk")
         if force_all or not tree_path.exists():
             print("Running tree …")
             task_tree(pair_id, args)

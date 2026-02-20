@@ -10,5 +10,5 @@ PAIR_ID="${2:?missing pair id}"
 REPO_DIR="/sci/labs/orzuk/orzuk/github/MsaCluster"
 cd "$REPO_DIR"
 
-bash ./Pipeline/RunAF2_Colabfold.sh --python ./run_getMSA.py \
-  "$SEED_A3M" "Pipeline/${PAIR_ID}/output_get_msa" --pair "$PAIR_ID"
+bash ./scripts/shell/RunAF2_Colabfold.sh --python ./run_getMSA.py \
+  "$SEED_A3M" "Pipeline/FoldPairs/${PAIR_ID}/output_get_msa" --pair "$PAIR_ID"

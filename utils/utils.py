@@ -117,7 +117,7 @@ def save_org_cmaps(chain_pdb_file_path,fold):
     from contact_map import ContactFrequency
     traj = md.load(filename_or_filenames=f'{chain_pdb_file_path}/{fold}.pdb')
     frame_contacts = ContactFrequency(traj[0])
-    np.save(f'./Pipeline/org_cmaps/{fold}.npy',frame_contacts)
+    np.save(f'./Pipeline/FoldPairs/org_cmaps/{fold}.npy',frame_contacts)
 
 
 def find_max_keys(input_dict):
@@ -223,7 +223,7 @@ def write_pair_pipeline_script(pair_id: str, args: argparse.Namespace) -> str:
     repo_dir = MAIN_DIR  # os.path.abspath(os.path.dirname(__file__))     # repo root (dir of this file)
     py_exec  = sys.executable                                 # same python as caller
 
-    pair_dir = f"Pipeline/{pair_id}"
+    pair_dir = f"Pipeline/FoldPairs/{pair_id}"
     jobs_dir = os.path.join(pair_dir, "jobs")
     logs_dir = os.path.join(pair_dir, "logs")
     ensure_dir(jobs_dir); ensure_dir(logs_dir)
@@ -256,7 +256,7 @@ PY="{py_exec}"
 cd "${{REPO_DIR}}"
 
 PAIR_ID="{pair_id}"
-PAIR_DIR="Pipeline/{pair_id}"
+PAIR_DIR="Pipeline/FoldPairs/{pair_id}"
 LOG="{log_path}"
 STATUS="{status_path}"
 

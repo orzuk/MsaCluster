@@ -273,7 +273,7 @@ def plot_array_contacts_and_predictions(
 
     xvec = yvec = None
     if foldpair_id:
-        energy_dir = os.path.join("Pipeline", foldpair_id, "output_deltaG")
+        energy_dir = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_deltaG")
         try:
             e0 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[0][:4]}.txt"))
             e1 = read_energy_tuples(os.path.join(energy_dir, f"deltaG_{fold_ids[1][:4]}.txt"))

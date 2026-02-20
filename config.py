@@ -59,10 +59,6 @@ if user == 'steveabecassis':
     CMAP_RES_PATH = '/Users/steveabecassis/PycharmProjects/MsaCluster/data/df_cmap_all.csv'
     LOCAL_RUN = True
 
-    # File create by the script cmap_analysis.py (in the analysis folder)
-    CMAP_ANALYSIS_FILE = DATA_DIR + '/cmap_exact_analysis_tol0_2510.parq'
-    # File create by the script esmfold_analysis.py (in the analysis folder)
-
 if user in ['zuk_laptop', 'orzuk']:
     if user == 'zuk_laptop':  # WINDOWS PC
         MAIN_DIR = 'C://Code//Github//MsaCluster'
@@ -80,9 +76,14 @@ if user in ['zuk_laptop', 'orzuk']:
 PAIR_DIRS = {"AF":"output_AF", "ESMFold":"output_esm_fold", "Cmap":"output_cmaps", "MSA":"output_get_msa", "Cluster":"output_msa_cluster" }
 
 
-DATA_DIR = MAIN_DIR + '/Pipeline'
+# --- Pipeline directory hierarchy ---
+PIPELINE_BASE_DIR = MAIN_DIR + '/Pipeline'       # root of all pipeline work
+DATA_DIR = PIPELINE_BASE_DIR + '/FoldPairs'       # fold-switching pair directories
+CONTROLS_BASE_DIR = PIPELINE_BASE_DIR + '/Controls'
+PORTER_IDP_DIR    = CONTROLS_BASE_DIR + '/PorterIDP'
+
 TABLES_DIR = MAIN_DIR + '/data'
-CMAP_RES_PATH = DATA_DIR + '/data/df_cmap_all.csv'
+CMAP_RES_PATH = TABLES_DIR + '/df_cmap_all.csv'
 AF_MODEL_FILE = TABLES_DIR + '/df_af_all.csv'
 ESMF_MODEL_FILE = TABLES_DIR + '/df_esmfold_all.csv'
 MSA_TRANS_MODEL_FILE = TABLES_DIR + '/df_cmap_all.csv'
@@ -107,11 +108,11 @@ SUMMARY_RESULTS_TABLE = TABLES_RES + '/summary_final_res_all_pairs_df.csv' #  '/
 DETAILED_RESULTS_TABLE = TABLES_RES + '/detailed_final_res_all_pairs_df.csv' #  '/final_res_df_2510.parq'
 SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
 ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
-ENERGY_DIR = DATA_DIR + '/output_deltaG'
+ENERGY_DIR = PIPELINE_BASE_DIR + '/output_deltaG'
 ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
 
 # Local figures dir
-FIGURE_RES_DIR = DATA_DIR + '/Results/Figures'
+FIGURE_RES_DIR = PIPELINE_BASE_DIR + '/Results/Figures'
 
 # Where to publish images for GitHub Pages (under docs/...)
 FIGURE_PUBLISH_DIR = os.path.join(TABLES_RES, 'figures', 'global')   # docs/figures/global
@@ -121,7 +122,7 @@ PER_PAIR_PUBLISH_SUBDIR = os.path.join('HTML', 'figs')               # docs/HTML
 # --- add near the bottom of config.py (after existing constants) ---
 
 # Inclusive alias map for per-pair outputs (used by targeted clean)
-# Keys are common names/commands; values are RELATIVE dirs inside Pipeline/<pair_id>
+# Keys are common names/commands; values are RELATIVE dirs inside a pair directory
 PAIR_TARGET_DIRS = {
     # MSA acquisition
     "get_msa":            ["output_get_msa", "tmp_msa_files"],

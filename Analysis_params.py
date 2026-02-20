@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument("-input",help="Should be the pdb pair including the chain like 1eboE_5fhcJ")
     args = parser.parse_args()
     pair_output_path = args.input
-    fold_pair = pair_output_path.replace("Pipeline/", "", 1)
+    fold_pair = pair_output_path.replace("Pipeline/FoldPairs/", "", 1)
     print(f'Fold_pair: {fold_pair}')
     path = f'{DATA_DIR}/{fold_pair}'
     print(f'Path: {path}')

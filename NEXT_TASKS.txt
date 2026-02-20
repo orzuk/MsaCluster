@@ -3,6 +3,14 @@ NEXT_TASKS.txt - MsaCluster Pending Work & Simplification Plan
 Generated: 2026-02-19
 ================================================================================
 
+RELATED PAPER DIRECTORY (always check at session start):
+  /mnt/g/My Drive/Research/ProteinStructure/FoldSwitchEvolution
+  Contains: LaTeX source, figures, action_items.txt, paper_scientific_issues.txt,
+  summary_and_action_items.txt, external_data/, etc.
+  This directory and the repo (/mnt/c/Code/Github/MsaCluster) are tightly coupled.
+
+================================================================================
+
 Guided by Karpathy's rules:
   1. Think Before Coding - surface assumptions, ask when unclear
   2. Simplicity First    - minimum code, no speculative features
@@ -145,8 +153,57 @@ PRIORITY ORDER (updated)
   2. Phase 2 (Dead Code)         - DONE
   3. Phase 4 (Consolidate Dups)  - DONE
   4. Phase 6 (Robustness)        - DONE
-  5. Phase 5 (Over-engineering)  - next: minor simplifications
-  6. Phase 3 (Split Large Files) - biggest structural change, do last
+  5. Phase 7 (Dir Restructure)   - DONE
+  6. Phase 8 (Neg Controls)      - next: pipeline integration for IDP controls
+  7. Phase 5 (Over-engineering)  - minor simplifications
+  8. Phase 3 (Split Large Files) - biggest structural change, do last
+
+================================================================================
+PHASE 7: DIRECTORY RESTRUCTURING -- COMPLETED
+================================================================================
+
+[REORG-1] DONE - Pipeline/ directory reorganized
+  Before: Pipeline/<pairID>/ (93 pair dirs + .sh scripts + Results/ flat)
+  After:  Pipeline/FoldPairs/<pairID>/  (fold-switching pairs)
+          Pipeline/Controls/PorterIDP/  (99 IDP controls)
+          Pipeline/Results/             (global results)
+          Pipeline/pdb_files/           (shared PDBs)
+          scripts/shell/                (16 .sh files, moved from Pipeline/)
+
+  Changes:
+  - config.py: added PIPELINE_BASE_DIR, DATA_DIR now points to FoldPairs/,
+    added CONTROLS_BASE_DIR and PORTER_IDP_DIR
+  - run_foldswitch_pipeline.py: ~45 hardcoded path fixes
+  - utils/*.py (7 files): path fixes in utils.py, align_utils.py, msa_utils.py,
+    energy_utils.py, protein_plot_utils.py, plot_3d.py, plot_contacts.py
+  - Analysis_params.py, scripts/plot_protein.py: path fixes
+  - 4 shell scripts: get_msa_params.sh, tree_reconstruct_params.sh,
+    RunEsmFold_params.sh, RunAF_params.sh
+
+[REORG-2] DONE - Porter IDP controls setup
+  scripts/setup_porter_idp.py reads pro4353-sup-0003-tables2.xlsx (Porter 2022)
+  and creates 99 directories under Pipeline/Controls/PorterIDP/<UniprotID>/
+  each with a FASTA file. Reference CSV: data/porter_idp_proteins.csv.
+
+================================================================================
+PHASE 8: NEGATIVE CONTROLS PIPELINE (next)
+================================================================================
+
+Three types of negative controls needed (from paper_scientific_issues.txt):
+
+[CTRL-1] Porter 2022 IDP Controls -- directory setup DONE, pipeline integration TODO
+  99 intrinsically disordered proteins from DisProt (Porter & Looger 2022).
+  Strategy A ("Fake pair"): single query MSA, cluster, predict structures.
+  Need: adapt pipeline to run single-protein (non-pair) mode.
+  Expected result: low cluster structural diversity (no fold switching).
+
+[CTRL-2] Matched Single-Fold Proteins -- TODO
+  For each fold-switching pair, find single-fold proteins from same Pfam family.
+  ~50-93 controls. Need: Pfam lookup + UniProt sequence retrieval.
+
+[CTRL-3] Random Single-Domain Proteins -- TODO
+  ~100 random single-domain proteins from PISCES or SCOPe.
+  Need: PISCES/SCOPe query + filtering.
 
 ================================================================================
 SCIENTIFIC/PIPELINE TASKS (non-refactoring)

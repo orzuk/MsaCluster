@@ -16,8 +16,8 @@ pymol.finish_launching(['pymol', '-cq'])  # '-c' for command line (no GUI)
 # Delete existing objects
 cmd.delete('all')
 
-pdb_file1 = TABLES_RES + '/Pipeline/1eboE_5fhcJ/chain_pdb_files/1eboE.pdb'
-pdb_file2 = TABLES_RES + '/Pipeline/1eboE_5fhcJ/chain_pdb_files/5fhcJ.pdb'
+pdb_file1 = TABLES_RES + '/Pipeline/FoldPairs/1eboE_5fhcJ/chain_pdb_files/1eboE.pdb'
+pdb_file2 = TABLES_RES + '/Pipeline/FoldPairs/1eboE_5fhcJ/chain_pdb_files/5fhcJ.pdb'
 
 # Load the PDB files
 cmd.load(pdb_file1, 'protein1')
