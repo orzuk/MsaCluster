@@ -212,18 +212,42 @@ def compute_seq_identity(seq1: str, seq2: str) -> float:
 # Core logic
 # ---------------------------------------------------------------------------
 
-def read_fold_sequence(fold_name: str, pair_id: str) -> str:
-    """Read sequence from Pipeline/FoldPairs/{pair_id}/{fold_name}.fasta."""
-    fasta = os.path.join(DATA_DIR, pair_id, f"{fold_name}.fasta")
-    if not os.path.isfile(fasta):
+def _fetch_pdb_sequence(pdb_id: str, chain: str) -> str:
+    """Fetch sequence from RCSB Data API for a PDB chain."""
+    pdb_lower = pdb_id.lower()
+    # First get entity_id for the chain
+    inst_url = (f"https://data.rcsb.org/rest/v1/core/"
+                f"polymer_entity_instance/{pdb_lower}/{chain}")
+    inst = _cached_get(inst_url, "rcsb_chain", f"{pdb_lower}_{chain}")
+    if not inst or "_error" in inst:
         return ""
-    seq_lines = []
-    with open(fasta) as f:
-        for line in f:
-            line = line.strip()
-            if not line.startswith(">"):
-                seq_lines.append(line)
-    return "".join(seq_lines)
+    entity_id = (inst.get("rcsb_polymer_entity_instance_container_identifiers", {})
+                 .get("entity_id", "1"))
+    # Then get the sequence
+    ent_url = (f"https://data.rcsb.org/rest/v1/core/"
+               f"polymer_entity/{pdb_lower}/{entity_id}")
+    ent = _cached_get(ent_url, "rcsb_entity", f"{pdb_lower}_{entity_id}")
+    if not ent or "_error" in ent:
+        return ""
+    return ent.get("entity_poly", {}).get("pdbx_seq_one_letter_code_can", "")
+
+
+def read_fold_sequence(fold_name: str, pair_id: str) -> str:
+    """Read sequence from local FASTA or fetch from RCSB if missing."""
+    fasta = os.path.join(DATA_DIR, pair_id, f"{fold_name}.fasta")
+    if os.path.isfile(fasta):
+        seq_lines = []
+        with open(fasta) as f:
+            for line in f:
+                line = line.strip()
+                if not line.startswith(">"):
+                    seq_lines.append(line)
+        seq = "".join(seq_lines)
+        if seq:
+            return seq
+    # Fallback: fetch from RCSB (works on cluster without local data)
+    pdb_id, chain = fold_name[:4], fold_name[4:]
+    return _fetch_pdb_sequence(pdb_id, chain)
 
 
 def find_control_for_pair(fold1: str, fold2: str, exclude_pdbs: set,
