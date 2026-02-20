@@ -201,6 +201,17 @@ def list_protein_pairs(parsed: bool = True, sort_result: bool = True) -> (
     return pairs
 
 
+def list_control_proteins(control_type: str = "PorterIDP") -> List[str]:
+    """
+    Return sorted list of control protein directory names under
+    Pipeline/Controls/<control_type>/.
+    """
+    root = Path(CONTROLS_BASE_DIR) / control_type
+    if not root.is_dir():
+        return []
+    return sorted(d.name for d in root.iterdir() if d.is_dir())
+
+
 def ensure_dir(p: str) -> None:
     Path(p).mkdir(parents=True, exist_ok=True)
 

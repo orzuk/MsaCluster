@@ -191,10 +191,14 @@ PHASE 8: NEGATIVE CONTROLS PIPELINE (next)
 
 Three types of negative controls needed (from paper_scientific_issues.txt):
 
-[CTRL-1] Porter 2022 IDP Controls -- directory setup DONE, pipeline integration TODO
+[CTRL-1] Porter 2022 IDP Controls -- DONE (pipeline ready, not yet run)
   99 intrinsically disordered proteins from DisProt (Porter & Looger 2022).
-  Strategy A ("Fake pair"): single query MSA, cluster, predict structures.
-  Need: adapt pipeline to run single-protein (non-pair) mode.
+  Directory setup: scripts/setup_porter_idp.py -> Pipeline/Controls/PorterIDP/
+  Pipeline: run_controls_pipeline.py handles all stages (get_msa, cluster,
+  AF, ESMFold, postprocess with cluster diversity metric).
+  Run:
+    python run_controls_pipeline.py --run_mode full_pipeline --protein_ids ALL \
+           --control_type PorterIDP --run_job_mode sbatch
   Expected result: low cluster structural diversity (no fold switching).
 
 [CTRL-2] Matched Single-Fold Proteins -- TODO

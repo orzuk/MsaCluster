@@ -25,6 +25,7 @@ MsaCluster/
 |-- run_ClusterMSA.py          # Stage: MSA clustering into shallow sub-MSAs
 |-- run_MSATrans.py            # Stage: Contact map prediction (MSA-Transformer)
 |-- run_ESMFoldHF.py           # Stage: ESMFold structure prediction
+|-- run_controls_pipeline.py   # Controls pipeline: single-protein MSA+AF+ESM
 |-- Analysis_params.py         # Analysis parameter defaults
 |-- a3m_toaf3json.py           # Convert A3M to AF3 JSON input format
 |-- monitoring.py              # Pipeline monitoring utilities
