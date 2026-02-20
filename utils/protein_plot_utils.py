@@ -29,6 +29,7 @@ from utils.phytree_utils import (
     prune_tree_to_leaves,
     compose_tree_and_heatmap,
     visualize_tree_with_heatmap,
+    add_figure_title,
 )
 from utils.energy_utils import read_energy_tuples, align_and_compare_residues
 
@@ -66,6 +67,17 @@ from utils.plot_contacts import (                                 # noqa: F401
 # ═══════════════════════════════════════════════════════════════════════
 # Tree / CSV helper functions (used only inside this file)
 # ═══════════════════════════════════════════════════════════════════════
+
+def _add_phytree_title(png_path: str, foldpair_id: str) -> None:
+    """Add pair ID as title to a phytree figure (uses PIL via add_figure_title)."""
+    if not os.path.isfile(png_path):
+        return
+    try:
+        fold1, fold2 = foldpair_id.split("_", 1)
+        title = f"{fold1} / {fold2}"
+        add_figure_title(png_path, title, font_size=28)
+    except Exception as e:
+        print(f"[warn] could not add title to {png_path}: {e}")
 
 def _normalize_cluster_tag(s: str) -> str:
     """
@@ -209,7 +221,7 @@ def _cluster_short_label_from_tag(tag):
     if tag.lower().startswith("deep"):
         return "D"
     m = re.search(r"(\d+)$", tag)
-    return str(int(m.group(1))) if m else tag
+    return f"S{int(m.group(1)):02d}" if m else tag
 
 
 def _collect_cluster_index_from_tree(ete_tree, ete_leaves_cluster_ids, cluster_node_values_keys) -> list[str]:
@@ -537,10 +549,12 @@ def make_foldswitch_all_plots(
         )
 
         print(f"[ok] saved tree heatmap -> {out_root}.png")
+        _add_phytree_title(out_root + ".png", foldpair_id)
         concat_scores = df_cluster_ordered
 
     else:
-        out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree")
+        out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
+        # Build per-cluster entries from contact map metrics
         entries = {}
         for n in ete_tree.iter_leaves():
             cid = ete_leaves_cluster_ids.get(n.name)
@@ -557,13 +571,29 @@ def make_foldswitch_all_plots(
         else:
             ete_leaves_node_values = pd.DataFrame(columns=["shared", pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]])
 
+        # Prune tree to one representative leaf per cluster (same as primary path)
+        cluster_to_leaves = _group_leaves_by_cluster(ete_tree, ete_leaves_cluster_ids)
+        reps = _choose_representative_leaves(cluster_to_leaves)
+        rep_leaves = list(reps.values())
+        if rep_leaves:
+            prune_tree_to_leaves(ete_tree, keep_leaves=rep_leaves)
+
+        # Reindex to pruned leaves and set cluster labels
+        leaf_order = [n.name for n in ete_tree.iter_leaves()]
+        leaf_to_tag = {v: k for k, v in reps.items()}
+        ylabels_fb = [_cluster_short_label_from_tag(leaf_to_tag.get(l, ""))
+                      for l in leaf_order]
+        pruned_vals = ete_leaves_node_values.reindex(leaf_order)
+
         visualize_tree_with_heatmap(
             phylo_tree=ete_tree,
-            node_values_matrix=ete_leaves_node_values,
+            node_values_matrix=pruned_vals,
             col_groups=[list(ete_leaves_node_values.columns)],
             output_file=out_root,
-            group_titles=["Scores"]
+            group_titles=["Scores"],
+            ylabels_override=ylabels_fb,
         )
+        _add_phytree_title(out_root + ".png", foldpair_id)
         concat_scores = ete_leaves_node_values
 
 

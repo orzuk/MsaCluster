@@ -1,0 +1,160 @@
+================================================================================
+CLUSTER_CONTROLS_GUIDE.txt - All steps to run negative controls on the cluster
+================================================================================
+Updated: 2026-02-20
+
+PREREQUISITE: Pull latest code on cluster
+  cd /sci/labs/orzuk/orzuk/github/MsaCluster
+  git pull
+
+================================================================================
+STEP 1: SET UP CONTROL DIRECTORIES (one-time, creates FASTA files)
+================================================================================
+
+These scripts query external APIs and create per-protein directories under
+Pipeline/Controls/ with FASTA files. Run from the login node (needs internet).
+
+  1a. Porter IDP controls (CTRL-1): 99 intrinsically disordered proteins
+  -----------------------------------------------------------------------
+  python scripts/setup_porter_idp.py
+
+  Creates: Pipeline/Controls/PorterIDP/<UniprotID>/<UniprotID>.fasta
+  Data source: data/porter_idp_proteins.csv (tracked in git, no internet needed)
+
+
+  1b. Matched single-fold controls (CTRL-2): ~93 Pfam-matched proteins
+  ---------------------------------------------------------------------
+  nohup python scripts/setup_matched_controls.py > matched_controls.log 2>&1 &
+  tail -f matched_controls.log
+
+  Creates: Pipeline/Controls/MatchedSingleFold/<PDB_chain>/
+  Progress: data/matched_controls.csv (saves incrementally, safe to restart)
+  NOTE: Queries PDBe/InterPro/UniProt APIs. Can take hours for all 93 pairs.
+        If it crashes, just rerun -- it skips pairs already in the CSV.
+  Single pair: python scripts/setup_matched_controls.py --pair-id 1dzlA_5keqF
+
+
+  1c. Random single-fold controls (CTRL-3): 100 random PDB proteins
+  ------------------------------------------------------------------
+  python scripts/setup_random_controls.py
+
+  Creates: Pipeline/Controls/RandomSingleFold/<PDBchain>/
+  Data source: data/random_singlefold_controls.csv (tracked in git)
+  NOTE: If CSV exists, skips the RCSB API query and uses cached list.
+
+================================================================================
+STEP 2: RUN THE CONTROLS PIPELINE (heavy compute -- use sbatch)
+================================================================================
+
+The controls pipeline runs MSA generation, clustering, structure prediction,
+and postprocessing for single proteins. Stages run via run_controls_pipeline.py.
+
+Available stages:
+  load          - Verify FASTA files exist (quick sanity check)
+  get_msa       - Build deep MSA via ColabFold (needs MMseqs2 databases)
+  tree          - Build phylogenetic tree from deep MSA
+  cluster_msa   - Cluster the deep MSA into shallow sub-alignments
+  run_AF        - Run AlphaFold2/3 on each cluster MSA (GPU, slow)
+  run_esmfold   - Run ESMFold on sampled sequences per cluster (GPU)
+  postprocess   - Compute cluster structural diversity (pairwise TM-scores)
+  full_pipeline - Run all stages sequentially
+
+  2a. CTRL-1: Porter IDP controls
+  --------------------------------
+  # Quick check first:
+  python run_controls_pipeline.py --run_mode load --protein_ids ALL \
+         --control_type PorterIDP
+
+  # Full pipeline (sbatch for GPU stages):
+  python run_controls_pipeline.py --run_mode full_pipeline --protein_ids ALL \
+         --control_type PorterIDP --run_job_mode sbatch
+
+  # Or run stages individually:
+  python run_controls_pipeline.py --run_mode get_msa --protein_ids ALL \
+         --control_type PorterIDP --run_job_mode sbatch
+  python run_controls_pipeline.py --run_mode tree --protein_ids ALL \
+         --control_type PorterIDP --run_job_mode inline
+  python run_controls_pipeline.py --run_mode cluster_msa --protein_ids ALL \
+         --control_type PorterIDP --run_job_mode inline
+  python run_controls_pipeline.py --run_mode run_AF --protein_ids ALL \
+         --control_type PorterIDP --run_job_mode sbatch
+  python run_controls_pipeline.py --run_mode postprocess --protein_ids ALL \
+         --control_type PorterIDP
+
+
+  2b. CTRL-2: Matched single-fold controls
+  -----------------------------------------
+  python run_controls_pipeline.py --run_mode full_pipeline --protein_ids ALL \
+         --control_type MatchedSingleFold --run_job_mode sbatch
+
+
+  2c. CTRL-3: Random single-fold controls
+  ----------------------------------------
+  python run_controls_pipeline.py --run_mode full_pipeline --protein_ids ALL \
+         --control_type RandomSingleFold --run_job_mode sbatch
+
+================================================================================
+STEP 3: POSTPROCESS & COLLECT RESULTS
+================================================================================
+
+After all structure predictions are done:
+
+  # Compute pairwise TM-scores between cluster predictions for each control
+  python run_controls_pipeline.py --run_mode postprocess --protein_ids ALL \
+         --control_type PorterIDP
+  python run_controls_pipeline.py --run_mode postprocess --protein_ids ALL \
+         --control_type MatchedSingleFold
+  python run_controls_pipeline.py --run_mode postprocess --protein_ids ALL \
+         --control_type RandomSingleFold
+
+Output per protein:
+  Pipeline/Controls/<type>/<protein_id>/df_diversity.csv
+
+Global summary:
+  Pipeline/Controls/<type>/controls_diversity_summary.csv
+
+================================================================================
+EXPECTED RESULTS
+================================================================================
+
+For non-fold-switching proteins, all MSA cluster predictions should produce
+similar structures. Expected:
+  - High pairwise TM-scores across clusters (>0.8)
+  - Low structural diversity
+  - Contrast with fold-switching pairs which show high diversity
+
+================================================================================
+CHECKING PROGRESS
+================================================================================
+
+  # See which proteins have completed each stage:
+  ls Pipeline/Controls/PorterIDP/*/output_get_msa/DeepMsa.a3m | wc -l
+  ls Pipeline/Controls/PorterIDP/*/output_phytree/*.nwk | wc -l
+  ls Pipeline/Controls/PorterIDP/*/output_msa_cluster/*.a3m | wc -l
+  ls Pipeline/Controls/PorterIDP/*/AF_preds/ -d | wc -l
+  ls Pipeline/Controls/PorterIDP/*/df_diversity.csv | wc -l
+
+  # Check sbatch jobs:
+  squeue -u $USER
+
+  # Check specific protein:
+  ls Pipeline/Controls/PorterIDP/Q9NZC2/
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+  - "ModuleNotFoundError: No module named 'parasail'"
+    This is OK -- msa_utils.py falls back to BioPython alignment.
+
+  - "No FASTA found for <protein>"
+    Run the setup script (Step 1) for that control type first.
+
+  - Pipeline hangs at get_msa stage
+    ColabFold MSA generation can be slow. Check if mmseqs is running:
+      ps aux | grep mmseqs
+
+  - Restarting after crash
+    Most stages are idempotent. Just rerun the same command.
+    For setup_matched_controls.py specifically, it saves progress to CSV
+    and skips completed pairs on rerun.

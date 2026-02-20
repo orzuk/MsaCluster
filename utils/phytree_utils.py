@@ -556,6 +556,7 @@ def visualize_tree_with_heatmap(
     x_tick_fontsize=8,
     y_tick_fontsize=7,
     nan_rgba=(0.92, 0.92, 0.92, 1.0),
+    ylabels_override=None,
 ):
     """
     Render an ETE tree + grouped heatmap + group colorbars (slim, stacked).
@@ -626,7 +627,8 @@ def visualize_tree_with_heatmap(
     ax_hm.set_xticks(np.arange(data.shape[1]))
     ax_hm.set_xticklabels(M.columns, rotation=x_tick_rotation, ha='right', fontsize=x_tick_fontsize)
     ax_hm.set_yticks(np.arange(data.shape[0]))
-    ax_hm.set_yticklabels(M.index, fontsize=y_tick_fontsize)
+    ylabels = ylabels_override if ylabels_override is not None else list(M.index)
+    ax_hm.set_yticklabels(ylabels, fontsize=y_tick_fontsize)
     ax_hm.tick_params(axis='x', pad=6)
 
     # group separators + group-specific colorbars (scaled to that group)

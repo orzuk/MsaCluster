@@ -230,6 +230,29 @@ Three types of negative controls needed (from paper_scientific_issues.txt):
   Expected result: high TM-scores across clusters (no fold switching).
 
 ================================================================================
+PHASE 9: PHYTREE FIGURE FIXES
+================================================================================
+
+[TREE-1] DONE - Leaf labels: "D", "S01", "S02" instead of bare numbers
+  _cluster_short_label_from_tag() now produces S## prefix for shallow clusters.
+  Applies to both primary (compose_tree_and_heatmap) and fallback rendering paths.
+
+[TREE-2] DONE - Pair title added to phytree figures
+  _add_phytree_title() calls add_figure_title() with "fold1 / fold2" text.
+  Applied to both rendering paths in make_foldswitch_all_plots().
+
+[TREE-3] DONE - Fallback rendering path now prunes tree + uses cluster labels
+  When AF/ESM CSVs are missing, the fallback path used to show raw MSA sequence
+  IDs (hundreds of leaves). Now it prunes to one leaf per cluster and sets
+  ylabels_override, same as the primary path.
+  Also: visualize_tree_with_heatmap() now accepts ylabels_override parameter.
+
+[TREE-4] NOT A CODE BUG - Most heatmaps are gray (missing AF/ESM data)
+  Only 4/93 pairs have df_af.csv, 2/93 have df_esm.csv.
+  The gray heatmaps will resolve once the full pipeline (AF + ESM + postprocess)
+  runs on all 93 pairs and generates the Analysis/ CSVs.
+
+================================================================================
 SCIENTIFIC/PIPELINE TASKS (non-refactoring)
 ================================================================================
 
