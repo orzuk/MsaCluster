@@ -23,11 +23,20 @@ CSV_OUTPUT = os.path.join(ROOT, "data", "porter_idp_proteins.csv")
 
 
 def main():
-    if not os.path.isfile(EXCEL_PATH):
-        sys.exit(f"ERROR: Excel file not found at {EXCEL_PATH}")
+    # Try Excel first (local machine with Google Drive), fall back to CSV
+    if os.path.isfile(EXCEL_PATH):
+        df = pd.read_excel(EXCEL_PATH)
+        print(f"Read {len(df)} rows from {os.path.basename(EXCEL_PATH)}")
+        # Save CSV for reference
+        os.makedirs(os.path.dirname(CSV_OUTPUT), exist_ok=True)
+        df.to_csv(CSV_OUTPUT, index=False)
+        print(f"Saved {CSV_OUTPUT}")
+    elif os.path.isfile(CSV_OUTPUT):
+        df = pd.read_csv(CSV_OUTPUT)
+        print(f"Read {len(df)} rows from {os.path.basename(CSV_OUTPUT)} (Excel not available)")
+    else:
+        sys.exit(f"ERROR: Neither Excel ({EXCEL_PATH}) nor CSV ({CSV_OUTPUT}) found")
 
-    df = pd.read_excel(EXCEL_PATH)
-    print(f"Read {len(df)} rows from {os.path.basename(EXCEL_PATH)}")
     print(f"Columns: {list(df.columns)}")
 
     # Expected columns: DisprotID, UniprotID, DisorderedRegion, UniprotSequence
@@ -38,11 +47,6 @@ def main():
     # Drop rows with missing sequence
     df = df.dropna(subset=["UniprotID", "UniprotSequence"])
     print(f"After dropping NaNs: {len(df)} proteins")
-
-    # Save CSV for reference
-    os.makedirs(os.path.dirname(CSV_OUTPUT), exist_ok=True)
-    df.to_csv(CSV_OUTPUT, index=False)
-    print(f"Saved {CSV_OUTPUT}")
 
     # Create per-protein directories and FASTA files
     os.makedirs(PORTER_IDP_DIR, exist_ok=True)
