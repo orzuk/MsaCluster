@@ -81,6 +81,7 @@ PIPELINE_BASE_DIR = MAIN_DIR + '/Pipeline'       # root of all pipeline work
 DATA_DIR = PIPELINE_BASE_DIR + '/FoldPairs'       # fold-switching pair directories
 CONTROLS_BASE_DIR = PIPELINE_BASE_DIR + '/Controls'
 PORTER_IDP_DIR    = CONTROLS_BASE_DIR + '/PorterIDP'
+MATCHED_CONTROLS_DIR = CONTROLS_BASE_DIR + '/MatchedSingleFold'
 
 TABLES_DIR = MAIN_DIR + '/data'
 CMAP_RES_PATH = TABLES_DIR + '/df_cmap_all.csv'

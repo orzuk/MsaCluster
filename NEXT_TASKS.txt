@@ -201,9 +201,19 @@ Three types of negative controls needed (from paper_scientific_issues.txt):
            --control_type PorterIDP --run_job_mode sbatch
   Expected result: low cluster structural diversity (no fold switching).
 
-[CTRL-2] Matched Single-Fold Proteins -- TODO
-  For each fold-switching pair, find single-fold proteins from same Pfam family.
-  ~50-93 controls. Need: Pfam lookup + UniProt sequence retrieval.
+[CTRL-2] Matched Single-Fold Proteins -- DONE (setup script created, not yet run on all)
+  For each fold-switching pair, find single-fold protein from same Pfam family.
+  Setup: scripts/setup_matched_controls.py -> Pipeline/Controls/MatchedSingleFold/
+  Queries PDBe SIFTS (PDB→Pfam), InterPro (Pfam→members), UniProt (details+PDB xrefs).
+  Selection: same Pfam, length ±30%, >30% seq identity, exactly 1 PDB structure.
+  Caches API responses to data/cache/. Reference CSV: data/matched_controls.csv.
+  Run setup:
+    python scripts/setup_matched_controls.py                 # all 93 pairs
+    python scripts/setup_matched_controls.py --pair-id 1dzlA_5keqF  # one pair
+  Run pipeline:
+    python run_controls_pipeline.py --run_mode full_pipeline --protein_ids ALL \
+           --control_type MatchedSingleFold --run_job_mode sbatch
+  Expected result: high TM-scores across clusters (no fold switching).
 
 [CTRL-3] Random Single-Domain Proteins -- TODO
   ~100 random single-domain proteins from PISCES or SCOPe.

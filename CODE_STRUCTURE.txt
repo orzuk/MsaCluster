@@ -60,6 +60,7 @@ MsaCluster/
 |   |-- plot_protein.py        #   PyMOL alignment+rendering script
 |   |-- run_tree_reconstruct.py#   CLI for phylogenetic tree from MSA
 |   |-- setup_porter_idp.py    #   Extract Porter 2022 IDP controls from Excel
+|   |-- setup_matched_controls.py # Find Pfam-matched single-fold controls for each pair
 |   |-- smoke_test.sh          #   Quick pipeline smoke test
 |   |-- shell/                 #   Pipeline shell scripts (16 files, moved from Pipeline/)
 |       |-- get_msa_params.sh  #     MSA generation via ColabFold
@@ -112,8 +113,11 @@ MsaCluster/
 |   |           |-- cache.json     #     Cached values (TM, seq_id, etc.)
 |   |-- Controls/              #   Negative control protein directories
 |   |   |-- PorterIDP/         #     99 IDP controls (Porter & Looger 2022, DisProt)
-|   |       |-- <UniprotID>/   #       One directory per IDP protein
-|   |           |-- <UniprotID>.fasta  # Protein sequence
+|   |   |   |-- <UniprotID>/   #       One directory per IDP protein
+|   |   |       |-- <UniprotID>.fasta  # Protein sequence
+|   |   |-- MatchedSingleFold/ #     Pfam-matched single-fold controls (1 per pair)
+|   |       |-- <PDB_ID>/      #       One directory per control protein
+|   |           |-- <PDB_ID>.fasta    # Protein sequence
 |   |-- Results/               #   Global pipeline results & figures
 |   |-- pdb_files/             #   Shared PDB files
 |   |-- output/                #   Legacy output directory
