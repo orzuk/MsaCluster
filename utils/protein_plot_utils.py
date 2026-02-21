@@ -482,20 +482,30 @@ def make_foldswitch_all_plots(
     # ---------- Plot CMAPs ----------
     if plot_contacts:
         print("All match_true len and match_predicted_cmaps len:",  len(match_true_cmap), len(match_predicted_cmaps))
-        _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id, pred_truth_slices=pred_truth_slices)
+        try:
+            _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id, pred_truth_slices=pred_truth_slices)
+        except Exception as e:
+            print(f"[warn] _plot_contacts_panel failed (shape mismatch?): {e}")
 
     # ---------- Metrics on shared/unique contacts ----------
-    shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
-        match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
+    cluster_node_values = {}
+    try:
+        shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
+            match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
 
-    cluster_node_values = {
-        ctype: (
-            shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
-            shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
-            shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5'],
-        )
-        for ctype in match_predicted_cmaps
-    }
+        cluster_node_values = {
+            ctype: (
+                shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
+                shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
+                shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5'],
+            )
+            for ctype in match_predicted_cmaps
+        }
+    except Exception as e:
+        print(f"[warn] contact metrics failed: {e}")
+        match_predicted_cmaps = {}
+        shared_unique_contacts_metrics = {}
+        contacts_united = None
 
     # ---------- Tree & overlays ----------
     phytree_file = os.path.join('Pipeline', 'FoldPairs', foldpair_id, 'output_phytree', 'DeepMsa_tree.nwk')
