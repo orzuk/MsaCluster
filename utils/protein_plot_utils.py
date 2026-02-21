@@ -13,13 +13,14 @@ Keeps:
 
 import os
 import re
+import shutil
 
 import numpy as np
 import pandas as pd
 from Bio import Align
 from glob import glob
 
-from config import FIGURE_RES_DIR
+from config import FIGURE_RES_DIR, PER_PAIR_PUBLISH_SUBDIR
 from utils.utils import load_csv_or_none, pick, find_max_keys
 from utils.protein_utils import read_msa, compute_precisions, load_cmap_and_idx
 from utils.align_utils import align_truth_and_preds_via_msa_first2
@@ -67,6 +68,16 @@ from utils.plot_contacts import (                                 # noqa: F401
 # ═══════════════════════════════════════════════════════════════════════
 # Tree / CSV helper functions (used only inside this file)
 # ═══════════════════════════════════════════════════════════════════════
+
+def _publish_figs_to_docs(foldpair_id: str, fig_dir_root: str) -> None:
+    """Copy all figures from output_figs/ to docs/HTML/figs/<pair_id>/ for GitHub Pages."""
+    docs_dir = os.path.join("docs", PER_PAIR_PUBLISH_SUBDIR, foldpair_id)
+    os.makedirs(docs_dir, exist_ok=True)
+    for f in os.listdir(fig_dir_root):
+        if f.lower().endswith((".png", ".html", ".jpg")):
+            shutil.copy2(os.path.join(fig_dir_root, f), os.path.join(docs_dir, f))
+    print(f"[publish] synced figures -> {docs_dir}")
+
 
 def _add_phytree_title(png_path: str, foldpair_id: str) -> None:
     """Add pair ID as title to a phytree figure (uses PIL via add_figure_title)."""
@@ -659,5 +670,11 @@ def make_foldswitch_all_plots(
     if global_plots:
         print("Make global plots!")
         global_pairs_statistics_plots(output_dir=FIGURE_RES_DIR)
+
+    # Auto-publish figures to docs/ for GitHub Pages
+    try:
+        _publish_figs_to_docs(foldpair_id, fig_dir_root)
+    except Exception as e:
+        print(f"[publish] failed to sync figures to docs/: {e}")
 
     return cmap_dists_vec, seqs_dists_vec, num_seqs_msa_vec, concat_scores

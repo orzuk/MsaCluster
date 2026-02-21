@@ -247,10 +247,14 @@ PHASE 9: PHYTREE FIGURE FIXES
   ylabels_override, same as the primary path.
   Also: visualize_tree_with_heatmap() now accepts ylabels_override parameter.
 
-[TREE-4] NOT A CODE BUG - Most heatmaps are gray (missing AF/ESM data)
-  Only 4/93 pairs have df_af.csv, 2/93 have df_esm.csv.
-  The gray heatmaps will resolve once the full pipeline (AF + ESM + postprocess)
-  runs on all 93 pairs and generates the Analysis/ CSVs.
+[TREE-4] RESOLVED - Most heatmaps were gray (missing AF/ESM data)
+  Root cause: AF predictions stored as .pdb.gz but postprocess only searched .pdb.
+  Fixed in run_foldswitch_pipeline.py and postprocess_unified.py (gzip handling).
+  After fix: 92/93 pairs now have df_af.csv (postprocess rerun succeeded).
+
+[TREE-5] DONE - Auto-publish figures to docs/ for GitHub Pages
+  _publish_figs_to_docs() copies output_figs/*.png to docs/HTML/figs/<pair>/
+  Called at end of make_foldswitch_all_plots(). On cluster: just git add+commit+push.
 
 ================================================================================
 SCIENTIFIC/PIPELINE TASKS (non-refactoring)
