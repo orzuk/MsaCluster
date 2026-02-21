@@ -552,15 +552,22 @@ def _find_best_af2_pdb(out_dir: str) -> str | None:
     cand = p / "best_model.pdb"
     if cand.exists():
         return str(cand.resolve())
-    # common CF patterns
-    hits = list(p.glob("*unrelaxed_rank_001_*.pdb"))
-    if hits: return str(sorted(hits)[0])
-    hits = list(p.glob("ranked_0*.pdb")) + list(p.glob("ranked_1*.pdb"))
-    if hits: return str(sorted(hits)[0])
-    hits = list(p.glob("rank_001*.pdb")) + list(p.glob("rank_000*.pdb"))
-    if hits: return str(sorted(hits)[0])
-    hits = list(p.glob("*.pdb"))
-    return str(sorted(hits)[0]) if hits else None
+    # common CF patterns (try .pdb first, then .pdb.gz)
+    for ext in ("*.pdb", "*.pdb.gz"):
+        hits = list(p.glob(f"*unrelaxed_rank_001_{ext.lstrip('*')}"))
+        if not hits:
+            hits = list(p.glob(f"*unrelaxed_rank_001_*{ext.lstrip('*')}"))
+        if hits: return str(sorted(hits)[0])
+    for ext in ("*.pdb", "*.pdb.gz"):
+        hits = list(p.glob(f"ranked_0{ext.lstrip('*')}")) + list(p.glob(f"ranked_1{ext.lstrip('*')}"))
+        if hits: return str(sorted(hits)[0])
+    for ext in ("*.pdb", "*.pdb.gz"):
+        hits = list(p.glob(f"rank_001{ext.lstrip('*')}")) + list(p.glob(f"rank_000{ext.lstrip('*')}"))
+        if hits: return str(sorted(hits)[0])
+    for ext in ("*.pdb", "*.pdb.gz"):
+        hits = list(p.glob(ext))
+        if hits: return str(sorted(hits)[0])
+    return None
 
 def _find_best_af3_pdb(out_dir: str) -> str | None:
     """
@@ -569,10 +576,13 @@ def _find_best_af3_pdb(out_dir: str) -> str | None:
     - else any *.pdb
     """
     p = Path(out_dir)
-    hits = list(p.rglob("*rank1*.pdb"))
-    if hits: return str(sorted(hits)[0])
-    hits = list(p.rglob("*.pdb"))
-    return str(sorted(hits)[0]) if hits else None
+    for ext in ("*.pdb", "*.pdb.gz"):
+        hits = list(p.rglob(f"*rank1*{ext.lstrip('*')}"))
+        if hits: return str(sorted(hits)[0])
+    for ext in ("*.pdb", "*.pdb.gz"):
+        hits = list(p.rglob(ext))
+        if hits: return str(sorted(hits)[0])
+    return None
 
 def _export_canonical_best_pdbs(pair_id: str, ver: str) -> None:
     """
@@ -597,8 +607,12 @@ def _export_canonical_best_pdbs(pair_id: str, ver: str) -> None:
                 continue
             dst = root / f"{label}__{chain_tag}.pdb"
             try:
-                # copy; overwrite if exists
-                shutil.copy2(best, dst)
+                # decompress .pdb.gz → .pdb; plain .pdb is just copied
+                if best.endswith(".pdb.gz"):
+                    with gzip.open(best, "rb") as fin, open(dst, "wb") as fout:
+                        shutil.copyfileobj(fin, fout)
+                else:
+                    shutil.copy2(best, dst)
                 print(f"[export] {dst.name}  <=  {Path(best).name}")
             except Exception as e:
                 print(f"[export] failed {dst}: {e}")

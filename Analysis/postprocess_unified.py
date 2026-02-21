@@ -1,5 +1,7 @@
 # postprocess_unified.py
+import gzip
 import os, re, glob, sys, json
+import tempfile
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -365,6 +367,18 @@ def _ensure_pair_analysis(pair_id: str) -> Path:
     return out
 
 
+def _decompress_pdb_gz(gz_path: str) -> str:
+    """Decompress a .pdb.gz file to a temp .pdb file. Caller must delete it."""
+    fd, tmp_path = tempfile.mkstemp(suffix=".pdb")
+    try:
+        with gzip.open(gz_path, "rb") as fin, os.fdopen(fd, "wb") as fout:
+            fout.write(fin.read())
+    except Exception:
+        os.close(fd)
+        raise
+    return tmp_path
+
+
 def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
     """Aggregate AF2/AF3 TM-scores across all clusters/chains."""
     out_csv = _ensure_pair_analysis(pair_id) / "df_af.csv"
@@ -374,29 +388,63 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
     pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
     rows = []
 
-    # ONLY canonical top-level PDBs:
+    # --- Path 1: exported canonical PDBs in output_AF/ ---
     for ver in ("AF2", "AF3"):
         top = pair_id2dir(pair_id) / "output_AF" / ver
         if not top.is_dir():
             continue
-        for pred in sorted(top.glob("*.pdb")):  # <-- no recursion
+        for pred in sorted(top.glob("*.pdb")):
             name = pred.name.replace(".pdb", "")
-            # cluster: DeepMsa or ShallowMsa_###
             m = re.search(r"(DeepMsa|ShallowMsa_\d+)", name)
             cluster = m.group(1) if m else "UNK"
 
-            print("Compute TM-scores for AF: ", ver, cluster, name)
+            print(f"Compute TM-scores for AF: {ver} {cluster} {name}")
             tm1 = compute_tmscore_align(pdb1, str(pred), chain1=c1, chain2=None)
             tm2 = compute_tmscore_align(pdb2, str(pred), chain1=c2, chain2=None)
 
             rows.append({
-                "pair_id": pair_id,
-                "model": ver,  # AF2 vs AF3
-                "cluster_num": cluster,
-                "name": name,  # short
-                "TMscore_fold1": tm1,
-                "TMscore_fold2": tm2
+                "pair_id": pair_id, "model": ver,
+                "cluster_num": cluster, "name": name,
+                "TMscore_fold1": tm1, "TMscore_fold2": tm2,
             })
+
+    # --- Path 2: raw ColabFold outputs in AF_preds/ (.pdb or .pdb.gz) ---
+    if not rows:
+        af_dir = pair_id2dir(pair_id) / "AF_preds"
+        if af_dir.is_dir():
+            # Collect rank_001 predictions (best model per cluster)
+            pdb_hits = sorted(af_dir.glob("*_unrelaxed_rank_001_*.pdb"))
+            gz_hits = sorted(af_dir.glob("*_unrelaxed_rank_001_*.pdb.gz"))
+            all_hits = [(p, False) for p in pdb_hits] + [(p, True) for p in gz_hits]
+            # Deduplicate: if both .pdb and .pdb.gz exist, prefer .pdb
+            seen_stems = set()
+            for hit, is_gz in all_hits:
+                stem = hit.name.replace(".pdb.gz", "").replace(".pdb", "")
+                if stem in seen_stems:
+                    continue
+                seen_stems.add(stem)
+
+                m = re.search(r"(DeepMsa|ShallowMsa_\d+)", stem)
+                cluster = m.group(1) if m else "UNK"
+
+                # Decompress if needed
+                if is_gz:
+                    pred_path = _decompress_pdb_gz(str(hit))
+                else:
+                    pred_path = str(hit)
+
+                try:
+                    print(f"Compute TM-scores for AF: AF2 {cluster} {stem}")
+                    tm1 = compute_tmscore_align(pdb1, pred_path, chain1=c1, chain2=None)
+                    tm2 = compute_tmscore_align(pdb2, pred_path, chain1=c2, chain2=None)
+                    rows.append({
+                        "pair_id": pair_id, "model": "AF2",
+                        "cluster_num": cluster, "name": stem,
+                        "TMscore_fold1": tm1, "TMscore_fold2": tm2,
+                    })
+                finally:
+                    if is_gz and os.path.isfile(pred_path):
+                        os.remove(pred_path)
 
     df = pd.DataFrame(rows)
     if len(df):
