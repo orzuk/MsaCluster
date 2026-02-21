@@ -2001,7 +2001,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
             if not ready:
                 print("[html] no ready pairs; skipping per-pair HTML generation")
             else:
-                mode = getattr(args, "html_mode", "inline")
+                mode = getattr(args, "html_mode", "copy")
                 outdir = OUTPUT_PATH_NOTEBOOKS
                 script = Path("TableResults/gen_pair_html.py")
                 pairs_arg_str = "ALL" if pairs_arg is None else ",".join(ready)

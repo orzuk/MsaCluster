@@ -597,32 +597,7 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     else:
         pb.push('<div class="warn">build_pair_cluster_table not importable; table omitted.</div>')
 
-    # ===== ORDER 7: ΔΔG aligned table (new) =====
-    try:
-        aligned_csv = (Path(DATA_DIR) / pair_id / "Analysis" / "df_ddg_aligned.csv")
-        if aligned_csv.is_file():
-            import pandas as _pd
-            df_ddg = _pd.read_csv(aligned_csv)
-            # keep a lean view
-            cols = ["aln_pos","aa1","aa2","E1","E2","dEdiff"]
-            cols = [c for c in cols if c in df_ddg.columns]
-            if cols:
-                dfv = df_ddg[cols].copy()
-                for c in ["E1","E2","dEdiff"]:
-                    if c in dfv.columns:
-                        dfv[c] = _pd.to_numeric(dfv[c], errors="coerce").round(2)
-                thead = "<tr>" + "".join(f"<th>{html.escape(str(c))}</th>" for c in dfv.columns) + "</tr>"
-                rows = []
-                for _, r in dfv.iterrows():
-                    tds = []
-                    for c in dfv.columns:
-                        v = r[c]
-                        s = "-" if v is None or (isinstance(v, float) and (v != v)) else str(v)
-                        tds.append(f"<td>{html.escape(s)}</td>")
-                    rows.append("<tr>" + "".join(tds) + "</tr>")
-                pb.push(f'<div class="table-wrap"><h2>Aligned per-residue ΔΔG</h2><table>{thead}{"".join(rows)}</table></div>')
-    except Exception as _e:
-        pb.push(f'<div class="warn">[warn] ΔΔG table unavailable: {html.escape(str(_e))}</div>')
+    # ΔΔG aligned table removed — the heatmap figure (ORDER 4) is sufficient.
 
 
     out_html.write_text(pb.build(), encoding="utf-8")
