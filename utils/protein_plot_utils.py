@@ -422,90 +422,93 @@ def make_foldswitch_all_plots(
 
     if not msa_transformer_pred:
         print(f"[plot:{foldpair_id}] No MSA-Transformer .npz files — skipping contact panels.")
-        return  # skip
 
-    # ---------- Truth contacts ----------
-    try:
-        true_cmap = {
-            pdbids[i] + pdbchains[i]:
-                np.load(os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}_pdb_contacts.npy")).astype(int)
-            for i in range(2)
-        }
-        print("Got true cmap!!!")
-    except Exception:
-        true_cmap = {
-            pdbids[i] + pdbchains[i]:
-                np.load(os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}_pdb_contacts.npy"),
-                        allow_pickle=True).astype(int)
-            for i in range(2)
-        }
-
-    # ---------- Check length match ----------
-    for key in (pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]):
-        n_seq = len(seqs[key])
-        n_map = true_cmap[key].shape[0]
-        if n_seq != n_map:
-            raise ValueError(
-                f"[{foldpair_id}] FASTA length {n_seq} != contact-map size {n_map} for {key}. "
-                "Regenerate the FASTA using CA-only residues (see get_fasta_chain_seq).")
-
-    # ---------- Align truth/pred indices ----------
-    pairwise_alignment = Align.PairwiseAligner().align(
-        seqs[pdbids[0] + pdbchains[0]],
-        seqs[pdbids[1] + pdbchains[1]])
-    print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
-    print("true_cmap type and len, and len([0]):", type(true_cmap), len(true_cmap), len(true_cmap[pdbids[0] + pdbchains[0]]))
-    first_key = next(iter(msa_transformer_pred.keys()), None)
-    first_len = (msa_transformer_pred[first_key][0].shape[0] if first_key is not None else 0)
-    print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), "first_len:", first_len)
-
-    print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
-    print(" pred_cmaps sizes: ", [cmap[0].shape for cmap in msa_transformer_pred.values()])
-    msa_full_default = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_get_msa", "DeepMsa.a3m")
-    msa_full_trim = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_get_msa", "DeepMsa_pairtrim.a3m")
-    msa_full = msa_full_trim if os.path.isfile(msa_full_trim) else msa_full_default
-    keyA = pdbids[0] + pdbchains[0]
-    keyB = pdbids[1] + pdbchains[1]
-
-    match_true_cmap, match_predicted_cmaps, pred_truth_slices = align_truth_and_preds_via_msa_first2(
-        true_cmap=true_cmap,
-        pred_cmaps=msa_transformer_pred,
-        msa_path=msa_full,
-        keyA=keyA,
-        keyB=keyB,
-        verbose=True,
-    )
-
-    print("After align match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
-    print("After align match_pred_cmaps sizes: ", [cmap.shape for cmap in match_predicted_cmaps.values()])
-
-    # ---------- Plot CMAPs ----------
-    if plot_contacts:
-        print("All match_true len and match_predicted_cmaps len:",  len(match_true_cmap), len(match_predicted_cmaps))
-        try:
-            _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id, pred_truth_slices=pred_truth_slices)
-        except Exception as e:
-            print(f"[warn] _plot_contacts_panel failed (shape mismatch?): {e}")
-
-    # ---------- Metrics on shared/unique contacts ----------
+    # ---------- Contact maps: load, align, plot, metrics ----------
+    # This entire section is optional for tree/3D rendering.
+    # If npy files are missing or alignment fails, we skip contacts gracefully.
     cluster_node_values = {}
-    try:
-        shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
-            match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
+    match_predicted_cmaps = {}
+    if msa_transformer_pred:
+        try:
+            # Truth contacts
+            try:
+                true_cmap = {
+                    pdbids[i] + pdbchains[i]:
+                        np.load(os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}_pdb_contacts.npy")).astype(int)
+                    for i in range(2)
+                }
+                print("Got true cmap!!!")
+            except Exception:
+                true_cmap = {
+                    pdbids[i] + pdbchains[i]:
+                        np.load(os.path.join(fasta_dir, foldpair_id, f"{pdbids[i]}{pdbchains[i]}_pdb_contacts.npy"),
+                                allow_pickle=True).astype(int)
+                    for i in range(2)
+                }
 
-        cluster_node_values = {
-            ctype: (
-                shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
-                shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
-                shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5'],
+            # Check length match
+            for key in (pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]):
+                n_seq = len(seqs[key])
+                n_map = true_cmap[key].shape[0]
+                if n_seq != n_map:
+                    raise ValueError(
+                        f"[{foldpair_id}] FASTA length {n_seq} != contact-map size {n_map} for {key}. "
+                        "Regenerate the FASTA using CA-only residues (see get_fasta_chain_seq).")
+
+            # Align truth/pred indices
+            pairwise_alignment = Align.PairwiseAligner().align(
+                seqs[pdbids[0] + pdbchains[0]],
+                seqs[pdbids[1] + pdbchains[1]])
+            print("Get matching indices: pdbids", pdbids, "pdbchains", pdbchains)
+            print("true_cmap type and len, and len([0]):", type(true_cmap), len(true_cmap), len(true_cmap[pdbids[0] + pdbchains[0]]))
+            first_key = next(iter(msa_transformer_pred.keys()), None)
+            first_len = (msa_transformer_pred[first_key][0].shape[0] if first_key is not None else 0)
+            print("msa_transformer_pred keys:", list(msa_transformer_pred.keys()), "first_len:", first_len)
+
+            print(" true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
+            print(" pred_cmaps sizes: ", [cmap[0].shape for cmap in msa_transformer_pred.values()])
+            msa_full_default = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_get_msa", "DeepMsa.a3m")
+            msa_full_trim = os.path.join("Pipeline", "FoldPairs", foldpair_id, "output_get_msa", "DeepMsa_pairtrim.a3m")
+            msa_full = msa_full_trim if os.path.isfile(msa_full_trim) else msa_full_default
+            keyA = pdbids[0] + pdbchains[0]
+            keyB = pdbids[1] + pdbchains[1]
+
+            match_true_cmap, match_predicted_cmaps, pred_truth_slices = align_truth_and_preds_via_msa_first2(
+                true_cmap=true_cmap,
+                pred_cmaps=msa_transformer_pred,
+                msa_path=msa_full,
+                keyA=keyA,
+                keyB=keyB,
+                verbose=True,
             )
-            for ctype in match_predicted_cmaps
-        }
-    except Exception as e:
-        print(f"[warn] contact metrics failed: {e}")
-        match_predicted_cmaps = {}
-        shared_unique_contacts_metrics = {}
-        contacts_united = None
+
+            print("After align match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
+            print("After align match_pred_cmaps sizes: ", [cmap.shape for cmap in match_predicted_cmaps.values()])
+
+            # Plot CMAPs
+            if plot_contacts:
+                print("All match_true len and match_predicted_cmaps len:",  len(match_true_cmap), len(match_predicted_cmaps))
+                try:
+                    _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, foldpair_id, pred_truth_slices=pred_truth_slices)
+                except Exception as e:
+                    print(f"[warn] _plot_contacts_panel failed: {e}")
+
+            # Metrics on shared/unique contacts
+            shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
+                match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
+
+            cluster_node_values = {
+                ctype: (
+                    shared_unique_contacts_metrics["shared"][ctype]['long_P@L5'],
+                    shared_unique_contacts_metrics[pdbids[0] + pdbchains[0]][ctype]['long_P@L5'],
+                    shared_unique_contacts_metrics[pdbids[1] + pdbchains[1]][ctype]['long_P@L5'],
+                )
+                for ctype in match_predicted_cmaps
+            }
+        except Exception as e:
+            print(f"[warn] contact map section failed for {foldpair_id}: {e}")
+            print("       (tree heatmap will still use AF/ESM data from CSVs)")
+            match_predicted_cmaps = {}
 
     # ---------- Tree & overlays ----------
     phytree_file = os.path.join('Pipeline', 'FoldPairs', foldpair_id, 'output_phytree', 'DeepMsa_tree.nwk')

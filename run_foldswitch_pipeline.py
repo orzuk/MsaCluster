@@ -1791,22 +1791,29 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
     pairs = list_protein_pairs() if (pair_id in (None, "ALL")) else pair_id
     if isinstance(pairs, str):
         pairs = [pairs]
+    failed = []
     for pid in pairs:
         pA, pB = pair_str_to_tuple(pid)
         pdbids    = [pA[:-1], pB[:-1]]
         pdbchains = [pA[-1],  pB[-1]]
         print(f"=== plot :: {tuple(pdbids)} ===", flush=True)
         print("pid is: ", pA + "_" + pB)
-        make_foldswitch_all_plots(
-            pdbids=pdbids,
-            fasta_dir="Pipeline/FoldPairs",
-            foldpair_id=pA + "_" + pB,
-            pdbchains=pdbchains,
-            plot_tree_clusters=bool(plot_trees),
-            plot_contacts=True,
-            global_plots=False,   # global is handled outside this loop
-            plot3dformat=args.plot3dformat  # allow interactive 3D plots
-        )
+        try:
+            make_foldswitch_all_plots(
+                pdbids=pdbids,
+                fasta_dir="Pipeline/FoldPairs",
+                foldpair_id=pA + "_" + pB,
+                pdbchains=pdbchains,
+                plot_tree_clusters=bool(plot_trees),
+                plot_contacts=True,
+                global_plots=False,   # global is handled outside this loop
+                plot3dformat=args.plot3dformat  # allow interactive 3D plots
+            )
+        except Exception as e:
+            print(f"[ERROR] plot failed for {pA}_{pB}: {e}")
+            failed.append(f"{pA}_{pB}")
+    if failed:
+        print(f"\n[plot] {len(failed)}/{len(pairs)} pairs failed: {failed}")
 
 def task_deltaG(pair_id: str) -> None:
     """
