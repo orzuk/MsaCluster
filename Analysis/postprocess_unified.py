@@ -843,47 +843,49 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
         if not pair_dir.is_dir():
             continue
 
-        print("Post-processing pair:", pair_id, flush=True)
-        # AF/ESM tables
-        # AF + ESM tables
-        df_af  = _read_or_compute_af(pair_id, force=force_rerun)
-        df_esm = _read_or_compute_esm(pair_id, force=force_rerun)
-        df_tm  = pd.concat([df_af, df_esm], ignore_index=True) if len(df_af) or len(df_esm) else pd.DataFrame()
-        df_cmap = _read_or_compute_cmap(pair_id, force=force_rerun)
+        try:
+            print("Post-processing pair:", pair_id, flush=True)
+            # AF + ESM tables
+            df_af  = _read_or_compute_af(pair_id, force=force_rerun)
+            df_esm = _read_or_compute_esm(pair_id, force=force_rerun)
+            df_tm  = pd.concat([df_af, df_esm], ignore_index=True) if len(df_af) or len(df_esm) else pd.DataFrame()
+            df_cmap = _read_or_compute_cmap(pair_id, force=force_rerun)
 
-        # Best TM per pair (over all predictions; maximize max(TM1,TM2))
-        best_tm = None
-        if len(df_tm):
-            df_tm["TM_best_vs_truth"] = df_tm[["TMscore_fold1","TMscore_fold2"]].max(axis=1)
-            best_row = df_tm.loc[df_tm["TM_best_vs_truth"].idxmax()].to_dict()
-            best_tm = {k: best_row[k] for k in ["model","cluster_num","name","TMscore_fold1","TMscore_fold2","TM_best_vs_truth"]}
+            # Best TM per pair (over all predictions; maximize max(TM1,TM2))
+            best_tm = None
+            if len(df_tm):
+                df_tm["TM_best_vs_truth"] = df_tm[["TMscore_fold1","TMscore_fold2"]].max(axis=1)
+                best_row = df_tm.loc[df_tm["TM_best_vs_truth"].idxmax()].to_dict()
+                best_tm = {k: best_row[k] for k in ["model","cluster_num","name","TMscore_fold1","TMscore_fold2","TM_best_vs_truth"]}
 
-        # Cmap metrics
-        best_cmap = None
-        if len(df_cmap):
-            # define "best" by max common_f1 (use t1_f1/t2_f1 if you prefer)
-            score_key = "common_f1" if "common_f1" in df_cmap.columns else ("t1_f1" if "t1_f1" in df_cmap.columns else None)
-            if score_key:
-                best_cmap_row = df_cmap.loc[df_cmap[score_key].idxmax()].to_dict()
-                best_cmap = {"best_cmap_file": best_cmap_row.get("file"), "best_cmap_score": best_cmap_row.get(score_key)}
+            # Cmap metrics
+            best_cmap = None
+            if len(df_cmap):
+                # define "best" by max common_f1 (use t1_f1/t2_f1 if you prefer)
+                score_key = "common_f1" if "common_f1" in df_cmap.columns else ("t1_f1" if "t1_f1" in df_cmap.columns else None)
+                if score_key:
+                    best_cmap_row = df_cmap.loc[df_cmap[score_key].idxmax()].to_dict()
+                    best_cmap = {"best_cmap_file": best_cmap_row.get("file"), "best_cmap_score": best_cmap_row.get(score_key)}
 
-        # Detailed rows (cluster-level)
-        if len(df_tm):
-            det = df_tm.copy()
-            det["pair_id"] = pair_id
-            all_detailed.append(det)
+            # Detailed rows (cluster-level)
+            if len(df_tm):
+                det = df_tm.copy()
+                det["pair_id"] = pair_id
+                all_detailed.append(det)
 
-        max_len = pair_max_len_from_truth(pair_id)
-        # Summary row (pair-level)
-        summary_rows.append({
-            "pair_id": pair_id,
-            "#RES": max_len,
-            **(best_tm or {}),
-            **(best_cmap or {}),
-            "n_af_preds": int(len(df_af)),
-            "n_esm_preds": int(len(df_esm)),
-            "n_cmap_preds": int(len(df_cmap))
-        })
+            max_len = pair_max_len_from_truth(pair_id)
+            # Summary row (pair-level)
+            summary_rows.append({
+                "pair_id": pair_id,
+                "#RES": max_len,
+                **(best_tm or {}),
+                **(best_cmap or {}),
+                "n_af_preds": int(len(df_af)),
+                "n_esm_preds": int(len(df_esm)),
+                "n_cmap_preds": int(len(df_cmap))
+            })
+        except Exception as e:
+            print(f"[postprocess] ERROR processing {pair_id}: {e}", flush=True)
 
     detailed_df = pd.concat(all_detailed, ignore_index=True) if all_detailed else pd.DataFrame()
     summary_df  = pd.DataFrame(summary_rows)
