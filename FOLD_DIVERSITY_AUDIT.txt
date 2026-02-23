@@ -1,7 +1,14 @@
 ================================================================================
 FOLD DIVERSITY AUDIT -- Data Gaps & Cluster Action Items
 Created: 2026-02-23
+Updated: 2026-02-23
 ================================================================================
+
+IMPORTANT: The cluster (Moriah/glacier) is the SOURCE OF TRUTH for all
+pipeline data. The local Windows machine has an old, partial copy of
+Pipeline/FoldPairs/. Always check data availability on the cluster, not
+locally. The local repo is only authoritative for code; all data audits
+and run decisions must be based on cluster state.
 
 Context: Phase 10 (ancestral reconstruction) and the fold-diversity survey
 (scripts/fold_diversity_survey.py) need three per-pair CSVs:
@@ -260,5 +267,17 @@ C) UPGMA trees are not real phylogenies (assumes molecular clock). Must
 
 D) pastml is not installed; ancestral reconstruction falls back to Fitch
    parsimony. Fine for now.
+
+E) FIXED (2026-02-24) - esmfold_analysis.py: samples_index.tsv stored stale
+   absolute paths from before the Pipeline/FoldPairs/ restructuring.
+   compute_df_esm() -> _iter_preds() now falls back to resolving the
+   filename relative to the model directory when the TSV path doesn't exist.
+   This caused df_esm.csv generation to fail for pairs whose ESMFold
+   predictions were run before Phase 7 directory restructuring.
+
+F) df_cmap.csv missing for some pairs: not a code bug. These pairs had
+   their cmap .npy files deleted during the cmap directory restructuring
+   (Section 3) because cluster counts changed since the cmaps were
+   generated. They need MSA-Transformer re-inference (GPU, STEP 2 above).
 
 ================================================================================

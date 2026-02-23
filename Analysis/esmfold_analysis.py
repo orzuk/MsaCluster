@@ -42,7 +42,15 @@ def compute_df_esm(fold_pair: str, write: bool = True) -> pd.DataFrame:
                 if {"name","pdb_path"}.issubset(idx.columns) and len(idx) > 0:
                     used_index = True
                     for name, pth in idx[["name","pdb_path"]].itertuples(index=False, name=None):
-                        yield name, str(pth)
+                        pth = str(pth)
+                        if not os.path.isfile(pth):
+                            # TSV may contain stale absolute paths from before
+                            # the Pipeline/FoldPairs/ restructuring; resolve
+                            # the filename relative to the model directory
+                            fallback = mdir / os.path.basename(pth)
+                            if fallback.is_file():
+                                pth = str(fallback)
+                        yield name, pth
             except Exception:
                 pass  # fall through to glob
 
