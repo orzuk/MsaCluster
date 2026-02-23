@@ -5,7 +5,7 @@ For each pair, reads existing df_af.csv, df_esm.csv, df_cmap.csv and computes
 per-cluster fold-preference metrics from three independent methods:
   - AF2:  TM-score toward fold1 vs fold2
   - ESM:  TM-score toward fold1 vs fold2 (10 samples per cluster)
-  - MSAT: contact map recall for fold1-unique vs fold2-unique contacts
+  - MSAT: contact map recall for fold1 vs fold2 full contact maps
 
 Outputs:
   docs/fold_diversity_survey.csv   — one row per (pair, cluster, method)
@@ -215,8 +215,13 @@ def load_esm_diversity(pair_id, delta):
 def load_msat_diversity(pair_id, delta):
     """Load df_cmap.csv and compute per-cluster fold preference from contacts.
 
-    Uses recall of fold1-unique vs fold2-unique contacts as the metric.
-    Falls back to t1_recall/t2_recall if unique columns are unavailable.
+    Uses t1_recall/t2_recall (full-fold contact recall) as the metric.
+    The uniq1/uniq2 columns are unreliable because:
+      1) The unique-frame evaluation in cmap_analysis.py has a dimension
+         mismatch (PU1 and TU2 have different sizes), so it almost always
+         returns NaN.
+      2) Even when computable, fold-unique contacts are too sparse for
+         reliable discrimination in most fold-switching proteins.
     """
     csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_cmap.csv")
     if not os.path.isfile(csv_path):
@@ -226,18 +231,11 @@ def load_msat_diversity(pair_id, delta):
     if df.empty:
         return []
 
-    # Determine which columns to use for fold preference
-    # Priority: uniq1/uniq2 recall > t1/t2 recall
-    use_uniq = "uniq1_recall" in df.columns and "uniq2_recall" in df.columns
-    use_t12 = "t1_recall" in df.columns and "t2_recall" in df.columns
-
-    if not use_uniq and not use_t12:
+    # Use full-fold recall (t1/t2) as primary metric
+    if "t1_recall" not in df.columns or "t2_recall" not in df.columns:
         return []
 
-    if use_uniq:
-        col1, col2 = "uniq1_recall", "uniq2_recall"
-    else:
-        col1, col2 = "t1_recall", "t2_recall"
+    col1, col2 = "t1_recall", "t2_recall"
 
     # Parse cluster tags
     if "cluster" in df.columns:
@@ -253,15 +251,20 @@ def load_msat_diversity(pair_id, delta):
         return []
 
     df["_tag"] = df[cluster_col].apply(_normalize_cluster)
-    df["R1"] = pd.to_numeric(df[col1], errors="coerce").fillna(0)
-    df["R2"] = pd.to_numeric(df[col2], errors="coerce").fillna(0)
+    df["R1"] = pd.to_numeric(df[col1], errors="coerce")
+    df["R2"] = pd.to_numeric(df[col2], errors="coerce")
 
     rows = []
     for tag, grp in df.groupby("_tag"):
-        r1 = grp["R1"].max()
-        r2 = grp["R2"].max()
-        r1_mean = grp["R1"].mean()
-        r2_mean = grp["R2"].mean()
+        # Drop rows where recall is NaN (missing data, not zero signal)
+        valid = grp.dropna(subset=["R1", "R2"])
+        if valid.empty:
+            continue
+
+        r1 = valid["R1"].max()
+        r2 = valid["R2"].max()
+        r1_mean = valid["R1"].mean()
+        r2_mean = valid["R2"].mean()
 
         # Fold preference from contact recall difference
         diff = r1 - r2
@@ -269,10 +272,6 @@ def load_msat_diversity(pair_id, delta):
             pref = "F1" if diff > 0 else "F2"
         else:
             pref = "Amb"
-
-        # Also collect full t1/t2 recall if available
-        t1_recall = grp["t1_recall"].max() if "t1_recall" in grp.columns else np.nan
-        t2_recall = grp["t2_recall"].max() if "t2_recall" in grp.columns else np.nan
 
         rows.append({
             "pair_id": pair_id,
@@ -284,17 +283,14 @@ def load_msat_diversity(pair_id, delta):
             "TM2_mean": round(r2_mean, 4),
             "TMdiff_max": round(r1 - r2, 4),
             "TMdiff_mean": round(r1_mean - r2_mean, 4),
-            "n_models": len(grp),
-            "n_toward_f1": int((grp["R1"] > grp["R2"]).sum()),
-            "n_toward_f2": int((grp["R2"] > grp["R1"]).sum()),
+            "n_models": len(valid),
+            "n_toward_f1": int((valid["R1"] > valid["R2"]).sum()),
+            "n_toward_f2": int((valid["R2"] > valid["R1"]).sum()),
             "vote_frac_f1": round(
-                (grp["R1"] > grp["R2"]).sum() / len(grp), 3
-            ) if len(grp) > 0 else 0,
+                (valid["R1"] > valid["R2"]).sum() / len(valid), 3
+            ) if len(valid) > 0 else 0,
             "pref": pref,
-            # extra cmap-specific columns
-            "t1_recall": round(t1_recall, 4) if not np.isnan(t1_recall) else None,
-            "t2_recall": round(t2_recall, 4) if not np.isnan(t2_recall) else None,
-            "metric_used": "uniq_recall" if use_uniq else "t_recall",
+            "metric_used": "t_recall",
         })
     return rows
 

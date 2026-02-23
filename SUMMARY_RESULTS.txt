@@ -1,0 +1,234 @@
+================================================================================
+FOLD DIVERSITY SURVEY RESULTS -- Summary & Analysis
+Generated: 2026-02-24
+================================================================================
+
+This document summarizes the fold-diversity survey across 92-93 fold-switching
+protein families, using three independent methods to assess whether MSA-based
+sub-clusters show different structural (fold) preferences.
+
+Methods:
+  AF2:  AlphaFold2 structure prediction per cluster, scored by TM-score
+        against both fold1 and fold2 truth structures.
+  ESM:  ESMFold single-sequence prediction (10 samples per cluster),
+        scored by TM-score against both truths.
+  MSAT: MSA-Transformer predicted contact map per cluster, scored by
+        recall against fold1 and fold2 truth contact maps.
+
+Fold preference assignment:
+  F1   = score_fold1 - score_fold2 > delta   (cluster prefers fold 1)
+  F2   = score_fold2 - score_fold1 > delta   (cluster prefers fold 2)
+  Amb  = |difference| <= delta               (ambiguous / no preference)
+  delta = 0.05 for all results below
+
+"Diverse" = a pair has at least one F1 cluster AND at least one F2 cluster.
+
+Data: docs/fold_diversity_survey.csv (per-cluster detail)
+      docs/fold_diversity_summary.csv (per-pair summary)
+
+================================================================================
+1. HIGH-LEVEL RESULTS
+================================================================================
+
+  Method   Pairs   Diverse  %Diverse   F1    F2    Amb   %Amb
+  ------   -----   -------  --------  ----  ----  ----  -----
+  AF2       92       13       14%      348   391   373   33.5%
+  ESM       92        0        0%      233   343   536   48.2%
+  MSAT      89        *        *        *     *     *     *
+
+  (*) MSAT results from the initial run were invalid (all zeros) due to a
+  bug -- see Section 5. The fix has been applied; re-run pending.
+
+Key finding: AF2 detects fold diversity in 13/92 pairs (14%). ESMFold
+detects zero diversity. This is consistent with the hypothesis that
+co-evolutionary signal in the MSA (which AF2 uses but ESM ignores)
+drives different clusters toward different folds.
+
+================================================================================
+2. THE 13 AF2-DIVERSE PAIRS (strongest fold-switching candidates)
+================================================================================
+
+These pairs have MSA clusters that AF2 predicts as BOTH fold 1 and fold 2,
+suggesting genuine evolutionary fold switching within the protein family.
+
+  Pair              Clusters   F1   F2  Amb  Spread   Range
+  ---------------   --------  ---  ---  ---  ------  ------
+  2k42A_1ceeB           20    17    1    2   0.188   0.575  << strongest
+  3r9jC_2kxoA           20    12    4    4   0.142   0.564
+  3kdsG_2ce7C           19    13    3    3   0.130   0.498
+  4h2aA_3j9cA            3     1    1    1   0.131   0.313
+  2lepA_4hddA           20    15    3    2   0.129   0.377
+  2qqjA_4qdsA           18     2   15    1   0.114   0.443
+  4q79F_4uv2D           19    15    1    3   0.095   0.347
+  2vfxL_3gmhL           20    16    1    3   0.088   0.296
+  5f5rB_5f3kA           19    10    3    6   0.075   0.269
+  3lqcA_1xntA           16     2   13    1   0.058   0.199
+  3hdfA_3hdeA           21     3    2   16   0.057   0.297
+  1xjuB_1xjtA           18     5    2   11   0.056   0.237
+  1rk4B_1k0nA           16     1    6    9   0.046   0.199
+
+  "Spread" = std(TMdiff) across clusters  (higher = more variable)
+  "Range"  = max(TMdiff) - min(TMdiff)    (higher = wider separation)
+
+Notably, 2k42A_1ceeB has the strongest signal: 17 out of 20 clusters
+prefer fold 1, but 1 cluster clearly prefers fold 2 (TMdiff range 0.575).
+This is a strong candidate for evolutionary fold switching.
+
+================================================================================
+3. ESM SHOWS ZERO DIVERSITY (expected)
+================================================================================
+
+ESMFold uses single sequences (no MSA input). It therefore cannot read
+co-evolutionary patterns that differ between clusters. The 0% diversity
+rate confirms that fold differentiation is MSA-driven, not a property
+of individual sequence composition.
+
+ESM does show higher ambiguity (48% Amb vs 34% for AF2), meaning it
+generally can't distinguish the two folds well for these proteins.
+
+================================================================================
+4. SUSPICIOUS AF2-ESM FOLD FLIPS
+================================================================================
+
+Several pairs show a UNIFORM but OPPOSITE fold preference between AF2
+and ESM. All clusters in AF2 prefer fold X, while all clusters in ESM
+prefer fold Y. These are NOT fold-diverse (every cluster agrees within
+each method), but the methods disagree.
+
+  Pair              AF2 call       ESM call
+  ---------------   ----------     ----------
+  1nrjB_2gedB       15F1/0F2/3A    0F1/18F2/0A    complete flip
+  3lowA_3m1bF       0F1/20F2/0A    20F1/0F2/0A    complete flip
+  2lepA_4hddA       15F1/3F2/2A    20F1/0F2/0A    AF2 has some F2
+  3meeA_4b3oB       9F1/0F2/1A     0F1/0F2/10A    AF2=F1, ESM=Amb
+  4ydqB_4twaA       17F1/0F2/0A    0F1/0F2/17A    AF2=F1, ESM=Amb
+  5bmyA_5b3zA       16F1/0F2/0A    0F1/0F2/16A    AF2=F1, ESM=Amb
+  4xwsD_4y0mJ       15F1/0F2/5A    0F1/0F2/20A    AF2=F1, ESM=Amb
+  5et5A_3ifaA       19F1/0F2/1A    1F1/0F2/19A    flip
+
+Possible explanations:
+  A) Method bias: AF2 (with MSA) memorizes one fold; ESM (single-seq)
+     defaults to the other. This is a real structural prediction
+     difference, not a fold-switching signal.
+  B) Fold label inconsistency: if fold1/fold2 truth PDB assignment is
+     handled differently in the AF vs ESM analysis, you'd see systematic
+     flips. This should be verified by spot-checking TM-scores.
+
+Recommendation: pick 1-2 of the complete-flip pairs (e.g., 1nrjB_2gedB)
+and manually verify that both methods are comparing to the same truth
+PDBs with the same chain IDs. If confirmed, this is genuine method bias.
+
+================================================================================
+5. MSAT BUG (fixed 2026-02-24, re-run needed)
+================================================================================
+
+The initial MSAT results were ALL ZEROS: 100% Amb, 0 spread, 0 range
+for every single pair. This was caused by three compounding issues:
+
+  Layer 1 (code bug in fold_diversity_survey.py):
+    NaN values in uniq1_recall/uniq2_recall were converted to 0 via
+    .fillna(0), making missing data indistinguishable from "no preference."
+
+  Layer 2 (design flaw in cmap_analysis.py):
+    The unique-frame evaluation passes mismatched matrices to
+    evaluate_pred_cmap (PU1 is NxN from fold1-unique columns, but TU2
+    is MxM from fold2-unique columns, where N != M). The assertion
+    "All maps must be same NxN" would fire, except it's preempted by
+    eval_or_nan returning NaN when one side is empty. So uniq metrics
+    are almost always NaN.
+
+  Layer 3 (genuine biology):
+    Fold-switching proteins share most contacts; fold-unique contacts
+    are typically a small subset (~5-20 contacts). After intersecting
+    with the alignment frame of each cluster, the surviving unique
+    contact set is often empty.
+
+  Fix applied: fold_diversity_survey.py now uses t1_recall/t2_recall
+  (full-fold contact recall) instead of uniq1/uniq2 recall. These
+  columns are computed correctly and contain hundreds of contacts.
+
+  Status: Code fix pushed. Re-run needed on cluster:
+    python scripts/fold_diversity_survey.py --pairs ALL --delta 0.05
+
+================================================================================
+6. PAIRS WITH ONLY 1 CLUSTER (no diversity possible)
+================================================================================
+
+These pairs have only 1 MSA cluster (after the deep MSA is excluded),
+so fold diversity cannot be assessed. This is a limitation of the MSA
+clustering, not of the fold-switching biology.
+
+  1iytA_2naoF, 1svfC_4wsgC, 1wp8C_5ejbC, 1xezA_3o44A, 2grmB_2axzA,
+  2lelA_2k0qA, 2pbkB_3njqA, 2wcdX_4phqA, 3mkoA_5ineA, 3zxgB_5ec5P,
+  4g0dZ_4fu4C, 4ow6B_4ae0A, 4rmbB_4rmbA, 4tsyD_3zwgN, 5i2sA_5i2mA,
+  5jztG_5jzhA, 5l35G_5l35D, 5tpnA_1g2cF, 7kdtB_6z4uA
+
+  (19 pairs, 20% of the dataset)
+
+================================================================================
+7. DATA GAPS
+================================================================================
+
+  - 5c3iF_3kuyA: No ESMFold predictions (job never ran or failed).
+  - 4 pairs missing df_cmap.csv (need MSA-Transformer GPU re-inference):
+    1jfkA_2nxqB, 2qqjA_4qdsA, 2grmB_2axzA, 5c3iF_3kuyA
+  - 7 pairs had empty AF2 predictions (ColabFold failed):
+    1wp8C_5ejbC, 2grmB_2axzA, 2wcdX_4phqA, 3zxgB_5ec5P,
+    4g0dZ_4fu4C, 4ow6B_4ae0A, 7kdtB_6z4uA
+    (These all have only 1 cluster, so diversity is N/A anyway.)
+
+================================================================================
+8. INTERPRETATION AND NEXT STEPS
+================================================================================
+
+What the 14% AF2 diversity rate means:
+  - In ~1 in 7 fold-switching families, the evolutionary sub-families
+    (MSA clusters) contain enough signal to push AlphaFold2 toward
+    different folds for different clusters.
+  - This is a LOWER BOUND: AF2 is known to memorize training structures
+    rather than faithfully reading MSA co-evolution. The true fold
+    diversity may be higher than what AF2 detects.
+  - The 13 diverse pairs are the strongest candidates for ancestral
+    reconstruction of fold-switching transitions.
+
+What the 0% ESM diversity rate means:
+  - Single-sequence information alone cannot distinguish folds across
+    clusters. The fold-switching signal is in the CO-EVOLUTIONARY
+    pattern, not in sequence composition.
+
+What we expect from MSAT (after fix):
+  - MSA-Transformer directly reads co-evolutionary signal from the MSA.
+  - Literature (Porter et al.) predicts MSAT should show MORE diversity
+    than AF2, because AF2 memorizes training folds while MSAT is more
+    faithful to the input MSA.
+  - If MSAT confirms or exceeds AF2's 14%, this strengthens the paper.
+
+Next steps:
+  1. Re-run fold_diversity_survey.py with MSAT fix (Section 5)
+  2. Run ancestral reconstruction on the 13 diverse pairs
+  3. Investigate the AF2-ESM flip pairs (Section 4) — verify fold labels
+  4. Run negative controls (Phase 8) to establish baseline diversity
+  5. Write paper methods + results sections
+
+================================================================================
+9. SCIENTIFIC CONCLUSIONS (preliminary)
+================================================================================
+
+  C1. MSA clustering can separate evolutionary sub-families that prefer
+      different folds in ~14% of known fold-switching proteins.
+
+  C2. This fold diversity is MSA-driven (AF2 detects it, ESM does not),
+      supporting the co-evolutionary basis of fold switching.
+
+  C3. Most fold-switching families (86%) show uniform fold preference
+      across all clusters. This could mean: (a) the two folds are too
+      similar for AF2 to distinguish, (b) the MSA doesn't contain enough
+      evolutionary diversity, or (c) fold switching in these families is
+      not phylogenetically structured (i.e., both folds coexist within
+      each sub-family rather than being separated).
+
+  C4. The 13 diverse pairs (Section 2) deserve deeper evolutionary
+      analysis via ancestral reconstruction to trace fold transitions
+      along the phylogenetic tree.
+
+================================================================================
