@@ -1,0 +1,5 @@
+pair_id,n_clusters,n_f1,n_f2,n_amb,n_transitions,n_fold_transitions,pattern,root_state,p_value,method,esm_agree_pct
+1dzlA_5keqF,22,0,0,22,0,0,uniform,Amb,,fitch,
+1fzpD_2frhA,8,0,8,0,0,0,uniform,F2,,fitch,
+1jfkA_2nxqB,13,13,0,0,0,0,uniform,F1,,fitch,0.0
+2qqjA_4qdsA,26,20,0,6,5,0,uniform,F1,,fitch,76.9

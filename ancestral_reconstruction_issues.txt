@@ -1,0 +1,304 @@
+================================================================================
+ANCESTRAL FOLD-PREFERENCE RECONSTRUCTION — ISSUES & ANALYSIS
+Created: 2026-02-23
+================================================================================
+
+This document evaluates the Phase 10 ancestral reconstruction plan, its existing
+implementation, preliminary results, and scientific concerns — particularly in
+light of recent literature (Porter, Schafer et al. 2024-2025) on whether AF2
+actually uses MSA co-evolutionary signal or memorizes training structures.
+
+================================================================================
+1. PLAN SUMMARY
+================================================================================
+
+Goal: For each of 93 fold-switching pairs, label MSA clusters with fold
+preference (F1/F2/Amb) from AF2 TM-scores, then run ancestral state
+reconstruction on a coarse cluster-level tree to infer where evolutionary
+fold transitions occurred.
+
+Design decisions:
+  - Cluster-level analysis (one leaf per cluster, ~5-25 leaves per pair)
+  - delta = 0.05 TM-score threshold for F1/F2/Amb
+  - Amb as third state (conservative)
+  - AF2 only for fold assignment; post-hoc ESM concordance
+  - Existing UPGMA trees (no FastTree rebuild)
+  - No ancestral sequence reconstruction (Tier 3 excluded)
+
+================================================================================
+2. IMPLEMENTATION STATUS
+================================================================================
+
+DONE:
+  - utils/ancestral_utils.py (~766 lines): full pipeline
+    (build_coarse_tree, load_cluster_af2_tm, assign_fold_preference,
+     run_asr with pastml/Fitch, count_transitions, classify_pattern,
+     run_permutation_test, render_ancestral_tree, compute_concordance)
+  - scripts/run_ancestral_analysis.py (~122 lines): CLI driver
+  - config.py: ANCESTRAL_SUMMARY_FILE constant
+
+TESTED on 4 pairs locally. Results in docs/ancestral_summary.csv.
+
+NOT DONE:
+  - ASR-4: Run on all ~85 eligible pairs on cluster
+  - ASR-5: Review results, iterate thresholds
+  - Integration into run_foldswitch_pipeline.py
+  - Integration into HTML reports (gen_pair_html.py)
+  - Global summary plots (pattern distribution, p-value histogram)
+
+================================================================================
+3. PRELIMINARY RESULTS — RED FLAG
+================================================================================
+
+  pair            clusters  F1   F2   Amb  pattern    root
+  1dzlA_5keqF     22        0    0    22   uniform    Amb
+  1fzpD_2frhA      8        0    8     0   uniform    F2
+  1jfkA_2nxqB     13       13    0     0   uniform    F1
+  2qqjA_4qdsA     26       20    0     6   uniform    F1
+
+ALL four pairs classified as "uniform" — zero fold transitions detected.
+
+Breakdown of the problem:
+  1dzlA_5keqF: All 22 clusters are Amb — TM1 ~ TM2 for every cluster,
+    but both TM-scores are LOW (0.2-0.56). AF2 produces junk predictions
+    for most clusters, and when it produces reasonable ones, they score
+    similarly to both folds. The delta=0.05 threshold correctly labels
+    these as Amb, but the REASON is not "genuinely ambiguous fold" — it's
+    "AF2 couldn't fold the protein at all from shallow MSAs."
+
+  1fzpD_2frhA: All 8 clusters → F2. AF2 always predicts fold 2 regardless
+    of which cluster's MSA is used. The MSA sub-population doesn't change
+    AF2's prediction.
+
+  1jfkA_2nxqB: All 13 clusters → F1. Same issue, opposite fold.
+
+  2qqjA_4qdsA: 20 F1, 6 Amb, 0 F2. AF2 never predicts fold 2 for any
+    cluster. The Amb clusters have low TM-scores overall.
+
+If this pattern holds across 85+ pairs, ancestral reconstruction adds no
+information — you can't reconstruct transitions that don't exist.
+
+================================================================================
+4. ROOT CAUSE ANALYSIS: WHY SO LITTLE FOLD DIVERSITY?
+================================================================================
+
+The "uniform" result is likely NOT because fold preference is genuinely
+uniform across clusters. Rather, it reflects limitations of AF2 as a
+fold-preference sensor. Three factors contribute:
+
+A) AF2 MEMORIZATION (Porter et al. 2024, Nature Communications)
+   - AF2 is a "weak predictor of fold switching" — 35% success rate
+     combining >282,000 models across AF2+AF3 implementations
+   - ACE method proved co-evolutionary signal for BOTH folds exists in
+     56/56 fold-switching MSAs, yet AF2 misses it in 35/56 cases
+   - AF2 memorizes training-set structures and associates them with
+     MSA sequences rather than inferring from co-evolutionary signal
+   - AF2's confidence metrics (pLDDT, pTM) actively select AGAINST
+     alternative conformations
+
+B) AF2 DOMINANCE BIAS
+   - AF2 tends to predict the dominant conformation corresponding to
+     the majority co-evolutionary signal in the MSA
+   - Shallow MSA subsets may not have enough signal to overcome this
+   - Even when clusters differ, AF2 may still default to the same fold
+
+C) SHALLOW MSA QUALITY
+   - Porter/Schafer (Nature 2025, "Sequence clustering confounds AF2"):
+     AF-cluster underperforms random sequence sampling
+   - Shallow clusters (≤11 seqs) used by AF-cluster are too small
+     to carry meaningful co-evolutionary signal
+   - Our clusters are larger (min 200 seqs), but the principle stands:
+     AF2 may not respond to MSA composition changes the way we expect
+
+D) THE THRESHOLD ISSUE
+   - delta=0.05 on the max-TM per cluster may wash out real signal
+   - Many clusters have TM1=0.52, TM2=0.50 — labeled Amb, but a
+     consistent slight lean across many predictions might be real
+   - The "max of 5 AF2 models" aggregation further reduces sensitivity
+
+================================================================================
+5. SCIENTIFIC LITERATURE CONTEXT
+================================================================================
+
+Key papers from Porter/Schafer group:
+
+[1] Chakravarty et al. (2024) Nature Communications 15:7296
+    "AlphaFold predictions of fold-switched conformations are driven by
+    structure memorization"
+    - AF2 = weak predictor, 35% success rate on training-set proteins
+    - 14% success outside training set → memorization, not physics
+    - ACE proves dual-fold co-evolutionary signal exists but AF2 misses it
+    - AF2 confidence metrics select AGAINST alternative folds
+
+[2] Schafer et al. (2025) Nature 638:E8-E12
+    "Sequence clustering confounds AlphaFold2"
+    - AF-cluster underperforms random sampling
+    - Clustered MSAs not needed; alternative folds predictable from
+      single sequences (when they're in training set)
+    - Co-evolutionary information from sequence clusters is insufficient
+
+[3] Schafer et al. (2025) Protein Science
+    "AlphaFold2's training set powers its predictions of some
+    fold-switched conformations"
+    - CFold (AF2 retrained on limited dataset) fails where AF2 succeeds
+    - Confirms training set memorization drives success
+
+[4] Porter & Looger (2018) PNAS 115:5968-5973
+    "Extant fold-switching proteins are widespread"
+    - Estimated 0.5-4% of PDB proteins switch folds
+    - Defines the dataset and scientific framework
+
+CRITICAL INSIGHT FROM THE LITERATURE:
+  The co-evolutionary signal for BOTH folds EXISTS in the MSA (proven by ACE).
+  But AF2 CANNOT reliably extract it. This means:
+  - Using AF2 as the "fold sensor" for ancestral reconstruction may miss
+    real evolutionary transitions
+  - MSA Transformer / DCA-based contact maps may be BETTER sensors of
+    fold preference because they directly read co-evolutionary signal
+    without the memorization confound
+
+================================================================================
+6. METHOD-BY-METHOD ASSESSMENT FOR FOLD-PREFERENCE DETECTION
+================================================================================
+
+A) AF2 (current approach)
+   Pros: High accuracy when it works; directly outputs 3D structure
+   Cons: Memorization bias; tends to predict one fold regardless of MSA;
+         confidence metrics anti-correlated with alternative folds;
+         35% success rate on fold switchers
+   Expected outcome: Most clusters → same fold or Amb
+   VERDICT: Weakest fold-preference sensor due to memorization
+
+B) AF3
+   Pros: Improved architecture; may handle some cases differently
+   Cons: Same training-set memorization issue (Porter found AF3 similar
+         to AF2 in their 282K-model study); likely LESS MSA-sensitive
+         than AF2 because AF3 architecture deemphasizes MSA features
+   Expected outcome: Even less fold diversity across clusters than AF2
+   VERDICT: Not worth running specifically for ancestral reconstruction
+
+C) ESMFold (single-sequence)
+   Pros: No MSA needed — tests whether individual sequences within a
+         cluster encode fold preference at the single-sequence level;
+         10 samples per cluster gives a "vote" distribution; fast
+   Cons: Lower accuracy (~77% vs 88%); single-sequence so no co-
+         evolutionary signal at all; same memorization issues;
+         Porter found ESMFold also fails on fold-switchers
+   Key point: ESMFold is MSA-INDEPENDENT so it tests a different
+         hypothesis — whether the sequences themselves (not the cluster's
+         co-evolutionary pattern) encode fold preference
+   VERDICT: Worth analyzing existing data (already run on 10 samples
+         per cluster). If ESMFold shows MORE fold variation than AF2,
+         that's interesting — it means sequence composition differs
+         between clusters even if AF2 ignores it.
+         If ESMFold shows LESS variation, it confirms the problem is
+         fundamental (sequences in different clusters are too similar).
+
+D) MSA Transformer (contact maps) — MOST PROMISING
+   Pros:
+   - Directly extracts co-evolutionary signal from MSA
+   - ACE (which uses MSA-Trans + GREMLIN) proved the dual-fold signal
+     EXISTS in fold-switching MSAs
+   - No memorization confound — MSA-Trans was not trained on structures
+   - Contact maps from different clusters should reflect different co-
+     evolutionary patterns IF the clusters truly differ in fold bias
+   - Already computed for many pairs (output_cmaps/msa_transformer/)
+   Cons:
+   - Outputs contact maps, not 3D structures, so "fold preference"
+     must be defined via contact-map similarity to ground truth
+   - Contact map comparison is noisier than TM-score
+   - Need to define a clean fold-preference metric from contact maps
+   Approach: For each cluster's predicted contact map, compute overlap
+         with truth-fold-1 unique contacts vs truth-fold-2 unique contacts.
+         A cluster whose contact map has more fold-1-unique contacts than
+         fold-2-unique contacts → F1 preference (and vice versa).
+   VERDICT: Strongest candidate for detecting actual co-evolutionary fold
+         signal. Should be the PRIMARY method for ancestral reconstruction,
+         with AF2/ESM as secondary confirmation.
+
+E) DCA / GREMLIN (not currently in pipeline)
+   Pros: Classical co-evolutionary method; interpretable; used by ACE
+   Cons: Not implemented; would need new code; slower than MSA-Trans
+   VERDICT: Skip — MSA Transformer captures similar signal and is already
+         computed
+
+================================================================================
+7. RECOMMENDED APPROACH: MULTI-METHOD FOLD PREFERENCE
+================================================================================
+
+Rather than running ancestral reconstruction only on AF2 labels, compute
+fold preference from MULTIPLE methods and see which gives the most signal:
+
+Step 1: EMPIRICAL DIVERSITY SURVEY (low effort, high info)
+  For each pair, across all clusters, compute:
+  - AF2: max TM1, max TM2, |TM1-TM2| per cluster
+  - ESM: same from df_esm.csv (already have 10 samples per cluster)
+  - MSAT: from df_cmap.csv, use recall or F1 for fold1-unique vs
+    fold2-unique contacts as fold-preference metric
+  Output: scatter plots of within-pair fold diversity for each method.
+  This tells us WHICH method shows the most fold differentiation across
+  clusters BEFORE we commit to expensive ancestral reconstruction.
+
+Step 2: CHOOSE BEST FOLD SENSOR
+  Based on Step 1, pick the method(s) that show real F1/F2 differentiation.
+  Likely ranking: MSAT > ESM > AF2 (hypothesis from literature).
+
+Step 3: RUN ANCESTRAL RECONSTRUCTION WITH BEST SENSOR
+  Modify ancestral_utils.py to accept fold preferences from any method
+  (not just AF2). Re-run on all pairs.
+
+Step 4: MULTI-METHOD COMPARISON
+  Run ancestral reconstruction with each method's labels. Compare:
+  - Which method produces the most non-uniform patterns?
+  - Do the methods agree on transition locations?
+  - Concordance analysis across methods.
+
+================================================================================
+8. CODE-LEVEL ISSUES (independent of method choice)
+================================================================================
+
+A) classify_pattern() has a gap:
+   F1->Amb->F2 transitions count as ZERO fold transitions because
+   count_fold_transitions() only counts direct F1<->F2 edges.
+   Fix: trace through Amb nodes when detecting transitions.
+
+B) Representative selection in build_coarse_tree():
+   Picks leaves[0] (arbitrary). Should use medoid for stability.
+
+C) UPGMA tree is not a real phylogeny:
+   UPGMA assumes molecular clock. Our trees reflect clustering geometry,
+   not true evolutionary history. Must acknowledge in paper.
+
+D) Permutation test fires rarely:
+   Requires both F1 and F2 clusters present. With current AF2 labels,
+   most pairs are uniform → test is skipped.
+
+E) pastml never runs (not installed), falls back to Fitch:
+   Fine for small trees. Install pastml if posterior probabilities needed.
+
+================================================================================
+9. WHAT TO RUN NEXT (empirical priority)
+================================================================================
+
+HIGH PRIORITY (can run now with minimal code):
+  1. Diversity survey script: read all existing df_af.csv, df_esm.csv,
+     df_cmap.csv across all pairs. Compute per-cluster fold-preference
+     metrics. Output a single CSV + plots showing how much each method
+     differentiates folds across clusters.
+     -> This is the key decision-making data.
+
+  2. Run existing ancestral reconstruction on all pairs (ASR-4):
+     python scripts/run_ancestral_analysis.py --pairs ALL --delta 0.05
+     -> Even if mostly uniform, establishes the baseline.
+
+MEDIUM PRIORITY (after reviewing diversity survey):
+  3. Add MSAT-based fold preference to ancestral_utils.py
+  4. Re-run ancestral reconstruction with MSAT labels
+  5. Compare AF2 vs MSAT vs ESM ancestral patterns
+
+LOW PRIORITY:
+  6. Install pastml for posterior probabilities
+  7. Integrate into main pipeline and HTML reports
+  8. Fix classify_pattern() Amb-masking issue
+
+================================================================================
