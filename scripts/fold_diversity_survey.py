@@ -212,16 +212,17 @@ def load_esm_diversity(pair_id, delta):
 # MSAT (contact map) loader
 # ---------------------------------------------------------------------------
 
-def load_msat_diversity(pair_id, delta):
+def load_msat_diversity(pair_id, delta, msat_metric="t_recall"):
     """Load df_cmap.csv and compute per-cluster fold preference from contacts.
 
-    Uses t1_recall/t2_recall (full-fold contact recall) as the metric.
-    The uniq1/uniq2 columns are unreliable because:
-      1) The unique-frame evaluation in cmap_analysis.py has a dimension
-         mismatch (PU1 and TU2 have different sizes), so it almost always
-         returns NaN.
-      2) Even when computable, fold-unique contacts are too sparse for
-         reliable discrimination in most fold-switching proteins.
+    msat_metric controls which contact recall columns to use:
+      "t_recall"    — full-fold recall (t1_recall vs t2_recall). Uses all
+                      contacts including shared ones. More robust but less
+                      discriminating (shared contacts compress the range).
+      "uniq_recall" — fold-unique recall (uniq1_recall vs uniq2_recall).
+                      Only contacts unique to each fold. More discriminating
+                      but sparser (may be NaN for some clusters).
+                      Requires the cmap_analysis.py Layer 2 fix (2026-02-24).
     """
     csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_cmap.csv")
     if not os.path.isfile(csv_path):
@@ -231,11 +232,15 @@ def load_msat_diversity(pair_id, delta):
     if df.empty:
         return []
 
-    # Use full-fold recall (t1/t2) as primary metric
-    if "t1_recall" not in df.columns or "t2_recall" not in df.columns:
-        return []
+    if msat_metric == "uniq_recall":
+        col1, col2 = "uniq1_recall", "uniq2_recall"
+        metric_label = "uniq_recall"
+    else:
+        col1, col2 = "t1_recall", "t2_recall"
+        metric_label = "t_recall"
 
-    col1, col2 = "t1_recall", "t2_recall"
+    if col1 not in df.columns or col2 not in df.columns:
+        return []
 
     # Parse cluster tags
     if "cluster" in df.columns:
@@ -290,7 +295,95 @@ def load_msat_diversity(pair_id, delta):
                 (valid["R1"] > valid["R2"]).sum() / len(valid), 3
             ) if len(valid) > 0 else 0,
             "pref": pref,
-            "metric_used": "t_recall",
+            "t1_recall": round(r1, 4) if not np.isnan(r1) else np.nan,
+            "t2_recall": round(r2, 4) if not np.isnan(r2) else np.nan,
+            "metric_used": metric_label,
+        })
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# CCMpred (contact map) loader
+# ---------------------------------------------------------------------------
+
+def load_ccmpred_diversity(pair_id, delta, msat_metric="t_recall"):
+    """Load df_cmap_ccmpred.csv and compute per-cluster fold preference.
+
+    Uses the same metric logic as load_msat_diversity but reads from
+    df_cmap_ccmpred.csv (CCMpred contact predictions) instead of
+    df_cmap.csv (MSA-Transformer predictions).
+    """
+    csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_cmap_ccmpred.csv")
+    if not os.path.isfile(csv_path):
+        return []
+
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return []
+
+    if msat_metric == "uniq_recall":
+        col1, col2 = "uniq1_recall", "uniq2_recall"
+        metric_label = "uniq_recall"
+    else:
+        col1, col2 = "t1_recall", "t2_recall"
+        metric_label = "t_recall"
+
+    if col1 not in df.columns or col2 not in df.columns:
+        return []
+
+    # Parse cluster tags
+    if "cluster" in df.columns:
+        cluster_col = "cluster"
+    elif "file" in df.columns:
+        df["cluster"] = df["file"].apply(
+            lambda f: re.search(r"((?:Shallow|Deep)Msa[_\d]*)", str(f)).group(1)
+            if re.search(r"((?:Shallow|Deep)Msa[_\d]*)", str(f)) else str(f)
+        )
+        cluster_col = "cluster"
+    else:
+        return []
+
+    df["_tag"] = df[cluster_col].apply(_normalize_cluster)
+    df["R1"] = pd.to_numeric(df[col1], errors="coerce")
+    df["R2"] = pd.to_numeric(df[col2], errors="coerce")
+
+    rows = []
+    for tag, grp in df.groupby("_tag"):
+        valid = grp.dropna(subset=["R1", "R2"])
+        if valid.empty:
+            continue
+
+        r1 = valid["R1"].max()
+        r2 = valid["R2"].max()
+        r1_mean = valid["R1"].mean()
+        r2_mean = valid["R2"].mean()
+
+        diff = r1 - r2
+        if abs(diff) > delta:
+            pref = "F1" if diff > 0 else "F2"
+        else:
+            pref = "Amb"
+
+        rows.append({
+            "pair_id": pair_id,
+            "cluster": tag,
+            "method": "CCMpred",
+            "TM1_max": round(r1, 4),
+            "TM2_max": round(r2, 4),
+            "TM1_mean": round(r1_mean, 4),
+            "TM2_mean": round(r2_mean, 4),
+            "TMdiff_max": round(r1 - r2, 4),
+            "TMdiff_mean": round(r1_mean - r2_mean, 4),
+            "n_models": len(valid),
+            "n_toward_f1": int((valid["R1"] > valid["R2"]).sum()),
+            "n_toward_f2": int((valid["R2"] > valid["R1"]).sum()),
+            "vote_frac_f1": round(
+                (valid["R1"] > valid["R2"]).sum() / len(valid), 3
+            ) if len(valid) > 0 else 0,
+            "pref": pref,
+            "t1_recall": round(r1, 4) if not np.isnan(r1) else np.nan,
+            "t2_recall": round(r2, 4) if not np.isnan(r2) else np.nan,
+            "metric_used": metric_label,
         })
     return rows
 
@@ -370,6 +463,10 @@ def main():
                         help="Threshold for F1/F2/Amb assignment")
     parser.add_argument("--output-dir", type=str, default=None,
                         help="Output directory (default: docs/)")
+    parser.add_argument("--msat-metric", type=str, default="t_recall",
+                        choices=["t_recall", "uniq_recall"],
+                        help="MSAT metric: t_recall (full-fold, default) or "
+                             "uniq_recall (fold-unique contacts)")
     args = parser.parse_args()
 
     if args.pairs.upper() == "ALL":
@@ -382,12 +479,13 @@ def main():
 
     print(f"Scanning {len(pairs)} pairs for fold diversity...")
     print(f"Delta threshold: {args.delta}")
+    print(f"MSAT metric:     {args.msat_metric}")
     print()
 
     all_cluster_rows = []
     all_summaries = []
 
-    n_af2 = n_esm = n_msat = 0
+    n_af2 = n_esm = n_msat = n_ccmpred = 0
 
     for pair_id in pairs:
         # AF2
@@ -409,11 +507,22 @@ def main():
                 all_summaries.append(s)
 
         # MSAT
-        msat_rows = load_msat_diversity(pair_id, args.delta)
+        msat_rows = load_msat_diversity(pair_id, args.delta,
+                                        msat_metric=args.msat_metric)
         if msat_rows:
             n_msat += 1
             all_cluster_rows.extend(msat_rows)
             s = summarize_pair(pair_id, msat_rows)
+            if s:
+                all_summaries.append(s)
+
+        # CCMpred
+        cc_rows = load_ccmpred_diversity(pair_id, args.delta,
+                                         msat_metric=args.msat_metric)
+        if cc_rows:
+            n_ccmpred += 1
+            all_cluster_rows.extend(cc_rows)
+            s = summarize_pair(pair_id, cc_rows)
             if s:
                 all_summaries.append(s)
 
@@ -437,11 +546,12 @@ def main():
     print(f"\n{'='*70}")
     print(f"FOLD DIVERSITY SURVEY RESULTS")
     print(f"{'='*70}")
-    print(f"Pairs with AF2 data:  {n_af2}")
-    print(f"Pairs with ESM data:  {n_esm}")
-    print(f"Pairs with MSAT data: {n_msat}")
+    print(f"Pairs with AF2 data:     {n_af2}")
+    print(f"Pairs with ESM data:     {n_esm}")
+    print(f"Pairs with MSAT data:    {n_msat}")
+    print(f"Pairs with CCMpred data: {n_ccmpred}")
 
-    for method in ["AF2", "ESM", "MSAT"]:
+    for method in ["AF2", "ESM", "MSAT", "CCMpred"]:
         mdf = df_summary[df_summary["method"] == method]
         if mdf.empty:
             continue
@@ -494,13 +604,13 @@ def main():
         # Build a clean pair x method table
         pairs_seen = df_summary["pair_id"].unique()
         print(f"\n  {'pair':<20s}", end="")
-        for m in ["AF2", "ESM", "MSAT"]:
+        for m in ["AF2", "ESM", "MSAT", "CCMpred"]:
             print(f"  {m:>12s}", end="")
         print()
 
         for pid in sorted(pairs_seen):
             print(f"  {pid:<20s}", end="")
-            for m in ["AF2", "ESM", "MSAT"]:
+            for m in ["AF2", "ESM", "MSAT", "CCMpred"]:
                 row = df_summary[(df_summary["pair_id"] == pid) &
                                  (df_summary["method"] == m)]
                 if row.empty:

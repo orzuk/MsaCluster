@@ -1481,9 +1481,11 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
 
     def run_one(a3m: Path, tag: str):
         fa = tmp_dir / f"{tag}.fa"
-        npy = out_dir / f"{tag}.ccmpred.npy"
+        npz = out_dir / f"{tag}.ccmpred.npz"
+        npy = out_dir / f"{tag}.ccmpred.npy"   # legacy check
         mat = out_dir / f"{tag}.ccmpred.mat"
-        if npy.exists() and npy.stat().st_size > 0:
+        if (npz.exists() and npz.stat().st_size > 0) or \
+           (npy.exists() and npy.stat().st_size > 0):
             return
         if not a3m_to_fa(a3m, fa):
             print(f"[ccmpred] skip (empty): {a3m}")
@@ -1498,7 +1500,11 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
         arr = 0.5 * (arr + arr.T)     # symmetrize, just in case
         arr = apc(arr)                # APC correction
         np.fill_diagonal(arr, 0.0)
-        np.save(str(npy), arr)
+        # Save as .npz with idx (identity mapping: matrix position i =
+        # seed-frame column i, since CCMpred operates on all columns
+        # of the insert-stripped alignment)
+        idx = np.arange(arr.shape[0], dtype=np.int32)
+        np.savez(str(npz), cmap=arr.astype(np.float32), idx=idx)
 
     # Deep
     deep = pair_dir / "output_get_msa" / "DeepMsa.a3m"

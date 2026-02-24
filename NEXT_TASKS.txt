@@ -3,6 +3,11 @@ NEXT_TASKS.txt - MsaCluster Pending Work & Simplification Plan
 Generated: 2026-02-19
 ================================================================================
 
+DATA SOURCE OF TRUTH: The cluster (Moriah/glacier) holds the authoritative
+  Pipeline/FoldPairs/ data. The local Windows machine has an old, partial copy.
+  Always check data availability ON THE CLUSTER, not locally. The local repo
+  is only authoritative for code.
+
 RELATED PAPER DIRECTORY (always check at session start):
   /mnt/g/My Drive/Research/ProteinStructure/FoldSwitchEvolution
   Contains: LaTeX source, figures, action_items.txt, paper_scientific_issues.txt,
@@ -155,8 +160,10 @@ PRIORITY ORDER (updated)
   4. Phase 6 (Robustness)        - DONE
   5. Phase 7 (Dir Restructure)   - DONE
   6. Phase 8 (Neg Controls)      - next: pipeline integration for IDP controls
-  7. Phase 5 (Over-engineering)  - minor simplifications
-  8. Phase 3 (Split Large Files) - biggest structural change, do last
+  7. Phase 9 (Phytree Fixes)     - DONE
+  8. Phase 10 (Ancestral Recon)  - code ready, run on cluster
+  9. Phase 5 (Over-engineering)  - minor simplifications
+ 10. Phase 3 (Split Large Files) - biggest structural change, do last
 
 ================================================================================
 PHASE 7: DIRECTORY RESTRUCTURING -- COMPLETED
@@ -257,6 +264,75 @@ PHASE 9: PHYTREE FIGURE FIXES
   Called at end of make_foldswitch_all_plots(). On cluster: just git add+commit+push.
 
 ================================================================================
+PHASE 10: ANCESTRAL FOLD-PREFERENCE RECONSTRUCTION
+================================================================================
+
+Goal: For each fold-switching pair, assign fold preference (F1/F2/Amb) to
+each MSA cluster from AF2 TM-scores, then run ancestral state reconstruction
+on the coarse cluster-level tree to infer evolutionary transitions.
+
+User decisions:
+  - Cluster-level analysis (coarse tree, one leaf per cluster)
+  - delta = 0.05 for F1/F2/Amb threshold
+  - Amb as third state (conservative)
+  - AF2 only; simple post-hoc ESM concordance check
+  - Use existing UPGMA trees (no FastTree rebuild)
+  - No Tier 3 (no ancestral sequence reconstruction)
+
+[ASR-1] DONE - utils/ancestral_utils.py created (~400 lines)
+  Core functions: build_coarse_tree, load_cluster_af2_tm, assign_fold_preference,
+  run_asr (pastml MPPA + Fitch fallback), count_transitions, classify_pattern,
+  render_ancestral_tree, run_permutation_test, analyze_pair.
+  Reuses existing tree/cluster code from phytree_utils, plot_contacts,
+  protein_plot_utils.
+
+[ASR-2] DONE - scripts/run_ancestral_analysis.py created (~100 lines)
+  CLI: --pairs ALL/comma-list, --delta 0.05, --n-perm 1000, --summary-only
+  Discovers eligible pairs (need tree + df_af.csv), runs analyze_pair(),
+  saves docs/ancestral_summary.csv.
+
+[ASR-3] DONE - config.py: added ANCESTRAL_SUMMARY_FILE constant
+
+[ASR-4] PENDING - Run on all ~85 pairs on cluster
+  python scripts/run_ancestral_analysis.py --pairs ALL --delta 0.05
+  Expected output: docs/ancestral_summary.csv, per-pair ancestral_tree.png
+
+[ASR-5] PENDING - Review results, iterate on pattern classification
+  After running: check pattern distribution, verify tree figures look correct,
+  decide if delta or classification thresholds need adjustment.
+
+================================================================================
+PHASE 11: FOLD DIVERSITY SURVEY COMPLETE + PORTER COMPARISON
+================================================================================
+
+[SURVEY-1] DONE - Fold diversity survey run on all pairs (2026-02-24)
+  Results: AF2 13/92 (14%), ESM 0/92 (0%), MSAT 4/86 (5%).
+  See SUMMARY_RESULTS.txt for full analysis including the 13 AF2-diverse
+  pairs, AF2-ESM flip pairs, MSAT bug history, and cross-method concordance.
+
+[SURVEY-2] DONE - MSAT bug fixed (was using broken uniq1/uniq2 recall)
+  fold_diversity_survey.py now uses t1_recall/t2_recall (full-fold recall).
+  The initial all-zeros MSAT result was due to three compounding issues:
+  fillna(0) in survey, dimension mismatch in cmap_analysis.py unique-frame
+  evaluation, and sparse fold-unique contacts biologically.
+
+[SURVEY-3] PENDING - Investigate Porter/Schafer comparison (CRITICAL)
+  Our MSAT 5% vs Porter's ACE 100% detection is NOT a contradiction —
+  different questions (cluster separation vs. full-MSA detection).
+  But must be properly framed in paper. See SUMMARY_RESULTS.txt Section 10.
+  Action items:
+    a) Fix fold-unique contact metric in cmap_analysis.py (Layer 2 bug)
+    b) Run MSA-Transformer on DeepMsa.a3m (full MSA) for comparison
+    c) Consider CCMpred/GREMLIN as second contact method (Section 11)
+    d) Frame paper: our contribution is CLUSTER SEPARATION, not detection
+
+[SURVEY-4] PENDING - Complete CCMpred analysis integration
+  CCMpred generation is implemented (task_cmap_ccmpred). Analysis pipeline
+  completely ignores CCMpred output. ~200 lines of new code needed.
+  See SUMMARY_RESULTS.txt Section 11 for full assessment.
+  Lower priority than SURVEY-3 unless needed for Porter comparison.
+
+================================================================================
 SCIENTIFIC/PIPELINE TASKS (non-refactoring)
 ================================================================================
 
@@ -266,9 +342,11 @@ From existing PROJECT_SUMMARY.md and README.md:
   Status: Partially complete (many Pipeline/ dirs exist with outputs).
   Next:   Check which pairs are missing results, run remaining.
 
-[SCI-2] Validate contact map metrics
-  Status: cmap_analysis.py has a bug (cluster_name undefined).
-  Next:   Fix bug first, then rerun on all pairs.
+[SCI-2] DONE (partial) - Validate contact map metrics
+  Status: cmap_analysis.py cluster_name bug fixed earlier.
+  Remaining: fold-unique contact evaluation is still broken
+  (dimension mismatch in cmap_analysis.py unique-frame eval).
+  See SUMMARY_RESULTS.txt Section 5a Layer 2.
 
 [SCI-3] Complete ESM3 predictions
   Status: infer_esm3.py supports ESM3 but may not have been run on all pairs.

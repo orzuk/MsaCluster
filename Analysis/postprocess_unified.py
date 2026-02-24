@@ -219,6 +219,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         df_af   = _safe_read_csv(str(anal / "df_af.csv"))
         df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
         df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
+        df_cmap_cc = _safe_read_csv(str(anal / "df_cmap_ccmpred.csv"))
 
         # === DETAILED: ONE ROW PER CLUSTER ===
         try:
@@ -309,6 +310,11 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         row["MSATrans_CMAP_RE1"] = _best_max(df_cmap, "t1_recall")
         row["MSATrans_CMAP_RE2"] = _best_max(df_cmap, "t2_recall")
 
+        row["CCMpred_CMAP_PR1"] = _best_max(df_cmap_cc, "t1_precision")
+        row["CCMpred_CMAP_PR2"] = _best_max(df_cmap_cc, "t2_precision")
+        row["CCMpred_CMAP_RE1"] = _best_max(df_cmap_cc, "t1_recall")
+        row["CCMpred_CMAP_RE2"] = _best_max(df_cmap_cc, "t2_recall")
+
         summary_rows.append(row)
 
 #    print("ALL DETAILED list:")
@@ -330,12 +336,18 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
     return summary_df, detailed_df
 
 
-def _cmap_csv_path(pair_id: str) -> str:
+def _cmap_csv_path(pair_id: str, method: str = "msa_transformer") -> str:
+    if method == "ccmpred":
+        return f"{DATA_DIR}/{pair_id}/Analysis/df_cmap_ccmpred.csv"
     return f"{DATA_DIR}/{pair_id}/Analysis/df_cmap.csv"
 
-def _read_or_compute_cmap(pair_id: str, force: bool = False) -> pd.DataFrame:
-    out_csv = _cmap_csv_path(pair_id)
-    pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/msa_transformer"
+def _read_or_compute_cmap(pair_id: str, force: bool = False,
+                          cmap_method: str = "msa_transformer") -> pd.DataFrame:
+    out_csv = _cmap_csv_path(pair_id, method=cmap_method)
+    if cmap_method == "ccmpred":
+        pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/ccmpred"
+    else:
+        pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/msa_transformer"
 
     # use cached CSV when present (unless forced)
     if (not force) and os.path.isfile(out_csv):
@@ -345,11 +357,10 @@ def _read_or_compute_cmap(pair_id: str, force: bool = False) -> pd.DataFrame:
     has_cmap_outputs = (os.path.isdir(pred_dir) and
             any(f.endswith((".npz", ".npy")) for f in os.listdir(pred_dir)))
     if not has_cmap_outputs:
-        print(f"[warn] No MSA-Transformer outputs found at {pred_dir}; skipping CMAP metrics.")
         return pd.DataFrame()
 
-    # import the callable (local import avoids import cycles at module load time)
-    return compute_cmap_metrics_for_pair(pair_id, include_deep=True, thresh=0.4, sep_min=6, index_tol=0)
+    return compute_cmap_metrics_for_pair(pair_id, include_deep=True, thresh=0.4,
+                                         sep_min=6, index_tol=0, cmap_method=cmap_method)
 
 
 def _ensure_pair_analysis(pair_id: str) -> Path:
@@ -360,7 +371,7 @@ def _ensure_pair_analysis(pair_id: str) -> Path:
     """
     out = Path(DATA_DIR)  / pair_id / "Analysis"
     if out.is_dir():
-        if any((out / fn).exists() for fn in ("df_af.csv", "df_esm.csv", "df_cmap.csv")):
+        if any((out / fn).exists() for fn in ("df_af.csv", "df_esm.csv", "df_cmap.csv", "df_cmap_ccmpred.csv")):
             return out
     # Fallback (still lets us read cache.json for n/neff)
     out.mkdir(parents=True, exist_ok=True)
@@ -850,6 +861,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             df_esm = _read_or_compute_esm(pair_id, force=force_rerun)
             df_tm  = pd.concat([df_af, df_esm], ignore_index=True) if len(df_af) or len(df_esm) else pd.DataFrame()
             df_cmap = _read_or_compute_cmap(pair_id, force=force_rerun)
+            df_cmap_cc = _read_or_compute_cmap(pair_id, force=force_rerun, cmap_method="ccmpred")
 
             # Best TM per pair (over all predictions; maximize max(TM1,TM2))
             best_tm = None
@@ -882,7 +894,8 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
                 **(best_cmap or {}),
                 "n_af_preds": int(len(df_af)),
                 "n_esm_preds": int(len(df_esm)),
-                "n_cmap_preds": int(len(df_cmap))
+                "n_cmap_preds": int(len(df_cmap)),
+                "n_cmap_ccmpred_preds": int(len(df_cmap_cc))
             })
         except Exception as e:
             print(f"[postprocess] ERROR processing {pair_id}: {e}", flush=True)

@@ -218,16 +218,25 @@ def compute_cmap_metrics_for_pair(
     thresh: float = 0.4,  # Threshold for ???
     sep_min: int = 6,
     index_tol: int = 0,
+    cmap_method: str = "msa_transformer",
 ):
     """
-    Write Pipeline/<pair>/Analysis/df_cmap.csv with per-file metrics:
+    Write Pipeline/<pair>/Analysis/df_cmap.csv (or df_cmap_ccmpred.csv) with per-file metrics:
       t1_* / t2_* (per fold), and common_* / uniq1_* / uniq2_* (shared & contact-unique).
     Symmetric: truth2 does not depend on truth1 — both are aligned via _seed_both.a3m.
+
+    cmap_method: "msa_transformer" (default) or "ccmpred"
+      - msa_transformer: reads output_cmaps/msa_transformer/msa_t_*.npz
+      - ccmpred:         reads output_cmaps/ccmpred/*.ccmpred.npz (or legacy .npy)
     """
     pair_dir = os.path.join(DATA_DIR, subdir)
     out_dir  = os.path.join(pair_dir, "Analysis")
     os.makedirs(out_dir, exist_ok=True)
-    out_csv  = os.path.join(out_dir, "df_cmap.csv")
+
+    if cmap_method == "ccmpred":
+        out_csv = os.path.join(out_dir, "df_cmap_ccmpred.csv")
+    else:
+        out_csv = os.path.join(out_dir, "df_cmap.csv")
 
     # ---- 1) paths & truths
     a, b = subdir.split("_", 1)
@@ -275,12 +284,20 @@ def compute_cmap_metrics_for_pair(
 
 
     # ---- 3) iterate predicted maps (npz with cmap+idx; also supports legacy npy)
-    pred_dir = os.path.join(pair_dir, "output_cmaps", "msa_transformer")
+    if cmap_method == "ccmpred":
+        pred_dir = os.path.join(pair_dir, "output_cmaps", "ccmpred")
+    else:
+        pred_dir = os.path.join(pair_dir, "output_cmaps", "msa_transformer")
+
     files = []
     if os.path.isdir(pred_dir):
         for fn in sorted(os.listdir(pred_dir)):
-            if not fn.startswith("msa_t_"):  # keep all msa_t_* variants
-                continue
+            if cmap_method == "ccmpred":
+                if not (".ccmpred." in fn):
+                    continue
+            else:
+                if not fn.startswith("msa_t_"):
+                    continue
             if not (fn.endswith(".npz") or fn.endswith(".npy")):
                 continue
             if (not include_deep) and ("DeepMsa" in fn or "MSA_deep" in fn):
@@ -303,13 +320,25 @@ def compute_cmap_metrics_for_pair(
 
     rows = []
     for f in files:
-        # Extract cluster name from filename (e.g. "msa_t_ShallowMsa_001.npz" -> "ShallowMsa_001")
-        fn_base = os.path.splitext(os.path.basename(f))[0]
+        # Extract cluster name from filename
+        # msa_transformer: "msa_t_ShallowMsa_001.npz" -> "ShallowMsa_001"
+        # ccmpred:         "ShallowMsa_001.ccmpred.npz" -> "ShallowMsa_001"
+        fn_base = os.path.basename(f)
+        fn_base = re.sub(r'\.(ccmpred\.)?(npz|npy)$', '', fn_base)
         cluster_name = re.sub(r'^msa_t_', '', fn_base)
 
         # Load prediction and the seed-frame idx it uses
         try:
             P, idx, keep_cols = load_cmap_and_idx(f)   # P: (L,L) ; idx: seed-frame indices row-1 covers
+        except FileNotFoundError:
+            # Legacy CCMpred .npy without idx — idx is identity mapping
+            if cmap_method == "ccmpred" and f.endswith(".npy"):
+                P = np.load(f)
+                idx = np.arange(P.shape[0], dtype=np.int32)
+                keep_cols = None
+            else:
+                print("[cmap] WARN skipping (no idx)", f)
+                continue
         except Exception as e:
             print("[cmap] WARN skipping", f, "->", e)
             continue
@@ -385,34 +414,82 @@ def compute_cmap_metrics_for_pair(
         TU1 = T1[np.ix_(RU1, RU1)] if len(RU1) else None
         TU2 = T2[np.ix_(RU2, RU2)] if len(RU2) else None
 
-        # --- Metrics (single-source via evaluate_pred_cmap)
+        # --- Metrics ---
+
+        def _nan_metrics(prefix):
+            """Return NaN dict for a single-truth metric set."""
+            return {f"{prefix}_precision": np.nan, f"{prefix}_recall": np.nan,
+                    f"{prefix}_f1": np.nan, f"{prefix}_jaccard": np.nan,
+                    f"{prefix}_mcc": np.nan,
+                    f"{prefix}_contacts_truth": 0, f"{prefix}_contacts_pred": 0}
+
+        def _eval_single(Psub, Tsub, prefix):
+            """Score one predicted sub-map against one truth sub-map.
+
+            Unlike evaluate_pred_cmap (which requires two NxN truths), this
+            computes precision/recall/F1/jaccard/MCC for a single truth.
+            Used for unique-contact evaluation where only one fold's truth
+            is meaningful on those alignment columns.
+            """
+            if Psub is None or Tsub is None or Psub.size == 0 or Tsub.size == 0:
+                return _nan_metrics(prefix)
+            n = Psub.shape[0]
+            if Tsub.shape != (n, n):
+                return _nan_metrics(prefix)
+            # binarize & symmetrize
+            if Psub.dtype.kind in "fc":
+                pb = (Psub > thresh).astype(np.uint8)
+            else:
+                pb = (Psub > 0).astype(np.uint8)
+            pb = ((pb | pb.T) > 0).astype(np.uint8)
+            tb = ((Tsub | Tsub.T) > 0).astype(np.uint8)
+            # upper triangle with seq separation
+            ksep = max(1, int(sep_min))
+            iu = np.triu_indices(n, k=ksep)
+            t = tb[iu].astype(np.uint8)
+            p = pb[iu].astype(np.uint8)
+            tp = int(np.sum((t == 1) & (p == 1)))
+            fp = int(np.sum((t == 0) & (p == 1)))
+            fn = int(np.sum((t == 1) & (p == 0)))
+            tn = int(np.sum((t == 0) & (p == 0)))
+            prec = tp / (tp + fp) if (tp + fp) else 0.0
+            rec  = tp / (tp + fn) if (tp + fn) else 0.0
+            f1   = (2*prec*rec) / (prec + rec) if (prec + rec) else 0.0
+            jac  = tp / (tp + fp + fn) if (tp + fp + fn) else 0.0
+            denom = (tp+fp)*(tp+fn)*(tn+fp)*(tn+fn)
+            mcc  = ((tp*tn - fp*fn) / np.sqrt(denom)) if denom else 0.0
+            return {f"{prefix}_precision": round(prec, 4),
+                    f"{prefix}_recall": round(rec, 4),
+                    f"{prefix}_f1": round(f1, 4),
+                    f"{prefix}_jaccard": round(jac, 4),
+                    f"{prefix}_mcc": round(float(mcc), 4),
+                    f"{prefix}_contacts_truth": int(tp + fn),
+                    f"{prefix}_contacts_pred": int(tp + fp)}
+
         def eval_or_nan(Psub, T1sub, T2sub):
             if Psub is None or T1sub is None or T2sub is None or Psub.size == 0:
-                # match column names returned by evaluate_pred_cmap
-                return {
-                    "t1_precision": np.nan, "t1_recall": np.nan, "t1_f1": np.nan, "t1_jaccard": np.nan,
-                    "t1_mcc": np.nan,
-                    "t2_precision": np.nan, "t2_recall": np.nan, "t2_f1": np.nan, "t2_jaccard": np.nan,
-                    "t2_mcc": np.nan,
-                    "common_precision": np.nan, "common_recall": np.nan, "common_f1": np.nan, "common_jaccard": np.nan,
-                    "common_mcc": np.nan,
-                    "uniq1_precision": np.nan, "uniq1_recall": np.nan, "uniq1_f1": np.nan, "uniq1_jaccard": np.nan,
-                    "uniq1_mcc": np.nan,
-                    "uniq2_precision": np.nan, "uniq2_recall": np.nan, "uniq2_f1": np.nan, "uniq2_jaccard": np.nan,
-                    "uniq2_mcc": np.nan,
-                }
+                return {f"{pre}_{m}": np.nan
+                        for pre in ("t1", "t2", "common", "uniq1", "uniq2")
+                        for m in ("precision", "recall", "f1", "jaccard", "mcc")}
             return evaluate_pred_cmap(
                 Psub, T1sub, T2sub,
                 thresh=thresh, sep_min=sep_min, index_tol=index_tol, symmetrize=True
             )
 
-        # t1/t2 frame: score on the fold-specific submaps
-        metrics_t12 = eval_or_nan(P1, T1S, T2S)  # will fill t1_* and t2_* keys
+        # t1/t2 frame: score on the fold-specific submaps (both truths aligned
+        # to the same set of columns — the fold1 residue frame)
+        metrics_t12 = eval_or_nan(P1, T1S, T2S)
 
-        # common/uniq frames: score on their own submaps
-        metrics_com = eval_or_nan(PC, T1C, T2C)  # fills common_*
-        metrics_u1 = eval_or_nan(PU1, TU1, TU2)  # fills uniq1_*  (TU1/TU2 are the “unique” truths)
-        metrics_u2 = eval_or_nan(PU2, TU1, TU2)  # fills uniq2_*
+        # common frame: score on the shared-column submaps
+        metrics_com = eval_or_nan(PC, T1C, T2C)
+
+        # unique frames: score EACH against its OWN fold's truth only.
+        # PU1 and TU1 are both on fold1-unique columns (same NxN).
+        # PU2 and TU2 are both on fold2-unique columns (different NxN).
+        # These CAN'T go through evaluate_pred_cmap together because the
+        # two unique frames have different dimensions.
+        metrics_u1 = _eval_single(PU1, TU1, "uniq1")
+        metrics_u2 = _eval_single(PU2, TU2, "uniq2")
 
         # Merge into a single row dict
         row = {
@@ -424,8 +501,8 @@ def compute_cmap_metrics_for_pair(
         }
         row.update({k: v for k, v in metrics_t12.items() if k.startswith(("t1_", "t2_"))})
         row.update({k: v for k, v in metrics_com.items() if k.startswith("common_")})
-        row.update({k: v for k, v in metrics_u1.items() if k.startswith("uniq1_")})
-        row.update({k: v for k, v in metrics_u2.items() if k.startswith("uniq2_")})
+        row.update(metrics_u1)
+        row.update(metrics_u2)
 
         rows.append(row)
 
@@ -437,12 +514,15 @@ def compute_cmap_metrics_for_pair(
 
 # Compute and save contact maps metrics
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser("Compute MSA-Transformer CMAP metrics for pair(s)")
+    ap = argparse.ArgumentParser("Compute CMAP metrics for pair(s)")
     ap.add_argument("pairs", nargs="*", help="pair IDs like 1dzlA_5keqF; if empty, process all")
     ap.add_argument("--include_deep", action="store_true", default=True)
     ap.add_argument("--thresh", type=float, default=0.4)
     ap.add_argument("--sep_min", type=int, default=6)
     ap.add_argument("--index_tol", type=int, default=0)
+    ap.add_argument("--method", type=str, default="msa_transformer",
+                    choices=["msa_transformer", "ccmpred"],
+                    help="Contact prediction method to evaluate")
     args = ap.parse_args()
 
     if args.pairs:
@@ -450,6 +530,7 @@ if __name__ == "__main__":
     else:
         todo = list_protein_pairs(parsed=False, sort_result=True)
 
+    csv_name = "df_cmap_ccmpred.csv" if args.method == "ccmpred" else "df_cmap.csv"
     for pid in todo:
         try:
             compute_cmap_metrics_for_pair(
@@ -458,8 +539,9 @@ if __name__ == "__main__":
                 thresh=args.thresh,
                 sep_min=args.sep_min,
                 index_tol=args.index_tol,
+                cmap_method=args.method,
             )
-            print("[cmap] wrote", os.path.join(DATA_DIR, pid, "Analysis", "df_cmap.csv"))
+            print(f"[cmap] wrote {os.path.join(DATA_DIR, pid, 'Analysis', csv_name)}")
         except Exception as e:
             print("[cmap] ERROR", pid, "→", e)
 
