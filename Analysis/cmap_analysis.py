@@ -251,7 +251,10 @@ def compute_cmap_metrics_for_pair(
     T1 = _truth_contact_map(pdb1, c1, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
     T2 = _truth_contact_map(pdb2, c2, cutoff=CONTACT_CUTOFF, sep_min=sep_min)
     if T1 is None or T2 is None:
-        raise RuntimeError("Could not load truth contacts for one or both chains")
+        print(f"[cmap] WARN {subdir}: truth PDB not found or empty "
+              f"(tried {pdb1}, {pdb2}); writing empty df_cmap")
+        pd.DataFrame().to_csv(out_csv, index=False)
+        return pd.DataFrame()
 
     # Adapt sep_min for short chains (prevents empty truth)
     if max(T1.shape[0], T2.shape[0]) < 60 and sep_min > 3:
@@ -466,22 +469,32 @@ def compute_cmap_metrics_for_pair(
                     f"{prefix}_contacts_truth": int(tp + fn),
                     f"{prefix}_contacts_pred": int(tp + fp)}
 
-        def eval_or_nan(Psub, T1sub, T2sub):
+        def eval_common_or_nan(Psub, T1sub, T2sub):
+            """Evaluate on common frame where both truths share the same NxN."""
             if Psub is None or T1sub is None or T2sub is None or Psub.size == 0:
                 return {f"{pre}_{m}": np.nan
-                        for pre in ("t1", "t2", "common", "uniq1", "uniq2")
-                        for m in ("precision", "recall", "f1", "jaccard", "mcc")}
+                        for pre in ("common",)
+                        for m in ("precision", "recall", "f1", "jaccard", "mcc",
+                                  "contacts_truth", "contacts_pred")}
+            if T1sub.shape != Psub.shape or T2sub.shape != Psub.shape:
+                return {f"{pre}_{m}": np.nan
+                        for pre in ("common",)
+                        for m in ("precision", "recall", "f1", "jaccard", "mcc",
+                                  "contacts_truth", "contacts_pred")}
             return evaluate_pred_cmap(
                 Psub, T1sub, T2sub,
                 thresh=thresh, sep_min=sep_min, index_tol=index_tol, symmetrize=True
             )
 
-        # t1/t2 frame: score on the fold-specific submaps (both truths aligned
-        # to the same set of columns — the fold1 residue frame)
-        metrics_t12 = eval_or_nan(P1, T1S, T2S)
+        # t1 frame: prediction and truth1 on fold1's aligned residues
+        # t2 frame: prediction and truth2 on fold2's aligned residues
+        # These are INDEPENDENT frames with potentially different sizes,
+        # so they must be evaluated separately.
+        metrics_t1 = _eval_single(P1, T1S, "t1")
+        metrics_t2 = _eval_single(P2, T2S, "t2")
 
-        # common frame: score on the shared-column submaps
-        metrics_com = eval_or_nan(PC, T1C, T2C)
+        # common frame: both truths mapped to the SAME shared columns (same NxN)
+        metrics_com = eval_common_or_nan(PC, T1C, T2C)
 
         # unique frames: score EACH against its OWN fold's truth only.
         # PU1 and TU1 are both on fold1-unique columns (same NxN).
@@ -499,7 +512,8 @@ def compute_cmap_metrics_for_pair(
             "thresh": float(thresh),
             "sep_min": int(sep_min),
         }
-        row.update({k: v for k, v in metrics_t12.items() if k.startswith(("t1_", "t2_"))})
+        row.update(metrics_t1)
+        row.update(metrics_t2)
         row.update({k: v for k, v in metrics_com.items() if k.startswith("common_")})
         row.update(metrics_u1)
         row.update(metrics_u2)
