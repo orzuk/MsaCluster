@@ -191,6 +191,16 @@ def _best_max(df: Optional[pd.DataFrame], col: str) -> str:
     return f"{s.max():.2f}" if s.notna().any() else "-"
 
 
+def _resolve_pairs(pairs: Optional[List[str]]) -> List[str]:
+    """Resolve a pairs argument to a concrete list of pair IDs.
+
+    Handles: None, [], ["ALL"], or a list of specific pair IDs.
+    """
+    if not pairs or (len(pairs) == 1 and pairs[0].upper() == "ALL"):
+        return [f"{a}_{b}" for a, b in list_protein_pairs()]
+    return pairs
+
+
 def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
                                           write_out: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -200,8 +210,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
       - COMPUTE detailed (ONE ROW PER CLUSTER; includes per-fold AF2/AF3 + ESM list columns)
       - Optionally write SUMMARY_RESULTS_TABLE and DETAILED_RESULTS_TABLE
     """
-    if not pairs:
-        pairs = [f"{a}_{b}" for a, b in list_protein_pairs()]
+    pairs = _resolve_pairs(pairs)
 
     all_detailed = []
     summary_rows = []
@@ -812,9 +821,15 @@ def build_all_pairs_clusters_table(
 ) -> str:
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     # get list of pairs robustly (from the summary CSV)
-    if not os.path.exists(pairs_list_csv):
-        raise FileNotFoundError(f"Cannot find pairs list at {pairs_list_csv}")
+    if not os.path.exists(pairs_list_csv) or os.path.getsize(pairs_list_csv) == 0:
+        print(f"[clusters] WARN: pairs list CSV missing or empty: {pairs_list_csv}")
+        pd.DataFrame(columns=["pair_id", "cluster"]).to_csv(out_csv, index=False)
+        return out_csv
     df_pairs = pd.read_csv(pairs_list_csv)
+    if df_pairs.empty:
+        print(f"[clusters] WARN: pairs list CSV has no rows: {pairs_list_csv}")
+        pd.DataFrame(columns=["pair_id", "cluster"]).to_csv(out_csv, index=False)
+        return out_csv
     pair_col = "fold_pair" if "fold_pair" in df_pairs.columns else ("pair_id" if "pair_id" in df_pairs.columns else None)
     if pair_col is None:
         raise KeyError("Expected 'fold_pair' (or 'pair_id') in pairs list CSV.")
@@ -843,8 +858,7 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
     - Writes summary -> SUMMARY_RESULTS_TABLE, detailed -> DETAILED_RESULTS_TABLE
     """
     print("Start Post-processing pairs!!!", flush=True)
-    if not pairs:
-        pairs = [f"{a}_{b}" for a, b in list_protein_pairs()]
+    pairs = _resolve_pairs(pairs)
 
     all_detailed = []
     summary_rows = []
@@ -908,24 +922,28 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Unified post-processing: build summary/detailed CSVs for the website.")
-    p.add_argument("--pairs", nargs="*", help="Pair IDs like 1fzpD_2frhA. If omitted, process all pairs.")
+    p.add_argument("--pairs", nargs="*", help="Pair IDs like 1fzpD_2frhA, or ALL. If omitted, process all pairs.")
     p.add_argument("--force_rerun", action="store_true",
                    help="FULL mode: recompute per-pair Analysis CSVs even if they exist.")
     p.add_argument("--mode", choices=["full", "unify"], default="full",
                    help="'full' recomputes per-pair Analysis CSVs then unifies; 'unify' only rebuilds unified CSVs from cached per-pair Analysis CSVs.")
     args = p.parse_args()
 
+    # Resolve "ALL" / None / specific pairs once, reuse everywhere
+    resolved_pairs = _resolve_pairs(args.pairs)
+    print(f"[postprocess] processing {len(resolved_pairs)} pairs")
+
     if args.mode == "full":
         # 1) Recompute/refresh per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv)
-        summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=args.pairs)
+        summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=resolved_pairs)
         print(f"[postprocess] per-pair Analysis refreshed: summary rows={len(summary_df)} | detailed rows={len(detailed_df)}")
 
     # 2) Build unified CSVs from those cached per-pair Analysis CSVs (single writer)
-    build_unified_tables_from_cluster_dfs(pairs=args.pairs, write_out=True)
+    build_unified_tables_from_cluster_dfs(pairs=resolved_pairs, write_out=True)
     print(f"[postprocess] unified CSVs written:\n  {SUMMARY_RESULTS_TABLE}\n  {DETAILED_RESULTS_TABLE}")
 
-# 3) Build global per-cluster table (one row per cluster)
-    build_all_pairs_clusters_table() # pairs=args.pairs, write_out=True)
+    # 3) Build global per-cluster table (one row per cluster)
+    build_all_pairs_clusters_table()
     print(f"[postprocess] clusters table written:\n  {Path(SUMMARY_RESULTS_TABLE).parent / 'clusters_global_table.csv'}")
 
 
