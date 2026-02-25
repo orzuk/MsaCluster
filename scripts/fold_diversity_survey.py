@@ -225,10 +225,13 @@ def load_msat_diversity(pair_id, delta, msat_metric="t_recall"):
                       Requires the cmap_analysis.py Layer 2 fix (2026-02-24).
     """
     csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_cmap.csv")
-    if not os.path.isfile(csv_path):
+    if not os.path.isfile(csv_path) or os.path.getsize(csv_path) == 0:
         return []
 
-    df = pd.read_csv(csv_path)
+    try:
+        df = pd.read_csv(csv_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return []
     if df.empty:
         return []
 
@@ -314,10 +317,13 @@ def load_ccmpred_diversity(pair_id, delta, msat_metric="t_recall"):
     df_cmap.csv (MSA-Transformer predictions).
     """
     csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_cmap_ccmpred.csv")
-    if not os.path.isfile(csv_path):
+    if not os.path.isfile(csv_path) or os.path.getsize(csv_path) == 0:
         return []
 
-    df = pd.read_csv(csv_path)
+    try:
+        df = pd.read_csv(csv_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return []
     if df.empty:
         return []
 
