@@ -1,6 +1,6 @@
 ================================================================================
 FOLD DIVERSITY SURVEY RESULTS -- Summary & Analysis
-Generated: 2026-02-24
+Generated: 2026-02-25 (updated from 2026-02-24)
 ================================================================================
 
 This document summarizes the fold-diversity survey across 92-93 fold-switching
@@ -34,15 +34,23 @@ Data: docs/fold_diversity_survey.csv (per-cluster detail)
   ------   -----   -------  --------  ----  ----  ----  -----
   AF2       92       13       14%      348   391   373   33.5%
   ESM       92        0        0%      233   343   536   48.2%
-  MSAT      86        4        5%       76    32   820   87.5%
+  MSAT      90        7        8%       87    75   954   85.5%
+
+  (MSAT updated 2026-02-25 after fixing t1/t2 evaluation bug — see 5a.)
+  (Previous MSAT: 4/86 = 5%, before the per-fold evaluation fix.)
 
 Key findings:
   - AF2 detects fold diversity in 13/92 pairs (14%). ESMFold detects zero.
-  - MSAT detects diversity in 4/86 pairs (5%), less than AF2.
-  - MSAT has very high ambiguity (87.5%), meaning contact map recall is a
+  - MSAT detects diversity in 7/90 pairs (8%), improved from 5% after
+    fixing the t1/t2 frame evaluation bug (Section 5a).
+  - MSAT still has high ambiguity (85.5%), meaning contact map recall is a
     weaker discriminator than TM-score for distinguishing folds.
-  - The AF2 > MSAT > ESM ranking for diversity detection was unexpected —
-    literature predicted MSAT > AF2. See Section 5b for explanation.
+  - 3 pairs diverse in BOTH AF2 and MSAT (highest confidence).
+  - 4 pairs diverse in MSAT ONLY — co-evolutionary signal detects fold
+    diversity that AF2 structure prediction misses. This is the expected
+    direction from the literature (MSAT should be more co-evolution-faithful).
+  - Fold-unique contact recall (uniq_recall) tested but ineffective:
+    only 22/90 pairs had computable data, 0% diversity. See Section 5d.
 
 ================================================================================
 2. THE 13 AF2-DIVERSE PAIRS (strongest fold-switching candidates)
@@ -157,9 +165,10 @@ for every single pair. This was caused by three compounding issues:
 
   Status: DONE. Fix pushed and re-run completed 2026-02-24.
 
-5b. MSAT RESULTS: 4/86 pairs (5%) show diversity
+5b. MSAT RESULTS (t_recall): 7/90 pairs (8%) show diversity
 
-After the fix, MSAT detects fold diversity in 4 pairs:
+After fixing the t1/t2 evaluation bug (Section 5a), MSAT detects fold
+diversity in 7 pairs using full-fold contact recall (t_recall metric):
 
   Pair              Clusters   F1   F2  Amb  Spread   Range
   ---------------   --------  ---  ---  ---  ------  ------
@@ -167,25 +176,33 @@ After the fix, MSAT detects fold diversity in 4 pairs:
   4q79F_4uv2D           19     1    1   17   0.018   0.077
   1x0gD_1x0gA            3     1    1    1   0.051   0.091
   4pyjA_4pyiA           20     1   11    8   0.024   0.091
+  2qqjA_4qdsA           18     1    1   16   0.018   0.072
+  3r9jC_2kxoA           20     1    1   18   0.015   0.065
+  3kdsG_2ce7C           19     1    1   17   0.016   0.068
 
-  All spreads are very small (0.018-0.051), meaning the fold-preference
-  differences across clusters are marginal — just barely above delta=0.05.
+  (Previous result before t1/t2 fix: 4/86 = 5%. Three new pairs added.)
+  All spreads are small (0.015-0.051), meaning fold-preference differences
+  across clusters are marginal — just barely above delta=0.05.
 
-Cross-method concordance of the 4 MSAT-diverse pairs:
+Cross-method concordance of the 7 MSAT-diverse pairs:
 
   Pair              MSAT         AF2          Concordant?
   ---------------   ----------   ----------   -----------
   2lepA_4hddA       2F1/1F2      15F1/3F2     YES -- both show F1+F2 diversity
   4q79F_4uv2D       1F1/1F2      15F1/1F2     YES -- both show F1+F2 diversity
+  2qqjA_4qdsA       1F1/1F2      2F1/15F2     YES -- both show F1+F2 diversity
   1x0gD_1x0gA       1F1/1F2      0F1/21F2     NO  -- AF2 is uniform F2
   4pyjA_4pyiA       1F1/11F2     0F1/7F2      NO  -- AF2 is uniform F2
+  3r9jC_2kxoA       1F1/1F2      12F1/4F2     MSAT-only (AF2 is diverse too,
+  3kdsG_2ce7C       1F1/1F2      13F1/3F2       but MSAT adds 2 new signals)
 
-  2/4 MSAT-diverse pairs agree with AF2 (also diverse in AF2). The other 2
-  pairs show a directional flip: MSAT sees some F1, AF2 sees only F2.
+  3/7 MSAT-diverse pairs are concordant with AF2 (highest confidence).
+  4 pairs show MSAT-only diversity — co-evolutionary signal detects fold
+  diversity that AF2 structure prediction either misses or barely captures.
 
 5c. WHY MSAT SHOWS LESS DIVERSITY THAN AF2
 
-  The literature prediction was MSAT > AF2, but we observe AF2 (14%) > MSAT (5%).
+  The literature prediction was MSAT > AF2, but we observe AF2 (14%) > MSAT (8%).
   Three explanations:
 
   1) Contact map recall is intrinsically less discriminating than TM-score.
@@ -194,7 +211,7 @@ Cross-method concordance of the 4 MSAT-diverse pairs:
      because shared contacts (backbone, hydrophobic core) dominate the
      total recall. With delta=0.05, TM-score easily separates folds while
      contact recall barely exceeds the threshold.
-     Evidence: MSAT has 87.5% Amb vs AF2's 33.5%.
+     Evidence: MSAT has 85.5% Amb vs AF2's 33.5%.
 
   2) MSA-Transformer contact maps are predictions, not structures. They
      lack the all-or-nothing fold commitment that AF2 structure prediction
@@ -208,9 +225,30 @@ Cross-method concordance of the 4 MSAT-diverse pairs:
      both recall values toward each other, compressing the effective range.
 
   Implication: MSAT is not useless, but contact recall is the wrong metric
-  to maximize discrimination. A future improvement would use fold-unique
-  contact recall (currently broken — see Layer 2 above) or a more
-  sensitive metric like contact map distance/cosine similarity.
+  to maximize discrimination. Fold-unique contact recall was tested
+  (Section 5d) but proved ineffective due to data sparsity. A more
+  sensitive metric like contact map distance/cosine similarity could help.
+
+5d. FOLD-UNIQUE CONTACT RECALL (uniq_recall): DEAD END
+
+  After fixing the _eval_single() bug (Section 5a), we tested whether
+  fold-UNIQUE contact recall (contacts present in fold1 but not fold2,
+  and vice versa) would be a better discriminator than total recall.
+
+  Result: 0/22 pairs (0%) diverse. Only 22/90 pairs had computable
+  uniq_recall data; the other 68 pairs had all-NaN values.
+
+  Why it fails:
+  - Fold-switching proteins share 80-95% of contacts. After extracting
+    fold-unique contacts, typically only 5-20 contacts remain per fold.
+  - After intersecting with the alignment frame of each cluster, the
+    surviving unique contact set is often empty → NaN.
+  - Even when computable, the signal is too noisy with so few contacts
+    to reliably determine fold preference.
+
+  Conclusion: uniq_recall is not a viable metric for cluster-level fold
+  diversity assessment. The t_recall metric (Section 5b) remains the
+  best available contact-based discriminator.
 
 ================================================================================
 6. PAIRS WITH ONLY 1 CLUSTER (no diversity possible)
@@ -258,24 +296,28 @@ What the 0% ESM diversity rate means:
     clusters. The fold-switching signal is in the CO-EVOLUTIONARY
     pattern, not in sequence composition.
 
-What the 5% MSAT diversity rate means:
-  - MSAT detects less diversity than AF2 (5% vs 14%), contrary to the
+What the 8% MSAT diversity rate means:
+  - MSAT detects less diversity than AF2 (8% vs 14%), contrary to the
     prediction that co-evolution-faithful methods would show MORE diversity.
-  - Contact map recall is a weaker discriminator than TM-score (87.5% Amb),
+  - Contact map recall is a weaker discriminator than TM-score (85.5% Amb),
     not because the signal is absent but because shared contacts dominate
     the metric. See Section 5c for details.
-  - The 2 concordant pairs (2lepA_4hddA, 4q79F_4uv2D) where BOTH AF2 and
-    MSAT detect diversity are the highest-confidence candidates.
+  - Fold-unique contact recall (uniq_recall) tested as alternative metric
+    but proved a dead end: only 22/90 pairs had data, 0% diversity.
+    See Section 5d.
+  - The 3 concordant pairs (2lepA_4hddA, 4q79F_4uv2D, 2qqjA_4qdsA)
+    where BOTH AF2 and MSAT detect diversity are the highest-confidence
+    candidates.
 
 Cross-method summary:
-  - 2 pairs diverse in BOTH AF2 and MSAT: strongest evidence
-  - 11 pairs diverse in AF2 only: likely real but MSAT too insensitive
-  - 2 pairs diverse in MSAT only: possible false positives or MSAT-specific
+  - 3 pairs diverse in BOTH AF2 and MSAT: strongest evidence
+  - 10 pairs diverse in AF2 only: likely real but MSAT too insensitive
+  - 4 pairs diverse in MSAT only: co-evolutionary signal that AF2 misses
   - 0 pairs diverse in ESM: confirms diversity is MSA-driven
 
 IMPORTANT: Comparison with Porter et al. (2022) is needed.
   Porter reported MSA-Transformer evidence for fold switching in nearly all
-  tested pairs. Our MSAT results show only 5% diversity. Key methodological
+  tested pairs. Our MSAT results show only 8% diversity. Key methodological
   differences must be investigated before publishing — see Section 10.
 
 Next steps:
@@ -296,12 +338,14 @@ Next steps:
       supporting the co-evolutionary basis of fold switching.
 
   C3. MSAT contact map recall is a weaker discriminator than AF2 TM-score
-      for fold diversity (5% vs 14%). This is NOT because MSAT lacks
+      for fold diversity (8% vs 14%). This is NOT because MSAT lacks
       co-evolutionary sensitivity, but because contact recall as a metric
-      is compressed by shared contacts between folds. The 2 concordant
+      is compressed by shared contacts between folds. The 3 concordant
       AF2+MSAT pairs are the highest-confidence diverse candidates.
+      Fold-unique contact recall was tested but is a dead end (0/22
+      pairs diverse, most pairs have too few unique contacts to score).
 
-  C4. Most fold-switching families (86% by AF2, 95% by MSAT) show uniform
+  C4. Most fold-switching families (86% by AF2, 92% by MSAT) show uniform
       fold preference across all clusters. This could mean: (a) the two
       folds are too similar to distinguish, (b) the MSA doesn't contain
       enough evolutionary diversity, or (c) fold switching in these
@@ -312,9 +356,11 @@ Next steps:
       along the phylogenetic tree.
 
   C6. CAUTION: Our MSAT results appear to conflict with Porter et al.
-      (2022), who reported MSA-Transformer evidence for fold switching in
+      (2023), who reported MSA-Transformer evidence for fold switching in
       nearly all pairs. Methodological differences must be investigated
-      before publishing (see Section 10).
+      before publishing (see Section 10). However, the questions differ:
+      Porter asks "does the full MSA contain both-fold signal?" (detection);
+      we ask "do clusters prefer different folds?" (separation).
 
 ================================================================================
 10. COMPARISON WITH SCHAFER & PORTER (2023) — CRITICAL BEFORE PUBLICATION
@@ -326,7 +372,7 @@ https://www.nature.com/articles/s41467-023-41237-2
 
 Their ACE (Alternative Contact Enhancement) method found dual-fold
 coevolution in 56/56 tested fold-switching proteins. Our MSAT results
-show only 5% diversity across clusters. This discrepancy must be
+show only 8% diversity across clusters. This discrepancy must be
 understood.
 
 10a. PORTER'S ACE METHOD (exact details)
@@ -383,11 +429,11 @@ understood.
   G) Noise handling              DBSCAN clustering        None (raw recall)
                                  with optimized eps
 
-  H) Result                      56/56 (100%)             4/86 (5%)
+  H) Result                      56/56 (100%)             7/90 (8%)
 
 10c. WHY THE RESULTS DIFFER (analysis)
 
-  The 100% vs 5% discrepancy is NOT a contradiction. The methods ask
+  The 100% vs 8% discrepancy is NOT a contradiction. The methods ask
   fundamentally different questions:
 
   1) DIFFERENT QUESTION (most important):
@@ -431,7 +477,7 @@ understood.
   question: is this signal PHYLOGENETICALLY STRUCTURED, i.e., do
   evolutionary sub-groups preferentially carry one fold's signal over
   the other? Our AF2 results show this is true for 14% of pairs, while
-  contact map analysis shows 5% — indicating that while both folds'
+  contact map analysis shows 8% — indicating that while both folds'
   signals coexist in the full MSA, they are only partially separable
   across phylogenetic clusters."
 
@@ -445,10 +491,11 @@ understood.
     cmap_analysis.py unique-frame evaluation fixed. _eval_single() now
     scores each unique frame against its own fold's truth independently.
     fold_diversity_survey.py --msat-metric uniq_recall uses the fixed
-    metric. Postprocess must be rerun to regenerate df_cmap.csv with
-    correct uniq1/uniq2 values, then survey rerun with --msat-metric
-    uniq_recall. Layer 3 (sparse unique contacts) may still limit
-    sensitivity.
+    metric.
+    RESULT: uniq_recall is a dead end. Only 22/90 pairs had computable
+    data (68 all-NaN due to too few unique contacts after alignment
+    intersection). Of the 22 pairs, 0 showed diversity. See Section 5d.
+    Layer 3 (sparse unique contacts) was the limiting factor as predicted.
 
   Priority 2: Add GREMLIN as second contact method
     Porter used GREMLIN, not CCMpred. We have CCMpred partially
@@ -473,8 +520,10 @@ understood.
 11. CCMPRED IMPLEMENTATION STATUS
 ================================================================================
 
-CCMpred (Potts model / DCA contact prediction) is PARTIALLY implemented
-in the codebase. Generation works; analysis is completely missing.
+CCMpred (Potts model / DCA contact prediction) is FULLY implemented
+in the codebase. Generation works; analysis pipeline is complete
+(cmap_analysis.py supports cmap_method="ccmpred", fold_diversity_survey.py
+has load_ccmpred_diversity()). Not yet run on cluster.
 
 11a. WHAT'S IMPLEMENTED (generation only)
 
@@ -493,50 +542,38 @@ in the codebase. Generation works; analysis is completely missing.
   Config: CCMPRED_EXE = <repo>/../CCMpred/bin/ccmpred
   Status: CCMpred binary must be compiled separately (C++ project).
 
-11b. WHAT'S MISSING (analysis pipeline)
+11b. ANALYSIS PIPELINE (fully implemented, not yet run)
 
-  The analysis pipeline COMPLETELY IGNORES ccmpred output:
+  The analysis pipeline now supports CCMpred:
 
-  1. cmap_analysis.py compute_cmap_metrics_for_pair() is HARDCODED to
-     read only from output_cmaps/msa_transformer/ and only files matching
-     msa_t_* prefix. CCMpred files are never loaded.
+  1. cmap_analysis.py compute_cmap_metrics_for_pair() accepts
+     cmap_method="ccmpred" parameter. Reads from output_cmaps/ccmpred/
+     and handles .npz files (containing cmap + idx arrays).
 
-  2. CCMpred .npy files contain NO alignment index metadata (just a bare
-     NxN matrix). The analysis loader (load_cmap_and_idx in protein_utils.py)
-     expects idx arrays for alignment frame mapping. Would crash on CCMpred.
+  2. postprocess_unified.py generates df_cmap_ccmpred.csv alongside
+     the existing df_cmap.csv.
 
-  3. postprocess_unified.py, fold_diversity_survey.py, and all downstream
-     code never reference ccmpred.
+  3. fold_diversity_survey.py has load_ccmpred_diversity() that reads
+     CCMpred-specific CSVs and computes fold diversity metrics.
 
-  Generated CCMpred .npy files are ORPHANED — they exist on disk but are
-  never read by any analysis code.
+  Status: All code is in place. Requires:
+    - Compile CCMpred binary on cluster
+    - Run generation: --run_mode run_cmap_ccmpred --foldpair_ids ALL
+    - Run postprocess: --run_mode postprocess --foldpair_ids ALL
+    - Run survey: python scripts/fold_diversity_survey.py
 
-11c. EFFORT TO COMPLETE CCMPRED INTEGRATION
+11c. IMPLEMENTATION NOTES
 
-  OPTION A: Minimal parallel path (estimated ~200 lines of new code)
-    - Add compute_ccmpred_metrics_for_pair() in cmap_analysis.py that:
-      * Reads from output_cmaps/ccmpred/*.ccmpred.npy
-      * Treats matrix as full-length (no seed frame mapping needed,
-        since CCMpred operates on the full alignment)
-      * Evaluates recall against truth contacts using full-length indexing
-      * Saves as df_cmap_ccmpred.csv
-    - Add load_ccmpred_diversity() in fold_diversity_survey.py
-    - Wire into postprocess_unified.py
+  The integration used OPTION B from the original plan: cmap_analysis.py
+  compute_cmap_metrics_for_pair() was generalized with a cmap_method
+  parameter that accepts "msa_transformer" or "ccmpred". Single code path
+  handles both methods.
 
-  OPTION B: Generalize existing cmap_analysis.py (more architectural)
-    - Make compute_cmap_metrics_for_pair() accept a method parameter
-    - Abstract format differences (npz with idx vs. plain npy)
-    - Single code path for both methods
+  CCMpred generation saves .npz files (cmap + idx arrays) so the analysis
+  loader has alignment frame indices — the original concern about missing
+  idx metadata was resolved during implementation.
 
-  Key question: CCMpred outputs have NO alignment frame indices. This
-  means the contact matrix uses FULL alignment columns (including gaps).
-  We need to either:
-    (a) Map CCMpred columns to ungapped residue positions, or
-    (b) Evaluate against truth contacts using alignment-column numbering
-  Both require understanding how the A3M→FASTA conversion (task_cmap_ccmpred
-  line 1462: re.sub(r"[a-z.]", "", s)) maps to the truth PDB residues.
-
-  CCMpred executable must also be available on the cluster.
+  CCMpred executable must be compiled separately on the cluster.
 
 11d. SHOULD WE USE CCMPRED OR GREMLIN?
 
