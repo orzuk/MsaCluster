@@ -1869,7 +1869,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
 
     # Map CLI flags
     cached_only = _bool_from_tf(getattr(args, "cached_only", "FALSE"))
-    force_rerun = not cached_only or _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
+    force_rerun = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
     run_job_mode = (getattr(args, "run_job_mode", "local") or "local").lower()
 
     # =========================
