@@ -306,31 +306,32 @@ PHASE 11: FOLD DIVERSITY SURVEY COMPLETE + PORTER COMPARISON
 ================================================================================
 
 [SURVEY-1] DONE - Fold diversity survey run on all pairs (2026-02-24)
-  Results: AF2 13/92 (14%), ESM 0/92 (0%), MSAT 4/86 (5%).
+  Results: AF2 13/92 (14%), ESM 0/92 (0%), MSAT 7/90 (8%).
   See SUMMARY_RESULTS.txt for full analysis including the 13 AF2-diverse
   pairs, AF2-ESM flip pairs, MSAT bug history, and cross-method concordance.
 
-[SURVEY-2] DONE - MSAT bug fixed (was using broken uniq1/uniq2 recall)
-  fold_diversity_survey.py now uses t1_recall/t2_recall (full-fold recall).
-  The initial all-zeros MSAT result was due to three compounding issues:
-  fillna(0) in survey, dimension mismatch in cmap_analysis.py unique-frame
-  evaluation, and sparse fold-unique contacts biologically.
+[SURVEY-2] DONE - MSAT t1/t2 evaluation bug fixed + rerun (2026-02-25)
+  Fixed t1/t2 frame mismatch (was passing cross-fold matrices to
+  evaluate_pred_cmap). Now uses independent _eval_single() per fold.
+  Also fixed: force_rerun logic, ALL pairs resolution, missing PDB
+  handling, empty CSV handling. MSAT improved from 4/86 (5%) to 7/90 (8%).
+  3 concordant AF2+MSAT pairs, 4 MSAT-only diverse pairs.
 
-[SURVEY-3] PENDING - Investigate Porter/Schafer comparison (CRITICAL)
-  Our MSAT 5% vs Porter's ACE 100% detection is NOT a contradiction —
-  different questions (cluster separation vs. full-MSA detection).
-  But must be properly framed in paper. See SUMMARY_RESULTS.txt Section 10.
-  Action items:
-    a) Fix fold-unique contact metric in cmap_analysis.py (Layer 2 bug)
-    b) Run MSA-Transformer on DeepMsa.a3m (full MSA) for comparison
-    c) Consider CCMpred/GREMLIN as second contact method (Section 11)
-    d) Frame paper: our contribution is CLUSTER SEPARATION, not detection
+[SURVEY-2b] DONE - uniq_recall metric tested, dead end (2026-02-25)
+  fold_diversity_survey.py --msat-metric uniq_recall tested on cluster.
+  Result: 0/22 pairs diverse, 68/90 all-NaN. Too few fold-unique
+  contacts survive alignment intersection. See SUMMARY_RESULTS.txt 5d.
 
-[SURVEY-4] PENDING - Complete CCMpred analysis integration
-  CCMpred generation is implemented (task_cmap_ccmpred). Analysis pipeline
-  completely ignores CCMpred output. ~200 lines of new code needed.
-  See SUMMARY_RESULTS.txt Section 11 for full assessment.
-  Lower priority than SURVEY-3 unless needed for Porter comparison.
+[SURVEY-3] DONE (framing) - Porter/Schafer comparison framed
+  Our MSAT 8% vs Porter's ACE 100% is NOT a contradiction — different
+  questions (cluster separation vs. full-MSA detection). Framing written
+  in SUMMARY_RESULTS.txt Section 10. Remaining action items moved to
+  Phase 12 (prioritized analysis tasks).
+
+[SURVEY-4] DONE (code) - CCMpred analysis integration complete
+  cmap_analysis.py supports cmap_method="ccmpred", fold_diversity_survey.py
+  has load_ccmpred_diversity(). Not yet run on cluster (need to compile
+  CCMpred binary). See SUMMARY_RESULTS.txt Section 11.
 
 ================================================================================
 SCIENTIFIC/PIPELINE TASKS (non-refactoring)
@@ -342,11 +343,10 @@ From existing PROJECT_SUMMARY.md and README.md:
   Status: Partially complete (many Pipeline/ dirs exist with outputs).
   Next:   Check which pairs are missing results, run remaining.
 
-[SCI-2] DONE (partial) - Validate contact map metrics
-  Status: cmap_analysis.py cluster_name bug fixed earlier.
-  Remaining: fold-unique contact evaluation is still broken
-  (dimension mismatch in cmap_analysis.py unique-frame eval).
-  See SUMMARY_RESULTS.txt Section 5a Layer 2.
+[SCI-2] DONE - Validate contact map metrics
+  cmap_analysis.py cluster_name bug fixed (Phase 1). Fold-unique contact
+  evaluation fixed (SURVEY-2, _eval_single). uniq_recall tested and found
+  to be a dead end (SURVEY-2b). t_recall metric working correctly.
 
 [SCI-3] Complete ESM3 predictions
   Status: infer_esm3.py supports ESM3 but may not have been run on all pairs.
@@ -359,3 +359,308 @@ From existing PROJECT_SUMMARY.md and README.md:
 [SCI-5] Update GitHub Pages
   Status: docs/ directory has HTML reports.
   Next:   Regenerate after fixing bugs and completing pipeline runs.
+
+================================================================================
+PHASE 12: PRIORITIZED NEXT ANALYSIS TASKS
+================================================================================
+
+Updated: 2026-02-25
+Current results: AF2 14% (13/92), ESM 0%, MSAT 8% (7/90) fold diversity.
+Goal: strengthen the paper with analyses that improve understanding of
+fold-switching evolution and provide the strongest scientific narrative.
+
+Each task rated on:
+  Impact:  how much it improves the paper / understanding  (HIGH/MED/LOW)
+  Effort:  coding + cluster compute + interpretation       (HIGH/MED/LOW)
+  Risk:    chance the result is uninformative or negative   (HIGH/MED/LOW)
+
+Tasks ordered by priority (best impact/effort/risk ratio first).
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 1: CLASSIFY PAIRS BY FOLD-SWITCH TRIGGER TYPE
+────────────────────────────────────────────────────────────────────────────────
+[ANA-1] Classify 94 fold-switching pairs by trigger mechanism
+
+  Impact:  HIGH — stratifying results by trigger type could explain WHY
+    86% of pairs show no cluster diversity (many may be ligand-triggered
+    where the alternative fold isn't encoded in co-evolutionary patterns).
+    If equilibrium switchers show higher diversity than triggered switchers,
+    that's a clean mechanistic story for the paper.
+
+  Effort:  MED — primarily literature curation, not coding.
+    a) Check if Porter/Looger 2018 (PNAS) supplementary tables already
+       classify trigger types (their Table S1 had 96 proteins).
+    b) Check Chakravarty & Porter 2023 "Distinguishing features" (Table 1
+       or supplements) for trigger classification.
+    c) If not available: manual literature curation for 94 pairs (~2-3 days).
+       For each pair, look up the original characterization paper and note:
+       - Equilibrium (both folds populated spontaneously)
+       - Binding partner (fold switch upon protein-protein interaction)
+       - Ligand (small molecule triggers switch)
+       - pH / temperature / redox / oligomerization
+       - Unknown / not characterized
+    d) Add trigger_type column to data/foldswitch_PDB_IDs_full.txt or
+       a new data/fold_switch_metadata.csv.
+    e) Stratify fold_diversity_survey.py results by trigger type.
+
+  Risk:    LOW — even if trigger info is incomplete for some pairs, the
+    stratification adds value. The classification itself is a contribution.
+
+  Expected outcome:
+    Equilibrium switchers: higher diversity (co-evolution encodes both folds)
+    Triggered switchers: lower diversity (alternative fold is environmentally
+    induced, not sequence-encoded)
+
+  Where trigger info lives:
+    - NOT in PDB files (no standard annotation for fold-switch mechanism)
+    - NOT in Table_S1B_final.xlsx (only structural metrics: TM, RMSD, SeqID)
+    - Scattered across individual characterization papers for each protein
+    - Possibly in Porter group supplementary data (check first)
+
+  Proxy approach (faster, less reliable):
+    Compare ligands in fold1 vs fold2 PDB structures. If one PDB has a
+    ligand/binding partner that the other doesn't, flag as likely triggered.
+    Automatable via PDB REST API, but noisy.
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 2: RUN MSAT ON DEEP MSA (full MSA comparison)
+────────────────────────────────────────────────────────────────────────────────
+[ANA-2] Run MSA-Transformer on DeepMsa.a3m for each pair
+
+  Impact:  HIGH — directly tests whether both-fold signal exists in the
+    full MSA (like Porter found) but is not cluster-separable. If the
+    deep-MSA contact map shows balanced recall for both folds while
+    cluster maps are biased toward one fold, this is the paper's central
+    finding: "signal exists but is phylogenetically interleaved."
+
+  Effort:  LOW-MED — code changes are minimal.
+    a) The MSAT inference pipeline already processes any .a3m file.
+       Just need to run it on DeepMsa.a3m in addition to ShallowMsa_*.a3m.
+    b) Add a flag or modify task_cmap_msat() to include the deep MSA.
+    c) cmap_analysis.py already handles the "DeepMsa" tag.
+    d) Compare deep-MSA recall (t1 vs t2) to per-cluster recall spread.
+    e) Cluster GPU time: ~1-2 hours for 93 pairs (one extra inference each).
+
+  Risk:    LOW — almost certainly informative either way.
+    If deep MSA shows both-fold signal: confirms Porter, strengthens story.
+    If deep MSA also shows one-fold bias: raises interesting questions about
+    MSA-Transformer vs GREMLIN/ACE sensitivity.
+
+  Expected outcome: Deep MSA contact maps show more balanced F1/F2 recall
+    than individual cluster maps (Porter-consistent).
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 3: ANCESTRAL FOLD-PREFERENCE RECONSTRUCTION
+────────────────────────────────────────────────────────────────────────────────
+[ANA-3] Run ancestral state reconstruction on cluster trees
+
+  Impact:  HIGH — this is the evolutionary narrative for the paper.
+    For the 13 AF2-diverse pairs: was fold preference gained once or
+    multiple times? Is there a single transition point on the tree?
+    Pattern classification (single-origin, convergent, mixed) directly
+    maps to evolutionary hypotheses about fold switching.
+
+  Effort:  LOW — code is DONE (utils/ancestral_utils.py,
+    scripts/run_ancestral_analysis.py). Just need to run on cluster:
+      python scripts/run_ancestral_analysis.py --pairs ALL --delta 0.05
+    Then review results + ancestral tree figures.
+
+  Risk:    MED — with only 3-20 clusters per pair and many Amb states,
+    the reconstruction may be ambiguous for most pairs. The 13 AF2-diverse
+    pairs will be informative; the 79 uniform pairs will show trivial
+    "all F1" or "all Amb" patterns.
+
+  Depends on: nothing (code ready, cluster data available)
+
+  Status: [ASR-4] and [ASR-5] from Phase 10 — just need execution.
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 4: AF2 WITH REPRESENTATIVE CLUSTER SEQUENCES
+────────────────────────────────────────────────────────────────────────────────
+[ANA-4] Fold representative sequences from each cluster with AF2
+
+  Impact:  MED-HIGH — tests whether different lineages actually fold
+    differently due to sequence divergence (Model B: different sequences →
+    different folds) vs. co-evolutionary context driving fold choice
+    (Model A: same sequence, different MSA context → different folds).
+    Current design (same query, different MSAs) tests Model A only.
+    This would test Model B and distinguish the two.
+
+  Effort:  MED-HIGH — requires:
+    a) Select representative sequence per cluster (e.g., medoid or
+       consensus sequence from each ShallowMsa).
+    b) Run AF2 ColabFold on each representative with its cluster MSA.
+    c) Score each prediction against both fold truths (TM-score).
+    d) Compare to existing results (same query, different MSAs).
+    e) Cluster compute: significant — one AF2 job per cluster per pair
+       (~1000+ ColabFold runs for 93 pairs x ~10 clusters average).
+
+  Risk:    MED — if fold-switching proteins have very high intra-family
+    sequence identity (many are 90-100% identical), representative
+    sequences may be nearly identical to the query → same result.
+    Only informative for families with significant sequence divergence
+    between clusters.
+
+  Expected outcome: For most pairs, representative ≈ query (no difference).
+    For a few diverse families, may see stronger fold separation.
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 5: NEGATIVE CONTROLS
+────────────────────────────────────────────────────────────────────────────────
+[ANA-5] Run negative control pipeline on cluster
+
+  Impact:  MED — establishes baseline false-positive rate. Reviewers will
+    ask "how do you know 14% isn't just noise?" Controls answer this.
+    If controls show 0-2% diversity, the 14% AF2 rate is significant.
+    If controls show 10%+, the signal is questionable.
+
+  Effort:  MED — code is DONE (run_controls_pipeline.py). Three control
+    types ready:
+    a) CTRL-1: Porter IDP controls (99 proteins) — run_controls_pipeline.py
+    b) CTRL-2: Matched single-fold controls (per-pair Pfam matches)
+    c) CTRL-3: Random single-chain proteins (100 from RCSB)
+    Cluster compute: significant for AF2 (ColabFold runs for each control).
+    ESM/MSAT are fast.
+
+  Risk:    LOW — controls are standard, always publishable.
+    Even if diversity rate in controls is non-zero, it provides a
+    statistical baseline for comparison.
+
+  Depends on: Phase 8 setup scripts (DONE)
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 6: RUN CCMPRED ON CLUSTER
+────────────────────────────────────────────────────────────────────────────────
+[ANA-6] Compile CCMpred and run contact prediction pipeline
+
+  Impact:  MED — adds a second contact prediction method (Potts model /
+    DCA). If CCMpred shows higher diversity than MSAT, it suggests the
+    neural-network-based MSA-Transformer blends signals while the
+    statistical model preserves fold-specific patterns. Relevant for
+    Porter comparison (they used GREMLIN, also Potts-based).
+
+  Effort:  MED — compile CCMpred (C++, cmake), then:
+      python run_foldswitch_pipeline.py --run_mode run_cmap_ccmpred \
+             --foldpair_ids ALL --run_job_mode sbatch
+      python run_foldswitch_pipeline.py --run_mode postprocess \
+             --foldpair_ids ALL --run_job_mode inline
+      python scripts/fold_diversity_survey.py
+    Code is DONE (SURVEY-4). Just need binary + execution.
+    CPU only (no GPU), but CCMpred is slow (~30 min per MSA).
+
+  Risk:    MED — CCMpred may show similar results to MSAT (both read
+    co-evolutionary signal from the same MSAs). The main value is
+    methodological completeness for the paper.
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 7: REPLICATE PORTER'S ACE APPROACH (partial)
+────────────────────────────────────────────────────────────────────────────────
+[ANA-7] Run MSAT on sub-MSAs at multiple QID thresholds
+
+  Impact:  MED — directly comparable to Porter's method. If we also get
+    ~100% detection from the full MSA (combining all QID sub-MSAs) but
+    only 8% from clusters, that's a clean separation of detection vs.
+    cluster-level preference.
+
+  Effort:  HIGH — requires:
+    a) Generate sub-MSAs at QID 1-50% from DeepMsa.a3m (hhfilter).
+    b) Run MSAT on all 50 sub-MSAs per pair (50 x 93 = 4650 inferences).
+    c) Combine predictions and compare to Porter's approach.
+    d) Significant coding + compute.
+
+  Risk:    MED-HIGH — may not add enough beyond ANA-2 (deep MSA comparison)
+    to justify the effort. ANA-2 gives 80% of the insight at 10% of the
+    cost.
+
+  Recommendation: Do ANA-2 first. Only pursue ANA-7 if reviewers
+    specifically request direct ACE replication.
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY 8: CONTACT MAP DISTANCE METRIC (alternative to recall)
+────────────────────────────────────────────────────────────────────────────────
+[ANA-8] Test alternative contact map comparison metrics
+
+  Impact:  LOW-MED — contact recall has 85% ambiguity. A different metric
+    (cosine similarity, Frobenius norm, earth mover's distance on contact
+    probability matrices) might be more discriminating. But the fundamental
+    problem is shared contacts, which affects all metrics.
+
+  Effort:  MED — requires:
+    a) Implement 2-3 alternative metrics in cmap_analysis.py
+    b) Rerun survey with each metric
+    c) Compare discrimination power
+
+  Risk:    HIGH — likely marginal improvement. The 85% ambiguity comes
+    from biology (shared contacts), not from the metric choice. Any
+    metric that uses the full contact map will be dominated by shared
+    contacts. Only fold-unique metrics escape this, but those have the
+    sparsity problem (Section 5d).
+
+  Recommendation: Low priority. Mention as future work in paper.
+
+────────────────────────────────────────────────────────────────────────────────
+SUMMARY: RECOMMENDED EXECUTION ORDER
+────────────────────────────────────────────────────────────────────────────────
+
+  PHASE     TASK                              IMPACT  EFFORT  RISK
+  ────────  ────────────────────────────────  ──────  ──────  ──────
+  ANA-3     Ancestral reconstruction (run)    HIGH    LOW     MED     ← DO FIRST
+  ANA-2     MSAT on deep MSA                  HIGH    LOW-MED LOW     ← DO SECOND
+  ANA-1     Classify trigger types            HIGH    MED     LOW     ← DO THIRD
+  ANA-5     Negative controls                 MED     MED     LOW     ← DO FOURTH
+  ANA-6     CCMpred on cluster                MED     MED     MED     ← DO FIFTH
+  ANA-4     AF2 representative sequences      MED-HI  MED-HI  MED     ← OPTIONAL
+  ANA-7     Replicate ACE (QID sub-MSAs)      MED     HIGH    MED-HI  ← IF NEEDED
+  ANA-8     Alternative cmap metrics          LOW-MED MED     HIGH    ← FUTURE WORK
+
+  Quick wins (ready to run NOW, no coding needed):
+    ANA-3: python scripts/run_ancestral_analysis.py --pairs ALL
+    ANA-5: python run_controls_pipeline.py --run_mode full_pipeline ...
+
+  Needs minor coding first:
+    ANA-2: add DeepMsa.a3m to MSAT inference, then run + compare
+
+  Needs literature/curation work:
+    ANA-1: gather trigger types from papers (or find in Porter supplements)
+
+────────────────────────────────────────────────────────────────────────────────
+NOTES ON FOLD-SWITCH TRIGGER TYPES (background for ANA-1)
+────────────────────────────────────────────────────────────────────────────────
+
+  The field classifies fold-switching into two broad categories
+  (Chakravarty & Porter, Protein Science 2023):
+
+  1. EQUILIBRIUM SWITCHING
+     Both folds populated simultaneously under physiological conditions.
+     Examples: lymphotactin XCL1 (~50/50 at 37C), some NusG family members.
+     Expected: dual-fold co-evolutionary signal should be strong.
+     Our prediction: HIGHER cluster diversity (co-evolution encodes both).
+
+  2. TRIGGERED SWITCHING
+     External stimulus shifts population from one fold to the other:
+     a) Binding partner: RfaH + RNAP, Orf9b + TOM70, Mad2 + partner
+     b) Ligand: KaiB (ATP/ADP), small molecules
+     c) pH: hemagglutinin (endosomal acidification)
+     d) Temperature: lymphotactin (also equilibrium), designed systems
+     e) Redox: CLIC1 (chloride intracellular channel)
+     f) Oligomerization: concentration-dependent (KaiB tetramer)
+     g) Membrane insertion: pore-forming toxins
+     h) Proteolytic cleavage: serpins (irreversible)
+     Expected: alternative fold may not be encoded in sequence co-evolution.
+     Our prediction: LOWER cluster diversity.
+
+  Why this matters for interpretation:
+  - If triggered switchers dominate the 86% non-diverse pairs, the low
+    diversity rate is explained: AF2/MSAT can't detect folds that are
+    environmentally induced rather than sequence-encoded.
+  - If equilibrium switchers also show low diversity, it means the
+    co-evolutionary signal is interleaved within clusters (Porter's
+    finding at the family level holds at the cluster level too).
+
+  Data availability:
+  - Table_S1B_final.xlsx: NO trigger info (only TM/RMSD/SeqID)
+  - PDB files: ligands present in HETATM records (indirect, unreliable)
+  - Literature: must check each protein's characterization paper
+  - Porter/Looger 2018 PNAS supplements: MAY have classification
+  - Chakravarty & Porter 2023 supplements: MAY have classification
+  - 2025 review (PMC12629603): no systematic table found
