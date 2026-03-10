@@ -841,7 +841,15 @@ def draw_grouped_heatmap(
     return (cmap, group_scalars) if return_group_scalars else None
 
 
-def draw_tree_aligned(ax, ete_tree, leaf_order):
+def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None):
+    """Draw L-shaped tree branches aligned to heatmap rows.
+
+    Parameters
+    ----------
+    leaf_colors : dict, optional
+        {leaf_name: color_string} — if given, draw a colored circle at each
+        leaf tip to indicate fold preference (F1=red, F2=blue, Amb=gray).
+    """
     import numpy as np
 
     y_pos = {name: i for i, name in enumerate(leaf_order)}
@@ -881,6 +889,16 @@ def draw_tree_aligned(ax, ete_tree, leaf_order):
             ax.plot([x0, x1], [y1, y1], color="#666666", lw=1.0, solid_capstyle="butt")
             ax.plot([x0, x0], [y0, y1], color="#666666", lw=1.0, solid_capstyle="butt")
 
+    # draw colored circles at leaf tips if fold-preference colors are given
+    if leaf_colors:
+        xmax_leaf = max((x_pos[n] for n in root.traverse() if n.is_leaf()),
+                        default=0)
+        for node in root.iter_leaves():
+            if node.name in y_pos and node.name in leaf_colors:
+                ax.plot(x_pos[node], y_pos[node.name], 'o',
+                        color=leaf_colors[node.name], markersize=7,
+                        markeredgecolor='k', markeredgewidth=0.5, zorder=5)
+
     n = len(leaf_order)
     ax.set_ylim(n - 0.5, -0.5)
     xmin, xmax = min(x_pos.values()), max(x_pos.values())
@@ -903,7 +921,9 @@ def compose_tree_and_heatmap(
     ylabels_override=None,    # if provided, replaces df_leaf.index on the heatmap
     lock_scales_to_unit=False,
     split_groups=True,        # NEW: draw one mini-heatmap per group with a small gap
-    group_gap_frac=0.08       # NEW: ~8% of a group's width used as inter-group gap
+    group_gap_frac=0.08,      # NEW: ~8% of a group's width used as inter-group gap
+    leaf_colors=None,         # {leaf_name: color_str} for tree tip dots
+    fold_pref_per_row=None,   # [pref_str, ...] same order as df_leaf rows — adds color strip
 ):
     import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
     from matplotlib.gridspec import GridSpecFromSubplotSpec
@@ -970,7 +990,8 @@ def compose_tree_and_heatmap(
             cbar_axes.append(ax_c)
 
     # ----- draw the tree aligned to df_leaf row order -----
-    draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index))
+    draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index),
+                      leaf_colors=leaf_colors)
 
     # ----- draw the heatmaps -----
     # shared colormap (with NaN color); per-group vmin/vmax
@@ -1037,6 +1058,34 @@ def compose_tree_and_heatmap(
         # thin bounding lines to make groups visually distinct
         ax.axvline(-0.5, color="k", lw=0.5, alpha=0.25)
         ax.axvline(len(gcols) - 0.5, color="k", lw=0.5, alpha=0.25)
+
+    # ----- fold-preference color strip (narrow column after last heatmap group) -----
+    _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
+    if fold_pref_per_row is not None and len(fold_pref_per_row) == df_plot.shape[0]:
+        import matplotlib.colors as mcolors
+        bb = ax_heat_region.get_position()
+        strip_w = unit * 0.6  # narrow strip ~0.6 unit wide
+        strip_gap = unit * gap * 1  # gap before strip
+        ax_strip = fig.add_axes([bb.x0 + left * bb.width + strip_gap * bb.width,
+                                 bb.y0, strip_w * bb.width, bb.height])
+        # build RGB array for strip
+        rgb = np.array([mcolors.to_rgb(_FOLD_COLORS.get(p, "#999999"))
+                        for p in fold_pref_per_row])
+        ax_strip.imshow(rgb.reshape(-1, 1, 3), aspect="auto", interpolation="nearest")
+        ax_strip.set_xticks([0])
+        ax_strip.set_xticklabels(["Fold"], rotation=x_tick_rotation, ha="right",
+                                  fontsize=x_tick_fontsize)
+        ax_strip.set_yticks([])
+        ax_strip.tick_params(axis="x", pad=6)
+
+        # add legend for fold preference colors
+        import matplotlib.patches as mpatches
+        handles = [mpatches.Patch(color=c, label=s) for s, c in _FOLD_COLORS.items()
+                   if s in set(fold_pref_per_row)]
+        if handles:
+            ax_strip.legend(handles=handles, loc="upper left",
+                            bbox_to_anchor=(1.2, 1.0), fontsize=7,
+                            framealpha=0.8, handlelength=1.0, handleheight=1.0)
 
     # ----- colorbars: one per group (narrow & long), extremes shown -----
     from matplotlib.ticker import FixedLocator, FixedFormatter  # put with other imports above

@@ -558,6 +558,29 @@ def make_foldswitch_all_plots(
 
         ylabels_override = [_cluster_short_label_from_tag(t) for t in ordered_tags]
 
+        # ----- Compute fold preferences for colored tree tips + strip -----
+        _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
+        fold_pref_per_row = None
+        leaf_colors_dict = None
+        if "TM-AF1" in df_cluster_ordered.columns and "TM-AF2" in df_cluster_ordered.columns:
+            cluster_tms = {}
+            for tag in ordered_tags:
+                tm1 = df_cluster_ordered.loc[tag, "TM-AF1"]
+                tm2 = df_cluster_ordered.loc[tag, "TM-AF2"]
+                try:
+                    cluster_tms[tag] = (float(tm1), float(tm2))
+                except (ValueError, TypeError):
+                    pass
+            if cluster_tms:
+                from utils.ancestral_utils import assign_fold_preference
+                prefs = assign_fold_preference(cluster_tms, delta=0.05)
+                fold_pref_per_row = [prefs.get(t, "Amb") for t in ordered_tags]
+                # Map to leaf names for tree coloring
+                leaf_colors_dict = {}
+                for tag, leaf_name in zip(ordered_tags, leaf_order):
+                    pref = prefs.get(tag, "Amb")
+                    leaf_colors_dict[leaf_name] = _FOLD_COLORS[pref]
+
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
         print("Making tree heatmap plot with column groups...", col_groups, flush=True)
         compose_tree_and_heatmap(
@@ -570,6 +593,8 @@ def make_foldswitch_all_plots(
             x_tick_rotation=90, x_tick_fontsize=9, y_tick_fontsize=9,
             nan_rgba=(0.92, 0.92, 0.92, 1.0),
             ylabels_override=ylabels_override,
+            leaf_colors=leaf_colors_dict,
+            fold_pref_per_row=fold_pref_per_row,
         )
 
         print(f"[ok] saved tree heatmap -> {out_root}.png")
