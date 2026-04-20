@@ -229,6 +229,7 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
         df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
         df_cmap_cc = _safe_read_csv(str(anal / "df_cmap_ccmpred.csv"))
+        df_ddg  = _safe_read_csv(str(anal / "df_ddg.csv"))
 
         # === DETAILED: ONE ROW PER CLUSTER ===
         try:
@@ -323,6 +324,19 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
         row["CCMpred_CMAP_PR2"] = _best_max(df_cmap_cc, "t2_precision")
         row["CCMpred_CMAP_RE1"] = _best_max(df_cmap_cc, "t1_recall")
         row["CCMpred_CMAP_RE2"] = _best_max(df_cmap_cc, "t2_recall")
+
+        # DDG conformation-bias (ThermoMPNN). bias_mean > 0 => cluster prefers F1.
+        if df_ddg is not None and not df_ddg.empty and "bias_mean" in df_ddg.columns:
+            bm = df_ddg["bias_mean"].astype(float)
+            row["DDG_Bias_mean"]    = round(float(bm.mean()), 3)  # average across clusters
+            row["DDG_Bias_F1_best"] = round(float(bm.max()), 3)   # most F1-preferring cluster
+            row["DDG_Bias_F2_best"] = round(float(bm.min()), 3)   # most F2-preferring cluster (most negative)
+            row["DDG_Bias_spread"]  = round(float(bm.max() - bm.min()), 3)
+        else:
+            row["DDG_Bias_mean"]    = float("nan")
+            row["DDG_Bias_F1_best"] = float("nan")
+            row["DDG_Bias_F2_best"] = float("nan")
+            row["DDG_Bias_spread"]  = float("nan")
 
         summary_rows.append(row)
 
@@ -508,6 +522,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     df_af   = _safe_read_csv(str(anal / "df_af.csv"))
     df_esm  = _safe_read_csv(str(anal / "df_esm.csv"))
     df_cmap = _safe_read_csv(str(anal / "df_cmap.csv"))
+    df_ddg  = _safe_read_csv(str(anal / "df_ddg.csv"))
 
     # ---- cache clusters: sizes & neff ----
     cache_stats = {}
@@ -609,10 +624,22 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         if blocks:
             esm_lists = pd.concat(blocks, axis=0)
 
+    # ---- DDG (ThermoMPNN conformation-bias) block ----
+    ddg_block = pd.DataFrame()
+    if df_ddg is not None and not df_ddg.empty:
+        d = df_ddg.copy()
+        d["_tag"] = _tag_series(d)
+        ddg_block = pd.DataFrame({
+            "DDG_Bias":    pd.to_numeric(d.get("bias_mean"), errors="coerce"),
+            "DDG_Bias_std": pd.to_numeric(d.get("bias_std"), errors="coerce"),
+            "DDG_frac_F1": pd.to_numeric(d.get("frac_F1_preferring"), errors="coerce"),
+            "_tag": d["_tag"],
+        }).groupby("_tag", dropna=True).first()
+
     # ---- assemble per-cluster table ----
-    idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(cache_stats.keys()))
+    idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(ddg_block.index) | set(cache_stats.keys()))
     out = pd.DataFrame(index=idx)
-    for block in (af2, af3, ms, esm_lists):
+    for block in (af2, af3, ms, esm_lists, ddg_block):
         if not block.empty:
             out = out.join(block, how="left") if not out.empty else block.copy()
 
@@ -653,6 +680,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         "AF2_TM1","AF2_TM2","AF3_TM1","AF3_TM2",
         "RE-MSAT-COM","RE-MSAT1","RE-MSAT2",
         "ESM_SEQIDS","ESM_TM1_LIST","ESM_TM2_LIST",
+        "DDG_Bias","DDG_Bias_std","DDG_frac_F1",
     ]
     out = out[[c for c in wanted if c in out.columns]]
     num_cols = out.select_dtypes(include="number").columns

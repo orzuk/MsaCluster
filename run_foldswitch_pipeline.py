@@ -52,6 +52,7 @@ RUN_MODE_DESCRIPTIONS = {
     "tree":             "Build phylogenetic tree from MSA.",
     "run_AF":           "Run AlphaFold (AF2/AF3/both) per chain × cluster. Use --af_ver {2,3,both}.",
     "run_esmfold":      "Run ESMFold on the pair. Use --esm_model {esm2,esm3,both}.",
+    "run_ddg":          "Conformation-biasing scoring: ThermoMPNN DDG per cluster sequence vs both fold backbones.",
     "run_cmap_msa_transformer":      "Run MSA-transformer on the pair to get contact maps.",
     "run_cmap_ccmpred": "Run CCMpred on DeepMsa and all ShallowMsa_XXX clusters to get contact maps.",
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
@@ -69,6 +70,7 @@ HEAVY_PAIR_MODES = {
     "run_cmap_ccmpred",
     "run_esmfold",            # your ESMFold step
     "run_AF",         # if you have this mode
+    "run_ddg",                # ThermoMPNN conformation-biasing per cluster
     "compute_deltaG",         # if you have a Rosetta/PyRosetta ΔG step
     "plot",                   # rendering/alignments can be slow
     "gen_pair_html",          # if HTML generation per pair is non-trivial
@@ -83,6 +85,7 @@ SBATCH_HINTS = {
     "run_cmap_ccmpred":      {"time":"04:00:00", "mem":"16G",  "gpus":0, "cpus":8},
     "run_esmfold":           {"time":"06:00:00", "mem":"24G",  "gpus":1, "cpus":6},
     "run_AF":                {"time":"24:00:00","mem":"64G",  "gpus":1, "cpus":8},
+    "run_ddg":               {"time":"02:00:00", "mem":"16G",  "gpus":1, "cpus":4},
     "compute_deltaG":        {"time":"06:00:00", "mem":"16G",  "gpus":0, "cpus":8},
     "plot":                  {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
     "gen_pair_html":         {"time":"01:00:00", "mem":"4G",   "gpus":0, "cpus":2},
@@ -313,6 +316,11 @@ def _has_deltaG(pair_id: str) -> bool:
     a = out_dir / f"deltaG_{pA[:-1]}.txt"   # 'deltaG_1wp8.txt'
     b = out_dir / f"deltaG_{pB[:-1]}.txt"   # 'deltaG_5ejb.txt'
     return a.exists() and b.exists()
+
+
+def _has_ddg(pair_id: str) -> bool:
+    """Return True if per-pair ThermoMPNN DDG summary exists."""
+    return (Path(DATA_DIR) / pair_id / "Analysis" / "df_ddg.csv").is_file()
 
 
 
@@ -1557,6 +1565,43 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
         print(f"[esm] ERROR on GPU: {e}")
 
 
+def task_ddg(pair_id: str, args: argparse.Namespace) -> None:
+    """
+    Conformation-biasing DDG scoring per cluster using ThermoMPNN.
+
+    For each cluster, samples N diverse homologs (same greedy_select pipeline
+    as ESMFold), strips insertions, and looks up ThermoMPNN DDG values at
+    the observed residues on both fold backbones. Writes per-cluster JSON
+    with per-residue contributions, plus a per-pair summary CSV.
+
+    Outputs:
+      Pipeline/<pair>/output_ddg/ddg_matrix_<tag>.npz  (cached L x 20 DDG)
+      Pipeline/<pair>/output_ddg/cluster_<NNN>.json
+      Pipeline/<pair>/Analysis/df_ddg.csv
+    """
+    if _is_windows():
+        raise SystemExit("ThermoMPNN can't run on Windows. Run on Moriah/Linux.")
+
+    force = _bool_from_tf(getattr(args, "force_rerun_DDG", "FALSE"))
+    thermompnn_dir = shlex.quote(str(getattr(args, "thermompnn_dir", "")))
+    device = getattr(args, "ddg_device", "cuda")
+    batch = int(getattr(args, "ddg_batch_size", 1000))
+    n = int(getattr(args, "cluster_sample_n", 10))
+
+    ensure_dir(f"Pipeline/FoldPairs/{pair_id}/output_ddg")
+
+    cmd = (f"python3 ./run_DDG.py -input {pair_id} "
+           f"--thermompnn_dir {thermompnn_dir} "
+           f"--device {device} "
+           f"--cluster_sample_n {n} "
+           f"--batch_size {batch}"
+           f"{' --force' if force else ''}")
+    try:
+        _run(cmd, args.run_job_mode)
+    except Exception as e:
+        print(f"[ddg] ERROR: {e}", flush=True)
+
+
 def task_af(pair_id: str, args: argparse.Namespace) -> None:
     if _is_windows():
         raise SystemExit("AlphaFold must run on Linux.")
@@ -2192,6 +2237,19 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"ΔG step skipped: {e}")
 
+    # 8b) DDG conformation-bias (ThermoMPNN) — per cluster
+    _step_hdr("8b", "DDG Conformation-Bias (ThermoMPNN)")
+    try:
+        if force_all or not _has_ddg(pair_id):
+            if force_all:
+                setattr(args, "force_rerun_DDG", "TRUE")
+            print("Running ThermoMPNN DDG …")
+            task_ddg(pair_id, args)
+        else:
+            print("DDG exists → skipped")
+    except Exception as e:
+        print(f"DDG step skipped: {e}")
+
     # 9) plots (includes tree clusters if available)
     _step_hdr(10, "Per-Pair Plots")
     try:
@@ -2244,7 +2302,7 @@ def main():
     p.add_argument("--run_mode",
                    required=True,
                    choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer", "run_cmap_ccmpred",
-                            "run_esmfold", "run_AF", "tree", "plot", "compute_deltaG", "clean",
+                            "run_esmfold", "run_AF", "run_ddg", "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=True,
                    help="List of pair IDs (e.g. 1dzlA_5keqF), or the literal token ALL")
@@ -2290,6 +2348,18 @@ def main():
     p.add_argument("--esm_device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     p.add_argument("--esm_gpu_len_threshold", type=int, default=ESM_MAX_LIGHT_SEQ_LEN,
                help="If max chain length ≥ this, run ESM on CPU to avoid CUDA OOM (default: 800).")
+
+    # ---- DDG (ThermoMPNN / conformation-bias) options ----
+    p.add_argument("--thermompnn_dir",
+                   default=os.environ.get("THERMOMPNN_DIR",
+                                          "/sci/labs/orzuk/orzuk/github/ThermoMPNN"),
+                   help="Path to ThermoMPNN cloned repo (default: $THERMOMPNN_DIR).")
+    p.add_argument("--ddg_device", default="cuda", choices=["cuda", "cpu"],
+                   help="Device for ThermoMPNN inference (default: cuda).")
+    p.add_argument("--ddg_batch_size", type=int, default=1000,
+                   help="ThermoMPNN mutations per forward pass (default: 1000).")
+    p.add_argument("--force_rerun_DDG", default="FALSE", choices=["TRUE", "FALSE"],
+                   help="Recompute ThermoMPNN matrices even if cached. Default FALSE.")
 
     # ---- CCMpred options ----
     p.add_argument("--ccmpred_bin", default=CCMPRED_EXE, help="Path to CCMpred binary")
@@ -2464,6 +2534,16 @@ def main():
                 if getattr(args, "esm_device", None):
                     extras += [f"--esm_device {args.esm_device}"]
 
+            if args.run_mode == "run_ddg":
+                if getattr(args, "thermompnn_dir", None):
+                    extras += [f"--thermompnn_dir {shlex.quote(args.thermompnn_dir)}"]
+                if getattr(args, "ddg_device", None):
+                    extras += [f"--ddg_device {args.ddg_device}"]
+                extras += [f"--ddg_batch_size {int(args.ddg_batch_size)}"]
+                extras += [f"--cluster_sample_n {int(args.cluster_sample_n)}"]
+                if _bool_from_tf(getattr(args, "force_rerun_DDG", "FALSE")):
+                    extras += ["--force_rerun_DDG TRUE"]
+
             if args.run_mode == "tree":
                 # forward tree knobs into the inner inline run
                 extras += [f"--tree_max_seqs {int(args.tree_max_seqs)}"]
@@ -2533,6 +2613,9 @@ def main():
 
         elif args.run_mode == "run_AF":
             task_af(pair_id, args)
+
+        elif args.run_mode == "run_ddg":
+            task_ddg(pair_id, args)
 
         elif args.run_mode == "tree":
             task_tree(pair_id, args)
