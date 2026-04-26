@@ -411,9 +411,10 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         if L >= max_len:
             gres = getattr(args, "sbatch_gres_heavy", "gpu:l40s:1")
             print(f"[esm-sbatch] {pair_id}: max_len={L} ≥ {max_len} ⇒ using {gres}", flush=True)
-    else:
+    elif not needs_gpu:
         # Explicitly clear GPU request for non-GPU tasks
         gres = None
+    # else: GPU-needing mode that's not run_esmfold (e.g. run_ddg, run_AF) — keep gres as-is
 
     inner = [
         shlex.quote(sys.executable),
