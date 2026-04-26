@@ -244,8 +244,8 @@ def run_pair(pair_id: str, thermompnn_dir: str, device: str = "cuda",
         raise FileNotFoundError(f"DeepMsa.a3m not found: {deep_a3m}")
 
     # Residue indices per chain in the match-state frame (uses DeepMsa seeds)
-    idx_F1 = seed_residue_indices(str(deep_a3m), tagA)
-    idx_F2 = seed_residue_indices(str(deep_a3m), tagB)
+    idx_F1 = seed_residue_indices(str(deep_a3m), tagA, fallback_index=0)
+    idx_F2 = seed_residue_indices(str(deep_a3m), tagB, fallback_index=1)
 
     # -------- ThermoMPNN: two matrix computations (cached on disk) -------
     scorer: Optional[ThermoMPNNScorer] = None

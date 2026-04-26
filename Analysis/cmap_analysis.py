@@ -85,8 +85,9 @@ def _truth_contact_map(pdb_path: str, chain_id: str | None,
     return mask
 
 
-def seed_residue_indices(seed_a3m_path: str, tag: str):
-    # tag is "4dxrA" or "4dxtA"
+def seed_residue_indices(seed_a3m_path: str, tag: str, fallback_index: int | None = None):
+    # tag is "4dxrA" or "4dxtA"; fallback_index (0 or 1) is used if header lookup fails
+    # (e.g. the deep MSA uses generic ">S1" / ">S2" headers instead of PDB tags).
     lines = [ln.rstrip("\n") for ln in open(seed_a3m_path) if ln.strip()]
     seqs, heads, cur = [], [], []
     for ln in lines:
@@ -100,6 +101,8 @@ def seed_residue_indices(seed_a3m_path: str, tag: str):
         s = seqs[0]
     elif heads[1].startswith(tag):
         s = seqs[1]
+    elif fallback_index is not None and 0 <= fallback_index < len(seqs):
+        s = seqs[fallback_index]
     else:
         raise RuntimeError(f"{tag} not found in {seed_a3m_path}")
     cols = [c for c in s if c.isupper() or c == '-']
