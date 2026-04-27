@@ -395,6 +395,122 @@ def load_ccmpred_diversity(pair_id, delta, msat_metric="t_recall"):
 
 
 # ---------------------------------------------------------------------------
+# DDG (ThermoMPNN conformation-bias) loader
+# ---------------------------------------------------------------------------
+
+def load_ddg_diversity(pair_id, delta_ddg):
+    """Load df_ddg.csv and compute per-cluster fold preference from DDG bias.
+
+    df_ddg.csv schema (one row per ShallowMsa cluster):
+      pair_id, cluster, n_seqs, bias_mean, bias_std, frac_F1_preferring,
+      sum_F1_mean, sum_F2_mean
+
+    bias_mean = mean over the sampled cluster sequences of
+                ΣDDG(F2 backbone) − ΣDDG(F1 backbone), in kcal/mol.
+      bias_mean > 0  → cluster prefers F1 (F2 destabilized more by mutations)
+      bias_mean < 0  → cluster prefers F2
+
+    *** Centering for relative-classification ***
+    The absolute bias_mean is biased by the intrinsic stability difference
+    between the two backbones — if F1 is generally more rigid, EVERY cluster
+    will look "F1-preferring" in absolute terms. The fold-switching signal
+    of interest is whether DIFFERENT CLUSTERS lean differently, not whether
+    they all lean the same way. So we classify each ShallowMsa cluster's
+    bias relative to the per-pair MEDIAN (over ShallowMsa clusters):
+
+        centered_bias = bias_mean - median(bias_mean over ShallowMsa clusters)
+        F1   if centered_bias >  delta_ddg
+        F2   if centered_bias < -delta_ddg
+        Amb  otherwise
+
+    This is centering-invariant for spread/range (the existing diversity
+    statistics) and removes the systematic-stability confound.
+
+    `delta_ddg` is the kcal/mol threshold (default 1.0; DDG is on a
+    different scale than TM-score's 0.05).
+
+    Row-format mapping for compatibility with TM-score loaders:
+      TM1_max = -sum_F1_mean   (higher = more stable on F1)
+      TM2_max = -sum_F2_mean
+      TMdiff_max = bias_mean   ( = TM1_max − TM2_max ; NOT centered )
+    """
+    csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_ddg.csv")
+    if not os.path.isfile(csv_path) or os.path.getsize(csv_path) == 0:
+        return []
+
+    try:
+        df = pd.read_csv(csv_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return []
+    if df.empty:
+        return []
+
+    needed = {"cluster", "bias_mean", "n_seqs", "sum_F1_mean", "sum_F2_mean"}
+    if not needed.issubset(df.columns):
+        return []
+
+    # Compute the per-pair median bias over SHALLOW clusters only
+    # (DeepMsa, if present, is the full-MSA reference and shouldn't shift the center).
+    df["_tag"] = df["cluster"].apply(_normalize_cluster)
+    shallow_mask = df["_tag"] != "DeepMsa"
+    shallow_biases = pd.to_numeric(
+        df.loc[shallow_mask, "bias_mean"], errors="coerce").dropna().values
+    if len(shallow_biases) >= 2:
+        pair_median = float(np.median(shallow_biases))
+    else:
+        pair_median = 0.0   # too few clusters to center meaningfully
+
+    rows = []
+    for _, r in df.iterrows():
+        tag = r["_tag"]
+        bias = float(r["bias_mean"])
+        # DeepMsa stays uncentered (it's the family-wide reference).
+        centered = bias - (pair_median if tag != "DeepMsa" else 0.0)
+
+        if np.isnan(centered):
+            pref = "Amb"
+        elif centered > delta_ddg:
+            pref = "F1"
+        elif centered < -delta_ddg:
+            pref = "F2"
+        else:
+            pref = "Amb"
+
+        n_seqs = int(r.get("n_seqs", 0) or 0)
+        frac_f1 = float(r.get("frac_F1_preferring", 0) or 0)
+        sum_f1 = float(r["sum_F1_mean"])
+        sum_f2 = float(r["sum_F2_mean"])
+        bias_std = float(r.get("bias_std", 0) or 0)
+
+        rows.append({
+            "pair_id": pair_id,
+            "cluster": tag,
+            "method": "DDG",
+            # higher = more stable on each fold (negate raw sums)
+            "TM1_max": round(-sum_f1, 4),
+            "TM2_max": round(-sum_f2, 4),
+            "TM1_mean": round(-sum_f1, 4),
+            "TM2_mean": round(-sum_f2, 4),
+            "TMdiff_max": round(bias, 4),         # raw bias for spread/range
+            "TMdiff_mean": round(bias, 4),
+            "n_models": n_seqs,
+            "n_toward_f1": int(round(frac_f1 * n_seqs)),
+            "n_toward_f2": int(round((1 - frac_f1) * n_seqs)),
+            "vote_frac_f1": round(frac_f1, 3),
+            "pref": pref,                         # centered classification
+            # DDG-specific extras for transparency
+            "ddg_bias_mean": round(bias, 4),
+            "ddg_bias_centered": round(centered, 4),
+            "ddg_pair_median": round(pair_median, 4),
+            "ddg_bias_std": round(bias_std, 4),
+            "ddg_sum_F1_mean": round(sum_f1, 4),
+            "ddg_sum_F2_mean": round(sum_f2, 4),
+            "metric_used": f"ddg_kcal_per_mol_centered(delta={delta_ddg})",
+        })
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Per-pair summary
 # ---------------------------------------------------------------------------
 
@@ -473,6 +589,9 @@ def main():
                         choices=["t_recall", "uniq_recall"],
                         help="MSAT metric: t_recall (full-fold, default) or "
                              "uniq_recall (fold-unique contacts)")
+    parser.add_argument("--delta-ddg", type=float, default=1.0,
+                        help="kcal/mol threshold for DDG F1/F2/Amb assignment "
+                             "(default 1.0; DDG is on a different scale than TM-score)")
     args = parser.parse_args()
 
     if args.pairs.upper() == "ALL":
@@ -484,14 +603,15 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     print(f"Scanning {len(pairs)} pairs for fold diversity...")
-    print(f"Delta threshold: {args.delta}")
+    print(f"Delta threshold (TM): {args.delta}")
+    print(f"Delta threshold (DDG, kcal/mol): {args.delta_ddg}")
     print(f"MSAT metric:     {args.msat_metric}")
     print()
 
     all_cluster_rows = []
     all_summaries = []
 
-    n_af2 = n_esm = n_msat = n_ccmpred = 0
+    n_af2 = n_esm = n_msat = n_ccmpred = n_ddg = 0
 
     for pair_id in pairs:
         # AF2
@@ -532,6 +652,15 @@ def main():
             if s:
                 all_summaries.append(s)
 
+        # DDG (ThermoMPNN conformation-bias, centered per pair)
+        ddg_rows = load_ddg_diversity(pair_id, args.delta_ddg)
+        if ddg_rows:
+            n_ddg += 1
+            all_cluster_rows.extend(ddg_rows)
+            s = summarize_pair(pair_id, ddg_rows)
+            if s:
+                all_summaries.append(s)
+
     # --- Save detailed CSV ---
     df_detail = pd.DataFrame(all_cluster_rows)
     detail_path = os.path.join(out_dir, "fold_diversity_survey.csv")
@@ -556,8 +685,9 @@ def main():
     print(f"Pairs with ESM data:     {n_esm}")
     print(f"Pairs with MSAT data:    {n_msat}")
     print(f"Pairs with CCMpred data: {n_ccmpred}")
+    print(f"Pairs with DDG data:     {n_ddg}")
 
-    for method in ["AF2", "ESM", "MSAT", "CCMpred"]:
+    for method in ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]:
         mdf = df_summary[df_summary["method"] == method]
         if mdf.empty:
             continue
@@ -610,13 +740,13 @@ def main():
         # Build a clean pair x method table
         pairs_seen = df_summary["pair_id"].unique()
         print(f"\n  {'pair':<20s}", end="")
-        for m in ["AF2", "ESM", "MSAT", "CCMpred"]:
+        for m in ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]:
             print(f"  {m:>12s}", end="")
         print()
 
         for pid in sorted(pairs_seen):
             print(f"  {pid:<20s}", end="")
-            for m in ["AF2", "ESM", "MSAT", "CCMpred"]:
+            for m in ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]:
                 row = df_summary[(df_summary["pair_id"] == pid) &
                                  (df_summary["method"] == m)]
                 if row.empty:
