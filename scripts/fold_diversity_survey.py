@@ -647,6 +647,100 @@ def summarize_pair(pair_id, cluster_rows):
 
 
 # ---------------------------------------------------------------------------
+# Cross-method concordance (per-cluster sign agreement on TMdiff_centered)
+# ---------------------------------------------------------------------------
+
+def _binom_p_two_sided(k, n):
+    """One-sided P[X>=k | n trials, p=0.5] via normal approximation; cheap.
+    Returns 1.0 for n<5 (too small to call). Used for ranking, not formal test.
+    """
+    if n < 5:
+        return 1.0
+    from math import erfc, sqrt
+    # P(X >= k) under Binom(n, 0.5) — normal approx with continuity correction
+    z = (k - 0.5 - n/2) / (sqrt(n)/2)
+    return 0.5 * erfc(z / sqrt(2))
+
+
+def compute_pair_concordance(pair_id, cluster_rows_by_method):
+    """For one pair, compute per-cluster sign agreement of TMdiff_centered
+    across every pair of methods. Returns one dict (one row per pair).
+
+    cluster_rows_by_method: dict {"AF2": [rows...], "ESM": [...], ...}
+
+    Concordance for method-pair (A, B):
+      - For each cluster present in both A's and B's rows where both
+        TMdiff_centered values are nonzero, count "agree" if signs match
+      - agree_pct = agree / (agree + disagree)
+      - n = clusters compared
+      - p = approximate one-sided binomial p-value vs null p=0.5
+
+    Schema (per pair): pair_id, n_methods,
+                       AF2_ESM_pct, AF2_ESM_n, AF2_MSAT_pct, ..., DDG__pct,
+                       mean_concordance, mean_concordance_n,
+                       max_concordance_methods (e.g. "AF2~DDG"),
+                       max_concordance_pct
+    """
+    methods = ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]
+    # Build per-method dict cluster -> centered value
+    by_m = {}
+    for m in methods:
+        by_m[m] = {}
+        for r in cluster_rows_by_method.get(m, []):
+            if r.get("cluster") == "DeepMsa":
+                continue
+            v = r.get("TMdiff_centered")
+            if v is None or (isinstance(v, float) and np.isnan(v)):
+                continue
+            by_m[m][r["cluster"]] = float(v)
+
+    out = {"pair_id": pair_id, "n_methods": sum(1 for m in methods if by_m[m])}
+
+    pair_pcts = []
+    method_pairs_present = []
+    for i, A in enumerate(methods):
+        for B in methods[i+1:]:
+            if not by_m[A] or not by_m[B]:
+                continue
+            shared = set(by_m[A]) & set(by_m[B])
+            agree = disagree = 0
+            for cl in shared:
+                a, b = by_m[A][cl], by_m[B][cl]
+                if a == 0 or b == 0:
+                    continue
+                if (a > 0) == (b > 0):
+                    agree += 1
+                else:
+                    disagree += 1
+            n = agree + disagree
+            pct = (agree / n) if n > 0 else float("nan")
+            key = f"{A}_{B}"
+            out[f"{key}_pct"] = round(pct, 3) if n > 0 else None
+            out[f"{key}_n"] = n
+            out[f"{key}_p"] = round(_binom_p_two_sided(agree, n), 4) if n > 0 else None
+            if n > 0:
+                pair_pcts.append((pct, n, f"{A}~{B}"))
+                method_pairs_present.append(f"{A}~{B}")
+
+    if pair_pcts:
+        # Mean concordance across method-pairs
+        mean_pct = sum(p for p, _, _ in pair_pcts) / len(pair_pcts)
+        out["mean_concordance"] = round(mean_pct, 3)
+        out["mean_n_clusters"] = round(sum(n for _, n, _ in pair_pcts) / len(pair_pcts), 1)
+        # Best (highest concordance) method-pair
+        best = max(pair_pcts, key=lambda x: x[0])
+        out["max_concordance_methods"] = best[2]
+        out["max_concordance_pct"] = round(best[0], 3)
+    else:
+        out["mean_concordance"] = None
+        out["mean_n_clusters"] = None
+        out["max_concordance_methods"] = None
+        out["max_concordance_pct"] = None
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -694,16 +788,20 @@ def main():
 
     all_cluster_rows = []
     all_summaries = []
+    all_concordance = []   # one row per pair (cross-method concordance)
 
     n_af2 = n_esm = n_msat = n_ccmpred = n_ddg = 0
 
     for pair_id in pairs:
+        per_method_rows = {}   # used for cross-method concordance below
+
         # AF2
         af_rows = load_af2_diversity(pair_id, args.delta)
         if af_rows:
             _apply_centered_classification(af_rows, args.delta)
             n_af2 += 1
             all_cluster_rows.extend(af_rows)
+            per_method_rows["AF2"] = af_rows
             s = summarize_pair(pair_id, af_rows)
             if s:
                 all_summaries.append(s)
@@ -714,6 +812,7 @@ def main():
             _apply_centered_classification(esm_rows, args.delta)
             n_esm += 1
             all_cluster_rows.extend(esm_rows)
+            per_method_rows["ESM"] = esm_rows
             s = summarize_pair(pair_id, esm_rows)
             if s:
                 all_summaries.append(s)
@@ -725,6 +824,7 @@ def main():
             _apply_centered_classification(msat_rows, args.delta)
             n_msat += 1
             all_cluster_rows.extend(msat_rows)
+            per_method_rows["MSAT"] = msat_rows
             s = summarize_pair(pair_id, msat_rows)
             if s:
                 all_summaries.append(s)
@@ -736,6 +836,7 @@ def main():
             _apply_centered_classification(cc_rows, args.delta)
             n_ccmpred += 1
             all_cluster_rows.extend(cc_rows)
+            per_method_rows["CCMpred"] = cc_rows
             s = summarize_pair(pair_id, cc_rows)
             if s:
                 all_summaries.append(s)
@@ -746,9 +847,14 @@ def main():
             _apply_centered_classification(ddg_rows, args.delta_ddg)
             n_ddg += 1
             all_cluster_rows.extend(ddg_rows)
+            per_method_rows["DDG"] = ddg_rows
             s = summarize_pair(pair_id, ddg_rows)
             if s:
                 all_summaries.append(s)
+
+        # Cross-method concordance for THIS pair
+        if len(per_method_rows) >= 2:
+            all_concordance.append(compute_pair_concordance(pair_id, per_method_rows))
 
     # --- Save detailed CSV ---
     df_detail = pd.DataFrame(all_cluster_rows)
@@ -765,6 +871,14 @@ def main():
     summary_path = os.path.join(out_dir, "fold_diversity_summary.csv")
     df_summary.to_csv(summary_path, index=False)
     print(f"Saved pair-level summary: {summary_path} ({len(df_summary)} rows)")
+
+    # --- Save cross-method concordance CSV ---
+    df_concord = pd.DataFrame(all_concordance)
+    concord_path = os.path.join(out_dir, "fold_diversity_concordance.csv")
+    if not df_concord.empty:
+        df_concord.to_csv(concord_path, index=False)
+        print(f"Saved cross-method concordance: {concord_path} "
+              f"({len(df_concord)} rows)")
 
     # --- Print analysis ---
     print(f"\n{'='*70}")
@@ -871,15 +985,54 @@ def main():
                     print(f"  {label:>12s}", end="")
             print()
 
+    # --- Cross-method concordance (per-cluster sign agreement) ---
+    if not df_concord.empty:
+        print(f"\n{'='*70}")
+        print("CROSS-METHOD CONCORDANCE — per-cluster TMdiff_centered sign agreement")
+        print(f"{'='*70}")
+        print("Independent of diversity-call thresholds: even if no single method")
+        print("crosses its own delta, sign-agreement across orthogonal methods")
+        print("(different training sets / inductive biases) is hard to dismiss")
+        print("as method-specific bias. ~50% = chance; >70% = significant.\n")
+
+        # Sort by mean_concordance, only showing pairs with usable data
+        cd = df_concord.dropna(subset=["mean_concordance"])
+        cd = cd.sort_values("mean_concordance", ascending=False)
+
+        # Top 25
+        print("  Top 25 pairs by mean cross-method concordance:")
+        print(f"  {'pair':<18s} {'mean':>5s} {'A~E':>5s} {'A~M':>5s} {'A~D':>5s} "
+              f"{'E~M':>5s} {'E~D':>5s} {'M~D':>5s}  best_pair (pct, n)")
+        for _, r in cd.head(25).iterrows():
+            def _fmt(p):
+                v = r.get(f"{p}_pct")
+                return f"{v:.2f}" if v is not None and not pd.isna(v) else " -- "
+            best_lab = r.get("max_concordance_methods") or "-"
+            best_pct = r.get("max_concordance_pct")
+            best_pct_s = f"{best_pct:.2f}" if best_pct is not None and not pd.isna(best_pct) else "--"
+            print(f"  {r['pair_id']:<18s} {r['mean_concordance']:>5.2f} "
+                  f"{_fmt('AF2_ESM'):>5s} {_fmt('AF2_MSAT'):>5s} {_fmt('AF2_DDG'):>5s} "
+                  f"{_fmt('ESM_MSAT'):>5s} {_fmt('ESM_DDG'):>5s} {_fmt('MSAT_DDG'):>5s}  "
+                  f"{best_lab} ({best_pct_s}, n={int(r.get('mean_n_clusters') or 0)})")
+
+        n_above = int((cd["mean_concordance"] > 0.65).sum())
+        n_total = len(cd)
+        print(f"\n  Pairs with mean concordance > 0.65: {n_above} / {n_total} "
+              f"({100*n_above/max(n_total,1):.0f}%) — strong cross-method signal.")
+        print("  See docs/fold_diversity_concordance.csv for the full table.")
+
     print(f"\n{'='*70}")
     print("CONCLUSION")
     print(f"{'='*70}")
-    print("If most pairs show 'uniform' (no diversity) across ALL methods,")
-    print("then fold preference is genuinely not separable by MSA clustering.")
-    print("If MSAT shows more diversity than AF2, it suggests co-evolutionary")
-    print("signal exists but AF2 ignores it (consistent with Porter et al.).")
-    print("If ESM shows more diversity than AF2, it suggests single-sequence")
-    print("composition differs between clusters even when AF2 doesn't respond.")
+    print("Three complementary signals per pair:")
+    print("  1. Diversity counts (raw / centered): does any method cross its threshold?")
+    print("  2. Spread/range of TMdiff: how much do clusters vary in fold preference?")
+    print("  3. Cross-method concordance: do orthogonal methods agree per-cluster on")
+    print("     direction, even if no single method crosses its threshold?")
+    print()
+    print("Strongest fold-switching candidates satisfy 2+ of these signals.")
+    print("Cross-method concordance is least sensitive to method-specific")
+    print("training bias and threshold choice.")
     print()
 
 
