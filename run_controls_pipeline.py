@@ -315,11 +315,14 @@ def task_af(protein_id: str, control_type: str, args: argparse.Namespace) -> Non
     stime = getattr(args, "sbatch_time", "24:00:00")
     part = getattr(args, "sbatch_partition", None)
     cons = getattr(args, "sbatch_constraint", None)
+    acct = getattr(args, "sbatch_account", None)
     sbatch_opts = f"--gres={gres} --cpus-per-task={cpus} --mem={mem} --time={stime}"
     if part:
         sbatch_opts += f" -p {shlex.quote(part)}"
     if cons:
         sbatch_opts += f" --constraint={shlex.quote(cons)}"
+    if acct:
+        sbatch_opts += f" -A {shlex.quote(acct)}"
 
     for ver in versions:
         out_root = os.path.join(pdir, f"output_AF/AF{ver}")
@@ -708,12 +711,15 @@ def _submit_protein_job(protein_id: str, control_type: str,
     stime = getattr(args, "sbatch_time", "24:00:00")
     part = getattr(args, "sbatch_partition", None)
     cons = getattr(args, "sbatch_constraint", None)
+    acct = getattr(args, "sbatch_account", None)
 
     sbatch_opts = f"--gres={gres} --cpus-per-task={cpus} --mem={mem} --time={stime}"
     if part:
         sbatch_opts += f" -p {shlex.quote(part)}"
     if cons:
         sbatch_opts += f" --constraint={shlex.quote(cons)}"
+    if acct:
+        sbatch_opts += f" -A {shlex.quote(acct)}"
 
     sb = f"sbatch {sbatch_opts} -o {shlex.quote(log)} --wrap {shlex.quote(inner_cmd)}"
     print(f"[submit] {sb}", flush=True)
@@ -772,6 +778,8 @@ def main():
     p.add_argument("--sbatch_time", default="24:00:00")
     p.add_argument("--sbatch_partition", default=None)
     p.add_argument("--sbatch_constraint", default=None)
+    p.add_argument("--sbatch_account", default=None,
+                   help="Slurm account (e.g., course-52017-25 to use higher fair-share).")
 
     args = p.parse_args()
 
