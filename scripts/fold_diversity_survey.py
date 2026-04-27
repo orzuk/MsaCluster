@@ -39,13 +39,31 @@ _MSA_TAG_RE = re.compile(r"(?:Shallow)?Msa_(\d+)", re.IGNORECASE)
 
 
 def _normalize_cluster(s):
-    """Normalize cluster tag -> ShallowMsa_NNN or DeepMsa."""
+    """Normalize cluster tag -> ShallowMsa_NNN or DeepMsa.
+
+    Handles several observed naming conventions across methods/files:
+      - "000", "0", 0                       -> "ShallowMsa_000"
+      - "ShallowMsa_000", "ShallowMsa_0"    -> "ShallowMsa_000"
+      - "DeepMsa", "DeepMsa_DeepMsa"        -> "DeepMsa"
+      - "clusters_ShallowMsa_007"           -> "ShallowMsa_007"
+        (MSAT cmap CSVs use this prefix from msa_t_clusters_ShallowMsa_*.npz)
+      - "msa_t_clusters_ShallowMsa_007"     -> "ShallowMsa_007"
+      - "msa_t_DeepMsa_DeepMsa"             -> "DeepMsa"
+    """
     s = str(s).strip()
-    if s.lower() in ("deep", "deepmsa", "msa_deep", "deep_msa", "query"):
+    # Strip common file-derived prefixes
+    s = re.sub(r"^(msa_t_)?(clusters_|cmap_)?", "", s)
+    # Handle DeepMsa-flavored variants up front
+    if s.startswith("DeepMsa") or s.lower() in ("deep", "deepmsa", "msa_deep", "deep_msa", "query"):
         return "DeepMsa"
+    # Standard "<digits>" or "<dd>" forms via existing _MSA_TAG_RE
     m = _MSA_TAG_RE.fullmatch(s)
     if m:
         return f"ShallowMsa_{int(m.group(1)):03d}"
+    # Fallback: extract ShallowMsa_NNN from anywhere in the string
+    m2 = re.search(r"ShallowMsa_(\d+)", s)
+    if m2:
+        return f"ShallowMsa_{int(m2.group(1)):03d}"
     if s.isdigit():
         return f"ShallowMsa_{int(s):03d}"
     return s
