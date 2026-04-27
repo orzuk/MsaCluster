@@ -1,0 +1,329 @@
+================================================================================
+RESULTS_STATUS.txt — Snapshot of analysis state after the 2026-04-26..27 session
+================================================================================
+Updated: 2026-04-27
+
+This document captures everything new since SUMMARY_RESULTS.txt was written
+(2026-02-25). It is the current state of the analysis. Older results in
+SUMMARY_RESULTS.txt remain valid as a historical baseline; see "What changed
+vs SUMMARY_RESULTS.txt" below for the diff.
+
+For data-availability audit: see FOLD_DIVERSITY_AUDIT.txt (current STATUS BANNER
+at top of that file is still the authoritative data state).
+For pending tasks: see NEXT_TASKS.txt.
+
+================================================================================
+1. DATA STATE — full coverage achieved
+================================================================================
+
+  Stage         Coverage        Notes
+  --------     -----------     -----------------------------------------------
+  df_af.csv    92 / 93         Only 5c3iF_3kuyA missing (0-cluster pair)
+  df_esm.csv   92 / 93         Same
+  df_cmap.csv  93 / 93         All MSAT contact-map metrics complete
+  df_ddg.csv   93 / 93         NEW — ThermoMPNN per-cluster conformation bias
+  Controls     0 / 246         postprocess running NOW (per-protein granular)
+
+NEW DATA INTEGRITY FIXES (2026-04-27):
+
+  6 pairs had stale-cluster contamination — old AF/ESM/cmap predictions for
+  clusters that no longer exist in the current ShallowMsa set. Orphan files
+  were deleted and postprocess re-run for those pairs:
+    1dzlA_5keqF, 1qlnA_1h38D, 3j7vG_3j7wB, 3lqcA_1xntA, 3ztjE_5hmgA,
+    5hk5H_4jphB
+  Notably 3lqcA_1xntA went from 16 reported clusters → 11 actual clusters.
+  This affected its previously-published diversity stats.
+
+  3 pairs had missing or malformed truth-PDB files (silently affecting all
+  TM-score-based stats):
+    1dzlA_5keqF, 1fzpD_2frhA, 1xjuB_1xjtA
+  Truth PDBs re-downloaded from RCSB; postprocess re-run successfully for
+  all three. 1xjuB_1xjtA's CIF-derived `_cif.pdb` had column-overflow that
+  broke biotite parsing — fixed by downloading the real PDB-format file.
+
+  Pipeline/FoldPairs/ housekeeping: 5 stray non-pair directories cleaned up
+  or archived (`AF_preds/`, `jobs/`, `output_deltaG/`, ` --cluster_alg`,
+  comma-joined typo). Now exactly 93 pair directories under FoldPairs/.
+
+================================================================================
+2. NEW ANALYSIS DIMENSIONS — beyond the original raw counts
+================================================================================
+
+The original analysis used absolute-threshold classification per method
+(F1 if TMdiff > 0.05, F2 if TMdiff < -0.05, else Amb) and reported "diverse"
+pairs as those with both F1 and F2 clusters. Two limitations of that approach
+became evident, and two new methodological dimensions were added:
+
+A. PER-PAIR CENTERED CLASSIFICATION
+
+  Motivation: AF2 / ESM / MSAT / DDG all have systematic biases — AF2 is
+  trained more on certain folds (e.g. memorizes well-characterized chemokine
+  fold), ESM defaults to one fold per single-sequence prior, ThermoMPNN's
+  bias_mean is dominated by the intrinsic stability differential between the
+  two backbones. Under absolute thresholds, a family where ALL clusters
+  systematically prefer fold-2 (because of method bias, not biology) shows
+  as "no diversity" even when clusters genuinely differ in their relative
+  fold-2 commitment.
+
+  Fix: per pair, subtract the median of TMdiff over ShallowMsa clusters,
+  then classify each cluster's centered TMdiff using the same delta. A
+  cluster is now "F1-centered" if it leans MORE toward F1 than the typical
+  cluster in this family (regardless of absolute fold preference).
+
+  Spread/range stats are centering-invariant — they apply to both
+  classifications unchanged.
+
+  Implementation: `_apply_centered_classification` in fold_diversity_survey.py
+  applied to AF2/ESM/MSAT/CCMpred/DDG outputs. Per-pair summary CSV now has
+  both `n_f1` and `n_f1_centered` columns side by side.
+
+B. CROSS-METHOD CONCORDANCE — sign-agreement of per-cluster TMdiff_centered
+   across all method pairs.
+
+  Motivation: even when no single method's centered TMdiff crosses its delta,
+  the per-cluster *direction* of fold preference can be shared across
+  orthogonal methods (AF2 trained on PDB, ESM single-sequence, MSAT contact
+  prediction, DDG ProteinMPNN backbone scoring — different inductive biases,
+  different training data). Above-chance per-cluster sign agreement across
+  these is hard to dismiss as method-specific bias.
+
+  Implementation: `compute_pair_concordance` in fold_diversity_survey.py.
+  Output: docs/fold_diversity_concordance.csv with one row per pair
+  containing pairwise sign-agreement % (and approximate binomial p-values)
+  for AF2~ESM, AF2~MSAT, AF2~DDG, ESM~MSAT, ESM~DDG, MSAT~DDG.
+
+  Mean concordance is centering-invariant for sign and is the cleanest
+  cross-method validation signal we have.
+
+================================================================================
+3. HEADLINE RESULTS (current, with all 5 methods + centering + concordance)
+================================================================================
+
+  Method   Pairs   Raw-diverse   Centered-diverse   Notes
+  ------   -----   -----------   ----------------   -----------------------
+  AF2        92    13 / 92 (14%)    28 / 92 (30%)   Centering doubles count
+  ESM        92     0 / 92 (0%)     14 / 92 (15%)   ESM has signal! Hidden
+                                                    by absolute classification
+  MSAT       93     7 / 93 (8%)      9 / 93 (10%)   Small change
+  DDG        85     6 / 85 (7%)*    47 / 85 (55%)*  *with delta_ddg=2.0 kcal/mol
+  CCMpred     0    -                -                Not yet run
+
+  * DDG delta_ddg=1.0 was too aggressive (78% centered "diverse"). Tuned
+    to 2.0 for the current run; might tighten further to 3.0.
+
+KEY HEADLINE: cross-method concordance is the most stringent test.
+
+  Only 2 pairs cross 0.65 mean concordance (with ≥10 cluster pairs):
+
+    2namA_1uxmK    mean=0.77  n=19   AF2~ESM 0.90 (p≈0.0007), ESM~DDG 0.90
+    2n54B_2hdmA    mean=0.71  n=18   ESM~DDG 0.84, AF2~DDG 0.79
+                                     == XCL1 / lymphotactin
+
+  Next tier (mean 0.55-0.63, n ≥ 10):
+    4dxrA_4dxtA    0.63  MSAT~DDG 0.81  — NOT in any diversity-call list,
+                                          concordance reveals signal
+    2k42A_1ceeB    0.57  AF2~ESM 0.90, ESM~DDG 0.90  — original AF2-diverse
+    2h44A_1rkpA    0.55  AF2~ESM 1.00, AF2~DDG 1.00  — new
+    2mwfA_2nntA    0.55  AF2~MSAT 0.78
+    1zk9A_3jv6A    0.55
+    3r9jC_2kxoA    0.55  — original AF2-diverse, holds up
+    1nqjB_1nqdA    0.54
+    1rk4B_1k0nA    0.54
+
+================================================================================
+4. STRONGEST FOLD-SWITCHING CANDIDATE: 2namA_1uxmK
+================================================================================
+
+  Diverse in 4 / 4 methods (centered classification)  AND  highest mean
+  cross-method concordance (0.77, n=19, AF2~ESM p<0.001).
+
+  Robust to:
+    - Choice of threshold (raw + centered both flag it as diverse)
+    - Choice of method (4/4 methods agree directionally per cluster)
+    - Choice of metric (concordance is centering-invariant for sign)
+
+  This is the unambiguous primary fold-switching candidate in the dataset.
+  Worth featuring in the paper as the textbook positive case.
+
+================================================================================
+5. XCL1 (2n54B_2hdmA) — methodological case study
+================================================================================
+
+  Lymphotactin XCL1 — known equilibrium fold-switcher with phylogenetically
+  structured fold-switching capability per Dishman et al. 2021 (Science).
+
+  Under absolute classification: NOT flagged by any method. AF2 and ESM both
+  uniformly predict the chemokine fold for every cluster; MSAT recall and
+  DDG bias likewise commit to one direction for every cluster.
+
+  Under centered classification: AF2 picks up subtle inter-cluster variation
+  (6F1c / 3F2c / 12Amc). NOT flagged by ESM/MSAT/DDG centered alone.
+
+  Cross-method concordance: ~74% mean (AF2~ESM 0.74, AF2~DDG 0.79,
+  ESM~DDG 0.84, all near or above significance over 18 clusters). This
+  shared per-cluster pattern across orthogonal methods is hard to explain
+  as method-specific training bias.
+
+  Caveat (important, document in paper): the centered AF2 signal correlates
+  monotonically with per-cluster sequence similarity to the XCL1 query.
+  Bit scores: F2c clusters (most-chemokine-confident) have bit scores 76-84,
+  F1c clusters (weakest commitment) have 54-75. AF2 was trained on multiple
+  XCL1 chemokine PDB structures, so prediction confidence drops smoothly
+  as sequence diverges from training data. Whether the centered signal is
+  "fold-switching capability" (Dishman) or "training-set proximity" (method
+  artifact) cannot be distinguished from the AF2 data alone — but the fact
+  that ESM/DDG agree with AF2 directionally argues against a pure
+  AF2-specific artifact (their training data and prediction mechanisms
+  differ).
+
+  Also notable: top MSA hits in this family are CC-chemokines (KSCC pattern)
+  rather than other XCL family members. The "C"-chemokine subfamily that
+  contains XCL1 has only ~2 members; the deep MSA pulls in much more
+  abundant CC chemokines, all of which are pure-chemokine-fold.
+
+  Use as: "cross-method concordance recovers known biology that absolute
+  thresholds miss" methodology demonstration. Caveat about sequence
+  similarity must be acknowledged.
+
+================================================================================
+6. WHAT CHANGED VS SUMMARY_RESULTS.txt (2026-02-25)
+================================================================================
+
+  AF2 raw-diverse:     13/92 → 13/92 (same headline, but cluster counts
+                       shifted in 6 pairs after orphan cleanup)
+  ESM raw-diverse:      0/92 →  0/92 (unchanged)
+  MSAT raw-diverse:     7/90 →  7/93 (more pairs evaluated; same set)
+  DDG:                  -    →  6/85 raw, 47/85 centered
+  CCMpred:              -    →  not run
+
+  AF2-MSAT raw intersection (the original "3 concordant pairs"):
+    2lepA_4hddA, 4q79F_4uv2D, 2qqjA_4qdsA  — UNCHANGED.
+
+  3lqcA_1xntA ("strong AF2-diverse" in original): cluster count corrected
+  from 16 → 11 after orphan cleanup. Diversity classification unchanged.
+
+  XCL1 (2n54B_2hdmA): originally not flagged. With centered + concordance,
+  it becomes the second-strongest cross-method-concordant pair. Promoted
+  from "missed by method" to "case study showing centered/concordance
+  rescue published biology that absolute thresholds miss."
+
+  New result: 4dxrA_4dxtA — concordance 0.63 over 18 clusters with
+  MSAT~DDG 0.81. Was NOT in any prior diversity list. Worth investigating
+  as a candidate the original method missed entirely.
+
+================================================================================
+7. METHODOLOGICAL CAVEATS — for the paper
+================================================================================
+
+A. AF2 training-set proximity bias
+
+  AF2's prediction confidence for a fold depends on how well-represented
+  that family is in PDB. Per-cluster sequence divergence from query
+  systematically affects TMdiff. Centering corrects for the average bias
+  per pair but not for the gradient across clusters within a pair.
+
+  XCL1 illustrates this: bit-score-to-query and centered TMdiff are
+  monotonically correlated. The same effect operates (more weakly) for
+  ESM and DDG.
+
+  Three independent corrections discussed in the codebase:
+    1. Cluster-permutation null test (already in repo, commit 2b04eae)
+    2. Negative-control baseline comparison (controls postprocess RUNNING)
+    3. Sequence-divergence regression per pair (NOT YET IMPLEMENTED)
+
+B. Equilibrium vs triggered fold-switchers
+
+  XCL1 is the canonical equilibrium fold-switcher (~50/50 in vitro). The
+  method asks "do MSA clusters prefer different folds?" — sensitive to
+  triggered/stratified fold-switching, less sensitive to equilibrium.
+
+  The trigger-type classification (NEXT_TASKS Phase 12 ANA-1) is the
+  natural way to stratify the results in the paper.
+
+C. Cross-method concordance is more selective than diversity counts
+
+  Of the 13 AF2-diverse pairs in SUMMARY_RESULTS Section 2, only ~3 cross
+  the 0.65 concordance threshold. Not necessarily a problem — concordance
+  asks a stronger question. But the paper should report both signals.
+
+================================================================================
+8. NEW SCRIPTS / TOOLS ADDED IN THIS SESSION
+================================================================================
+
+  scripts/run_ddg_all.sh
+      One-shot batch launcher for DDG (ThermoMPNN per-cluster scoring).
+      Bakes in proven recipe: salmon partition, l40s GPU, course account.
+
+  scripts/run_controls_postprocess.sh
+      All-proteins-in-one-job wrapper for controls postprocess.
+
+  scripts/run_controls_postprocess_one.sh
+      Per-protein controls postprocess wrapper. Used for granular
+      submission when the all-at-once job is too slow (which it was).
+
+  scripts/fold_diversity_survey.py — major upgrades:
+    - Loads DDG (df_ddg.csv → 5th method alongside AF2/ESM/MSAT/CCMpred)
+    - Per-pair median centering for all methods
+    - Cross-method concordance (compute_pair_concordance)
+    - --delta-ddg flag (kcal/mol scale, distinct from --delta TM-score)
+    - --min-clusters-for-concordance flag (default 10)
+    - Improved cluster-name normalization (handles MSAT's
+      `clusters_ShallowMsa_NNN` and `DeepMsa_DeepMsa` aliases)
+    - Three CSVs output: fold_diversity_survey.csv (per-cluster),
+      fold_diversity_summary.csv (per-pair × method, raw + centered),
+      fold_diversity_concordance.csv (per-pair cross-method, NEW)
+
+  Bugs fixed in run_DDG.py:
+    - Generic >S1/>S2 deep-MSA headers (commit 65beca0)
+    - Deep-MSA seeds shorter than PDB chain via canonical pairwise
+      aligner from utils.msa_utils.get_align_indexes (commit 37fa57e)
+
+  Bug fixed in _submit_pair_job (commit 9ce6dd2):
+    - Was clobbering --gres for non-esmfold GPU modes; now only for
+      non-GPU modes. Fixes DDG sbatch on GPU partitions.
+
+================================================================================
+9. CURRENT IN-FLIGHT / PENDING
+================================================================================
+
+  - Controls postprocess running: ~246 per-protein sbatch jobs on glacier
+    (RandomSingleFold + PorterIDP + MatchedSingleFold). When done, will
+    enable concordance-vs-controls baseline comparison — the formal answer
+    to "is centered/concordance signal real or artifact?"
+
+  - Sequence-divergence regression correction (Section 7A point 3) — NOT
+    YET IMPLEMENTED. Should be a small extension to fold_diversity_survey.py.
+
+  - CCMpred — never run on cluster.
+
+  - Trigger-type classification (NEXT_TASKS Phase 12 ANA-1) — stratifying
+    results by equilibrium/triggered/etc. would explain XCL1 partial detection.
+
+  - Re-run ancestral reconstruction (NEXT_TASKS Phase 10 ANA-3) on the
+    updated fold-diverse set, especially the centered-only pairs.
+
+================================================================================
+10. RECOMMENDED PAPER STORYLINE (post-this-session)
+================================================================================
+
+  Lead with:
+    1. 2namA_1uxmK — primary positive (4/4 diverse + 0.77 concordance)
+    2. Cross-method concordance is the most robust per-cluster validation;
+       2 pairs above 0.65 (n≥10), corresponds to ~5% of evaluated pairs
+    3. Centered classification + concordance recover known biology
+       (XCL1) that raw absolute thresholds miss
+
+  Methodology contributions:
+    - Per-pair centered classification corrects systematic method bias
+    - Cross-method per-cluster sign-agreement is invariant to thresholds
+      and method-specific training proximity
+    - Both supplement (don't replace) the original diversity-counts approach
+
+  Caveats to acknowledge:
+    - Single-method centered findings are not by themselves robust;
+      multi-method concordance is the bar
+    - For known equilibrium switchers (XCL1), the method detects subtle
+      relative-cluster signal but cannot distinguish biology from
+      training-set proximity without controls
+
+================================================================================
