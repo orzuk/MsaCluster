@@ -85,9 +85,25 @@ def _truth_contact_map(pdb_path: str, chain_id: str | None,
     return mask
 
 
-def seed_residue_indices(seed_a3m_path: str, tag: str, fallback_index: int | None = None):
-    # tag is "4dxrA" or "4dxtA"; fallback_index (0 or 1) is used if header lookup fails
-    # (e.g. the deep MSA uses generic ">S1" / ">S2" headers instead of PDB tags).
+def seed_residue_indices(seed_a3m_path: str, tag: str, fallback_index: int | None = None,
+                         return_seq: bool = False):
+    """For the seed sequence corresponding to `tag` in the A3M file, return the
+    MSA-column positions of its match-state (uppercase) residues.
+
+    Args:
+      seed_a3m_path: path to the A3M / fasta-style seed file.
+      tag: PDB+chain tag (e.g. "4dxrA"); matched against the first/second header.
+      fallback_index: 0 or 1 — used if header lookup fails (e.g. deep MSAs that
+        use generic ">S1" / ">S2" headers).
+      return_seq: if True, also return the gap-free match-state seed sequence
+        (concatenation of uppercase residues). Required by callers that need to
+        align the seed to a separate PDB sequence.
+
+    Returns:
+      np.ndarray of int32 (MSA columns of match states), length = number of
+      match-state residues in the seed. If `return_seq=True`, also returns the
+      seed_match_seq string of the same length.
+    """
     lines = [ln.rstrip("\n") for ln in open(seed_a3m_path) if ln.strip()]
     seqs, heads, cur = [], [], []
     for ln in lines:
@@ -106,7 +122,11 @@ def seed_residue_indices(seed_a3m_path: str, tag: str, fallback_index: int | Non
     else:
         raise RuntimeError(f"{tag} not found in {seed_a3m_path}")
     cols = [c for c in s if c.isupper() or c == '-']
-    return np.asarray([i for i,c in enumerate(cols) if c.isupper()], dtype=np.int32)
+    idx = np.asarray([i for i,c in enumerate(cols) if c.isupper()], dtype=np.int32)
+    if return_seq:
+        seed_match_seq = "".join(c for c in cols if c.isupper())
+        return idx, seed_match_seq
+    return idx
 
 
 def get_only_cmaps(cmap1,cmap2):

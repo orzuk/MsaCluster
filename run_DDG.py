@@ -193,33 +193,68 @@ def _analysis_dir(pair_id: str) -> Path:
     return out
 
 
-def _score_sequence(match_seq: str,
-                    ddg_F1: np.ndarray, pdb_seq_F1: str, idx_F1: np.ndarray,
-                    ddg_F2: np.ndarray, pdb_seq_F2: str, idx_F2: np.ndarray
-                    ) -> Dict:
-    """Score one match-state sequence against both folds.
+def _seed_to_pdb_map(seed_match_seq: str, pdb_seq: str) -> np.ndarray:
+    """Map each seed match-state position to a PDB residue index.
 
-    One global alignment: idx_F1 maps chain-F1's k-th PDB residue to a
-    match-state column; same for F2. Per-residue contribution is DDG at
-    the observed homolog residue; '-' or non-standard residues contribute 0.
+    For every k in [0, len(seed_match_seq)), returns the residue index in
+    `pdb_seq` aligned to match-state k, or -1 if that match-state has no PDB
+    counterpart (gap on the PDB side of the alignment).
+
+    Uses the project's canonical pairwise aligner (utils.msa_utils.get_align_indexes,
+    which is parasail-backed with a BioPython fallback) so this mapping is
+    consistent with how the rest of the pipeline aligns sequences (cmap
+    metric alignment, AF/ESM postprocess, etc.).
+
+    Fast path: if seed_match_seq == pdb_seq exactly (the common case where
+    the deep MSA's seed is the full PDB chain), returns np.arange(L) without
+    invoking the aligner.
     """
-    def score_one(ddg: np.ndarray, cols: np.ndarray):
-        L = len(cols)
+    if seed_match_seq == pdb_seq:
+        return np.arange(len(seed_match_seq), dtype=np.int32)
+
+    from utils.msa_utils import get_align_indexes
+    idx_seed, idx_pdb = get_align_indexes(seed_match_seq, pdb_seq)
+    seed_to_pdb = np.full(len(seed_match_seq), -1, dtype=np.int32)
+    for s, p in zip(idx_seed, idx_pdb):
+        seed_to_pdb[s] = p
+    return seed_to_pdb
+
+
+def _score_sequence(match_seq: str,
+                    ddg_F1: np.ndarray, pdb_seq_F1: str,
+                    msa_cols_F1: np.ndarray, pdb_idx_F1: np.ndarray,
+                    ddg_F2: np.ndarray, pdb_seq_F2: str,
+                    msa_cols_F2: np.ndarray, pdb_idx_F2: np.ndarray
+                    ) -> Dict:
+    """Score one match-state homolog sequence against both folds.
+
+    msa_cols_*[k] = MSA column where the seed has its k-th match-state residue
+                   (used to look up the homolog AA in `match_seq`).
+    pdb_idx_*[k]  = PDB residue index that match-state k corresponds to
+                   (used to look up the per-position DDG row); -1 means the
+                   match-state has no PDB counterpart.
+    Both arrays have the same length = number of seed match-states.
+    """
+    def score_one(ddg: np.ndarray, msa_cols: np.ndarray, pdb_indices: np.ndarray):
+        L = len(msa_cols)
         contribs = np.zeros(L, dtype=np.float32)
         for k in range(L):
-            aa = match_seq[cols[k]]
+            p = int(pdb_indices[k])
+            if p < 0 or p >= ddg.shape[0]:
+                continue
+            aa = match_seq[int(msa_cols[k])]
             if aa == "-" or aa not in AA_TO_IDX:
                 continue
-            contribs[k] = ddg[k, AA_TO_IDX[aa]]
+            contribs[k] = ddg[p, AA_TO_IDX[aa]]
         return contribs
 
-    if ddg_F1.shape[0] != len(idx_F1):
-        raise ValueError(f"F1 length mismatch: PDB={ddg_F1.shape[0]} vs seed idx={len(idx_F1)}")
-    if ddg_F2.shape[0] != len(idx_F2):
-        raise ValueError(f"F2 length mismatch: PDB={ddg_F2.shape[0]} vs seed idx={len(idx_F2)}")
+    if len(msa_cols_F1) != len(pdb_idx_F1):
+        raise ValueError(f"F1 array length mismatch: msa_cols={len(msa_cols_F1)} pdb_idx={len(pdb_idx_F1)}")
+    if len(msa_cols_F2) != len(pdb_idx_F2):
+        raise ValueError(f"F2 array length mismatch: msa_cols={len(msa_cols_F2)} pdb_idx={len(pdb_idx_F2)}")
 
-    c1 = score_one(ddg_F1, idx_F1)
-    c2 = score_one(ddg_F2, idx_F2)
+    c1 = score_one(ddg_F1, msa_cols_F1, pdb_idx_F1)
+    c2 = score_one(ddg_F2, msa_cols_F2, pdb_idx_F2)
     return {
         "contribs_F1": c1.tolist(),
         "contribs_F2": c2.tolist(),
@@ -243,9 +278,12 @@ def run_pair(pair_id: str, thermompnn_dir: str, device: str = "cuda",
     if not deep_a3m.is_file():
         raise FileNotFoundError(f"DeepMsa.a3m not found: {deep_a3m}")
 
-    # Residue indices per chain in the match-state frame (uses DeepMsa seeds)
-    idx_F1 = seed_residue_indices(str(deep_a3m), tagA, fallback_index=0)
-    idx_F2 = seed_residue_indices(str(deep_a3m), tagB, fallback_index=1)
+    # Residue indices per chain in the match-state frame (uses DeepMsa seeds).
+    # Returns (msa_columns_for_match_states, gap_free_seed_match_seq).
+    msa_cols_F1, seed_match_F1 = seed_residue_indices(
+        str(deep_a3m), tagA, fallback_index=0, return_seq=True)
+    msa_cols_F2, seed_match_F2 = seed_residue_indices(
+        str(deep_a3m), tagB, fallback_index=1, return_seq=True)
 
     # -------- ThermoMPNN: two matrix computations (cached on disk) -------
     scorer: Optional[ThermoMPNNScorer] = None
@@ -269,6 +307,17 @@ def run_pair(pair_id: str, thermompnn_dir: str, device: str = "cuda",
     ddg1, seq1 = _get_matrix(tagA, pdb1, c1)
     ddg2, seq2 = _get_matrix(tagB, pdb2, c2)
 
+    # Map seed match-states to PDB residue indices (handles seeds that are
+    # shorter than the PDB chain — e.g. trimmed alignments).
+    pdb_idx_F1 = _seed_to_pdb_map(seed_match_F1, seq1)
+    pdb_idx_F2 = _seed_to_pdb_map(seed_match_F2, seq2)
+    n_unmapped_F1 = int((pdb_idx_F1 < 0).sum())
+    n_unmapped_F2 = int((pdb_idx_F2 < 0).sum())
+    print(f"[ddg] {tagA}: seed_match_len={len(seed_match_F1)}  pdb_len={len(seq1)}  unmapped={n_unmapped_F1}",
+          flush=True)
+    print(f"[ddg] {tagB}: seed_match_len={len(seed_match_F2)}  pdb_len={len(seq2)}  unmapped={n_unmapped_F2}",
+          flush=True)
+
     # -------- Per-cluster sampling + scoring ---------
     rows = []
     for a3m in _cluster_a3ms(pair_id):
@@ -283,8 +332,9 @@ def run_pair(pair_id: str, thermompnn_dir: str, device: str = "cuda",
         per_seq = []
         for name, a3m_seq in picked:
             match = _strip_insertions(a3m_seq)
-            scored = _score_sequence(match, ddg1, seq1, idx_F1,
-                                     ddg2, seq2, idx_F2)
+            scored = _score_sequence(match,
+                                     ddg1, seq1, msa_cols_F1, pdb_idx_F1,
+                                     ddg2, seq2, msa_cols_F2, pdb_idx_F2)
             scored["name"] = name
             per_seq.append(scored)
 
