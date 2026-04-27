@@ -770,6 +770,11 @@ def main():
     parser.add_argument("--delta-ddg", type=float, default=1.0,
                         help="kcal/mol threshold for DDG F1/F2/Amb assignment "
                              "(default 1.0; DDG is on a different scale than TM-score)")
+    parser.add_argument("--min-clusters-for-concordance", type=int, default=10,
+                        help="Min mean_n_clusters per pair for inclusion in the "
+                             "printed concordance ranking (default 10). Pairs with "
+                             "fewer clusters trivially hit 100%% — exclude them. "
+                             "Affects only the printed top-25; the CSV always has all pairs.")
     args = parser.parse_args()
 
     if args.pairs.upper() == "ALL":
@@ -995,12 +1000,22 @@ def main():
         print("(different training sets / inductive biases) is hard to dismiss")
         print("as method-specific bias. ~50% = chance; >70% = significant.\n")
 
-        # Sort by mean_concordance, only showing pairs with usable data
-        cd = df_concord.dropna(subset=["mean_concordance"])
+        MIN_CLUSTERS = args.min_clusters_for_concordance
+
+        # Filter pairs by min cluster count for reliable concordance estimates.
+        # Tiny pairs (1-4 clusters) hit 100% concordance trivially — exclude them.
+        cd_all = df_concord.dropna(subset=["mean_concordance"])
+        cd = cd_all[cd_all["mean_n_clusters"] >= MIN_CLUSTERS].copy()
         cd = cd.sort_values("mean_concordance", ascending=False)
 
+        n_filtered_out = len(cd_all) - len(cd)
+        if n_filtered_out > 0:
+            print(f"  ({n_filtered_out} pairs excluded with mean_n_clusters < "
+                  f"{MIN_CLUSTERS} — too few clusters for reliable concordance)")
+
         # Top 25
-        print("  Top 25 pairs by mean cross-method concordance:")
+        print(f"  Top 25 pairs by mean cross-method concordance "
+              f"(mean_n_clusters >= {MIN_CLUSTERS}):")
         print(f"  {'pair':<18s} {'mean':>5s} {'A~E':>5s} {'A~M':>5s} {'A~D':>5s} "
               f"{'E~M':>5s} {'E~D':>5s} {'M~D':>5s}  best_pair (pct, n)")
         for _, r in cd.head(25).iterrows():
