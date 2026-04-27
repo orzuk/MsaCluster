@@ -62,6 +62,63 @@ def _assign_pref(tm1, tm2, delta):
     return "Amb"
 
 
+def _apply_centered_classification(rows, delta):
+    """Add per-pair-CENTERED classification fields to per-cluster rows.
+
+    Motivation
+    ----------
+    The raw `pref` (F1/F2/Amb based on absolute TMdiff_max) can be confounded
+    by systematic method bias — e.g., AF2 trained more on one fold's family,
+    ESM defaulting to a single-sequence prior, MSAT favoring whichever fold's
+    contacts survive alignment intersection, ThermoMPNN's intrinsic stability
+    differential between two backbones. In all those cases EVERY cluster
+    looks like it prefers the same fold in absolute terms, washing out the
+    "which clusters lean MORE F1 than others" signal we actually want.
+
+    Fix: per pair (and per method), compute the median TMdiff_max across
+    ShallowMsa clusters, subtract it, and reclassify with the same delta.
+
+    A cluster that's "F1_centered" leans MORE toward F1 than the typical
+    cluster in this family, even if all clusters absolutely prefer F2.
+
+    The spread/range stats are centering-invariant and unchanged.
+
+    Adds fields per row:
+      TMdiff_centered (float)        — TMdiff_max minus per-pair shallow median
+      pref_centered   ("F1"|"F2"|"Amb")
+      pair_median_used (float)       — the centering value, for transparency
+    """
+    if not rows:
+        return rows
+
+    shallow_diffs = [r["TMdiff_max"] for r in rows
+                     if r.get("cluster") != "DeepMsa"
+                     and not (r.get("TMdiff_max") is None or
+                              (isinstance(r["TMdiff_max"], float) and np.isnan(r["TMdiff_max"])))]
+    if len(shallow_diffs) >= 2:
+        pair_median = float(np.median(shallow_diffs))
+    else:
+        pair_median = 0.0   # too few clusters to center meaningfully
+
+    for r in rows:
+        td = r.get("TMdiff_max")
+        if td is None or (isinstance(td, float) and np.isnan(td)):
+            r["TMdiff_centered"] = float("nan")
+            r["pref_centered"] = "Amb"
+        else:
+            # DeepMsa stays uncentered (it's the family-wide reference).
+            centered = float(td) - (pair_median if r.get("cluster") != "DeepMsa" else 0.0)
+            r["TMdiff_centered"] = round(centered, 4)
+            if centered > delta:
+                r["pref_centered"] = "F1"
+            elif centered < -delta:
+                r["pref_centered"] = "F2"
+            else:
+                r["pref_centered"] = "Amb"
+        r["pair_median_used"] = round(pair_median, 4)
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # AF2 loader
 # ---------------------------------------------------------------------------
@@ -449,63 +506,47 @@ def load_ddg_diversity(pair_id, delta_ddg):
     if not needed.issubset(df.columns):
         return []
 
-    # Compute the per-pair median bias over SHALLOW clusters only
-    # (DeepMsa, if present, is the full-MSA reference and shouldn't shift the center).
-    df["_tag"] = df["cluster"].apply(_normalize_cluster)
-    shallow_mask = df["_tag"] != "DeepMsa"
-    shallow_biases = pd.to_numeric(
-        df.loc[shallow_mask, "bias_mean"], errors="coerce").dropna().values
-    if len(shallow_biases) >= 2:
-        pair_median = float(np.median(shallow_biases))
-    else:
-        pair_median = 0.0   # too few clusters to center meaningfully
-
     rows = []
     for _, r in df.iterrows():
-        tag = r["_tag"]
+        tag = _normalize_cluster(r["cluster"])
         bias = float(r["bias_mean"])
-        # DeepMsa stays uncentered (it's the family-wide reference).
-        centered = bias - (pair_median if tag != "DeepMsa" else 0.0)
-
-        if np.isnan(centered):
-            pref = "Amb"
-        elif centered > delta_ddg:
-            pref = "F1"
-        elif centered < -delta_ddg:
-            pref = "F2"
-        else:
-            pref = "Amb"
-
         n_seqs = int(r.get("n_seqs", 0) or 0)
         frac_f1 = float(r.get("frac_F1_preferring", 0) or 0)
         sum_f1 = float(r["sum_F1_mean"])
         sum_f2 = float(r["sum_F2_mean"])
         bias_std = float(r.get("bias_std", 0) or 0)
 
+        # Raw classification (absolute kcal/mol)
+        if np.isnan(bias):
+            pref_raw = "Amb"
+        elif bias > delta_ddg:
+            pref_raw = "F1"
+        elif bias < -delta_ddg:
+            pref_raw = "F2"
+        else:
+            pref_raw = "Amb"
+
         rows.append({
             "pair_id": pair_id,
             "cluster": tag,
             "method": "DDG",
-            # higher = more stable on each fold (negate raw sums)
             "TM1_max": round(-sum_f1, 4),
             "TM2_max": round(-sum_f2, 4),
             "TM1_mean": round(-sum_f1, 4),
             "TM2_mean": round(-sum_f2, 4),
-            "TMdiff_max": round(bias, 4),         # raw bias for spread/range
-            "TMdiff_mean": round(bias, 4),
+            "TMdiff_max": round(bias, 4),         # raw bias; centered version
+            "TMdiff_mean": round(bias, 4),         # added by helper afterwards
             "n_models": n_seqs,
             "n_toward_f1": int(round(frac_f1 * n_seqs)),
             "n_toward_f2": int(round((1 - frac_f1) * n_seqs)),
             "vote_frac_f1": round(frac_f1, 3),
-            "pref": pref,                         # centered classification
-            # DDG-specific extras for transparency
+            "pref": pref_raw,
+            # DDG-specific extras
             "ddg_bias_mean": round(bias, 4),
-            "ddg_bias_centered": round(centered, 4),
-            "ddg_pair_median": round(pair_median, 4),
             "ddg_bias_std": round(bias_std, 4),
             "ddg_sum_F1_mean": round(sum_f1, 4),
             "ddg_sum_F2_mean": round(sum_f2, 4),
-            "metric_used": f"ddg_kcal_per_mol_centered(delta={delta_ddg})",
+            "metric_used": f"ddg_kcal_per_mol(delta={delta_ddg})",
         })
     return rows
 
@@ -515,7 +556,15 @@ def load_ddg_diversity(pair_id, delta_ddg):
 # ---------------------------------------------------------------------------
 
 def summarize_pair(pair_id, cluster_rows):
-    """Compute pair-level diversity metrics from cluster-level rows."""
+    """Compute pair-level diversity metrics from cluster-level rows.
+
+    Reports BOTH classifications side by side:
+      - n_f1 / n_f2 / n_amb / has_both_folds          (RAW: absolute threshold)
+      - n_f1_centered / n_f2_centered / n_amb_centered / has_both_folds_centered
+        (CENTERED: per-pair median subtracted; removes systematic method bias)
+
+    Spread/range stats are centering-invariant so they apply to both.
+    """
     if not cluster_rows:
         return None
 
@@ -530,30 +579,47 @@ def summarize_pair(pair_id, cluster_rows):
     n_clusters = len(shallow)
     prefs = shallow["pref"].value_counts().to_dict()
 
-    # Spread: std of TMdiff across clusters
+    # Centered prefs (added by _apply_centered_classification)
+    if "pref_centered" in shallow.columns:
+        prefs_c = shallow["pref_centered"].value_counts().to_dict()
+    else:
+        prefs_c = {}
+
+    # Spread: std of TMdiff across clusters (centering-invariant)
     tm_diffs = shallow["TMdiff_max"].values
     spread = float(np.std(tm_diffs)) if len(tm_diffs) > 1 else 0.0
-
-    # Range of TMdiff
     diff_range = float(np.max(tm_diffs) - np.min(tm_diffs)) if len(tm_diffs) > 1 else 0.0
 
-    # Does ANY cluster prefer a different fold from the majority?
     has_f1 = prefs.get("F1", 0) > 0
     has_f2 = prefs.get("F2", 0) > 0
     has_diversity = has_f1 and has_f2
 
-    # Best TM1 and TM2 across clusters
+    has_f1_c = prefs_c.get("F1", 0) > 0
+    has_f2_c = prefs_c.get("F2", 0) > 0
+    has_diversity_c = has_f1_c and has_f2_c
+
     best_tm1 = shallow["TM1_max"].max()
     best_tm2 = shallow["TM2_max"].max()
+
+    pair_median = (cluster_rows[0].get("pair_median_used")
+                   if "pair_median_used" in cluster_rows[0] else None)
 
     return {
         "pair_id": pair_id,
         "method": method,
         "n_clusters": n_clusters,
+        # raw classification
         "n_f1": prefs.get("F1", 0),
         "n_f2": prefs.get("F2", 0),
         "n_amb": prefs.get("Amb", 0),
         "has_both_folds": has_diversity,
+        # centered (relative-to-pair-median) classification
+        "n_f1_centered": prefs_c.get("F1", 0),
+        "n_f2_centered": prefs_c.get("F2", 0),
+        "n_amb_centered": prefs_c.get("Amb", 0),
+        "has_both_folds_centered": has_diversity_c,
+        "pair_median_used": pair_median,
+        # spread/range — centering-invariant, apply to both
         "TMdiff_spread": round(spread, 4),
         "TMdiff_range": round(diff_range, 4),
         "TMdiff_mean": round(float(np.mean(tm_diffs)), 4),
@@ -617,6 +683,7 @@ def main():
         # AF2
         af_rows = load_af2_diversity(pair_id, args.delta)
         if af_rows:
+            _apply_centered_classification(af_rows, args.delta)
             n_af2 += 1
             all_cluster_rows.extend(af_rows)
             s = summarize_pair(pair_id, af_rows)
@@ -626,6 +693,7 @@ def main():
         # ESM
         esm_rows = load_esm_diversity(pair_id, args.delta)
         if esm_rows:
+            _apply_centered_classification(esm_rows, args.delta)
             n_esm += 1
             all_cluster_rows.extend(esm_rows)
             s = summarize_pair(pair_id, esm_rows)
@@ -636,6 +704,7 @@ def main():
         msat_rows = load_msat_diversity(pair_id, args.delta,
                                         msat_metric=args.msat_metric)
         if msat_rows:
+            _apply_centered_classification(msat_rows, args.delta)
             n_msat += 1
             all_cluster_rows.extend(msat_rows)
             s = summarize_pair(pair_id, msat_rows)
@@ -646,15 +715,17 @@ def main():
         cc_rows = load_ccmpred_diversity(pair_id, args.delta,
                                          msat_metric=args.msat_metric)
         if cc_rows:
+            _apply_centered_classification(cc_rows, args.delta)
             n_ccmpred += 1
             all_cluster_rows.extend(cc_rows)
             s = summarize_pair(pair_id, cc_rows)
             if s:
                 all_summaries.append(s)
 
-        # DDG (ThermoMPNN conformation-bias, centered per pair)
+        # DDG (ThermoMPNN conformation-bias)
         ddg_rows = load_ddg_diversity(pair_id, args.delta_ddg)
         if ddg_rows:
+            _apply_centered_classification(ddg_rows, args.delta_ddg)
             n_ddg += 1
             all_cluster_rows.extend(ddg_rows)
             s = summarize_pair(pair_id, ddg_rows)
@@ -694,22 +765,37 @@ def main():
 
         print(f"\n--- {method} ({len(mdf)} pairs) ---")
 
-        # How many pairs show diversity?
+        # How many pairs show diversity? (raw absolute classification)
         n_diverse = mdf["has_both_folds"].sum()
-        print(f"  Pairs with BOTH F1 and F2 clusters: {n_diverse}/{len(mdf)} "
+        print(f"  RAW (absolute):       diverse pairs = {n_diverse}/{len(mdf)} "
               f"({100*n_diverse/len(mdf):.0f}%)")
 
-        # Preference distribution
+        # Centered (relative-to-pair-median) diversity
+        if "has_both_folds_centered" in mdf.columns:
+            n_diverse_c = mdf["has_both_folds_centered"].sum()
+            print(f"  CENTERED (relative):  diverse pairs = {n_diverse_c}/{len(mdf)} "
+                  f"({100*n_diverse_c/len(mdf):.0f}%)")
+
+        # Preference distribution (raw)
         total_f1 = mdf["n_f1"].sum()
         total_f2 = mdf["n_f2"].sum()
         total_amb = mdf["n_amb"].sum()
         total = total_f1 + total_f2 + total_amb
-        print(f"  Total clusters: F1={total_f1} F2={total_f2} Amb={total_amb} "
+        print(f"  Raw clusters:      F1={total_f1} F2={total_f2} Amb={total_amb} "
               f"({total} total)")
         if total > 0:
-            print(f"  Fractions:      F1={100*total_f1/total:.1f}% "
+            print(f"  Raw fractions:     F1={100*total_f1/total:.1f}% "
                   f"F2={100*total_f2/total:.1f}% "
                   f"Amb={100*total_amb/total:.1f}%")
+        if "n_f1_centered" in mdf.columns:
+            tf1c = mdf["n_f1_centered"].sum()
+            tf2c = mdf["n_f2_centered"].sum()
+            tac = mdf["n_amb_centered"].sum()
+            tt = tf1c + tf2c + tac
+            if tt > 0:
+                print(f"  Centered fractions: F1={100*tf1c/tt:.1f}% "
+                      f"F2={100*tf2c/tt:.1f}% "
+                      f"Amb={100*tac/tt:.1f}%")
 
         # Spread statistics
         print(f"  TMdiff spread:  mean={mdf['TMdiff_spread'].mean():.4f}  "
@@ -719,17 +805,27 @@ def main():
               f"median={mdf['TMdiff_range'].median():.4f}  "
               f"max={mdf['TMdiff_range'].max():.4f}")
 
-        # Per-pair breakdown
-        print(f"\n  Per-pair breakdown:")
-        print(f"  {'pair':<20s} {'clusters':>8s} {'F1':>4s} {'F2':>4s} "
-              f"{'Amb':>4s} {'diverse':>8s} {'spread':>8s} {'range':>8s}")
+        # Per-pair breakdown — show raw + centered side by side
+        print(f"\n  Per-pair breakdown (RAW | CENTERED):")
+        print(f"  {'pair':<20s} {'clusters':>8s} | "
+              f"{'F1':>3s} {'F2':>3s} {'Am':>3s} {'div':>4s} | "
+              f"{'F1c':>3s} {'F2c':>3s} {'Amc':>3s} {'divc':>4s} | "
+              f"{'spread':>8s} {'range':>8s}")
         for _, row in mdf.iterrows():
-            div_mark = " ***" if row["has_both_folds"] else ""
-            print(f"  {row['pair_id']:<20s} {row['n_clusters']:>8d} "
-                  f"{row['n_f1']:>4d} {row['n_f2']:>4d} {row['n_amb']:>4d} "
-                  f"{'YES' if row['has_both_folds'] else 'no':>8s} "
+            d_raw = "YES" if row.get("has_both_folds") else "no"
+            d_cen = "YES" if row.get("has_both_folds_centered") else "no"
+            star = ""
+            if row.get("has_both_folds_centered") and not row.get("has_both_folds"):
+                star = " *new*"   # centered only — would have been missed by raw
+            elif row.get("has_both_folds"):
+                star = " ***"
+            print(f"  {row['pair_id']:<20s} {row['n_clusters']:>8d} | "
+                  f"{row.get('n_f1', 0):>3d} {row.get('n_f2', 0):>3d} "
+                  f"{row.get('n_amb', 0):>3d} {d_raw:>4s} | "
+                  f"{row.get('n_f1_centered', 0):>3d} {row.get('n_f2_centered', 0):>3d} "
+                  f"{row.get('n_amb_centered', 0):>3d} {d_cen:>4s} | "
                   f"{row['TMdiff_spread']:>8.4f} {row['TMdiff_range']:>8.4f}"
-                  f"{div_mark}")
+                  f"{star}")
 
     # --- Cross-method comparison ---
     if len(df_summary["method"].unique()) > 1:
