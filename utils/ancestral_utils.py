@@ -177,32 +177,58 @@ def load_cluster_af2_tm(pair_id: str) -> dict:
 # 3. Assign fold preference
 # ---------------------------------------------------------------------------
 
-def assign_fold_preference(cluster_tms: dict, delta: float = 0.05) -> dict:
+def assign_fold_preference(cluster_tms: dict, delta: float = 0.05,
+                           centered: bool = True) -> dict:
     """Assign F1/F2/Amb to each cluster based on TM-score difference.
 
-    F1 if TM1 - TM2 > delta
-    F2 if TM2 - TM1 > delta
-    Amb otherwise
+    If ``centered`` is True (default since 2026-05-15), the per-cluster
+    TMdiff is centered by subtracting the per-pair median of TMdiff
+    across ShallowMsa clusters before applying the threshold. This is
+    the same per-pair-median-centering used by fold_diversity_survey.py
+    and is necessary because AF2 (and the other methods) often have
+    systematic bias toward one fold per family --- under absolute
+    classification every cluster gets the same label and the ancestral
+    reconstruction sees no within-pair variation, regardless of whether
+    real clade-level structure exists.
 
     Parameters
     ----------
     cluster_tms : {cluster_tag: (TM1, TM2)}
-    delta : threshold for fold assignment
+        The DeepMsa entry, if present (tag == 'DeepMsa'), is excluded
+        from the median calculation and from the per-leaf classification.
+    delta : threshold on the (centered) TMdiff
+    centered : whether to subtract per-pair median TMdiff before
+        thresholding (default True)
 
     Returns
     -------
     dict : {cluster_tag: "F1"|"F2"|"Amb"}
     """
-    prefs = {}
+    diffs = {}
     for tag, (tm1, tm2) in cluster_tms.items():
         if np.isnan(tm1) or np.isnan(tm2):
-            prefs[tag] = "Amb"
-        elif tm1 - tm2 > delta:
-            prefs[tag] = "F1"
-        elif tm2 - tm1 > delta:
-            prefs[tag] = "F2"
+            diffs[tag] = float("nan")
         else:
+            diffs[tag] = float(tm1) - float(tm2)
+    if centered:
+        shallow_diffs = [d for tag, d in diffs.items()
+                         if tag != "DeepMsa" and not np.isnan(d)]
+        median_diff = float(np.median(shallow_diffs)) if len(shallow_diffs) >= 2 else 0.0
+    else:
+        median_diff = 0.0
+
+    prefs = {}
+    for tag, d in diffs.items():
+        if np.isnan(d):
             prefs[tag] = "Amb"
+        else:
+            centered_d = d - (median_diff if tag != "DeepMsa" else 0.0)
+            if centered_d > delta:
+                prefs[tag] = "F1"
+            elif centered_d < -delta:
+                prefs[tag] = "F2"
+            else:
+                prefs[tag] = "Amb"
     return prefs
 
 
