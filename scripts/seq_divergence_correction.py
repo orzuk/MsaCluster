@@ -252,6 +252,53 @@ def compute_concordance(corrected: pd.DataFrame) -> pd.DataFrame:
 # Reporting
 # ---------------------------------------------------------------------------
 
+def global_summary(corrected: pd.DataFrame, before_concord: pd.DataFrame,
+                   after_concord: pd.DataFrame, delta: float) -> None:
+    """All-pairs summaries: per-method diversity, biggest movers, top-10 corrected."""
+    # (1) Per-method centered-diverse counts: before vs after
+    print("\n=== Per-method centered-diverse counts (all pairs): before / after ===")
+    print(f"{'method':<8} {'coverage':>10} {'before':>10} {'after':>10} {'delta':>8}")
+    for m in METHODS:
+        sub = corrected[corrected["method"] == m]
+        coverage = sub["pair_id"].nunique()
+        per_pair = sub.groupby("pair_id").agg(
+            before_F1=("pref_centered", lambda s: int((s == "F1").sum())),
+            before_F2=("pref_centered", lambda s: int((s == "F2").sum())),
+            after_F1=("pref_corrected", lambda s: int((s == "F1").sum())),
+            after_F2=("pref_corrected", lambda s: int((s == "F2").sum())),
+        )
+        before_div = int(((per_pair["before_F1"] > 0) & (per_pair["before_F2"] > 0)).sum())
+        after_div = int(((per_pair["after_F1"] > 0) & (per_pair["after_F2"] > 0)).sum())
+        print(f"{m:<8} {coverage:>10d} {before_div:>10d} {after_div:>10d} {after_div - before_div:>+8d}")
+
+    # (2) Biggest concordance movers
+    bi = before_concord.set_index("pair_id")["mean_concordance"]
+    ai = after_concord.set_index("pair_id")["mean_concordance_corrected"]
+    joined = pd.DataFrame({"before": bi, "after": ai}).dropna()
+    joined["delta"] = joined["after"] - joined["before"]
+
+    print("\n=== Pairs with concordance DROP > 0.10 (signal eroded by correction) ===")
+    dropped = joined[joined["delta"] < -0.10].sort_values("delta")
+    for pid, row in dropped.iterrows():
+        print(f"  {pid:<18}  {row['before']:.3f} -> {row['after']:.3f}  ({row['delta']:+.3f})")
+    if len(dropped) == 0:
+        print("  (none)")
+
+    print("\n=== Pairs with concordance GAIN > 0.10 (signal sharpened by correction) ===")
+    gained = joined[joined["delta"] > 0.10].sort_values("delta", ascending=False)
+    for pid, row in gained.iterrows():
+        print(f"  {pid:<18}  {row['before']:.3f} -> {row['after']:.3f}  ({row['delta']:+.3f})")
+    if len(gained) == 0:
+        print("  (none)")
+
+    # (3) Top-10 by corrected concordance
+    print("\n=== Top-10 pairs by CORRECTED mean concordance ===")
+    top = joined.sort_values("after", ascending=False).head(10)
+    for pid, row in top.iterrows():
+        flag = "  <-- HIGH CONFIDENCE" if row["after"] >= 0.65 else ""
+        print(f"  {pid:<18}  before={row['before']:.3f}  after={row['after']:.3f}{flag}")
+
+
 def before_after_table(corrected: pd.DataFrame, before_concord: pd.DataFrame,
                        after_concord: pd.DataFrame, pairs: list[str]) -> None:
     print("\n=== Before / after regression-correction (candidate pairs) ===")
@@ -320,6 +367,7 @@ def main() -> None:
         before_concord = pd.DataFrame(columns=["pair_id", "mean_concordance"])
 
     pairs = [p.strip() for p in args.candidate_pairs.split(",") if p.strip()]
+    global_summary(corrected, before_concord, after_concord, args.delta)
     before_after_table(corrected, before_concord, after_concord, pairs)
 
 
