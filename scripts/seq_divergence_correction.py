@@ -157,8 +157,15 @@ def build_pid_cache() -> pd.DataFrame:
 # Regression correction
 # ---------------------------------------------------------------------------
 
-def apply_regression(survey: pd.DataFrame, pid_df: pd.DataFrame, delta: float) -> pd.DataFrame:
-    """Per (pair, method) regress TMdiff_centered on mean_pid_to_query, classify residual."""
+def apply_regression(survey: pd.DataFrame, pid_df: pd.DataFrame,
+                     delta_tm: float, delta_ddg: float) -> pd.DataFrame:
+    """Per (pair, method) regress TMdiff_centered on mean_pid_to_query, classify residual.
+
+    Note on scales: AF2/ESM/MSAT TMdiff_centered is on TM-score scale [-1, 1];
+    DDG TMdiff_centered is actually centered Delta-Delta-G in kcal/mol, typical
+    range much wider. We therefore apply delta_tm to AF2/ESM/MSAT residuals and
+    delta_ddg to DDG residuals, matching the original survey thresholds.
+    """
     survey = survey.copy()
     survey["cluster_norm"] = survey["cluster"].map(normalize_cluster)
     pid_df = pid_df.copy()
@@ -191,16 +198,20 @@ def apply_regression(survey: pd.DataFrame, pid_df: pd.DataFrame, delta: float) -
         merged.loc[sub.index, "regression_beta"] = beta
         merged.loc[sub.index, "regression_alpha"] = alpha
 
-    def _classify(v):
+    def _classify(v, d):
         if pd.isna(v):
             return "Amb"
-        if v > delta:
+        if v > d:
             return "F1"
-        if v < -delta:
+        if v < -d:
             return "F2"
         return "Amb"
 
-    merged["pref_corrected"] = merged["TMdiff_residual"].map(_classify)
+    def _row_classify(row):
+        d = delta_ddg if row["method"] == "DDG" else delta_tm
+        return _classify(row["TMdiff_residual"], d)
+
+    merged["pref_corrected"] = merged.apply(_row_classify, axis=1)
     return merged
 
 
@@ -335,6 +346,8 @@ def main() -> None:
                     help="rebuild docs/per_cluster_pid_to_query.csv from a3m files")
     ap.add_argument("--delta", type=float, default=0.05,
                     help="classification threshold on TM-score residual (default 0.05)")
+    ap.add_argument("--delta-ddg", type=float, default=2.0,
+                    help="classification threshold on DDG residual in kcal/mol (default 2.0)")
     ap.add_argument("--candidate-pairs", default=",".join(CANDIDATE_PAIRS),
                     help="comma-separated pair IDs to print before/after for")
     args = ap.parse_args()
@@ -352,7 +365,7 @@ def main() -> None:
     if "TMdiff_centered" not in survey.columns:
         raise SystemExit("survey CSV missing TMdiff_centered column — re-run fold_diversity_survey.py first")
 
-    corrected = apply_regression(survey, pid_df, args.delta)
+    corrected = apply_regression(survey, pid_df, args.delta, args.delta_ddg)
     corrected.to_csv(OUT_SURVEY, index=False)
     print(f"wrote {OUT_SURVEY}: {len(corrected)} rows")
 
