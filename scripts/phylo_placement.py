@@ -66,10 +66,27 @@ os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 import argparse
 import random
 import re
+import signal
 import sys
 import time
 from collections import Counter
+from contextlib import contextmanager
 from typing import Dict, List, Optional, Sequence, Tuple
+
+
+@contextmanager
+def _per_pair_timeout(seconds: int):
+    """SIGALRM-based per-pair timeout. Skips a single hung pair without
+    killing the whole run. Linux-only; uses SIGALRM."""
+    def _handler(signum, frame):
+        raise TimeoutError(f"per-pair timeout after {seconds}s")
+    old = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 import numpy as np
 import pandas as pd
@@ -753,12 +770,19 @@ def main():
 
     rows: List[dict] = []
     t_total = time.time()
+    per_pair_timeout_s = int(os.environ.get("PHYLO_PAIR_TIMEOUT", "120"))
     for i, pair_id in enumerate(sorted(pair_ids), 1):
         t_pair = time.time()
-        print(f"\n[{i}/{len(pair_ids)}] {pair_id}: building coarse tree...", flush=True)
+        print(f"\n[{i}/{len(pair_ids)}] {pair_id}: building coarse tree "
+              f"(timeout {per_pair_timeout_s}s)...", flush=True)
         try:
-            tree, tag_to_label, _ = build_coarse_tree(pair_id)
-            _name_internal_nodes(tree)
+            with _per_pair_timeout(per_pair_timeout_s):
+                tree, tag_to_label, _ = build_coarse_tree(pair_id)
+                _name_internal_nodes(tree)
+        except TimeoutError as e:
+            print(f"  TIMEOUT after {per_pair_timeout_s}s on coarse-tree build; "
+                  f"skipping {pair_id}", flush=True)
+            continue
         except FileNotFoundError as e:
             print(f"  skipped: {e}", flush=True)
             continue
@@ -782,11 +806,19 @@ def main():
             }
             cluster_pref_per_method[method] = cp
 
-            row = analyze_pair_method(
-                pair_id, method, tree, tag_to_label, cp,
-                n_perm=args.n_perm, seed=args.seed,
-                do_d_stat=(not args.no_d_statistic),
-            )
+            try:
+                with _per_pair_timeout(per_pair_timeout_s):
+                    row = analyze_pair_method(
+                        pair_id, method, tree, tag_to_label, cp,
+                        n_perm=args.n_perm, seed=args.seed,
+                        do_d_stat=(not args.no_d_statistic),
+                    )
+            except TimeoutError:
+                print(f"    {method}: TIMEOUT after {per_pair_timeout_s}s; skipped", flush=True)
+                continue
+            except Exception as e:
+                print(f"    {method}: failed: {e}", flush=True)
+                continue
             print(f"    {method}: {time.time()-t_method:.1f}s", flush=True)
             if row is None:
                 continue
