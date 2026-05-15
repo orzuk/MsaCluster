@@ -7,8 +7,17 @@ Usage:
   python scripts/run_ancestral_analysis.py --pairs ALL --summary-only
 """
 
-import argparse
 import os
+# Headless rendering env vars MUST be set BEFORE importing matplotlib / ete3.
+# Without these, on a headless compute node ete3.TreeStyle hangs waiting on Qt
+# and matplotlib fails to find a writable config dir.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl-cache-orzuk")
+os.environ.setdefault("PYTHONUNBUFFERED", "1")
+os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
+
+import argparse
 import sys
 import time
 
@@ -17,8 +26,11 @@ import pandas as pd
 # Allow running from repo root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+print(f"[ancestral] importing modules...", flush=True)
+_t0 = time.time()
 from config import DATA_DIR, PAIR_DIR_RE, TABLES_RES
 from utils.ancestral_utils import analyze_pair
+print(f"[ancestral] imports done in {time.time()-_t0:.1f}s", flush=True)
 
 
 def discover_eligible_pairs() -> list[str]:
@@ -71,7 +83,8 @@ def main():
     results = []
     t0 = time.time()
     for i, pair_id in enumerate(pairs):
-        print(f"\n[{i+1}/{len(pairs)}] {pair_id}")
+        t_pair = time.time()
+        print(f"\n[{i+1}/{len(pairs)}] {pair_id} ... starting", flush=True)
         try:
             r = analyze_pair(pair_id, delta=args.delta, n_perm=args.n_perm)
             results.append(r)
@@ -79,9 +92,10 @@ def main():
             print(f"  {r['n_clusters']} clusters | {pref_str} | "
                   f"pattern={r['pattern']} | root={r['root_state']} | "
                   f"transitions={r['n_fold_transitions']}"
-                  + (f" | p={r['p_value']:.3f}" if r['p_value'] is not None else ""))
+                  + (f" | p={r['p_value']:.3f}" if r['p_value'] is not None else "")
+                  + f"  ({time.time()-t_pair:.1f}s)", flush=True)
         except Exception as e:
-            print(f"  [FAILED] {e}")
+            print(f"  [FAILED] {e}  ({time.time()-t_pair:.1f}s)", flush=True)
             results.append({"pair_id": pair_id, "error": str(e)})
 
     elapsed = time.time() - t0

@@ -53,11 +53,21 @@ Usage
 
 from __future__ import annotations
 
-import argparse
 import os
+# Headless rendering env vars MUST be set BEFORE importing matplotlib / ete3.
+# Without these, on a headless compute node ete3.TreeStyle hangs waiting on Qt
+# and matplotlib fails to find a writable config dir.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl-cache-orzuk")
+os.environ.setdefault("PYTHONUNBUFFERED", "1")
+os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
+
+import argparse
 import random
 import re
 import sys
+import time
 from collections import Counter
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -67,8 +77,11 @@ import pandas as pd
 # Allow running from repo root and from anywhere
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+print(f"[phylo] importing modules...", flush=True)
+_t0 = time.time()
 from config import DATA_DIR, PAIR_DIR_RE, TABLES_RES  # noqa: E402
 from utils.ancestral_utils import build_coarse_tree, _name_internal_nodes  # noqa: E402
+print(f"[phylo] imports done in {time.time()-_t0:.1f}s", flush=True)
 
 
 # Methods we score. CCMpred is included if the survey CSV has it; otherwise
@@ -739,27 +752,30 @@ def main():
     cached_states: Dict[Tuple[str, str], Tuple[object, Dict[str, str], dict]] = {}
 
     rows: List[dict] = []
+    t_total = time.time()
     for i, pair_id in enumerate(sorted(pair_ids), 1):
+        t_pair = time.time()
+        print(f"\n[{i}/{len(pair_ids)}] {pair_id}: building coarse tree...", flush=True)
         try:
             tree, tag_to_label, _ = build_coarse_tree(pair_id)
             _name_internal_nodes(tree)
         except FileNotFoundError as e:
-            print(f"[{i}/{len(pair_ids)}] {pair_id}: {e}")
+            print(f"  skipped: {e}", flush=True)
             continue
         except Exception as e:
-            print(f"[{i}/{len(pair_ids)}] {pair_id}: coarse-tree build failed: {e}")
+            print(f"  coarse-tree build failed: {e}", flush=True)
             continue
 
         n_clusters = len(tag_to_label)
         if n_clusters < 2:
-            print(f"[{i}/{len(pair_ids)}] {pair_id}: only {n_clusters} cluster(s) "
-                  f"-- skip")
+            print(f"  only {n_clusters} cluster(s) -- skip ({time.time()-t_pair:.1f}s)", flush=True)
             continue
-        print(f"[{i}/{len(pair_ids)}] {pair_id}: coarse tree with "
-              f"{n_clusters} cluster-leaves")
+        print(f"  coarse tree built with {n_clusters} cluster-leaves "
+              f"({time.time()-t_pair:.1f}s)", flush=True)
 
         cluster_pref_per_method: Dict[str, Dict[str, str]] = {}
         for method in SCORED_METHODS:
+            t_method = time.time()
             cp: Dict[str, str] = {
                 tag: pref_lookup.get((pair_id, method, tag), "Amb")
                 for tag in tag_to_label
@@ -771,12 +787,14 @@ def main():
                 n_perm=args.n_perm, seed=args.seed,
                 do_d_stat=(not args.no_d_statistic),
             )
+            print(f"    {method}: {time.time()-t_method:.1f}s", flush=True)
             if row is None:
                 continue
             row["n_clusters"] = n_clusters
             leaf_states = row.pop("_leaf_states")
             cached_states[(pair_id, method)] = (tree, leaf_states, row)
             rows.append(row)
+        print(f"  pair total: {time.time()-t_pair:.1f}s  (running {time.time()-t_total:.0f}s)", flush=True)
 
         if pair_id == "2n54B_2hdmA":
             try:
