@@ -18,10 +18,27 @@ os.environ.setdefault("PYTHONUNBUFFERED", "1")
 os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import argparse
+import signal
 import sys
 import time
+from contextlib import contextmanager
 
 import pandas as pd
+
+
+@contextmanager
+def _per_pair_timeout(seconds: int):
+    """SIGALRM-based per-pair timeout. Skips a single hung pair without
+    killing the whole run. Linux-only; uses SIGALRM."""
+    def _handler(signum, frame):
+        raise TimeoutError(f"per-pair timeout after {seconds}s")
+    old = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 # Allow running from repo root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -82,11 +99,14 @@ def main():
     # Process each pair
     results = []
     t0 = time.time()
+    per_pair_timeout_s = int(os.environ.get("ANCESTRAL_PAIR_TIMEOUT", "120"))
     for i, pair_id in enumerate(pairs):
         t_pair = time.time()
-        print(f"\n[{i+1}/{len(pairs)}] {pair_id} ... starting", flush=True)
+        print(f"\n[{i+1}/{len(pairs)}] {pair_id} ... starting "
+              f"(timeout {per_pair_timeout_s}s)", flush=True)
         try:
-            r = analyze_pair(pair_id, delta=args.delta, n_perm=args.n_perm)
+            with _per_pair_timeout(per_pair_timeout_s):
+                r = analyze_pair(pair_id, delta=args.delta, n_perm=args.n_perm)
             results.append(r)
             pref_str = f"F1={r['n_f1']} F2={r['n_f2']} Amb={r['n_amb']}"
             print(f"  {r['n_clusters']} clusters | {pref_str} | "
@@ -94,6 +114,9 @@ def main():
                   f"transitions={r['n_fold_transitions']}"
                   + (f" | p={r['p_value']:.3f}" if r['p_value'] is not None else "")
                   + f"  ({time.time()-t_pair:.1f}s)", flush=True)
+        except TimeoutError:
+            print(f"  TIMEOUT after {per_pair_timeout_s}s; skipped", flush=True)
+            results.append({"pair_id": pair_id, "error": f"timeout after {per_pair_timeout_s}s"})
         except Exception as e:
             print(f"  [FAILED] {e}  ({time.time()-t_pair:.1f}s)", flush=True)
             results.append({"pair_id": pair_id, "error": str(e)})
