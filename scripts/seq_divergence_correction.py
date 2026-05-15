@@ -263,6 +263,43 @@ def compute_concordance(corrected: pd.DataFrame) -> pd.DataFrame:
 # Reporting
 # ---------------------------------------------------------------------------
 
+def threshold_sensitivity(survey: pd.DataFrame, pid_df: pd.DataFrame,
+                          deltas: list[float], delta_ddg: float) -> None:
+    """Run the regression correction at multiple TM-score thresholds.
+
+    Reports per-method centered-diverse pair counts (raw vs corrected)
+    and Venn 4-way intersection size at each delta. Concordance itself
+    is sign-based and delta-invariant, so the high-confidence pair
+    count by mean_concordance >= 0.65 is unchanged across deltas; the
+    diversity counts that feed Table 1 / Venn are not.
+    """
+    from itertools import combinations
+    print("\n=== Threshold sensitivity (per-method centered-diverse counts) ===")
+    print(f"{'delta':<7} {'method':<6} {'raw':>5} {'corrected':>10}   {'corr-raw':>9}")
+    venn_sizes = {}
+    for d in deltas:
+        corrected = apply_regression(survey, pid_df, d, delta_ddg)
+        sets = {}
+        for m in METHODS:
+            sub = corrected[corrected["method"] == m]
+            per_pair = sub.groupby("pair_id").agg(
+                raw_F1=("pref_centered", lambda s: int((s == "F1").sum())),
+                raw_F2=("pref_centered", lambda s: int((s == "F2").sum())),
+                cor_F1=("pref_corrected", lambda s: int((s == "F1").sum())),
+                cor_F2=("pref_corrected", lambda s: int((s == "F2").sum())),
+            )
+            raw_div = int(((per_pair["raw_F1"] > 0) & (per_pair["raw_F2"] > 0)).sum())
+            cor_div = int(((per_pair["cor_F1"] > 0) & (per_pair["cor_F2"] > 0)).sum())
+            sets[m] = set(per_pair[(per_pair["cor_F1"] > 0) & (per_pair["cor_F2"] > 0)].index)
+            print(f"{d:<7.2f} {m:<6} {raw_div:>5d} {cor_div:>10d}   {cor_div - raw_div:>+9d}")
+        venn = set.intersection(*sets.values()) if sets else set()
+        venn_sizes[d] = (len(venn), sorted(venn))
+        print(f"  4-way intersection at delta={d:.2f}: {len(venn)} pairs  {sorted(venn)}")
+    print("\n=== Venn 4-way intersection size by delta ===")
+    for d, (n, pairs) in venn_sizes.items():
+        print(f"  delta={d:.2f}: {n} pairs  {pairs}")
+
+
 def global_summary(corrected: pd.DataFrame, before_concord: pd.DataFrame,
                    after_concord: pd.DataFrame, delta: float) -> None:
     """All-pairs summaries: per-method diversity, biggest movers, top-10 corrected."""
@@ -348,6 +385,8 @@ def main() -> None:
                     help="classification threshold on TM-score residual (default 0.05)")
     ap.add_argument("--delta-ddg", type=float, default=2.0,
                     help="classification threshold on DDG residual in kcal/mol (default 2.0)")
+    ap.add_argument("--delta-sweep", action="store_true",
+                    help="run threshold-sensitivity sweep at delta in {0.03, 0.05, 0.07}")
     ap.add_argument("--candidate-pairs", default=",".join(CANDIDATE_PAIRS),
                     help="comma-separated pair IDs to print before/after for")
     args = ap.parse_args()
@@ -382,6 +421,8 @@ def main() -> None:
     pairs = [p.strip() for p in args.candidate_pairs.split(",") if p.strip()]
     global_summary(corrected, before_concord, after_concord, args.delta)
     before_after_table(corrected, before_concord, after_concord, pairs)
+    if args.delta_sweep:
+        threshold_sensitivity(survey, pid_df, [0.03, 0.05, 0.07], args.delta_ddg)
 
 
 if __name__ == "__main__":
