@@ -50,6 +50,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 print("[case-study-figs] importing modules...", flush=True)
 _t0 = time.time()
+import numpy as np
 import pandas as pd
 from utils.plot_3d import (
     _best_cluster_from_df,
@@ -66,6 +67,57 @@ CASE_STUDIES = {
 }
 
 
+def _best_shallow_cluster(pair_id: str, model_ver: str, fold_idx: int):
+    """Best ShallowMsa cluster (excluding DeepMsa) on TMscore_fold{1,2}.
+
+    Returns (canonical_tag, tm_to_target_fold) or (None, None) if no shallow rows.
+    Differs from utils.plot_3d._best_cluster_from_df, which also considers the
+    DeepMsa baseline row -- under AHC some pairs have no F2-favoring shallow
+    cluster, and the DeepMsa baseline would win. For the case-study figures we
+    want the best shallow cluster regardless.
+    """
+    df_path = os.path.join("Pipeline", "FoldPairs", pair_id, "Analysis", "df_af.csv")
+    if not os.path.isfile(df_path):
+        return None, None
+    d = pd.read_csv(df_path)
+    if "model" in d.columns:
+        d = d[d["model"].astype(str).str.upper() == f"AF{model_ver}".upper()]
+    ccol = "cluster_num" if "cluster_num" in d.columns else (
+        "cluster" if "cluster" in d.columns else None)
+    score_col = "TMscore_fold1" if fold_idx == 0 else "TMscore_fold2"
+    if d.empty or ccol is None or score_col not in d.columns:
+        return None, None
+    d = d[~d[ccol].astype(str).str.lower().str.startswith("deep")]
+    if d.empty:
+        return None, None
+    d = d.copy()
+    d["_s"] = pd.to_numeric(d[score_col], errors="coerce")
+    d = d.dropna(subset=["_s"])
+    if d.empty:
+        return None, None
+    row = d.loc[d["_s"].idxmax()]
+    tag = str(row[ccol]).strip()
+    m = re.fullmatch(r"\d+", tag)
+    if m:
+        tag = f"ShallowMsa_{int(m.group(0)):03d}"
+    elif re.fullmatch(r"ShallowMsa_\d+", tag):
+        m2 = re.fullmatch(r"ShallowMsa_(\d+)", tag)
+        tag = f"ShallowMsa_{int(m2.group(1)):03d}"
+    return tag, float(row["_s"])
+
+
+def _truth_pdb(pair_dir: Path, pdbid: str) -> Path:
+    """Truth PDB filename pattern: <pdbid>.pdb in the pair directory.
+
+    Falls back to <pdbid>_cif.pdb if the plain .pdb is missing.
+    """
+    p = pair_dir / f"{pdbid}.pdb"
+    if p.is_file():
+        return p
+    alt = pair_dir / f"{pdbid}_cif.pdb"
+    return alt if alt.is_file() else p
+
+
 def regen_pair(pair_id: str, pdbid1_full: str, pdbid2_full: str, label: str,
                out_root: Path) -> dict:
     pdbid1, chain1 = pdbid1_full[:4], pdbid1_full[4]
@@ -74,20 +126,38 @@ def regen_pair(pair_id: str, pdbid1_full: str, pdbid2_full: str, label: str,
     out_dir = out_root / pair_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    best_f1 = _best_cluster_from_df(pair_id, model_ver="2", fold_idx=0)
-    best_f2 = _best_cluster_from_df(pair_id, model_ver="2", fold_idx=1)
-    print(f"  [{pair_id}] best_F1 cluster={best_f1}  best_F2 cluster={best_f2}", flush=True)
+    # Pick best ShallowMsa clusters (exclude DeepMsa baseline).
+    best_f1, tm_f1 = _best_shallow_cluster(pair_id, model_ver="2", fold_idx=0)
+    best_f2, tm_f2 = _best_shallow_cluster(pair_id, model_ver="2", fold_idx=1)
+
+    # Detect "no shallow cluster favors F2 over DeepMsa baseline" for honest reporting.
+    unrestricted_f2 = _best_cluster_from_df(pair_id, model_ver="2", fold_idx=1)
+    f2_note = None
+    if unrestricted_f2 and str(unrestricted_f2).lower().startswith("deep"):
+        f2_note = (
+            "No ShallowMsa AHC cluster beats the DeepMsa baseline on TMscore_fold2; "
+            "the figure shows the best F2-leaning ShallowMsa cluster, which still "
+            "favors F1 in absolute terms."
+        )
+    print(f"  [{pair_id}] best_F1 cluster={best_f1} (TM_fold1={tm_f1})  "
+          f"best_F2 cluster={best_f2} (TM_fold2={tm_f2})", flush=True)
+    if f2_note:
+        print(f"    [note] {f2_note}", flush=True)
 
     pair_dir = Path(DATA_DIR) / pair_id
-    truth_f1 = pair_dir / f"{pdbid1_full}.pdb"
-    truth_f2 = pair_dir / f"{pdbid2_full}.pdb"
+    truth_f1 = _truth_pdb(pair_dir, pdbid1)
+    truth_f2 = _truth_pdb(pair_dir, pdbid2)
 
     manifest: dict = {
         "pair_id": pair_id,
         "label": label,
         "fold1": pdbid1_full,
         "fold2": pdbid2_full,
+        "best_f1_tm_fold1": tm_f1,
+        "best_f2_tm_fold2": tm_f2,
     }
+    if f2_note:
+        manifest["note_f2"] = f2_note
 
     if best_f1 is not None:
         pred_f1 = _pred_pdb_path(pair_id, "AF", "2", best_f1, pdbid1, chain1)
