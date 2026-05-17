@@ -68,34 +68,44 @@ CASE_STUDIES = {
 
 
 def _best_shallow_cluster(pair_id: str, model_ver: str, fold_idx: int):
-    """Best ShallowMsa cluster (excluding DeepMsa) on TMscore_fold{1,2}.
+    """Best F{fold}-favoring ShallowMsa cluster (excludes DeepMsa) on ΔTM.
 
-    Returns (canonical_tag, tm_to_target_fold) or (None, None) if no shallow rows.
-    Differs from utils.plot_3d._best_cluster_from_df, which also considers the
-    DeepMsa baseline row -- under AHC some pairs have no F2-favoring shallow
-    cluster, and the DeepMsa baseline would win. For the case-study figures we
-    want the best shallow cluster regardless.
+    Selection metric is the per-cluster ΔTM toward the target fold:
+        fold_idx=0  -> argmax( TMscore_fold1 - TMscore_fold2 )
+        fold_idx=1  -> argmax( TMscore_fold2 - TMscore_fold1 )
+
+    ΔTM is the right metric for case-study figures because it picks the
+    cluster whose AF2 prediction *prefers* the target fold over the other,
+    rather than the cluster that happens to have the highest absolute TM to
+    the target fold (which can be a cluster that predicts the other fold
+    well, when the two folds are globally similar -- e.g. SUN2 where
+    TM_fold1 ≈ TM_fold2 for most clusters).
+
+    Returns (canonical_tag, tm_to_target_fold, tm_to_other_fold) or
+    (None, None, None) when no usable rows are present.
     """
     df_path = os.path.join("Pipeline", "FoldPairs", pair_id, "Analysis", "df_af.csv")
     if not os.path.isfile(df_path):
-        return None, None
+        return None, None, None
     d = pd.read_csv(df_path)
     if "model" in d.columns:
         d = d[d["model"].astype(str).str.upper() == f"AF{model_ver}".upper()]
     ccol = "cluster_num" if "cluster_num" in d.columns else (
         "cluster" if "cluster" in d.columns else None)
-    score_col = "TMscore_fold1" if fold_idx == 0 else "TMscore_fold2"
-    if d.empty or ccol is None or score_col not in d.columns:
-        return None, None
+    if d.empty or ccol is None \
+       or "TMscore_fold1" not in d.columns or "TMscore_fold2" not in d.columns:
+        return None, None, None
     d = d[~d[ccol].astype(str).str.lower().str.startswith("deep")]
     if d.empty:
-        return None, None
+        return None, None, None
     d = d.copy()
-    d["_s"] = pd.to_numeric(d[score_col], errors="coerce")
-    d = d.dropna(subset=["_s"])
+    d["_tm1"] = pd.to_numeric(d["TMscore_fold1"], errors="coerce")
+    d["_tm2"] = pd.to_numeric(d["TMscore_fold2"], errors="coerce")
+    d = d.dropna(subset=["_tm1", "_tm2"])
     if d.empty:
-        return None, None
-    row = d.loc[d["_s"].idxmax()]
+        return None, None, None
+    d["_delta"] = (d["_tm1"] - d["_tm2"]) if fold_idx == 0 else (d["_tm2"] - d["_tm1"])
+    row = d.loc[d["_delta"].idxmax()]
     tag = str(row[ccol]).strip()
     m = re.fullmatch(r"\d+", tag)
     if m:
@@ -103,7 +113,9 @@ def _best_shallow_cluster(pair_id: str, model_ver: str, fold_idx: int):
     elif re.fullmatch(r"ShallowMsa_\d+", tag):
         m2 = re.fullmatch(r"ShallowMsa_(\d+)", tag)
         tag = f"ShallowMsa_{int(m2.group(1)):03d}"
-    return tag, float(row["_s"])
+    tm_target = float(row["_tm1"] if fold_idx == 0 else row["_tm2"])
+    tm_other = float(row["_tm2"] if fold_idx == 0 else row["_tm1"])
+    return tag, tm_target, tm_other
 
 
 def _truth_pdb(pair_dir: Path, pdbid: str) -> Path:
@@ -126,21 +138,24 @@ def regen_pair(pair_id: str, pdbid1_full: str, pdbid2_full: str, label: str,
     out_dir = out_root / pair_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Pick best ShallowMsa clusters (exclude DeepMsa baseline).
-    best_f1, tm_f1 = _best_shallow_cluster(pair_id, model_ver="2", fold_idx=0)
-    best_f2, tm_f2 = _best_shallow_cluster(pair_id, model_ver="2", fold_idx=1)
+    # Pick best ShallowMsa clusters by ΔTM toward each fold (exclude DeepMsa baseline).
+    best_f1, tm_f1, tm_f1_other = _best_shallow_cluster(pair_id, model_ver="2", fold_idx=0)
+    best_f2, tm_f2, tm_f2_other = _best_shallow_cluster(pair_id, model_ver="2", fold_idx=1)
 
     # Detect "no shallow cluster favors F2 over DeepMsa baseline" for honest reporting.
     unrestricted_f2 = _best_cluster_from_df(pair_id, model_ver="2", fold_idx=1)
     f2_note = None
     if unrestricted_f2 and str(unrestricted_f2).lower().startswith("deep"):
         f2_note = (
-            "No ShallowMsa AHC cluster beats the DeepMsa baseline on TMscore_fold2; "
-            "the figure shows the best F2-leaning ShallowMsa cluster, which still "
-            "favors F1 in absolute terms."
+            "No ShallowMsa AHC cluster beats the DeepMsa baseline on absolute TMscore_fold2; "
+            "the figure shows the cluster with the largest ΔTM toward F2 among shallow clusters."
         )
-    print(f"  [{pair_id}] best_F1 cluster={best_f1} (TM_fold1={tm_f1})  "
-          f"best_F2 cluster={best_f2} (TM_fold2={tm_f2})", flush=True)
+    delta_f1 = (tm_f1 - tm_f1_other) if tm_f1 is not None else None
+    delta_f2 = (tm_f2 - tm_f2_other) if tm_f2 is not None else None
+    print(f"  [{pair_id}] best_F1 cluster={best_f1} "
+          f"(TM_fold1={tm_f1}, ΔTM={delta_f1})  "
+          f"best_F2 cluster={best_f2} "
+          f"(TM_fold2={tm_f2}, ΔTM_toward_F2={delta_f2})", flush=True)
     if f2_note:
         print(f"    [note] {f2_note}", flush=True)
 
@@ -154,7 +169,12 @@ def regen_pair(pair_id: str, pdbid1_full: str, pdbid2_full: str, label: str,
         "fold1": pdbid1_full,
         "fold2": pdbid2_full,
         "best_f1_tm_fold1": tm_f1,
+        "best_f1_tm_fold2": tm_f1_other,
+        "best_f1_delta_tm": delta_f1,
         "best_f2_tm_fold2": tm_f2,
+        "best_f2_tm_fold1": tm_f2_other,
+        "best_f2_delta_tm_toward_f2": delta_f2,
+        "selection_metric": "delta_tm (TMscore_target - TMscore_other), excluding DeepMsa",
     }
     if f2_note:
         manifest["note_f2"] = f2_note
