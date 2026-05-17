@@ -527,10 +527,19 @@ def task_postprocess(protein_ids: List[str], control_type: str,
         print("[postprocess] ERR: compute_tmscore_align unavailable")
         return
 
+    force = bool(getattr(args, "force_postprocess", False))
+
     for protein_id in protein_ids:
         pdir = _protein_dir(protein_id, control_type)
         analysis_dir = os.path.join(pdir, "Analysis")
         ensure_dir(analysis_dir)
+
+        # Skip if per-protein diversity CSV already exists (use --force_postprocess to override).
+        # The global summary at the end of this function will still pick it up.
+        existing = os.path.join(analysis_dir, "df_diversity.csv")
+        if not force and os.path.isfile(existing):
+            print(f"[postprocess] {protein_id}: df_diversity.csv exists, skipping (use --force_postprocess to recompute)")
+            continue
 
         # Collect best PDBs per cluster from AF2 (prefer AF2 for consistency)
         cluster_pdbs = {}
@@ -761,6 +770,12 @@ def main():
     # AF options
     p.add_argument("--af_ver", default="2", choices=["2", "3", "both"])
     p.add_argument("--force_rerun_AF", default="FALSE", choices=["TRUE", "FALSE"])
+
+    # Postprocess options
+    p.add_argument("--force_postprocess", action="store_true",
+                   help="Recompute per-protein df_diversity.csv even when it already exists. "
+                        "Default is to skip proteins whose Analysis/df_diversity.csv is present "
+                        "and only rebuild the global controls_diversity_summary.csv.")
 
     # ESMFold options
     p.add_argument("--cluster_sample_n", type=int, default=10)
