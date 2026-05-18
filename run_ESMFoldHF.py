@@ -327,7 +327,10 @@ def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
             repo_root = Path(__file__).resolve().parent
             env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
 
-            cmd = [sys.executable, str(script), "--fasta", fasta_path, "--device", device]
+            # Allow ESM3 to live in a separate venv (e.g. torch2-venv).
+            # Set ESM3_PYTHON to that venv's python3 if so.
+            esm3_python = os.environ.get("ESM3_PYTHON", sys.executable)
+            cmd = [esm3_python, str(script), "--fasta", fasta_path, "--device", device]
             res = subprocess.run(
                 cmd, capture_output=True, text=True,
                 cwd=str(Path(script).parent),  # <— run inside the ESM repo

@@ -55,6 +55,10 @@ RUN_MODE_DESCRIPTIONS = {
     "run_ddg":          "Conformation-biasing scoring: ThermoMPNN DDG per cluster sequence vs both fold backbones.",
     "run_cmap_msa_transformer":      "Run MSA-transformer on the pair to get contact maps.",
     "run_cmap_ccmpred": "Run CCMpred on DeepMsa and all ShallowMsa_XXX clusters to get contact maps.",
+    "run_cf_random":    "Run CF-random (ColabFold with random shallow MSA subsampling) per cluster.",
+    "run_speachaf":     "Run SPEACH-AF (random column-masking perturbation of cluster MSAs + ColabFold) per cluster.",
+    "run_alphaflow":    "Run AlphaFlow (flow-matching diffusion ensemble) per cluster. Requires torch2-venv.",
+    "run_boltz2":       "Run Boltz-2 (open-source AF3-class predictor with binding head) per cluster. Requires torch2-venv.",
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
     "postprocess": "Compute TM/cmap metrics and build summary/detailed tables. Use --force_rerun_postprocess TRUE to recompute." ,
     "plot":             "Generate pair-specific plots (requires PyMOL).",
@@ -71,6 +75,10 @@ HEAVY_PAIR_MODES = {
     "run_esmfold",            # your ESMFold step
     "run_AF",         # if you have this mode
     "run_ddg",                # ThermoMPNN conformation-biasing per cluster
+    "run_cf_random",          # CF-random per cluster
+    "run_speachaf",           # SPEACH-AF per cluster
+    "run_alphaflow",          # AlphaFlow per cluster
+    "run_boltz2",             # Boltz-2 per cluster
     "compute_deltaG",         # if you have a Rosetta/PyRosetta ΔG step
     "plot",                   # rendering/alignments can be slow
     "gen_pair_html",          # if HTML generation per pair is non-trivial
@@ -86,6 +94,10 @@ SBATCH_HINTS = {
     "run_esmfold":           {"time":"06:00:00", "mem":"24G",  "gpus":1, "cpus":6},
     "run_AF":                {"time":"24:00:00","mem":"64G",  "gpus":1, "cpus":8},
     "run_ddg":               {"time":"02:00:00", "mem":"16G",  "gpus":1, "cpus":4},
+    "run_cf_random":         {"time":"12:00:00", "mem":"32G",  "gpus":1, "cpus":8},
+    "run_speachaf":          {"time":"08:00:00", "mem":"24G",  "gpus":1, "cpus":8},
+    "run_alphaflow":         {"time":"06:00:00", "mem":"32G",  "gpus":1, "cpus":8},
+    "run_boltz2":            {"time":"06:00:00", "mem":"32G",  "gpus":1, "cpus":8},
     "compute_deltaG":        {"time":"06:00:00", "mem":"16G",  "gpus":0, "cpus":8},
     "plot":                  {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
     "gen_pair_html":         {"time":"01:00:00", "mem":"4G",   "gpus":0, "cpus":2},
@@ -1566,6 +1578,49 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
         print(f"[esm] ERROR on GPU: {e}")
 
 
+def task_cf_random(pair_id: str, args: argparse.Namespace) -> None:
+    """CF-random per cluster (Lee/Schafer/Porter 2025). Shells out to
+    run_CFrandom.py which uses the existing colabfold install in
+    my-python-venv -- no new venv needed."""
+    n = int(getattr(args, "cf_random_n", 100))
+    depths = getattr(args, "cf_random_depths", "2:4,4:8,8:16,16:32,32:64")
+    cmd = (f"python3 ./run_CFrandom.py -input {pair_id} "
+           f"--n_samples {n} --depths {shlex.quote(depths)}")
+    _run(cmd, args.run_job_mode)
+
+
+def task_speachaf(pair_id: str, args: argparse.Namespace) -> None:
+    """SPEACH-AF per cluster. Shells out to run_SpeachAF.py;
+    reuses my-python-venv colabfold."""
+    n = int(getattr(args, "speachaf_n", 20))
+    win = int(getattr(args, "speachaf_window", 8))
+    frac = float(getattr(args, "speachaf_mask_fraction", 0.5))
+    cmd = (f"python3 ./run_SpeachAF.py -input {pair_id} "
+           f"--n_perturbations {n} --mask_window {win} "
+           f"--mask_fraction {frac}")
+    _run(cmd, args.run_job_mode)
+
+
+def task_alphaflow(pair_id: str, args: argparse.Namespace) -> None:
+    """AlphaFlow per cluster. Shells out to run_AlphaFlow.py which calls
+    scripts/shell/RunAlphaFlow.sh (which activates torch2-venv)."""
+    n = int(getattr(args, "alphaflow_samples", 8))
+    mode = getattr(args, "alphaflow_mode", "esmflow_md_distilled")
+    cmd = (f"python3 ./run_AlphaFlow.py -input {pair_id} "
+           f"--samples {n} --mode {shlex.quote(mode)}")
+    _run(cmd, args.run_job_mode)
+
+
+def task_boltz2(pair_id: str, args: argparse.Namespace) -> None:
+    """Boltz-2 per cluster. Shells out to run_Boltz2.py which calls
+    scripts/shell/RunBoltz2.sh (activates torch2-venv)."""
+    partner = getattr(args, "boltz2_partner_yaml", "") or ""
+    cmd = f"python3 ./run_Boltz2.py -input {pair_id}"
+    if partner:
+        cmd += f" --partner_yaml {shlex.quote(partner)}"
+    _run(cmd, args.run_job_mode)
+
+
 def task_ddg(pair_id: str, args: argparse.Namespace) -> None:
     """
     Conformation-biasing DDG scoring per cluster using ThermoMPNN.
@@ -2617,6 +2672,18 @@ def main():
 
         elif args.run_mode == "run_ddg":
             task_ddg(pair_id, args)
+
+        elif args.run_mode == "run_cf_random":
+            task_cf_random(pair_id, args)
+
+        elif args.run_mode == "run_speachaf":
+            task_speachaf(pair_id, args)
+
+        elif args.run_mode == "run_alphaflow":
+            task_alphaflow(pair_id, args)
+
+        elif args.run_mode == "run_boltz2":
+            task_boltz2(pair_id, args)
 
         elif args.run_mode == "tree":
             task_tree(pair_id, args)
