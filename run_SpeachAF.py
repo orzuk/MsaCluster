@@ -38,6 +38,7 @@ import csv
 import os
 import random
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -115,21 +116,31 @@ def _write_a3m(entries: List[tuple], path: Path) -> None:
             f.write(f">{name}\n{seq}\n")
 
 
+_AF2_WRAPPER = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "scripts", "shell", "RunAF2_Colabfold.sh"
+)
+
+
 def _run_colabfold(a3m_in: Path, out_dir: Path,
                    num_recycle: int = 3) -> Path:
+    """Go through scripts/shell/RunAF2_Colabfold.sh (activates af2-venv,
+    sets CUDA paths) rather than calling colabfold_batch directly --
+    the latter isn't on PATH for sbatch inner jobs."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = (
-        f"colabfold_batch "
+    extra_flags = (
         f"--num-recycle {num_recycle} "
         f"--model-type alphafold2_ptm "
-        f"--num-models 1 "
-        f"{a3m_in} {out_dir}"
+        f"--num-models 1"
     )
+    cmd = (f"bash {shlex.quote(_AF2_WRAPPER)} "
+           f"{shlex.quote(str(a3m_in))} {shlex.quote(str(out_dir))} "
+           f"{extra_flags}")
     try:
         subprocess.run(cmd, shell=True, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        print(f"    [speachaf] colabfold failed: {e.stderr.decode()[:200]}",
-              file=sys.stderr)
+        stderr = e.stderr.decode()[:300] if e.stderr else ""
+        print(f"    [speachaf] colabfold failed: {stderr}", file=sys.stderr)
         return None
     pdbs = sorted(out_dir.glob("*_unrelaxed_rank_001_*.pdb"))
     if not pdbs:

@@ -45,6 +45,7 @@ import csv
 import os
 import random
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -88,29 +89,39 @@ def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
     return ""
 
 
+_AF2_WRAPPER = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "scripts", "shell", "RunAF2_Colabfold.sh"
+)
+
+
 def _run_colabfold(a3m_in: Path, out_dir: Path, max_seq: int,
                    max_extra_seq: int, num_recycle: int = 3) -> Path:
     """Invoke ColabFold once with the given shallow subsampling.
 
-    Returns the path to the best PDB written (or None on failure).
+    Goes through scripts/shell/RunAF2_Colabfold.sh, which activates the
+    af2-venv (where colabfold_batch actually lives), sets up CUDA paths,
+    and forwards extra flags to colabfold_batch. Reusing this wrapper
+    keeps CF-random consistent with the AF2 path the rest of the
+    pipeline uses.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    # Reuse the same colabfold_batch entry point the rest of the pipeline uses
-    cmd = (
-        f"colabfold_batch "
+    extra_flags = (
         f"--max-seq {max_seq} --max-extra-seq {max_extra_seq} "
         f"--num-recycle {num_recycle} "
         f"--model-type alphafold2_ptm "
-        f"--num-models 1 "
-        f"{a3m_in} {out_dir}"
+        f"--num-models 1"
     )
+    cmd = (f"bash {shlex.quote(_AF2_WRAPPER)} "
+           f"{shlex.quote(str(a3m_in))} {shlex.quote(str(out_dir))} "
+           f"{extra_flags}")
     try:
         subprocess.run(cmd, shell=True, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        print(f"    [cfrandom] colabfold failed for {a3m_in.name}: "
-              f"{e.stderr.decode()[:200]}", file=sys.stderr)
+        stderr = e.stderr.decode()[:300] if e.stderr else ""
+        print(f"    [cfrandom] colabfold failed for {a3m_in.name}: {stderr}",
+              file=sys.stderr)
         return None
-    # Pick the rank_001 PDB output
     pdbs = sorted(out_dir.glob("*_unrelaxed_rank_001_*.pdb"))
     if not pdbs:
         pdbs = sorted(out_dir.glob("*.pdb"))
