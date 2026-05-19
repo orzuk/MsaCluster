@@ -189,6 +189,7 @@ NON_GPU_RUN_MODES = {
 #    "cmap",            # metrics/plots only (no inference)
 #    "msa_trans",       # plotting-only pass if you separate it
     "af_plots",        # AF figure generation
+    "run_cmap_ccmpred", # CCMpred is CPU-only (no CUDA path in build)
     # add more here as needed
 }
 
