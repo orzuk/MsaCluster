@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AF2_VENV="${AF2_VENV:-/sci/labs/orzuk/orzuk/af2-venv}"
+AF2_VENV="${AF2_VENV:-/sci/labs/orzuk/orzuk/venvs/af2-venv}"
 CF_BATCH="${CF_BATCH:-$AF2_VENV/bin/colabfold_batch}"
 
 # Activate AF2 venv (same as your current flow)
