@@ -227,13 +227,51 @@ def _best_chain_match(meta1: Dict, meta2: Dict
     return best
 
 
+_ALIGNER = None
+
+
+def _aligner():
+    """Lazy biopython local PairwiseAligner. Avoids constructing per call."""
+    global _ALIGNER
+    if _ALIGNER is None:
+        from Bio import Align as _Align  # imported lazily so the script
+        _ALIGNER = _Align.PairwiseAligner()
+        _ALIGNER.mode = "local"
+        _ALIGNER.match_score = 1.0
+        _ALIGNER.mismatch_score = -1.0
+        _ALIGNER.open_gap_score = -2.0
+        _ALIGNER.extend_gap_score = -0.5
+    return _ALIGNER
+
+
 def _seq_identity(a: str, b: str) -> float:
-    """Fast ungapped identity over min-length window. Returns fraction."""
+    """Local-alignment identity: max(matches) / min(len(a), len(b)).
+
+    Returns the fraction of positions in the SHORTER sequence that match
+    in the best LOCAL alignment to the longer sequence. This is robust to
+    terminal truncations and starting-residue offsets between two PDB
+    constructs of the same protein. For unrelated sequences returns ~0.05
+    (random-amino-acid expectation).
+    """
     if not a or not b:
         return 0.0
+    # Cap very long pairs to keep runtime sane (1500 residues max)
+    if len(a) > 1500:
+        a = a[:1500]
+    if len(b) > 1500:
+        b = b[:1500]
+    try:
+        ali = _aligner().align(a, b)
+        # Score = number of matches minus penalties; for our small-gap
+        # default the score on near-identical sequences ~= length of overlap.
+        score = ali.score
+    except Exception:
+        score = 0.0
     L = min(len(a), len(b))
-    same = sum(1 for x, y in zip(a[:L], b[:L]) if x == y and x != "X")
-    return same / L if L else 0.0
+    # The maximum possible score for two identical sequences of length L is L.
+    # Lower bound by 0 (in case score is negative for unrelated sequences).
+    frac = max(0.0, float(score) / L) if L else 0.0
+    return min(frac, 1.0)
 
 
 def _classify_pair(meta1: Dict, meta2: Dict, chain1: str, chain2: str
