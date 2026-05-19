@@ -60,7 +60,7 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR  # noqa: E402
-from utils.protein_utils import compute_tmscore_align  # noqa: E402
+from utils.align_utils import compute_tmscore_align  # noqa: E402
 
 
 def _parse_depths(s: str) -> List[Tuple[int, int]]:
