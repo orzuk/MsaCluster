@@ -115,15 +115,17 @@ def _pdb_path_for(pair_id: str, pdbid_full: str, fetch: bool) -> Optional[str]:
 def _parse_pdb(path: str, target_chain: str) -> Dict:
     """Lightweight PDB parser (no biopython dependency).
 
-    Reads HEADER/COMPND/SEQRES/HETATM lines directly. Returns:
+    Reads HEADER/COMPND/SEQRES/ATOM/HETATM lines directly. Returns:
       {
-        'chain_seqs': {chain_id: seqres_string_one_letter},
+        'chain_seqs': {chain_id: seqres_or_atom_derived_one_letter},
         'ligands_per_chain': {chain_id: set(of HETATM resnames seen near chain)},
         'all_ligands': set(of all non-buffer HETATM resnames in file),
         'compnd_chains': [list of chain ids declared in COMPND],
         'header': str,
         'title': str,
       }
+    SEQRES is preferred; ATOM-derived sequence is used as fallback when
+    SEQRES is missing for a chain (common in CIF-derived files).
     """
     aa3to1 = {
         'ALA':'A','ARG':'R','ASN':'N','ASP':'D','CYS':'C','GLN':'Q','GLU':'E',
@@ -132,7 +134,8 @@ def _parse_pdb(path: str, target_chain: str) -> Dict:
         'SEC':'U','PYL':'O','MSE':'M',
     }
 
-    chain_seqs: Dict[str, List[str]] = {}
+    seqres_chain: Dict[str, List[str]] = {}
+    atom_chain: Dict[str, List[Tuple[int, str]]] = {}  # (resnum, aa1) per chain
     ligands_per_chain: Dict[str, Set[str]] = {}
     all_ligands: Set[str] = set()
     header = ""
@@ -152,11 +155,20 @@ def _parse_pdb(path: str, target_chain: str) -> Dict:
             elif rec == "TITLE ":
                 title_parts.append(line[10:80].rstrip())
             elif rec == "SEQRES":
-                # SEQRES   1 A  XXX  RES RES RES ...
                 chain_id = line[11]
                 resns = line[19:70].split()
                 seq_chars = [aa3to1.get(r.upper(), "X") for r in resns]
-                chain_seqs.setdefault(chain_id, []).extend(seq_chars)
+                seqres_chain.setdefault(chain_id, []).extend(seq_chars)
+            elif rec == "ATOM  " and line[12:16].strip() == "CA":
+                # ATOM-record fallback for chains missing SEQRES
+                resname = line[17:20].strip().upper()
+                chain_id = line[21]
+                try:
+                    resnum = int(line[22:26])
+                except ValueError:
+                    continue
+                aa1 = aa3to1.get(resname, "X")
+                atom_chain.setdefault(chain_id, []).append((resnum, aa1))
             elif rec == "HETATM":
                 resname = line[17:20].strip().upper()
                 chain_id = line[21]
@@ -164,14 +176,55 @@ def _parse_pdb(path: str, target_chain: str) -> Dict:
                     all_ligands.add(resname)
                     ligands_per_chain.setdefault(chain_id, set()).add(resname)
 
+    # Build final chain_seqs: prefer SEQRES, fall back to ATOM-derived
+    chain_seqs: Dict[str, str] = {}
+    for c, chars in seqres_chain.items():
+        chain_seqs[c] = "".join(chars)
+    for c, items in atom_chain.items():
+        if c in chain_seqs and chain_seqs[c]:
+            continue
+        # Dedupe by residue number (alt-loc duplicates), keep monotone order
+        seen = set()
+        ordered = []
+        for resnum, aa1 in sorted(items):
+            if resnum in seen:
+                continue
+            seen.add(resnum)
+            ordered.append(aa1)
+        chain_seqs[c] = "".join(ordered)
+
     return {
-        "chain_seqs": {c: "".join(s) for c, s in chain_seqs.items()},
+        "chain_seqs": chain_seqs,
         "ligands_per_chain": ligands_per_chain,
         "all_ligands": all_ligands,
         "compnd_chains": sorted(chain_seqs.keys()),
         "header": header,
         "title": " ".join(title_parts),
     }
+
+
+def _best_chain_match(meta1: Dict, meta2: Dict
+                      ) -> Tuple[str, str, str, str, float]:
+    """Across all chains in pdb1 and pdb2, return the (chain1, seq1, chain2,
+    seq2, identity) tuple maximising sequence identity over the overlap.
+
+    Robust to: chain-ID mismatches between deposited PDBs (the dataset's
+    pair_id-encoded chain may not match the SEQRES chain ID); chains
+    missing SEQRES (uses ATOM-record fallback); long terminal truncations
+    in one entry but not the other (identity is computed over the overlap
+    so a truncated terminus does not hurt the score).
+    """
+    best = ("", "", "", "", -1.0)
+    for c1, s1 in meta1["chain_seqs"].items():
+        if not s1 or len(s1) < 20:
+            continue
+        for c2, s2 in meta2["chain_seqs"].items():
+            if not s2 or len(s2) < 20:
+                continue
+            iden = _seq_identity(s1, s2)
+            if iden > best[4]:
+                best = (c1, s1, c2, s2, iden)
+    return best
 
 
 def _seq_identity(a: str, b: str) -> float:
@@ -185,49 +238,69 @@ def _seq_identity(a: str, b: str) -> float:
 
 def _classify_pair(meta1: Dict, meta2: Dict, chain1: str, chain2: str
                    ) -> Tuple[str, str]:
-    """Return (trigger_class, evidence_string)."""
-    s1 = meta1["chain_seqs"].get(chain1, "")
-    s2 = meta2["chain_seqs"].get(chain2, "")
+    """Return (trigger_class, evidence_string).
+
+    v2: match chains by best-sequence-identity across all chains in both
+    files (not by user-supplied chain IDs, which often don't match the
+    SEQRES chain IDs in the deposited PDBs). Mutation is decided only on
+    over-the-overlap identity; large length_diff alone (terminal
+    truncations between the same protein) no longer triggers mutation.
+    """
     lig1 = meta1["all_ligands"]
     lig2 = meta2["all_ligands"]
-    n1 = len(meta1["compnd_chains"])
-    n2 = len(meta2["compnd_chains"])
 
-    # 1. Mutation: sequences differ in identity > 1 position or in length
-    if s1 and s2:
-        id_frac = _seq_identity(s1, s2)
-        len_diff = abs(len(s1) - len(s2))
-        if id_frac < 0.95 or len_diff > 5:
-            return ("mutation",
-                    f"SEQRES identity={id_frac:.3f}, length_diff={len_diff}")
+    # Best-matching chain pair (regardless of user-supplied IDs)
+    bc1, s1, bc2, s2, id_frac = _best_chain_match(meta1, meta2)
+    len_diff = abs(len(s1) - len(s2)) if s1 and s2 else 0
 
-    # 2. Heteromeric vs homomeric -> protein-binding-triggered
-    seqs1 = set(meta1["chain_seqs"].values())
-    seqs2 = set(meta2["chain_seqs"].values())
-    hetero1 = len(seqs1) > 1
-    hetero2 = len(seqs2) > 1
-    if hetero1 != hetero2:
+    # Count DISTINCT chain sequences (homomeric duplicates collapse)
+    seqs1 = {s for s in meta1["chain_seqs"].values() if s and len(s) >= 20}
+    seqs2 = {s for s in meta2["chain_seqs"].values() if s and len(s) >= 20}
+    n_unique1 = len(seqs1)
+    n_unique2 = len(seqs2)
+
+    # Total chain instance count (multimers)
+    n_chains1 = len([c for c, s in meta1["chain_seqs"].items() if s and len(s) >= 20])
+    n_chains2 = len([c for c, s in meta2["chain_seqs"].items() if s and len(s) >= 20])
+
+    # 1. MUTATION: best-matching chain pair shows < 95% identity over the
+    #    overlap. This now correctly skips terminal truncations.
+    if s1 and s2 and id_frac < 0.95:
+        return ("mutation",
+                f"best chain pair {bc1}/{bc2}: identity={id_frac:.3f} "
+                f"over {min(len(s1), len(s2))} residues "
+                f"(length_diff={len_diff})")
+
+    # 2. PROTEIN_BINDING: heteromeric vs homomeric.
+    #    One entry has >1 distinct chain sequence (a complex); the other
+    #    is a homo-oligomer or monomer of a single chain.
+    if (n_unique1 > 1) != (n_unique2 > 1):
         return ("protein_binding",
-                f"pdb1 distinct_chains={len(seqs1)}; "
-                f"pdb2 distinct_chains={len(seqs2)}")
+                f"pdb1 distinct_chains={n_unique1}; "
+                f"pdb2 distinct_chains={n_unique2} "
+                f"(best-match identity={id_frac:.3f})")
 
-    # 3. Ligand-triggered: different non-buffer HETATM sets
+    # 3. LIGAND: same protein (identity >= 0.95), distinct non-buffer
+    #    HETATM sets.
     if lig1 != lig2:
         diff = (lig1 ^ lig2)
         if diff:
             return ("ligand",
                     f"ligands_pdb1={sorted(lig1)}; ligands_pdb2={sorted(lig2)}; "
-                    f"diff={sorted(diff)}")
+                    f"diff={sorted(diff)} (identity={id_frac:.3f})")
 
-    # 4. Oligomerization-triggered: same sequence, same ligands, different
-    #    chain count
-    if abs(n1 - n2) > 0:
+    # 4. OLIGOMERIZATION: same sequence, same ligands, different total
+    #    chain INSTANCE count (monomer vs dimer/trimer/etc.).
+    if abs(n_chains1 - n_chains2) > 0:
         return ("oligomerization",
-                f"chain_count: pdb1={n1}, pdb2={n2}")
+                f"chain instances: pdb1={n_chains1}, pdb2={n_chains2} "
+                f"(distinct seqs n1={n_unique1}, n2={n_unique2}; "
+                f"identity={id_frac:.3f})")
 
     return ("equilibrium_or_unknown",
-            f"identical SEQRES, same ligands, same chain count "
-            f"(n1={n1}, n2={n2}); paper inspection required")
+            f"identical sequence over {min(len(s1), len(s2))} residues "
+            f"(identity={id_frac:.3f}), same ligands, same chain count "
+            f"(n1={n_chains1}, n2={n_chains2}); paper inspection required")
 
 
 def _load_pair_list(path: str) -> List[Tuple[str, str, str, str, str]]:
@@ -288,18 +361,20 @@ def main() -> None:
         m1 = _parse_pdb(p1, ch1)
         m2 = _parse_pdb(p2, ch2)
         trig, evid = _classify_pair(m1, m2, ch1, ch2)
-        s1 = m1["chain_seqs"].get(ch1, "")
-        s2 = m2["chain_seqs"].get(ch2, "")
+        bc1, s1, bc2, s2, id_frac = _best_chain_match(m1, m2)
         rows.append({
-            "pair_id": pair_id, "pdbid1": pdb1, "chain1": ch1,
-            "pdbid2": pdb2, "chain2": ch2,
+            "pair_id": pair_id, "pdbid1": pdb1, "chain1_requested": ch1,
+            "pdbid2": pdb2, "chain2_requested": ch2,
+            "chain1_best_match": bc1, "chain2_best_match": bc2,
             "trigger_class": trig,
             "evidence": evid,
             "ligands_pdb1": "|".join(sorted(m1["all_ligands"])),
             "ligands_pdb2": "|".join(sorted(m2["all_ligands"])),
-            "n_unique_chains_pdb1": len(set(m1["chain_seqs"].values())),
-            "n_unique_chains_pdb2": len(set(m2["chain_seqs"].values())),
-            "seq_identity": f"{_seq_identity(s1, s2):.3f}",
+            "n_unique_chains_pdb1": len({s for s in m1["chain_seqs"].values()
+                                         if s and len(s) >= 20}),
+            "n_unique_chains_pdb2": len({s for s in m2["chain_seqs"].values()
+                                         if s and len(s) >= 20}),
+            "seq_identity": f"{id_frac:.3f}" if id_frac >= 0 else "",
             "length_diff": abs(len(s1) - len(s2)) if s1 and s2 else "",
             "notes": f"{m1['header']} | {m2['header']}",
         })
