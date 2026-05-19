@@ -1473,12 +1473,14 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
     ccmpred_bin = getattr(args, "ccmpred_bin", CCMPRED_EXE)
     threads = int(getattr(args, "ccmpred_threads", 8))
 
-    def a3m_to_fa(a3m_path: Path, fasta_out: Path) -> bool:
-        # read_msa returns [(id, seq)], where seq may contain lowercase inserts for A3M.
+    def a3m_to_aln(a3m_path: Path, aln_out: Path) -> bool:
+        """CCMpred expects a plain alignment file: one sequence per line,
+        same length, no FASTA headers. (FASTA with '>' headers triggers
+        exit code 100.)"""
         entries = read_msa(str(a3m_path))
         if not entries:
             return False
-        names, seqs = zip(*entries)
+        _, seqs = zip(*entries)
         clean = []
         for s in seqs:
             s = re.sub(r"[a-z.]", "", s)  # strip inserts; keep '-' gaps
@@ -1489,9 +1491,9 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
             # ragged columns? pad with gaps just in case
             L = max(Ls)
             clean = [s.ljust(L, "-") for s in clean]
-        with open(fasta_out, "w") as f:
-            for i, (n, s) in enumerate(zip(names, clean), 1):
-                f.write(f">{n or f'seq{i}'}\n{s}\n")
+        with open(aln_out, "w") as f:
+            for s in clean:
+                f.write(s + "\n")
         return True
 
     def apc(m: np.ndarray) -> np.ndarray:
@@ -1501,17 +1503,17 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
         return m - (ri @ rj) / mu
 
     def run_one(a3m: Path, tag: str):
-        fa = tmp_dir / f"{tag}.fa"
+        aln = tmp_dir / f"{tag}.aln"
         npz = out_dir / f"{tag}.ccmpred.npz"
         npy = out_dir / f"{tag}.ccmpred.npy"   # legacy check
         mat = out_dir / f"{tag}.ccmpred.mat"
         if (npz.exists() and npz.stat().st_size > 0) or \
            (npy.exists() and npy.stat().st_size > 0):
             return
-        if not a3m_to_fa(a3m, fa):
+        if not a3m_to_aln(a3m, aln):
             print(f"[ccmpred] skip (empty): {a3m}")
             return
-        cmd = f"{shlex.quote(ccmpred_bin)} -t {threads} {shlex.quote(str(fa))} {shlex.quote(str(mat))}"
+        cmd = f"{shlex.quote(ccmpred_bin)} -t {threads} {shlex.quote(str(aln))} {shlex.quote(str(mat))}"
         if run_job_mode == "inline":
             subprocess.run(cmd, shell=True, check=True)
         else:
