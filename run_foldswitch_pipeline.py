@@ -2358,7 +2358,9 @@ def main():
     p.add_argument("--run_mode",
                    required=True,
                    choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer", "run_cmap_ccmpred",
-                            "run_esmfold", "run_AF", "run_ddg", "tree", "plot", "compute_deltaG", "clean",
+                            "run_esmfold", "run_AF", "run_ddg",
+                            "run_cf_random", "run_speachaf", "run_alphaflow", "run_boltz2",
+                            "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=True,
                    help="List of pair IDs (e.g. 1dzlA_5keqF), or the literal token ALL")
