@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # --- CONFIG
-AF3_VENV="${AF3_VENV:-/sci/labs/orzuk/orzuk/af3-venv}"
+AF3_VENV="${AF3_VENV:-/sci/labs/orzuk/orzuk/venvs/af3-venv}"
 AF3_REPO="${AF3_REPO:-/sci/labs/orzuk/orzuk/github/alphafold3}"
 AF3_MODELDIR="${AF3_MODELDIR:-/sci/labs/orzuk/orzuk/trained_models/alphafold3}"
 SCR_BASE="${SCR_BASE:-/sci/labs/orzuk/orzuk/alphafold3}"    # big caches
