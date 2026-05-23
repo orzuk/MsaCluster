@@ -26,9 +26,12 @@ import pandas as pd
 DOCS = "docs"
 PAIRS = {
     "2n54B_2hdmA": "XCL1",
+    "5jytA_2qkeE": "KaiB",
+    "6c6sD_2ougC": "RfaH",
+    "4qhhA_4qhfA": "Selecase",
     "2namA_1uxmK": "SOD1",
     "1zk9A_3jv6A": "RelB",
-    "4qhhA_4qhfA": "Selecase",
+    "1nrjB_2gedB": "SR-beta",
 }
 
 
