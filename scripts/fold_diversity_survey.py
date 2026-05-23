@@ -209,6 +209,83 @@ def load_af2_diversity(pair_id, delta):
 
 
 # ---------------------------------------------------------------------------
+# AF3 loader (uses same df_af.csv; filtered by model=="AF3")
+# ---------------------------------------------------------------------------
+
+def load_af3_diversity(pair_id, delta):
+    """Load df_af.csv and compute per-cluster AF3 fold preference.
+
+    AF2 and AF3 predictions are aggregated into the same df_af.csv by
+    Analysis/AF_analysis.py via the recursive glob
+    output_AF/AF*/*.pdb. They are distinguished by the `model` column
+    (values "AF2" and "AF3"). This loader is the AF3 counterpart of
+    load_af2_diversity and shares the same downstream centered-
+    classification / concordance pipeline.
+
+    Returns list of dicts, one per cluster.
+    """
+    csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_af.csv")
+    if not os.path.isfile(csv_path):
+        return []
+
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return []
+
+    # Normalize column names
+    if "TMscore_fold1" not in df.columns and "score_pdb1" in df.columns:
+        df = df.rename(columns={"score_pdb1": "TMscore_fold1",
+                                "score_pdb2": "TMscore_fold2"})
+
+    if "TMscore_fold1" not in df.columns:
+        return []
+
+    # Filter AF3 rows only (df_af.csv may contain both AF2 and AF3)
+    if "model" not in df.columns:
+        return []  # legacy CSV with no model column => no AF3 rows
+    df = df[df["model"].astype(str).str.upper() == "AF3"]
+    if df.empty:
+        return []
+
+    # Parse cluster tags
+    col = "cluster_num" if "cluster_num" in df.columns else "cluster"
+    if col not in df.columns:
+        return []
+    df["_tag"] = df[col].apply(_normalize_cluster)
+
+    df["TM1"] = pd.to_numeric(df["TMscore_fold1"], errors="coerce")
+    df["TM2"] = pd.to_numeric(df["TMscore_fold2"], errors="coerce")
+
+    rows = []
+    for tag, grp in df.groupby("_tag"):
+        tm1_max = grp["TM1"].max()
+        tm2_max = grp["TM2"].max()
+        tm1_mean = grp["TM1"].mean()
+        tm2_mean = grp["TM2"].mean()
+        n_models = len(grp)
+        n_f1 = (grp["TM1"] > grp["TM2"]).sum()
+        n_f2 = (grp["TM2"] > grp["TM1"]).sum()
+        pref = _assign_pref(tm1_max, tm2_max, delta)
+        rows.append({
+            "pair_id": pair_id,
+            "cluster": tag,
+            "method": "AF3",
+            "TM1_max": round(tm1_max, 4),
+            "TM2_max": round(tm2_max, 4),
+            "TM1_mean": round(tm1_mean, 4),
+            "TM2_mean": round(tm2_mean, 4),
+            "TMdiff_max": round(tm1_max - tm2_max, 4),
+            "TMdiff_mean": round(tm1_mean - tm2_mean, 4),
+            "n_models": n_models,
+            "n_toward_f1": int(n_f1),
+            "n_toward_f2": int(n_f2),
+            "vote_frac_f1": round(n_f1 / n_models, 3) if n_models > 0 else 0,
+            "pref": pref,
+        })
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # ESM loader
 # ---------------------------------------------------------------------------
 
@@ -681,7 +758,7 @@ def compute_pair_concordance(pair_id, cluster_rows_by_method):
                        max_concordance_methods (e.g. "AF2~DDG"),
                        max_concordance_pct
     """
-    methods = ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]
+    methods = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG"]
     # Build per-method dict cluster -> centered value
     by_m = {}
     for m in methods:
@@ -795,7 +872,7 @@ def main():
     all_summaries = []
     all_concordance = []   # one row per pair (cross-method concordance)
 
-    n_af2 = n_esm = n_msat = n_ccmpred = n_ddg = 0
+    n_af2 = n_af3 = n_esm = n_msat = n_ccmpred = n_ddg = 0
 
     for pair_id in pairs:
         per_method_rows = {}   # used for cross-method concordance below
@@ -808,6 +885,17 @@ def main():
             all_cluster_rows.extend(af_rows)
             per_method_rows["AF2"] = af_rows
             s = summarize_pair(pair_id, af_rows)
+            if s:
+                all_summaries.append(s)
+
+        # AF3 (uses same df_af.csv as AF2, filtered by model=="AF3")
+        af3_rows = load_af3_diversity(pair_id, args.delta)
+        if af3_rows:
+            _apply_centered_classification(af3_rows, args.delta)
+            n_af3 += 1
+            all_cluster_rows.extend(af3_rows)
+            per_method_rows["AF3"] = af3_rows
+            s = summarize_pair(pair_id, af3_rows)
             if s:
                 all_summaries.append(s)
 
@@ -890,6 +978,7 @@ def main():
     print(f"FOLD DIVERSITY SURVEY RESULTS")
     print(f"{'='*70}")
     print(f"Pairs with AF2 data:     {n_af2}")
+    print(f"Pairs with AF3 data:     {n_af3}")
     print(f"Pairs with ESM data:     {n_esm}")
     print(f"Pairs with MSAT data:    {n_msat}")
     print(f"Pairs with CCMpred data: {n_ccmpred}")
