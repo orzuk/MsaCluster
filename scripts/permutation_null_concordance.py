@@ -397,25 +397,206 @@ def _format_row(
 
 
 # ---------------------------------------------------------------------------
+# Corrected-mode (TMdiff_residual) logic
+# Merged from former scripts/permutation_null_corrected.py (2026-05-23).
+# Used when --mode corrected: reads TMdiff_residual column from
+# fold_diversity_survey_corrected.csv (produced by seq_divergence_correction.py)
+# and computes empirical permutation null + BH FDR on the per-pair mean
+# pairwise sign-concordance of residuals.
+# ---------------------------------------------------------------------------
+
+def bh_adjust(pvals: np.ndarray) -> np.ndarray:
+    """Benjamini-Hochberg adjusted p-values (NaN-safe, monotone)."""
+    p = np.asarray(pvals, dtype=float)
+    mask = np.isfinite(p)
+    out = np.full_like(p, np.nan, dtype=float)
+    if not mask.any():
+        return out
+    pv = p[mask]
+    n = len(pv)
+    order = np.argsort(pv)
+    ranks = np.arange(1, n + 1)
+    adj_sorted = pv[order] * n / ranks
+    adj_sorted = np.minimum.accumulate(adj_sorted[::-1])[::-1]
+    adj = np.empty(n)
+    adj[order] = np.clip(adj_sorted, 0.0, 1.0)
+    out[mask] = adj
+    return out
+
+
+def _mean_concordance_from_residuals(per_method: dict) -> tuple:
+    """Mean pairwise sign-agreement across method-pairs on the residual scale.
+
+    Returns (mean_A, mean_n_overlap_clusters).
+    """
+    present = [m for m in ALL_METHODS if m in per_method and len(per_method[m]) > 0]
+    if len(present) < 2:
+        return float("nan"), 0
+    agreements: list = []
+    ns: list = []
+    for a, b in combinations(present, 2):
+        va, vb = per_method[a], per_method[b]
+        n = min(len(va), len(vb))
+        if n < 1:
+            continue
+        sa = np.sign(va[:n])
+        sb = np.sign(vb[:n])
+        mask = (sa != 0) & (sb != 0)
+        if mask.sum() < 1:
+            continue
+        agreements.append((sa[mask] == sb[mask]).mean())
+        ns.append(int(mask.sum()))
+    if not agreements:
+        return float("nan"), 0
+    return float(np.mean(agreements)), int(np.mean(ns))
+
+
+def _run_corrected_mode(args) -> None:
+    """Corrected-mode path: read TMdiff_residual, permute within method,
+    write per-pair p-values + BH-adjusted variant. Mirrors former
+    scripts/permutation_null_corrected.py behavior.
+    """
+    if not os.path.isfile(args.input):
+        print(f"[error] corrected survey CSV not found: {args.input}", file=sys.stderr)
+        print("        Run scripts/seq_divergence_correction.py first.", file=sys.stderr)
+        sys.exit(2)
+
+    df = pd.read_csv(args.input)
+    needed = {"pair_id", "method", "TMdiff_residual"}
+    if not needed.issubset(df.columns):
+        raise SystemExit(
+            f"missing columns in {args.input}: need {needed - set(df.columns)}"
+        )
+    cluster_col = "cluster_norm" if "cluster_norm" in df.columns else "cluster"
+    df = df[df[cluster_col] != "DeepMsa"].copy()
+
+    rng = np.random.default_rng(args.seed)
+    rows = []
+    for pid, sub in df.groupby("pair_id"):
+        per_method_obs: dict = {}
+        for m in ALL_METHODS:
+            ms = sub[sub["method"] == m]
+            vals = ms["TMdiff_residual"].dropna().to_numpy(dtype=float)
+            if len(vals):
+                per_method_obs[m] = vals
+        if len(per_method_obs) < 2:
+            continue
+        obs_mean, obs_n = _mean_concordance_from_residuals(per_method_obs)
+        if np.isnan(obs_mean):
+            continue
+        n_clusters = max(len(v) for v in per_method_obs.values())
+
+        n_ge = 0
+        for _ in range(args.n_perm):
+            permuted = {m: rng.permutation(v) for m, v in per_method_obs.items()}
+            perm_mean, _ = _mean_concordance_from_residuals(permuted)
+            if not np.isnan(perm_mean) and perm_mean >= obs_mean:
+                n_ge += 1
+        p_emp = (n_ge + 1) / (args.n_perm + 1)
+
+        rows.append({
+            "pair_id": pid,
+            "n_clusters": int(n_clusters),
+            "n_methods_present": len(per_method_obs),
+            "observed_mean_concordance_corrected": obs_mean,
+            "observed_mean_n_clusters": obs_n,
+            "n_perm": args.n_perm,
+            "perm_mean_concordance_p": p_emp,
+        })
+
+    out = pd.DataFrame(rows).sort_values("perm_mean_concordance_p")
+    out["p_bh"] = bh_adjust(out["perm_mean_concordance_p"].to_numpy())
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+    out.to_csv(args.output, index=False)
+    # also write the BH variant (matches old permutation_null_corrected.py)
+    bh_out = args.output.replace(".csv", "_bh.csv")
+    if bh_out == args.output:
+        bh_out = args.output + ".bh.csv"
+    out.to_csv(bh_out, index=False)
+    print(f"wrote {args.output} and {bh_out}: {len(out)} pairs, "
+          f"N_PERM={args.n_perm}")
+
+    passing = out[out["p_bh"] <= args.alpha]
+    print(f"\n=== Pairs passing post-correction BH FDR <= {args.alpha} ===")
+    for _, r in passing.iterrows():
+        print(f"  {r['pair_id']:<18}  "
+              f"obs={r['observed_mean_concordance_corrected']:.3f}  "
+              f"raw_p={r['perm_mean_concordance_p']:.4f}  "
+              f"BH_p={r['p_bh']:.4f}  n_clu={int(r['n_clusters'])}")
+    if not len(passing):
+        print("  (none)")
+
+
+def _submit_self_sbatch(args, script_path: str) -> None:
+    """Re-invoke this script under sbatch with --run-job-mode local.
+
+    Mirrors the run_foldswitch_pipeline.py pattern: --run-job-mode sbatch
+    submits a single sbatch job that runs the full analysis inline.
+    """
+    import shlex
+    import subprocess
+    jobs_dir = "Pipeline/FoldPairs/jobs"
+    os.makedirs(jobs_dir, exist_ok=True)
+    log = os.path.join(jobs_dir, f"permutation_null_{args.mode}.out")
+    inner_args = []
+    for k, v in vars(args).items():
+        if k == "run_job_mode":
+            continue
+        if v is None or v is False:
+            continue
+        flag = "--" + k.replace("_", "-")
+        if v is True:
+            inner_args.append(flag)
+        else:
+            inner_args.extend([flag, str(v)])
+    inner = " ".join([shlex.quote(sys.executable), script_path,
+                      "--run-job-mode", "local"] + inner_args)
+    sbatch_cmd = [
+        "sbatch", "--parsable",
+        f"--job-name=perm_null_{args.mode}",
+        f"--cpus-per-task={args.sbatch_cpus}",
+        f"--mem={args.sbatch_mem}",
+        f"--time={args.sbatch_time}",
+        f"--output={log}",
+        "--wrap", shlex.quote(inner),
+    ]
+    if args.sbatch_partition:
+        sbatch_cmd.insert(1, f"--partition={args.sbatch_partition}")
+    cmd_str = " ".join(sbatch_cmd)
+    print(f"[sbatch] {cmd_str}")
+    jid = subprocess.check_output(cmd_str, shell=True, text=True).strip()
+    print(f"[sbatch] submitted permutation_null ({args.mode}) job {jid}")
+    print(f"[sbatch] log: {log}")
+
+
+# ---------------------------------------------------------------------------
 # Main CLI
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Permutation-null test for fold_diversity_survey concordance "
-                    "and centered-diversity statistics."
+        description="Permutation-null test for fold_diversity_survey concordance. "
+                    "--mode raw uses TMdiff_centered (pre-correction); "
+                    "--mode corrected uses TMdiff_residual (post-correction)."
     )
     parser.add_argument(
-        "--input", type=str,
-        default=os.path.join("docs", "fold_diversity_survey.csv"),
-        help="Per-cluster detail CSV from fold_diversity_survey.py "
-             "(default: docs/fold_diversity_survey.csv)"
+        "--mode", choices=["raw", "corrected"], default="raw",
+        help="raw = pre-correction TMdiff_centered + centered classification (default); "
+             "corrected = post-correction TMdiff_residual from "
+             "fold_diversity_survey_corrected.csv (+ BH FDR adjustment). "
+             "Replaces the former scripts/permutation_null_corrected.py."
     )
     parser.add_argument(
-        "--output", type=str,
-        default=os.path.join("docs", "fold_diversity_concordance_perm.csv"),
-        help="Output CSV path "
-             "(default: docs/fold_diversity_concordance_perm.csv)"
+        "--input", type=str, default=None,
+        help="Per-cluster detail CSV. Default depends on --mode: "
+             "raw → docs/fold_diversity_survey.csv; "
+             "corrected → docs/fold_diversity_survey_corrected.csv"
+    )
+    parser.add_argument(
+        "--output", type=str, default=None,
+        help="Output CSV path. Default depends on --mode: "
+             "raw → docs/fold_diversity_concordance_perm.csv; "
+             "corrected → docs/fold_diversity_concordance_corrected_perm.csv"
     )
     parser.add_argument(
         "--n-perm", type=int, default=1000,
@@ -423,20 +604,51 @@ def main():
     )
     parser.add_argument(
         "--delta", type=float, default=0.05,
-        help="TM threshold for F1/F2/Amb classification "
-             "(default: 0.05; matches fold_diversity_survey.py)"
+        help="TM threshold for F1/F2/Amb classification (raw mode only; "
+             "default: 0.05; matches fold_diversity_survey.py)"
     )
     parser.add_argument(
         "--seed", type=int, default=12345,
-        help="Base random seed; per-pair seed = base + hash(pair_id) %% 10000 "
-             "(default: 12345)"
+        help="Base random seed (default: 12345)"
     )
     parser.add_argument(
         "--top", type=int, default=15,
-        help="How many pairs to print in the top-by-significance table "
-             "(default: 15)"
+        help="How many pairs to print in top-by-significance table (default: 15)"
     )
+    parser.add_argument(
+        "--alpha", type=float, default=0.05,
+        help="BH FDR threshold for highlighting (corrected mode; default 0.05)"
+    )
+    # sbatch self-submission (matches run_foldswitch_pipeline.py pattern)
+    parser.add_argument(
+        "--run-job-mode", choices=["local", "sbatch"], default="local",
+        help="local = run inline (default); sbatch = self-submit one sbatch job"
+    )
+    parser.add_argument("--sbatch-partition", default=None)
+    parser.add_argument("--sbatch-cpus", default=2)
+    parser.add_argument("--sbatch-mem", default="8G")
+    parser.add_argument("--sbatch-time", default="04:00:00")
     args = parser.parse_args()
+
+    # sbatch self-submission
+    if args.run_job_mode == "sbatch":
+        _submit_self_sbatch(args, os.path.abspath(__file__))
+        return
+
+    # Resolve defaults from --mode
+    if args.input is None:
+        args.input = (os.path.join("docs", "fold_diversity_survey_corrected.csv")
+                      if args.mode == "corrected"
+                      else os.path.join("docs", "fold_diversity_survey.csv"))
+    if args.output is None:
+        args.output = (os.path.join("docs", "fold_diversity_concordance_corrected_perm.csv")
+                       if args.mode == "corrected"
+                       else os.path.join("docs", "fold_diversity_concordance_perm.csv"))
+
+    # Dispatch by mode
+    if args.mode == "corrected":
+        _run_corrected_mode(args)
+        return
 
     if not os.path.isfile(args.input):
         print(f"[error] input CSV not found: {args.input}", file=sys.stderr)

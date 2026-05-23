@@ -136,6 +136,53 @@ def normalize_cluster(s: str) -> str:
 # Fold-preference ingestion (from fold_diversity_survey.csv)
 # ---------------------------------------------------------------------------
 
+def bh_adjust(pvals: np.ndarray) -> np.ndarray:
+    """Benjamini-Hochberg adjusted p-values (NaN-safe, monotone)."""
+    p = np.asarray(pvals, dtype=float)
+    mask = np.isfinite(p)
+    out = np.full_like(p, np.nan, dtype=float)
+    if not mask.any():
+        return out
+    pv = p[mask]
+    n = len(pv)
+    order = np.argsort(pv)
+    ranks = np.arange(1, n + 1)
+    adj_sorted = pv[order] * n / ranks
+    adj_sorted = np.minimum.accumulate(adj_sorted[::-1])[::-1]
+    adj = np.empty(n)
+    adj[order] = np.clip(adj_sorted, 0.0, 1.0)
+    out[mask] = adj
+    return out
+
+
+def load_corrected_pref(survey_csv: str) -> Dict[Tuple[str, str, str], str]:
+    """Build (pair, method, cluster) -> residual-corrected preference label.
+
+    Reads the 'pref_corrected' column produced by
+    scripts/seq_divergence_correction.py from
+    docs/fold_diversity_survey_corrected.csv.
+    Used when --labels corrected is selected; corresponds to F1c/F2c/Amc
+    labels computed from the regression residuals (PID-to-query stripped).
+    """
+    df = pd.read_csv(survey_csv)
+    if "pref_corrected" not in df.columns:
+        raise SystemExit(
+            f"Expected column 'pref_corrected' in {survey_csv}. "
+            "Run scripts/seq_divergence_correction.py first."
+        )
+    cluster_col = "cluster_norm" if "cluster_norm" in df.columns else "cluster"
+    df[cluster_col] = df[cluster_col].astype(str).apply(normalize_cluster)
+
+    out: Dict[Tuple[str, str, str], str] = {}
+    for _, r in df.iterrows():
+        label = r.get("pref_corrected")
+        if not isinstance(label, str) or label not in ("F1", "F2", "Amb"):
+            label = "Amb"
+        key = (str(r["pair_id"]), str(r["method"]), str(r[cluster_col]))
+        out[key] = label
+    return out
+
+
 def load_fold_pref(survey_csv: str, delta_tm: float = 0.05,
                    delta_ddg: float = 1.0
                    ) -> Dict[Tuple[str, str, str], str]:
@@ -702,17 +749,65 @@ def discover_pairs() -> List[str]:
                   and os.path.isdir(os.path.join(DATA_DIR, d)))
 
 
+def _submit_self_sbatch(args, script_path: str) -> None:
+    """Re-invoke this script under sbatch with --run_job_mode local.
+
+    Mirrors the run_foldswitch_pipeline.py pattern: --run_job_mode sbatch
+    submits a single sbatch job that runs the actual computation inline.
+    """
+    import shlex
+    import subprocess
+    jobs_dir = "Pipeline/FoldPairs/jobs"
+    os.makedirs(jobs_dir, exist_ok=True)
+    log = os.path.join(jobs_dir, f"phylo_placement_{args.labels}.out")
+    # Build the inner command — same args minus --run_job_mode
+    inner_args = []
+    for k, v in vars(args).items():
+        if k == "run_job_mode":
+            continue
+        if v is None or v is False:
+            continue
+        flag = "--" + k.replace("_", "-")
+        if v is True:
+            inner_args.append(flag)
+        else:
+            inner_args.extend([flag, str(v)])
+    inner = " ".join([shlex.quote(sys.executable), script_path,
+                      "--run-job-mode", "local"] + inner_args)
+    sbatch_cmd = [
+        "sbatch", "--parsable",
+        f"--job-name=phylo_placement_{args.labels}",
+        f"--cpus-per-task={args.sbatch_cpus}",
+        f"--mem={args.sbatch_mem}",
+        f"--time={args.sbatch_time}",
+        f"--output={log}",
+        "--wrap", shlex.quote(inner),
+    ]
+    if args.sbatch_partition:
+        sbatch_cmd.insert(1, f"--partition={args.sbatch_partition}")
+    cmd_str = " ".join(sbatch_cmd)
+    print(f"[sbatch] {cmd_str}")
+    jid = subprocess.check_output(cmd_str, shell=True, text=True).strip()
+    print(f"[sbatch] submitted phylo_placement ({args.labels}) job {jid}")
+    print(f"[sbatch] log: {log}")
+
+
 def main():
     p = argparse.ArgumentParser(
         description="Phylogenetic-structure test for cluster fold-preference "
                     "on the COARSE cluster-level tree")
     p.add_argument("--pairs", default="ALL",
                    help="Comma-separated pair IDs, or ALL")
+    p.add_argument("--labels", choices=["centered", "corrected"],
+                   default="centered",
+                   help="centered = use pref_centered from survey CSV (default); "
+                        "corrected = use pref_corrected from "
+                        "fold_diversity_survey_corrected.csv (residual-corrected, "
+                        "PID-to-query stripped via seq_divergence_correction.py)")
     p.add_argument("--survey-csv", default=None,
-                   help="Path to docs/fold_diversity_survey.csv "
-                        "(default: <docs>/fold_diversity_survey.csv)")
+                   help="Path to survey CSV (default depends on --labels)")
     p.add_argument("--output", default=None,
-                   help="Output CSV path (default: <docs>/phylo_placement.csv)")
+                   help="Output CSV path (default depends on --labels)")
     p.add_argument("--make-figures", default="0",
                    help="'all' = render every (pair, method) figure; "
                         "an integer N = top-N by parsimony_p per method; "
@@ -726,11 +821,30 @@ def main():
     p.add_argument("--delta-ddg", type=float, default=1.0)
     p.add_argument("--no-d-statistic", action="store_true",
                    help="Skip D statistic (slowest stat)")
+    # sbatch self-submission (matches run_foldswitch_pipeline.py pattern)
+    p.add_argument("--run-job-mode", choices=["local", "sbatch"], default="local",
+                   help="local = run inline (default); sbatch = self-submit "
+                        "one sbatch job that runs the full analysis inline")
+    p.add_argument("--sbatch-partition", default=None)
+    p.add_argument("--sbatch-cpus", default=2)
+    p.add_argument("--sbatch-mem", default="8G")
+    p.add_argument("--sbatch-time", default="04:00:00")
     args = p.parse_args()
 
-    survey_csv = args.survey_csv or os.path.join(TABLES_RES,
-                                                  "fold_diversity_survey.csv")
-    out_csv = args.output or os.path.join(TABLES_RES, "phylo_placement.csv")
+    # --- sbatch self-submission ---
+    if args.run_job_mode == "sbatch":
+        _submit_self_sbatch(args, os.path.abspath(__file__))
+        return
+
+    # --- mode-aware paths ---
+    if args.labels == "corrected":
+        default_survey = os.path.join(TABLES_RES, "fold_diversity_survey_corrected.csv")
+        default_out = os.path.join(TABLES_RES, "phylo_placement_corrected.csv")
+    else:
+        default_survey = os.path.join(TABLES_RES, "fold_diversity_survey.csv")
+        default_out = os.path.join(TABLES_RES, "phylo_placement.csv")
+    survey_csv = args.survey_csv or default_survey
+    out_csv = args.output or default_out
     figure_dir = args.figure_dir or os.path.join(
         TABLES_RES, "figures", "phylo_placement"
     )
@@ -759,10 +873,13 @@ def main():
             sys.exit(2)
         fig_mode = "topn" if fig_topn > 0 else "none"
 
-    print(f"Loading fold preferences: {survey_csv}")
-    pref_lookup = load_fold_pref(survey_csv,
-                                 delta_tm=args.delta_tm,
-                                 delta_ddg=args.delta_ddg)
+    print(f"Loading fold preferences ({args.labels}): {survey_csv}")
+    if args.labels == "corrected":
+        pref_lookup = load_corrected_pref(survey_csv)
+    else:
+        pref_lookup = load_fold_pref(survey_csv,
+                                     delta_tm=args.delta_tm,
+                                     delta_ddg=args.delta_ddg)
     pairs_in_survey = set(k[0] for k in pref_lookup)
     print(f"  {len(pairs_in_survey)} pairs in survey")
 
@@ -840,9 +957,14 @@ def main():
         print("[warn] no rows produced")
         return
 
+    # BH FDR across the screen for each p-value column (always-on)
+    for pcol in ("parsimony_p", "nn_concordance_p", "nn3_concordance_p"):
+        if pcol in df.columns:
+            df[pcol + "_bh"] = bh_adjust(df[pcol].to_numpy(dtype=float))
+
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     df.to_csv(out_csv, index=False)
-    print(f"\nWrote {out_csv} ({len(df)} rows)")
+    print(f"\nWrote {out_csv} ({len(df)} rows; labels={args.labels})")
 
     for method in SCORED_METHODS:
         sub = df[(df.method == method) & df.parsimony_p.notna()].copy()
