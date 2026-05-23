@@ -284,7 +284,8 @@ def _cluster_metrics_to_leaf_df(df_cluster, ete_tree, ete_leaves_cluster_ids,
     return df_leaf
 
 
-_UNIFIED_METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2"]
+_UNIFIED_METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG",
+                          "Boltz2", "S4PRED"]
 
 
 def _consensus_fold_preference(df_centered: pd.DataFrame,

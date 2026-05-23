@@ -88,15 +88,20 @@ def write_fasta(reps: list[tuple[str, str]], path: str) -> None:
 
 def run_s4pred(fasta: str, s4pred_dir: str, out_dir: str, device: str) -> bool:
     """Invoke S4PRED with --save-files. Returns True on success."""
-    os.makedirs(out_dir, exist_ok=True)
+    # S4PRED's run_model.py uses cwd=s4pred_dir to find its weights/ dir, so
+    # FASTA + outdir paths must be ABSOLUTE for subprocess (otherwise they
+    # resolve under the s4pred repo dir and break).
+    fasta_abs = os.path.abspath(fasta)
+    out_abs = os.path.abspath(out_dir)
+    os.makedirs(out_abs, exist_ok=True)
     script = os.path.join(s4pred_dir, "run_model.py")
     cmd = ["python", script,
            "--device", device,
            "--save-files",
-           "--outdir", out_dir,
+           "--outdir", out_abs,
            "--save-by-idx",
            "--silent",
-           fasta]
+           fasta_abs]
     try:
         subprocess.run(cmd, capture_output=True, text=True, check=True,
                        cwd=s4pred_dir, timeout=600)
