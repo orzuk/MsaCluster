@@ -459,9 +459,13 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         # Only request GPUs when needed
         if gres:
             sb += [f"--gres={gres}"]
-        # If user specified a nodelist, prefer it and SKIP -p to avoid conflicts
+        # If user specified a nodelist, prefer it and SKIP -p to avoid conflicts.
+        # --nodes=1 is REQUIRED: SLURM otherwise interprets --nodelist=A,B,C,D
+        # as "allocate all 4 nodes to this single job", which leaves jobs PD
+        # waiting for 4 nodes at once. With --nodes=1, SLURM picks one node
+        # from the list.
         if nlist:
-            sb += ["--nodelist", nlist]
+            sb += ["--nodes=1", "--nodelist", nlist]
         elif with_partition and part:
             sb += ["-p", part]
         # Always exclude bad nodes if user asked for it
