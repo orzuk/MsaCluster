@@ -15,7 +15,7 @@ TRIPLET_COL = "MSA: DEPTH; #RES; #Clusters"
 
 # Single source of truth for the main comparison table
 DEFAULT_PREFERRED_COLS = [
-    "pair_id", "#RES", "MSA: DEPTH; #RES; #Clusters", "PAIR_TM",
+    "pair_id", "trigger_class", "#RES", "MSA: DEPTH; #RES; #Clusters", "PAIR_TM",
     "ΔG1", "ΔG2",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
@@ -24,6 +24,7 @@ DEFAULT_PREFERRED_COLS = [
 ]
 
 DEFAULT_EXPLANATIONS = {
+    "trigger_class": "Auto-classified fold-switching trigger from PDB metadata: ligand / oligomerization / protein_binding / mutation / equilibrium_or_unknown. Source: docs/triggers_from_pdb.csv (scripts/classify_triggers_from_pdb.py).",
     "#RES": "Number of residues in the longer chain of the pair.",
     "MSA: DEPTH; #RES; #Clusters": "DEPTH = number of sequences in DeepMsa.a3m; #RES = alignment width (columns, including gaps); #Clusters = count of ShallowMsa_* a3m files.",
     "PAIR_TM": "TM-score between the two ground-truth folds (max of the two directions).",
@@ -162,6 +163,18 @@ def gen_html_from_summary_table(
             f.write(f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title></head>"
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
+
+    # Merge in trigger_class from docs/triggers_from_pdb.csv (auto-classified).
+    _trig_csv = os.path.join(os.path.dirname(summary_csv), "triggers_from_pdb.csv")
+    if os.path.isfile(_trig_csv):
+        try:
+            _trig = pd.read_csv(_trig_csv)[["pair_id", "trigger_class"]].drop_duplicates("pair_id")
+            _id_col = "pair_id" if "pair_id" in df.columns else ("fold_pair" if "fold_pair" in df.columns else df.columns[0])
+            if _id_col != "pair_id":
+                df = df.rename(columns={_id_col: "pair_id"})
+            df = df.merge(_trig, on="pair_id", how="left")
+        except Exception as e:
+            print(f"[gen_html] WARN: failed to merge trigger_class: {e}")
 
 
     # Now also add RMSD for structure
