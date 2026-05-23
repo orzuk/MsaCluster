@@ -78,11 +78,54 @@ def find_pdb_path(pair_dir: str, pdbid: str) -> str | None:
 
 
 def true_ss_from_dssp(pdb_path: str, chain: str) -> tuple[float, float, float, int]:
-    """Run DSSP via Biopython and return (frac_H, frac_E, frac_C, n_res).
-    DSSP eight-state SS is collapsed to Q3:
-       H, G, I -> H ; E, B -> E ; T, S, " " -> C.
-    Returns (NaN, NaN, NaN, 0) on failure.
+    """Return (frac_H, frac_E, frac_C, n_res) for the given chain of pdb_path.
+    Uses mdtraj's native DSSP (no external binary). Falls back to Biopython's
+    Bio.PDB.DSSP wrapper if mdtraj is unavailable.
+
+    mdtraj's compute_dssp(simplified=True) returns the Q3 codes 'H','E','C'
+    directly, matching the convention we use elsewhere.
     """
+    # Path 1: mdtraj (preferred — no external binary needed)
+    try:
+        import mdtraj as md
+    except ImportError:
+        md = None
+
+    if md is not None:
+        try:
+            traj = md.load_pdb(pdb_path)
+            top = traj.topology
+            ss_q3 = md.compute_dssp(traj, simplified=True)[0]
+            # Filter to the requested chain
+            chain_norm = (chain or "").upper().strip()
+            if chain_norm:
+                chain_residues = []
+                for i, res in enumerate(top.residues):
+                    rcid = getattr(res.chain, "chain_id", "")
+                    if rcid and rcid.upper() == chain_norm:
+                        chain_residues.append(i)
+                if not chain_residues:
+                    # Chain ID not found; try matching chain.index numerically
+                    # (rare; e.g., when PDB chain IDs were stripped).
+                    chain_residues = list(range(top.n_residues))
+            else:
+                chain_residues = list(range(top.n_residues))
+            ss_chain = "".join(ss_q3[i] for i in chain_residues)
+            # mdtraj uses 'NA' for non-protein residues; filter them
+            ss_chain = "".join(c for c in ss_chain if c in "HEC")
+            n = len(ss_chain)
+            if n == 0:
+                return (float("nan"), float("nan"), float("nan"), 0)
+            h = ss_chain.count("H") / n
+            e = ss_chain.count("E") / n
+            c = ss_chain.count("C") / n
+            return (h, e, c, n)
+        except Exception as e:
+            print(f"[warn] mdtraj DSSP failed for {pdb_path}: {e}",
+                  file=sys.stderr)
+            # fall through to Biopython path
+
+    # Path 2: Biopython DSSP wrapper (requires dssp/mkdssp binary on PATH)
     try:
         from Bio.PDB import PDBParser, DSSP
     except ImportError:
@@ -91,14 +134,17 @@ def true_ss_from_dssp(pdb_path: str, chain: str) -> tuple[float, float, float, i
         p = PDBParser(QUIET=True)
         struct = p.get_structure("x", pdb_path)
         model = next(iter(struct))
-        try:
-            dssp = DSSP(model, pdb_path, dssp="mkdssp")
-        except Exception:
+        dssp = None
+        for binname in ("mkdssp", "dssp"):
             try:
-                dssp = DSSP(model, pdb_path, dssp="dssp")
-            except Exception as e:
-                print(f"[warn] DSSP failed for {pdb_path}: {e}", file=sys.stderr)
-                return (float("nan"), float("nan"), float("nan"), 0)
+                dssp = DSSP(model, pdb_path, dssp=binname)
+                break
+            except Exception:
+                continue
+        if dssp is None:
+            print(f"[warn] DSSP failed for {pdb_path}: no working binary",
+                  file=sys.stderr)
+            return (float("nan"), float("nan"), float("nan"), 0)
     except Exception as e:
         print(f"[warn] PDB parse failed for {pdb_path}: {e}", file=sys.stderr)
         return (float("nan"), float("nan"), float("nan"), 0)
