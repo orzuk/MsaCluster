@@ -346,32 +346,48 @@ def _build_unified_method_preference(foldpair_id: str, cluster_index: list[str])
         return pd.DataFrame(index=cluster_index, columns=_UNIFIED_METHOD_ORDER), \
                pd.Series(index=_UNIFIED_METHOD_ORDER, dtype=float)
 
+    sub["TMdiff_centered"] = pd.to_numeric(sub.get("TMdiff_centered"),
+                                            errors="coerce")
     sub["TMdiff_max"] = pd.to_numeric(sub.get("TMdiff_max"), errors="coerce")
     sub["_tag"] = sub["cluster"].astype(str).map(
         lambda c: "DeepMsa" if str(c).lower().startswith("deep")
         else _normalize_cluster_tag(c)
     )
 
-    # Pivot: rows = cluster_tag, columns = method, values = TMdiff_max
-    raw = sub.pivot_table(index="_tag", columns="method",
-                          values="TMdiff_max", aggfunc="first")
-    keep_cols = [m for m in _UNIFIED_METHOD_ORDER if m in raw.columns]
-    raw = raw[keep_cols] if keep_cols else raw
+    # Per-cluster cells show TMdiff_centered (per-method signed deviation from
+    # the pair's median TMdiff). This matches the per-pair-centered classification
+    # used by the rest of the analysis (Sec. 2.5/3.4 of the paper), so a row's
+    # color reflects the same signal the concordance / BH FDR pipeline uses.
+    centered = sub.pivot_table(index="_tag", columns="method",
+                               values="TMdiff_centered", aggfunc="first")
+    # The Deep MSA "baseline" row uses ABSOLUTE TMdiff (TMdiff_max), not centered,
+    # so the reader can see the un-clustered global bias on the same colorbar.
+    absolute = sub.pivot_table(index="_tag", columns="method",
+                               values="TMdiff_max", aggfunc="first")
+
+    keep_cols = [m for m in _UNIFIED_METHOD_ORDER if m in centered.columns]
+    centered = centered[keep_cols] if keep_cols else centered
+    absolute = absolute.reindex(columns=centered.columns)
 
     # Per-method symmetric normalization to [-1, +1] using max-abs over the
-    # whole pair (DeepMsa included). Methods with all-NaN keep NaN.
-    norm = raw.copy()
-    for col in norm.columns:
-        v = pd.to_numeric(norm[col], errors="coerce")
-        m = float(v.abs().max(skipna=True))
+    # whole pair, applied jointly to the centered cluster rows and the
+    # absolute Deep row so they share a single colorbar.
+    norm_c = centered.copy()
+    norm_a = absolute.copy()
+    for col in norm_c.columns:
+        vc = pd.to_numeric(norm_c[col], errors="coerce")
+        va = pd.to_numeric(norm_a[col], errors="coerce")
+        m = float(max(vc.abs().max(skipna=True) or 0.0,
+                      va.abs().max(skipna=True) or 0.0))
         if not np.isfinite(m) or m == 0.0:
             continue
-        norm[col] = v / m
+        norm_c[col] = vc / m
+        norm_a[col] = va / m
 
-    deep_row = norm.loc["DeepMsa"] if "DeepMsa" in norm.index else \
-               pd.Series(index=norm.columns, dtype=float)
+    deep_row = norm_a.loc["DeepMsa"] if "DeepMsa" in norm_a.index else \
+               pd.Series(index=norm_c.columns, dtype=float)
 
-    per_cluster = norm.drop(index="DeepMsa", errors="ignore")
+    per_cluster = norm_c.drop(index="DeepMsa", errors="ignore")
     # Reindex to the tree-derived cluster order so missing clusters become NaN.
     per_cluster = per_cluster.reindex(cluster_index)
     return per_cluster, deep_row
@@ -650,7 +666,9 @@ def make_foldswitch_all_plots(
             nan_rgba=(0.92, 0.92, 0.92, 1.0),
             ylabels_override=ylabels_override,
             leaf_colors=leaf_colors_dict,
-            fold_pref_per_row=fold_pref_per_row,
+            # Drop the redundant Fold strip: the leaf-tip circles on the tree
+            # already encode the F1/F2/Amb call.
+            fold_pref_per_row=None,
             unified_diverging=True,
             extra_top_row=deep_row if (deep_row is not None and not deep_row.empty) else None,
             extra_top_row_label="Deep MSA",

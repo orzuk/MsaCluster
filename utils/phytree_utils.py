@@ -1180,15 +1180,16 @@ def compose_tree_and_heatmap(
     for gi, (vmin, vmax) in enumerate(scalars):
         if gi < len(cbar_axes):
             sm = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=vmin, vmax=vmax), cmap=cmap)
-            cb = plt.colorbar(sm, cax=cbar_axes[gi], extend="both")
+            # Unified diverging: clean rectangle (no arrow caps that read as a
+            # confusing legend element).
+            extend = "neither" if unified_diverging else "both"
+            cb = plt.colorbar(sm, cax=cbar_axes[gi], extend=extend)
 
             # ticks at extremes + middle
             ticks = [vmin, 0.5 * (vmin + vmax), vmax]
 
             if unified_diverging:
-                # Normalized scale: mark −1 / 0 / +1 with F2 / 0 / F1 hints.
-                labels = [f"{vmin:+.1f}\n(F2)", "0",
-                          f"{vmax:+.1f}\n(F1)"]
+                labels = ["F2", "0", "F1"]
             else:
                 # round to 2 decimals and avoid "-0.00"
                 labels = [("0.00" if abs(t) < 5e-6 else f"{t:.2f}") for t in ticks]
@@ -1198,16 +1199,18 @@ def compose_tree_and_heatmap(
             cb.formatter = FixedFormatter(labels)
             cb.update_ticks()
 
-            title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
-            # Wrap long titles so they don't overflow the colorbar column.
-            if len(title) > 18:
-                # split at the first space past the midpoint
-                mid = len(title) // 2
-                idx = title.find(" ", mid)
-                if idx != -1:
-                    title = title[:idx] + "\n" + title[idx + 1:]
+            if unified_diverging:
+                title = "Centered\npreference"
+            else:
+                title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
+                # Wrap long titles so they don't overflow the colorbar column.
+                if len(title) > 18:
+                    mid = len(title) // 2
+                    idx = title.find(" ", mid)
+                    if idx != -1:
+                        title = title[:idx] + "\n" + title[idx + 1:]
             cbar_axes[gi].set_title(title, fontsize=10, pad=6)
-            cb.ax.tick_params(labelsize=8, pad=1)  # small pad so text doesn’t overflow
+            cb.ax.tick_params(labelsize=9, pad=2)
 
 
     out_png = output_file if output_file.lower().endswith(".png") else output_file + ".png"
