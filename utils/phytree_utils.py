@@ -896,6 +896,14 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
 
     # draw colored leaf-tip markers
     if leaf_colors:
+        import matplotlib.colors as mcolors
+        # Per-color "fill" = lighter shade of the border color (mix with white).
+        # Gray gets a very faint fill so it's still distinguishable from F1/F2.
+        def _light(rgb, alpha=0.30):
+            r, g, b = rgb
+            return (r + (1 - r) * (1 - alpha),
+                    g + (1 - g) * (1 - alpha),
+                    b + (1 - b) * (1 - alpha))
         xmax_leaf = max((x_pos[n] for n in root.traverse() if n.is_leaf()),
                         default=0)
         for node in root.iter_leaves():
@@ -904,12 +912,18 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
             xc = x_pos[node]
             yc = y_pos[node.name]
             color = leaf_colors[node.name]
+            border_rgb = mcolors.to_rgb(color)
+            # Use a lighter fill for the gray (Amb) so the cluster label stays legible.
+            if color.lower() in ("#999999", "gray", "grey"):
+                fill_rgb = (0.96, 0.96, 0.96)  # near-white
+            else:
+                fill_rgb = _light(border_rgb, alpha=0.35)
             if leaf_labels and node.name in leaf_labels:
-                # Big hollow ring with the cluster short label centered inside.
+                # Big colored disk with the cluster short label centered inside.
                 ax.plot(xc, yc, 'o',
-                        markerfacecolor="white",
-                        markeredgecolor=color, markersize=24,
-                        markeredgewidth=2.2, zorder=5)
+                        markerfacecolor=fill_rgb,
+                        markeredgecolor=border_rgb, markersize=24,
+                        markeredgewidth=2.4, zorder=5)
                 ax.text(xc, yc, leaf_labels[node.name],
                         ha="center", va="center",
                         fontsize=8, fontweight="bold",
