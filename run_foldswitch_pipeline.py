@@ -436,6 +436,16 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         "--foldpair_ids", pair_id,
         "--run_job_mode", "inline",
     ]
+    # Propagate run_mode-specific non-default flags to the inner inline rerun.
+    # Without this, defaults clobber the user's intent (e.g. --boltz2_mode auto
+    # specified on the OUTER call would silently become "apo" inside).
+    if run_mode == "run_boltz2":
+        boltz2_mode = getattr(args, "boltz2_mode", "apo") or "apo"
+        if boltz2_mode != "apo":
+            inner += ["--boltz2_mode", shlex.quote(boltz2_mode)]
+        partner = getattr(args, "boltz2_partner_yaml", "") or ""
+        if partner:
+            inner += ["--boltz2_partner_yaml", shlex.quote(partner)]
     if extra_cli:
         inner.append(extra_cli)
     wrap_str = " ".join(inner)
