@@ -841,7 +841,8 @@ def draw_grouped_heatmap(
     return (cmap, group_scalars) if return_group_scalars else None
 
 
-def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None):
+def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
+                       leaf_labels=None):
     """Draw L-shaped tree branches aligned to heatmap rows.
 
     Parameters
@@ -849,6 +850,10 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None):
     leaf_colors : dict, optional
         {leaf_name: color_string} — if given, draw a colored circle at each
         leaf tip to indicate fold preference (F1=red, F2=blue, Amb=gray).
+    leaf_labels : dict, optional
+        {leaf_name: short_text} — if given, draw a large hollow ring around
+        each leaf tip with the cluster short label inside the ring (replaces
+        the small filled marker).
     """
     import numpy as np
 
@@ -889,15 +894,38 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None):
             ax.plot([x0, x1], [y1, y1], color="#666666", lw=1.0, solid_capstyle="butt")
             ax.plot([x0, x0], [y0, y1], color="#666666", lw=1.0, solid_capstyle="butt")
 
-    # draw colored circles at leaf tips if fold-preference colors are given
+    # draw colored leaf-tip markers
     if leaf_colors:
         xmax_leaf = max((x_pos[n] for n in root.traverse() if n.is_leaf()),
                         default=0)
         for node in root.iter_leaves():
-            if node.name in y_pos and node.name in leaf_colors:
-                ax.plot(x_pos[node], y_pos[node.name], 'o',
-                        color=leaf_colors[node.name], markersize=7,
+            if node.name not in y_pos or node.name not in leaf_colors:
+                continue
+            xc = x_pos[node]
+            yc = y_pos[node.name]
+            color = leaf_colors[node.name]
+            if leaf_labels and node.name in leaf_labels:
+                # Big hollow ring with the cluster short label centered inside.
+                ax.plot(xc, yc, 'o',
+                        markerfacecolor="white",
+                        markeredgecolor=color, markersize=24,
+                        markeredgewidth=2.2, zorder=5)
+                ax.text(xc, yc, leaf_labels[node.name],
+                        ha="center", va="center",
+                        fontsize=8, fontweight="bold",
+                        color="black", zorder=6)
+            else:
+                ax.plot(xc, yc, 'o',
+                        color=color, markersize=7,
                         markeredgecolor='k', markeredgewidth=0.5, zorder=5)
+        # Pad the tree axes so big rings don't get clipped at the right edge.
+        if leaf_labels:
+            try:
+                cur_xlim = ax.get_xlim()
+                pad = (xmax_leaf if xmax_leaf > 0 else 1.0) * 0.05
+                ax.set_xlim(cur_xlim[0], max(cur_xlim[1], xmax_leaf) + pad)
+            except Exception:
+                pass
 
     n = len(leaf_order)
     ax.set_ylim(n - 0.5, -0.5)
@@ -927,6 +955,7 @@ def compose_tree_and_heatmap(
     unified_diverging=False,  # NEW: use one RdBu_r cmap with symmetric vmin/vmax
     extra_top_row=None,       # NEW: pd.Series indexed by columns; adds a "baseline" row above the heatmap
     extra_top_row_label="",   # NEW: y-label for that extra row
+    label_in_leaf=False,      # NEW: draw cluster short labels INSIDE big hollow rings at tree tips, suppress y-tick labels
 ):
     import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
     from matplotlib.gridspec import GridSpecFromSubplotSpec
@@ -1005,8 +1034,16 @@ def compose_tree_and_heatmap(
             cbar_axes.append(ax_c)
 
     # ----- draw the tree aligned to df_leaf row order -----
+    _leaf_labels = None
+    if label_in_leaf and ylabels_override is not None:
+        # Map leaf name -> short cluster label (e.g. "S03") drawn inside the ring.
+        try:
+            _leaf_labels = {ln: lab for ln, lab in
+                            zip(df_leaf.index, ylabels_override) if lab}
+        except Exception:
+            _leaf_labels = None
     draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index),
-                      leaf_colors=leaf_colors)
+                      leaf_colors=leaf_colors, leaf_labels=_leaf_labels)
 
     # ----- draw the heatmaps -----
     # shared colormap (with NaN color); per-group vmin/vmax
@@ -1102,17 +1139,20 @@ def compose_tree_and_heatmap(
 
         im = ax.imshow(M, aspect="auto", interpolation="nearest", cmap=cmap, vmin=vmin, vmax=vmax)
 
-        # y-ticks only on the first group
-        if gi == 0:
+        # y-ticks only on the first group; suppress if labels are inside leaf rings.
+        if gi == 0 and not label_in_leaf:
             ax.set_yticks(np.arange(df_plot.shape[0]))
             ax.set_yticklabels(df_plot.index, fontsize=y_tick_fontsize)
         else:
             ax.set_yticks([])
             ax.set_yticklabels([])
 
-        # x-ticks for that group's columns
+        # x-ticks for that group's columns; pretty-print known method names.
+        _METHOD_DISPLAY = {"DDG": r"$\Delta\Delta G$"}
         ax.set_xticks(np.arange(len(gcols)))
-        ax.set_xticklabels(gcols, rotation=x_tick_rotation, ha="right", fontsize=x_tick_fontsize)
+        ax.set_xticklabels([_METHOD_DISPLAY.get(c, c) for c in gcols],
+                           rotation=x_tick_rotation, ha="right",
+                           fontsize=x_tick_fontsize)
         ax.tick_params(axis="x", pad=6)
 
         # thin bounding lines to make groups visually distinct

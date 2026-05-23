@@ -666,12 +666,13 @@ def make_foldswitch_all_plots(
             nan_rgba=(0.92, 0.92, 0.92, 1.0),
             ylabels_override=ylabels_override,
             leaf_colors=leaf_colors_dict,
-            # Drop the redundant Fold strip: the leaf-tip circles on the tree
+            # Drop the redundant Fold strip: the leaf-tip rings on the tree
             # already encode the F1/F2/Amb call.
             fold_pref_per_row=None,
             unified_diverging=True,
             extra_top_row=deep_row if (deep_row is not None and not deep_row.empty) else None,
             extra_top_row_label="Deep MSA",
+            label_in_leaf=True,
         )
 
         print(f"[ok] saved tree heatmap -> {out_root}.png")
