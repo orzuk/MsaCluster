@@ -449,6 +449,19 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         partner = getattr(args, "boltz2_partner_yaml", "") or ""
         if partner:
             inner += ["--boltz2_partner_yaml", shlex.quote(partner)]
+    if run_mode == "run_s4pred":
+        s4dir = getattr(args, "s4pred_dir", None) or ""
+        if s4dir:
+            inner += ["--s4pred_dir", shlex.quote(str(s4dir))]
+        nreps = int(getattr(args, "s4pred_n_reps", 10))
+        if nreps != 10:
+            inner += ["--s4pred_n_reps", str(nreps)]
+        sdev = getattr(args, "s4pred_device", "cpu") or "cpu"
+        if sdev != "cpu":
+            inner += ["--s4pred_device", shlex.quote(sdev)]
+        swork = getattr(args, "s4pred_work_root", "") or ""
+        if swork and swork != "Pipeline/FoldPairs/_s4pred_work":
+            inner += ["--s4pred_work_root", shlex.quote(swork)]
     if extra_cli:
         inner.append(extra_cli)
     wrap_str = " ".join(inner)
