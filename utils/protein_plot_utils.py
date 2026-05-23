@@ -284,52 +284,117 @@ def _cluster_metrics_to_leaf_df(df_cluster, ete_tree, ete_leaves_cluster_ids,
     return df_leaf
 
 
+_UNIFIED_METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2"]
+
+
+def _load_af2_raw_tms_from_survey(foldpair_id: str) -> dict:
+    """Return {cluster_tag: (TM1_max, TM2_max)} for the pair's AF2 rows.
+
+    Used for the right-edge F1/F2/Amb fold-preference strip, which needs
+    absolute TM-scores (not the normalized signed Δ used by the heatmap).
+    """
+    csv_path = os.path.join("docs", "fold_diversity_survey.csv")
+    if not os.path.isfile(csv_path):
+        return {}
+    try:
+        survey = pd.read_csv(csv_path)
+    except Exception:
+        return {}
+    sub = survey[(survey["pair_id"] == foldpair_id) & (survey["method"] == "AF2")]
+    out = {}
+    for _, r in sub.iterrows():
+        cl = str(r.get("cluster", ""))
+        tag = "DeepMsa" if cl.lower().startswith("deep") else _normalize_cluster_tag(cl)
+        try:
+            tm1 = float(r["TM1_max"]); tm2 = float(r["TM2_max"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if tag:
+            out[tag] = (tm1, tm2)
+    return out
+
+
+def _build_unified_method_preference(foldpair_id: str, cluster_index: list[str]):
+    """Per-method signed preference toward F1, one column per method.
+
+    Reads docs/fold_diversity_survey.csv (aggregated per pair x cluster x method).
+    Each cell = TMdiff_max for TM-based methods, t1_recall - t2_recall for contact
+    methods, ddg_kcal_per_mol for DDG. All on a per-method-normalized scale so
+    the diverging colormap is comparable across columns.
+
+    Returns
+    -------
+    (df, deep_row) where:
+      df         : DataFrame indexed by cluster tags (subset of cluster_index)
+                   with one column per method; values in [-1, +1], NaN if missing.
+      deep_row   : pd.Series of the same columns, holding the DeepMsa cluster
+                   value per method (also normalized to [-1, +1]). May contain
+                   NaN if any method has no DeepMsa row.
+    """
+    csv_path = os.path.join("docs", "fold_diversity_survey.csv")
+    if not os.path.isfile(csv_path):
+        return pd.DataFrame(index=cluster_index, columns=_UNIFIED_METHOD_ORDER), \
+               pd.Series(index=_UNIFIED_METHOD_ORDER, dtype=float)
+    try:
+        survey = pd.read_csv(csv_path)
+    except Exception:
+        return pd.DataFrame(index=cluster_index, columns=_UNIFIED_METHOD_ORDER), \
+               pd.Series(index=_UNIFIED_METHOD_ORDER, dtype=float)
+
+    sub = survey[survey["pair_id"] == foldpair_id].copy()
+    if sub.empty:
+        return pd.DataFrame(index=cluster_index, columns=_UNIFIED_METHOD_ORDER), \
+               pd.Series(index=_UNIFIED_METHOD_ORDER, dtype=float)
+
+    sub["TMdiff_max"] = pd.to_numeric(sub.get("TMdiff_max"), errors="coerce")
+    sub["_tag"] = sub["cluster"].astype(str).map(
+        lambda c: "DeepMsa" if str(c).lower().startswith("deep")
+        else _normalize_cluster_tag(c)
+    )
+
+    # Pivot: rows = cluster_tag, columns = method, values = TMdiff_max
+    raw = sub.pivot_table(index="_tag", columns="method",
+                          values="TMdiff_max", aggfunc="first")
+    keep_cols = [m for m in _UNIFIED_METHOD_ORDER if m in raw.columns]
+    raw = raw[keep_cols] if keep_cols else raw
+
+    # Per-method symmetric normalization to [-1, +1] using max-abs over the
+    # whole pair (DeepMsa included). Methods with all-NaN keep NaN.
+    norm = raw.copy()
+    for col in norm.columns:
+        v = pd.to_numeric(norm[col], errors="coerce")
+        m = float(v.abs().max(skipna=True))
+        if not np.isfinite(m) or m == 0.0:
+            continue
+        norm[col] = v / m
+
+    deep_row = norm.loc["DeepMsa"] if "DeepMsa" in norm.index else \
+               pd.Series(index=norm.columns, dtype=float)
+
+    per_cluster = norm.drop(index="DeepMsa", errors="ignore")
+    # Reindex to the tree-derived cluster order so missing clusters become NaN.
+    per_cluster = per_cluster.reindex(cluster_index)
+    return per_cluster, deep_row
+
+
 def _prepare_tree_heatmap_inputs(foldpair_id, ete_tree, ete_leaves_cluster_ids,
                                   cluster_node_values=None):
-    """Build the DataFrame and grouping for visualize_tree_with_heatmap() robustly."""
-    df_af, df_esm, df_cmap = _load_pair_csvs(foldpair_id)
-
+    """Build a unified one-block heatmap input: one column per method, values are
+    per-method-normalized signed preference toward F1 (positive=F1, negative=F2).
+    Returns (df, col_groups, group_titles, deep_row).
+    """
     cluster_index = _collect_cluster_index_from_tree(
         ete_tree, ete_leaves_cluster_ids,
         list(cluster_node_values.keys()) if cluster_node_values else []
     )
 
-    tm_df = _build_tmscores_from_pair_csvs(df_af, df_esm, cluster_index)
-    ms_df = _build_msat_metrics_from_df_cmap(df_cmap, cluster_index)
+    df, deep_row = _build_unified_method_preference(foldpair_id, cluster_index)
+    if df.empty or df.dropna(how="all").empty:
+        return pd.DataFrame(index=cluster_index), [], [], pd.Series(dtype=float)
 
-    if ms_df.empty and cluster_node_values:
-        tmp = pd.DataFrame({_normalize_cluster_tag(k): v for k, v in cluster_node_values.items()}).T
-        tmp.columns = ["RE-MSAT-COM", "RE-MSAT1", "RE-MSAT2"]
-        ms_df = tmp.reindex(cluster_index)
-
-    blocks = []
-    col_groups: list[list[str]] = []
-    group_titles: list[str] = []
-
-    if not tm_df.empty:
-        blocks.append(tm_df)
-        tm_cols = [c for c in ["TM-AF1","TM-AF2"] if c in tm_df.columns]
-        if tm_cols:
-            col_groups.append(tm_cols)
-            group_titles.append("AF")
-        tm_cols2 = [c for c in ["TM-ESM1","TM-ESM2"] if c in tm_df.columns and c.startswith("TM-ESM")]
-        if tm_cols2:
-            col_groups.append(tm_cols2)
-            group_titles.append("ESM")
-
-    if not ms_df.empty:
-        ms_df = ms_df.dropna(axis=1, how="all")
-        if not ms_df.empty:
-            blocks.append(ms_df)
-            col_groups.append([c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in ms_df.columns])
-            group_titles.append("MSAT")
-
-    if not blocks:
-        return pd.DataFrame(index=cluster_index), [], []
-
-    df = pd.concat(blocks, axis=1)
     df = df.apply(pd.to_numeric, errors="coerce")
-    return df, col_groups, group_titles
+    cols = list(df.columns)
+    return df, [cols], ["Method preference (F2 ← → F1)"], deep_row
 
 
 def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
@@ -523,7 +588,7 @@ def make_foldswitch_all_plots(
     print("Converted seq ids to cluster ids:")
 
     # === Build inputs for the heatmap ===
-    heat_df, col_groups, group_titles = _prepare_tree_heatmap_inputs(
+    heat_df, col_groups, group_titles, deep_row = _prepare_tree_heatmap_inputs(
         foldpair_id=foldpair_id,
         ete_tree=ete_tree,
         ete_leaves_cluster_ids=ete_leaves_cluster_ids,
@@ -562,24 +627,15 @@ def make_foldswitch_all_plots(
         _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
         fold_pref_per_row = None
         leaf_colors_dict = None
-        if "TM-AF1" in df_cluster_ordered.columns and "TM-AF2" in df_cluster_ordered.columns:
-            cluster_tms = {}
-            for tag in ordered_tags:
-                tm1 = df_cluster_ordered.loc[tag, "TM-AF1"]
-                tm2 = df_cluster_ordered.loc[tag, "TM-AF2"]
-                try:
-                    cluster_tms[tag] = (float(tm1), float(tm2))
-                except (ValueError, TypeError):
-                    pass
-            if cluster_tms:
-                from utils.ancestral_utils import assign_fold_preference
-                prefs = assign_fold_preference(cluster_tms, delta=0.05)
-                fold_pref_per_row = [prefs.get(t, "Amb") for t in ordered_tags]
-                # Map to leaf names for tree coloring
-                leaf_colors_dict = {}
-                for tag, leaf_name in zip(ordered_tags, leaf_order):
-                    pref = prefs.get(tag, "Amb")
-                    leaf_colors_dict[leaf_name] = _FOLD_COLORS[pref]
+        cluster_tms = _load_af2_raw_tms_from_survey(foldpair_id)
+        if cluster_tms:
+            from utils.ancestral_utils import assign_fold_preference
+            prefs = assign_fold_preference(cluster_tms, delta=0.05)
+            fold_pref_per_row = [prefs.get(t, "Amb") for t in ordered_tags]
+            leaf_colors_dict = {}
+            for tag, leaf_name in zip(ordered_tags, leaf_order):
+                pref = prefs.get(tag, "Amb")
+                leaf_colors_dict[leaf_name] = _FOLD_COLORS[pref]
 
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
         print("Making tree heatmap plot with column groups...", col_groups, flush=True)
@@ -595,6 +651,9 @@ def make_foldswitch_all_plots(
             ylabels_override=ylabels_override,
             leaf_colors=leaf_colors_dict,
             fold_pref_per_row=fold_pref_per_row,
+            unified_diverging=True,
+            extra_top_row=deep_row if (deep_row is not None and not deep_row.empty) else None,
+            extra_top_row_label="Deep MSA",
         )
 
         print(f"[ok] saved tree heatmap -> {out_root}.png")

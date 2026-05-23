@@ -924,6 +924,9 @@ def compose_tree_and_heatmap(
     group_gap_frac=0.08,      # NEW: ~8% of a group's width used as inter-group gap
     leaf_colors=None,         # {leaf_name: color_str} for tree tip dots
     fold_pref_per_row=None,   # [pref_str, ...] same order as df_leaf rows — adds color strip
+    unified_diverging=False,  # NEW: use one RdBu_r cmap with symmetric vmin/vmax
+    extra_top_row=None,       # NEW: pd.Series indexed by columns; adds a "baseline" row above the heatmap
+    extra_top_row_label="",   # NEW: y-label for that extra row
 ):
     import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
     from matplotlib.gridspec import GridSpecFromSubplotSpec
@@ -966,6 +969,14 @@ def compose_tree_and_heatmap(
     ax_heat_region.axis("off")
     cbar_host = fig.add_subplot(gs[0, 2]); cbar_host.axis("off")
 
+    # Shrink the tree axes to the lower portion when an extra top row is reserved,
+    # so tree-leaf y-coordinates stay aligned with the main heatmap rows.
+    if extra_top_row is not None:
+        _top_h_frac, _top_gap_frac = 0.05, 0.015
+        _main_h_frac = 1.0 - _top_h_frac - _top_gap_frac
+        tbb = ax_tree.get_position()
+        ax_tree.set_position([tbb.x0, tbb.y0, tbb.width, tbb.height * _main_h_frac])
+
     # stack slim colorbars in the right column (narrower + ~2× longer + moved left)
     n_cb = len(col_groups) if col_groups else 0
     cbar_axes = []
@@ -995,8 +1006,31 @@ def compose_tree_and_heatmap(
 
     # ----- draw the heatmaps -----
     # shared colormap (with NaN color); per-group vmin/vmax
-    cmap = mpl.cm.viridis.copy()
+    if unified_diverging:
+        cmap = mpl.cm.RdBu_r.copy()
+    else:
+        cmap = mpl.cm.viridis.copy()
     cmap.set_bad(nan_rgba)
+
+    # Compute one symmetric global vmin/vmax across all groups (incl. extra_top_row)
+    # so cells are visually comparable across columns under the diverging cmap.
+    unified_vmin = unified_vmax = None
+    if unified_diverging:
+        vals = [df_leaf[[c for c in g if c in df_leaf.columns]].to_numpy(dtype=float)
+                for g in col_groups]
+        flat = np.concatenate([v.ravel() for v in vals]) if vals else np.array([])
+        if extra_top_row is not None:
+            try:
+                flat = np.concatenate(
+                    [flat, np.asarray(extra_top_row.to_numpy(), dtype=float)]
+                )
+            except Exception:
+                pass
+        finite = flat[np.isfinite(flat)] if flat.size else flat
+        m = float(np.max(np.abs(finite))) if finite.size else 1.0
+        if not np.isfinite(m) or m == 0.0:
+            m = 1.0
+        unified_vmin, unified_vmax = -m, m
 
     # compute grouped widths and gaps inside the heat region
     groups_present = [ [c for c in g if c in df_leaf.columns] for g in col_groups ]
@@ -1013,14 +1047,34 @@ def compose_tree_and_heatmap(
     total_units = sum(widths) + gap * sum(widths[:-1])
     unit = 1.0 / max(total_units, 1e-9)
 
+    # Reserve a thin top strip for the Deep-MSA baseline row when requested.
+    has_top_row = extra_top_row is not None
+    if has_top_row:
+        top_h_frac = 0.05  # 5% of container height for the Deep row
+        top_gap_frac = 0.015
+    else:
+        top_h_frac = 0.0
+        top_gap_frac = 0.0
+    main_h_frac = 1.0 - top_h_frac - top_gap_frac
+
     left = 0.00
-    group_axes, scalars = [], []
+    group_axes, top_axes, scalars = [], [], []
     for gi, gcols in enumerate(groups_present):
         w = unit * len(gcols)
         # add a sub-axes for this group inside ax_heat_region
         bb = ax_heat_region.get_position()
-        ax = fig.add_axes([bb.x0 + left * bb.width, bb.y0, w * bb.width, bb.height])
+        ax_x = bb.x0 + left * bb.width
+        ax_w = w * bb.width
+        ax = fig.add_axes([ax_x, bb.y0, ax_w, bb.height * main_h_frac])
         group_axes.append((ax, gcols))
+        if has_top_row:
+            ax_top = fig.add_axes([
+                ax_x,
+                bb.y0 + bb.height * (main_h_frac + top_gap_frac),
+                ax_w,
+                bb.height * top_h_frac,
+            ])
+            top_axes.append((ax_top, gcols))
         left += w
         if gi < n_groups - 1:
             left += unit * gap * len(gcols)  # small gap proportional to group width
@@ -1028,7 +1082,9 @@ def compose_tree_and_heatmap(
     # render each group
     for gi, (ax, gcols) in enumerate(group_axes):
         M = df_plot[gcols].to_numpy(dtype=float)
-        if lock_scales_to_unit:
+        if unified_diverging:
+            vmin, vmax = unified_vmin, unified_vmax
+        elif lock_scales_to_unit:
             vmin, vmax = 0.0, 1.0
         else:
             # robust min/max for this group (ignore all-NaN)
@@ -1059,6 +1115,33 @@ def compose_tree_and_heatmap(
         ax.axvline(-0.5, color="k", lw=0.5, alpha=0.25)
         ax.axvline(len(gcols) - 0.5, color="k", lw=0.5, alpha=0.25)
 
+    # render the Deep-MSA baseline row(s) above each group
+    if has_top_row and extra_top_row is not None:
+        for gi, (ax_top, gcols) in enumerate(top_axes):
+            row_vals = []
+            for c in gcols:
+                try:
+                    row_vals.append(float(extra_top_row.get(c, np.nan)))
+                except (TypeError, ValueError):
+                    row_vals.append(np.nan)
+            M_top = np.array(row_vals, dtype=float).reshape(1, -1)
+            v_lo = unified_vmin if unified_diverging else (scalars[gi][0] if gi < len(scalars) else 0.0)
+            v_hi = unified_vmax if unified_diverging else (scalars[gi][1] if gi < len(scalars) else 1.0)
+            ax_top.imshow(M_top, aspect="auto", interpolation="nearest",
+                          cmap=cmap, vmin=v_lo, vmax=v_hi)
+            ax_top.set_xticks([]); ax_top.set_xticklabels([])
+            if gi == 0:
+                ax_top.set_yticks([0])
+                ax_top.set_yticklabels([extra_top_row_label],
+                                       fontsize=y_tick_fontsize)
+            else:
+                ax_top.set_yticks([])
+            ax_top.axvline(-0.5, color="k", lw=0.5, alpha=0.25)
+            ax_top.axvline(len(gcols) - 0.5, color="k", lw=0.5, alpha=0.25)
+            for spine in ax_top.spines.values():
+                spine.set_linewidth(0.8)
+                spine.set_color("#444")
+
     # ----- fold-preference color strip (narrow column after last heatmap group) -----
     _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
     if fold_pref_per_row is not None and len(fold_pref_per_row) == df_plot.shape[0]:
@@ -1067,7 +1150,8 @@ def compose_tree_and_heatmap(
         strip_w = unit * 0.6  # narrow strip ~0.6 unit wide
         strip_gap = unit * gap * 1  # gap before strip
         ax_strip = fig.add_axes([bb.x0 + left * bb.width + strip_gap * bb.width,
-                                 bb.y0, strip_w * bb.width, bb.height])
+                                 bb.y0, strip_w * bb.width,
+                                 bb.height * main_h_frac])
         # build RGB array for strip
         rgb = np.array([mcolors.to_rgb(_FOLD_COLORS.get(p, "#999999"))
                         for p in fold_pref_per_row])
