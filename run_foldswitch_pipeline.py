@@ -1615,9 +1615,18 @@ def task_alphaflow(pair_id: str, args: argparse.Namespace) -> None:
 
 def task_boltz2(pair_id: str, args: argparse.Namespace) -> None:
     """Boltz-2 per cluster. Shells out to run_Boltz2.py which calls
-    scripts/shell/RunBoltz2.sh (activates torch2-venv)."""
+    scripts/shell/RunBoltz2.sh (activates torch2-venv).
+
+    Mode selection (--boltz2_mode):
+      apo  : predict each cluster with no ligand/partner (default).
+      holo : predict each cluster WITH the trigger's ligand block,
+             read from docs/triggers_from_pdb.csv.
+      auto : holo if pair is ligand-triggered per the CSV, else apo.
+    The result CSV's `mode` column records what actually ran.
+    """
     partner = getattr(args, "boltz2_partner_yaml", "") or ""
-    cmd = f"python3 ./run_Boltz2.py -input {pair_id}"
+    mode = getattr(args, "boltz2_mode", "apo") or "apo"
+    cmd = f"python3 ./run_Boltz2.py -input {pair_id} --mode {shlex.quote(mode)}"
     if partner:
         cmd += f" --partner_yaml {shlex.quote(partner)}"
     _run(cmd, args.run_job_mode)
@@ -2366,8 +2375,31 @@ def main():
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=True,
                    help="List of pair IDs (e.g. 1dzlA_5keqF), or the literal token ALL")
+    p.add_argument(
+        "--trigger_filter", default=None,
+        help="If set, restrict --foldpair_ids ALL to pairs whose trigger_class "
+             "in docs/triggers_from_pdb.csv matches this value. Accepted: "
+             "ligand, oligomerization, protein_binding, mutation, "
+             "equilibrium_or_unknown, or the virtual classes 'triggered' "
+             "(ligand+oligo+protein_binding+mutation) and 'equilibrium'. "
+             "Useful for targeted runs like --run_mode run_boltz2 "
+             "--trigger_filter ligand --boltz2_mode holo.")
 
     p.add_argument("--run_job_mode", default="inline", choices=["inline", "sbatch"])
+
+    # --- Boltz-2 options ---
+    p.add_argument("--boltz2_mode", default="apo",
+                   choices=["apo", "holo", "auto"],
+                   help="apo: predict each cluster without ligand/partner "
+                        "(default). holo: include ligand block from the "
+                        "trigger CSV (only implemented for ligand-class). "
+                        "auto: holo for ligand-class pairs, apo otherwise.")
+    p.add_argument("--boltz2_partner_yaml", default="",
+                   help="Path to an ad-hoc Boltz-2 partner YAML fragment "
+                        "(extra protein/ligand/RNA block), appended to "
+                        "every cluster's input YAML. Use for targeted "
+                        "holo experiments outside the trigger CSV "
+                        "(e.g. specific RfaH-RNAP runs).")
 
     # --- Clustering options ---
     p.add_argument("--cluster_alg", default="tree", choices=["hdbscan", "tree", "ahc"],
@@ -2532,6 +2564,25 @@ def main():
         foldpairs = list_protein_pairs() # [s.replace("\t", "_") for s in raw]
     else:
         foldpairs = args.foldpair_ids
+
+    # Optional trigger-class filter (uses docs/triggers_from_pdb.csv)
+    if args.trigger_filter:
+        try:
+            from utils.trigger_utils import pairs_in_class
+            allowed = set(pairs_in_class(args.trigger_filter))
+            if not allowed:
+                print(f"[warn] --trigger_filter {args.trigger_filter}: "
+                      f"no pairs found in trigger CSV; aborting.",
+                      file=sys.stderr)
+                sys.exit(2)
+            before = len(foldpairs)
+            foldpairs = [p for p in foldpairs if p in allowed]
+            print(f"[trigger_filter] {args.trigger_filter}: "
+                  f"{before} -> {len(foldpairs)} pairs after filter",
+                  flush=True)
+        except Exception as e:
+            print(f"[warn] --trigger_filter ignored due to error: {e}",
+                  file=sys.stderr)
 
     # --- Before the loop ---
     if args.run_mode == "postprocess":

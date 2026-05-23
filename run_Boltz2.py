@@ -39,7 +39,7 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -48,6 +48,10 @@ sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR, MAIN_DIR  # noqa: E402
 from utils.align_utils import compute_tmscore_align  # noqa: E402
+from utils.trigger_utils import (  # noqa: E402
+    get_trigger_class,
+    ligand_codes_for_holo,
+)
 
 
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunBoltz2.sh")
@@ -104,12 +108,29 @@ def _safe_tm(pred_pdb, truth_pdb):
 
 
 def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
-                      out_yaml: Path) -> None:
+                      out_yaml: Path,
+                      msa_path: Optional[Path] = None,
+                      ligand_ccds: Optional[List[str]] = None) -> None:
     """Compose the Boltz YAML input for a single cluster.
 
-    If partner_yaml is provided, prepend/merge its content (caller's
-    responsibility to format the partner block); we just write the
-    protein chain block.
+    Parameters
+    ----------
+    msa_path
+        Optional path to the cluster's ShallowMsa A3M file. When given,
+        it is referenced from the YAML as the chain's MSA so Boltz does
+        NOT fall back to fetching a generic colabfold MSA. This is the
+        cluster-specific evolutionary signal that makes our per-cluster
+        prediction meaningful; passing it preserves the same MSA the
+        AF2/AF3 per-cluster pipeline already uses.
+    ligand_ccds
+        Optional list of PDB chemical-component IDs (e.g. ['ATP', 'MG'])
+        to append as ``ligand:`` blocks for a holo prediction. Codes are
+        taken from ``docs/triggers_from_pdb.csv`` (columns
+        ``ligands_pdb1`` / ``ligands_pdb2``).
+    partner_yaml
+        Path to an existing YAML fragment to append (protein partner,
+        SMILES ligand, RNA partner). Used for ad-hoc holo experiments
+        outside the trigger CSV.
     """
     if partner_yaml and os.path.isfile(partner_yaml):
         partner_block = open(partner_yaml).read().rstrip() + "\n"
@@ -121,12 +142,24 @@ def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
         f.write(f"  - protein:\n")
         f.write(f"      id: A\n")
         f.write(f"      sequence: {sequence}\n")
+        if msa_path is not None:
+            # Boltz reads custom MSA when this is set (overrides server fetch)
+            f.write(f"      msa: {msa_path}\n")
+        # Append holo ligand blocks (PDB CCD codes) from trigger CSV
+        if ligand_ccds:
+            next_id = ord("B")
+            for code in ligand_ccds:
+                f.write(f"  - ligand:\n")
+                f.write(f"      id: {chr(next_id)}\n")
+                f.write(f"      ccd: {code}\n")
+                next_id += 1
         if partner_block:
             f.write(partner_block)
 
 
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
-                    pair_dir, partner_yaml):
+                    pair_dir, partner_yaml,
+                    ligand_ccds: Optional[List[str]] = None):
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_boltz2" / tag
     out_root.mkdir(parents=True, exist_ok=True)
@@ -138,7 +171,11 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
         print(f"  [boltz2] {tag}: empty consensus, skip")
         return []
     in_yaml = out_root / "input.yaml"
-    _write_boltz_yaml(tag, consensus, partner_yaml, in_yaml)
+    # Pass the cluster's own MSA so Boltz does not re-fetch a generic
+    # one via --use_msa_server. This is the whole point of per-cluster
+    # prediction (same as AF2/AF3 per-cluster).
+    _write_boltz_yaml(tag, consensus, partner_yaml, in_yaml,
+                      msa_path=cluster_a3m, ligand_ccds=ligand_ccds)
 
     cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
            f"{shlex.quote(str(in_yaml))} {shlex.quote(str(out_root))}")
@@ -200,9 +237,20 @@ def summarize(rows):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("-input", "--input", dest="input", required=True)
+    ap.add_argument(
+        "--mode", choices=["apo", "holo", "auto"], default="apo",
+        help="apo: predict each cluster with no ligand/partner (default). "
+             "holo: predict each cluster WITH the trigger's ligand block "
+             "(only implemented for trigger_class='ligand' so far; other "
+             "classes raise an error). auto: behave as holo when the "
+             "pair is ligand-triggered per docs/triggers_from_pdb.csv, "
+             "else apo. The result CSV's `mode` column records what ran.")
     ap.add_argument("--partner_yaml", default="",
-                    help="Optional Boltz-2 partner block (extra protein/ligand). "
-                         "If provided, appended to per-cluster input YAML.")
+                    help="Optional Boltz-2 partner block (extra protein/"
+                         "ligand/RNA). If provided, appended to every "
+                         "cluster's input YAML; useful for ad-hoc holo "
+                         "experiments that aren't captured by the trigger "
+                         "CSV (e.g. specific RfaH-RNAP runs).")
     args = ap.parse_args()
 
     pair_id = args.input
@@ -222,28 +270,71 @@ def main():
         print(f"[error] missing shell wrapper {SH_WRAPPER}", file=sys.stderr)
         sys.exit(2)
 
+    # Resolve mode + ligand list from the trigger CSV
+    trigger_class = get_trigger_class(pair_id)
+    ligand_ccds: List[str] = []
+    effective_mode = args.mode
+    if effective_mode == "auto":
+        effective_mode = "holo" if trigger_class == "ligand" else "apo"
+    if effective_mode == "holo":
+        if trigger_class != "ligand":
+            # Other holo subclasses (protein_binding / oligomerization /
+            # mutation) are not yet implemented because they need partner
+            # sequence extraction or homo-multimer scaffolding.
+            print(f"[boltz2] holo mode requested for {pair_id} but "
+                  f"trigger_class={trigger_class!r} — only 'ligand' is "
+                  f"supported. Falling back to apo. Edit run_Boltz2.py "
+                  f"to add protein_binding/oligomerization holo paths.",
+                  file=sys.stderr)
+            effective_mode = "apo"
+        else:
+            ligand_ccds = ligand_codes_for_holo(pair_id)
+            if not ligand_ccds:
+                print(f"[boltz2] {pair_id}: trigger_class=ligand but no "
+                      f"ligand codes in CSV; falling back to apo.",
+                      file=sys.stderr)
+                effective_mode = "apo"
+
+    if effective_mode == "holo":
+        print(f"[boltz2] {pair_id}: HOLO mode, ligand CCDs = {ligand_ccds}")
+    else:
+        print(f"[boltz2] {pair_id}: APO mode "
+              f"(trigger_class={trigger_class}, requested={args.mode})")
+
     t0 = time.time()
     all_rows = []
     for a3m in cluster_a3ms:
         rows = run_one_cluster(pair_id, a3m, pdbid1, chain1, pdbid2, chain2,
-                               pair_dir, args.partner_yaml)
+                               pair_dir, args.partner_yaml,
+                               ligand_ccds=ligand_ccds if effective_mode == "holo" else None)
+        # Record which mode produced these rows
+        for r in rows:
+            r["mode"] = effective_mode
+            r["ligand_ccds"] = ",".join(ligand_ccds) if ligand_ccds else ""
         all_rows.extend(rows)
 
     ana = pair_dir / "Analysis"
     ana.mkdir(parents=True, exist_ok=True)
+    # Distinguish apo / holo outputs so both can coexist for the same pair
+    raw_fn = "df_boltz2_raw.csv" if effective_mode == "apo" else "df_boltz2_holo_raw.csv"
+    sum_fn = "df_boltz2.csv" if effective_mode == "apo" else "df_boltz2_holo.csv"
     if all_rows:
-        with open(ana / "df_boltz2_raw.csv", "w", newline="") as f:
+        with open(ana / raw_fn, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
             w.writeheader()
             w.writerows(all_rows)
     summary = summarize(all_rows)
     if summary:
-        with open(ana / "df_boltz2.csv", "w", newline="") as f:
+        # add mode/ligand cols to summary too
+        for s in summary:
+            s["mode"] = effective_mode
+            s["ligand_ccds"] = ",".join(ligand_ccds) if ligand_ccds else ""
+        with open(ana / sum_fn, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(summary[0].keys()))
             w.writeheader()
             w.writerows(summary)
-    print(f"[boltz2] done in {time.time()-t0:.0f}s; "
-          f"summary -> {ana / 'df_boltz2.csv'}")
+    print(f"[boltz2] done in {time.time()-t0:.0f}s ({effective_mode}); "
+          f"summary -> {ana / sum_fn}")
 
 
 if __name__ == "__main__":

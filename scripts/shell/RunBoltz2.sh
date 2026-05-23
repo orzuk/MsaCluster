@@ -29,11 +29,17 @@ mkdir -p "$OUT" "$BOLTZ_CACHE"
 
 . "$BOLTZ_VENV/bin/activate"
 
+# NOTE: --use_msa_server is intentionally NOT passed. The caller
+# (run_Boltz2.py) embeds the cluster-specific ShallowMsa A3M into the
+# YAML (`msa: <path>` per chain), which is the whole point of per-cluster
+# Boltz-2 prediction. With --use_msa_server, Boltz would refetch a
+# generic colabfold MSA and wash out the cluster signal. To force a
+# server fetch (e.g. for an apo single-sequence baseline), re-add
+# --use_msa_server below or pass it via the positional `$*` extras.
 CMD="boltz predict \
     $INP \
     --out_dir $OUT \
     --cache $BOLTZ_CACHE \
-    --use_msa_server \
     --output_format pdb \
     $*"
 
