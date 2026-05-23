@@ -478,7 +478,7 @@ def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
 
 def make_foldswitch_all_plots(
     pdbids, fasta_dir, foldpair_id, pdbchains,
-    plot_tree_clusters: bool = False, plot_contacts: bool = True,
+    plot_contacts: bool = True,
     global_plots: bool = False, plot3dformat: str = 'static'
 ):
     """

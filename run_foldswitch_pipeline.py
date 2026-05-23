@@ -542,7 +542,6 @@ def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     ps = getattr(args, "plot_scope", None)
     if ps:
         cmd += f" --plot_scope {shlex.quote(ps)}"
-    if getattr(args, "plot_trees",  False):     cmd += " --plot_trees"
 
     # sbatch resources
     gres = getattr(args, "sbatch_gres", "gpu:1")
@@ -1914,7 +1913,6 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
       - both:   per-pair plots, then global plots
     """
     scope = getattr(args, "plot_scope", "both")
-    plot_trees = getattr(args, "plot_trees", False)
 
     # === 1) GLOBAL-ONLY: run ONCE and RETURN ===
     if scope in ["global", "both"]:
@@ -1943,7 +1941,6 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
                 fasta_dir="Pipeline/FoldPairs",
                 foldpair_id=pA + "_" + pB,
                 pdbchains=pdbchains,
-                plot_tree_clusters=bool(plot_trees),
                 plot_contacts=True,
                 global_plots=False,   # global is handled outside this loop
                 plot3dformat=args.plot3dformat  # allow interactive 3D plots
@@ -2343,7 +2340,6 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     try:
         ap = deepcopy(args)
         ap.plot_scope = "pair"
-        ap.plot_trees = True
         print("Generating plots …")
         task_plot(pair_id, ap)
     except Exception as e:
@@ -2494,7 +2490,6 @@ def main():
                help="Skip per-pair metric recomputation and only build reports/HTML.")
 
     # Plotting
-    p.add_argument("--plot_trees",   type=str2bool, nargs="?", const=True, default=False)
     p.add_argument("--plot_scope", choices=["pair", "global", "both"], default="both",
                 help="In --run_mode plot: generate pair-specific plots only, global plots only, or both.")
     p.add_argument('--plot3dformat', default='static', choices = ['static', 'interactive', 'both'],
