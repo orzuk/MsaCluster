@@ -36,11 +36,19 @@ mkdir -p "$OUT" "$BOLTZ_CACHE"
 # generic colabfold MSA and wash out the cluster signal. To force a
 # server fetch (e.g. for an apo single-sequence baseline), re-add
 # --use_msa_server below or pass it via the positional `$*` extras.
+#
+# --no_kernels disables Boltz's optimised cuequivariance CUDA kernels
+# and falls back to a pure-PyTorch triangle-multiplicative-update
+# implementation. The kernels require NVIDIA's cuequivariance-ops-torch
+# wheel which is not on the public PyPI nor (today) on the index at
+# https://pypi.nvidia.com -- so this fallback is necessary until the
+# wheel becomes available. Slower per cluster but functionally identical.
 CMD="boltz predict \
     $INP \
     --out_dir $OUT \
     --cache $BOLTZ_CACHE \
     --output_format pdb \
+    --no_kernels \
     $*"
 
 echo "[boltz2] $CMD"
