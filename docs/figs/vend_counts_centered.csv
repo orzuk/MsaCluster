@@ -1,0 +1,16 @@
+methods,n_methods,count,pair_ids
+AF2,1,28,1fzpD_2frhA;1jfkA_2nxqB;1nrjB_2gedB;1rk4B_1k0nA;1x0gD_1x0gA;1xjuB_1xjtA;2bzyB_2lqwA;2k42A_1ceeB;2kb8A_6vw2A;2lepA_4hddA;2lv1A_6lniA;2n54B_2hdmA;2namA_1uxmK;2qqjA_4qdsA;2uy7D_5fluE;2vfxL_3gmhL;2z9oB_1repC;3hdfA_3hdeA;3kdsG_2ce7C;3m7pA_3ejhA;3meeA_4b3oB;3r9jC_2kxoA;4h2aA_3j9cA;4q79F_4uv2D;5f5rB_5f3kA;5jytA_2qkeE;5wrgC_1wyyB;6c6sD_2ougC
+ESM,1,14,1eboE_5fhcJ;1fzpD_2frhA;1jfkA_2nxqB;1nrjB_2gedB;2k42A_1ceeB;2namA_1uxmK;2z9oB_1repC;3kdsG_2ce7C;3m7pA_3ejhA;3r9jC_2kxoA;4o01D_4o0pA;4q79F_4uv2D;5ly6B_5aoeB;6c6sD_2ougC
+MSAT,1,8,1jfkA_2nxqB;1nqjB_1nqdA;1x0gD_1x0gA;2lepA_4hddA;2namA_1uxmK;3kdsG_2ce7C;3r9jC_2kxoA;6c6sD_2ougC
+DDG,1,47,1jfkA_2nxqB;1kctA_3t1pA;1miqB_1qs8B;1nocA_1qomB;1nrjB_2gedB;1qb3A_3qy2A;1qlnA_1h38D;1rk4B_1k0nA;1x0gD_1x0gA;1xjuB_1xjtA;1zk9A_3jv6A;2h44A_1rkpA;2k42A_1ceeB;2namA_1uxmK;2qqjA_4qdsA;2vfxL_3gmhL;2z9oB_1repC;3g0hA_3ewsB;3hdfA_3hdeA;3j7vG_3j7wB;3kdsG_2ce7C;3l5nB_2a73B;3l9qB_4rr2D;3lqcA_1xntA;3m7pA_3ejhA;3meeA_4b3oB;3t5oA_4a5wB;3v0tA_3uyiA;3ztjE_5hmgA;4aalA_4aanA;4cmqB_4zt0C;4dxrA_4dxtA;4h2aA_3j9cA;4n9wA_4nc9C;4o01D_4o0pA;4pyjA_4pyiA;4q79F_4uv2D;4rwqB_4rwnA;4xwsD_4y0mJ;5bmyA_5b3zA;5c1vB_5c1vA;5et5A_3ifaA;5f5rB_5f3kA;5hk5H_4jphB;5jytA_2qkeE;5lj3M_3tp2A;5ly6B_5aoeB
+AF2&ESM,2,11,1fzpD_2frhA;1jfkA_2nxqB;1nrjB_2gedB;2k42A_1ceeB;2namA_1uxmK;2z9oB_1repC;3kdsG_2ce7C;3m7pA_3ejhA;3r9jC_2kxoA;4q79F_4uv2D;6c6sD_2ougC
+AF2&MSAT,2,7,1jfkA_2nxqB;1x0gD_1x0gA;2lepA_4hddA;2namA_1uxmK;3kdsG_2ce7C;3r9jC_2kxoA;6c6sD_2ougC
+AF2&DDG,2,18,1jfkA_2nxqB;1nrjB_2gedB;1rk4B_1k0nA;1x0gD_1x0gA;1xjuB_1xjtA;2k42A_1ceeB;2namA_1uxmK;2qqjA_4qdsA;2vfxL_3gmhL;2z9oB_1repC;3hdfA_3hdeA;3kdsG_2ce7C;3m7pA_3ejhA;3meeA_4b3oB;4h2aA_3j9cA;4q79F_4uv2D;5f5rB_5f3kA;5jytA_2qkeE
+ESM&MSAT,2,5,1jfkA_2nxqB;2namA_1uxmK;3kdsG_2ce7C;3r9jC_2kxoA;6c6sD_2ougC
+ESM&DDG,2,10,1jfkA_2nxqB;1nrjB_2gedB;2k42A_1ceeB;2namA_1uxmK;2z9oB_1repC;3kdsG_2ce7C;3m7pA_3ejhA;4o01D_4o0pA;4q79F_4uv2D;5ly6B_5aoeB
+MSAT&DDG,2,4,1jfkA_2nxqB;1x0gD_1x0gA;2namA_1uxmK;3kdsG_2ce7C
+AF2&ESM&MSAT,3,5,1jfkA_2nxqB;2namA_1uxmK;3kdsG_2ce7C;3r9jC_2kxoA;6c6sD_2ougC
+AF2&ESM&DDG,3,8,1jfkA_2nxqB;1nrjB_2gedB;2k42A_1ceeB;2namA_1uxmK;2z9oB_1repC;3kdsG_2ce7C;3m7pA_3ejhA;4q79F_4uv2D
+AF2&MSAT&DDG,3,4,1jfkA_2nxqB;1x0gD_1x0gA;2namA_1uxmK;3kdsG_2ce7C
+ESM&MSAT&DDG,3,3,1jfkA_2nxqB;2namA_1uxmK;3kdsG_2ce7C
+AF2&ESM&MSAT&DDG,4,3,1jfkA_2nxqB;2namA_1uxmK;3kdsG_2ce7C

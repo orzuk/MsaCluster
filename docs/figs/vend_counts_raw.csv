@@ -1,0 +1,16 @@
+methods,n_methods,count,pair_ids
+AF2,1,13,1rk4B_1k0nA;1xjuB_1xjtA;2k42A_1ceeB;2lepA_4hddA;2qqjA_4qdsA;2vfxL_3gmhL;3hdfA_3hdeA;3kdsG_2ce7C;3lqcA_1xntA;3r9jC_2kxoA;4h2aA_3j9cA;4q79F_4uv2D;5f5rB_5f3kA
+ESM,1,0,
+MSAT,1,7,1jfkA_2nxqB;1nqjB_1nqdA;2lepA_4hddA;2namA_1uxmK;3r9jC_2kxoA;4q79F_4uv2D;6c6sD_2ougC
+DDG,1,6,1xjuB_1xjtA;2c1vB_2c1uC;4ydqB_4twaA;5bmyA_5b3zA;5hk5H_4jphB;5jytA_2qkeE
+AF2&ESM,2,0,
+AF2&MSAT,2,3,2lepA_4hddA;3r9jC_2kxoA;4q79F_4uv2D
+AF2&DDG,2,1,1xjuB_1xjtA
+ESM&MSAT,2,0,
+ESM&DDG,2,0,
+MSAT&DDG,2,0,
+AF2&ESM&MSAT,3,0,
+AF2&ESM&DDG,3,0,
+AF2&MSAT&DDG,3,0,
+ESM&MSAT&DDG,3,0,
+AF2&ESM&MSAT&DDG,4,0,

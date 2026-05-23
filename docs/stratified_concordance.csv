@@ -1,0 +1,6 @@
+trigger_class,n_pairs,n_BH_sig_at_alpha,hit_rate,hits,alpha
+equilibrium_or_unknown,14,0,0.0,,0.05
+ligand,25,0,0.0,,0.05
+mutation,13,1,0.077,2n54B_2hdmA,0.05
+oligomerization,17,0,0.0,,0.05
+protein_binding,16,1,0.062,1zk9A_3jv6A,0.05
