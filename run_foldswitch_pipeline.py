@@ -460,12 +460,15 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         if gres:
             sb += [f"--gres={gres}"]
         # If user specified a nodelist, prefer it and SKIP -p to avoid conflicts.
-        # --nodes=1 is REQUIRED: SLURM otherwise interprets --nodelist=A,B,C,D
-        # as "allocate all 4 nodes to this single job", which leaves jobs PD
-        # waiting for 4 nodes at once. With --nodes=1, SLURM picks one node
-        # from the list.
+        # NOTE: SLURM interprets --nodelist=A,B,C,D as "allocate ALL these
+        # nodes for one job" (min-nodes = len(nodelist)), so a multi-node
+        # nodelist for a single-node job is a footgun. If you want to pin
+        # to ONE specific working node, pass a single-element nodelist
+        # (e.g. --sbatch_nodelist=salmon-03). To allow scheduling across a
+        # set of working nodes while keeping --nodes=1, use --sbatch_exclude
+        # to blacklist the broken ones instead.
         if nlist:
-            sb += ["--nodes=1", "--nodelist", nlist]
+            sb += ["--nodelist", nlist]
         elif with_partition and part:
             sb += ["-p", part]
         # Always exclude bad nodes if user asked for it
