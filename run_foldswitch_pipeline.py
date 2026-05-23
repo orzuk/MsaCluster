@@ -59,6 +59,7 @@ RUN_MODE_DESCRIPTIONS = {
     "run_speachaf":     "Run SPEACH-AF (random column-masking perturbation of cluster MSAs + ColabFold) per cluster.",
     "run_alphaflow":    "Run AlphaFlow (flow-matching diffusion ensemble) per cluster. Requires torch2-venv.",
     "run_boltz2":       "Run Boltz-2 (open-source AF3-class predictor with binding head) per cluster. Requires torch2-venv.",
+    "run_s4pred":       "Run S4PRED secondary-structure prediction per cluster (single-sequence, no PLM). Outputs per-cluster Q3 H/E/C string for SS-based fold preference (8th method, no AF/ESM bias).",
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
     "postprocess": "Compute TM/cmap metrics and build summary/detailed tables. Use --force_rerun_postprocess TRUE to recompute." ,
     "plot":             "Generate pair-specific plots (requires PyMOL).",
@@ -98,6 +99,7 @@ SBATCH_HINTS = {
     "run_speachaf":          {"time":"08:00:00", "mem":"24G",  "gpus":1, "cpus":8},
     "run_alphaflow":         {"time":"06:00:00", "mem":"32G",  "gpus":1, "cpus":8},
     "run_boltz2":            {"time":"06:00:00", "mem":"32G",  "gpus":1, "cpus":8},
+    "run_s4pred":            {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
     "compute_deltaG":        {"time":"06:00:00", "mem":"16G",  "gpus":0, "cpus":8},
     "plot":                  {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
     "gen_pair_html":         {"time":"01:00:00", "mem":"4G",   "gpus":0, "cpus":2},
@@ -1633,6 +1635,34 @@ def task_alphaflow(pair_id: str, args: argparse.Namespace) -> None:
     _run(cmd, args.run_job_mode)
 
 
+def task_s4pred(pair_id: str, args: argparse.Namespace) -> None:
+    """S4PRED single-sequence secondary-structure prediction per cluster.
+
+    For each cluster MSA, samples N representative sequences (default 10),
+    runs S4PRED on each, and aggregates by per-residue majority vote into a
+    single per-cluster Q3 prediction. Outputs:
+       Pipeline/FoldPairs/<pair>/Analysis/df_s4pred.csv
+       Pipeline/FoldPairs/<pair>/Analysis/s4pred_<cluster>.ss2
+
+    Requires S4PRED weights pre-downloaded under --s4pred_dir
+    (see https://github.com/psipred/s4pred for setup).
+    """
+    s4pred_dir = getattr(args, "s4pred_dir", None) or os.environ.get("S4PRED_DIR", "")
+    if not s4pred_dir:
+        raise SystemExit("--s4pred_dir is required (path to cloned s4pred repo "
+                          "containing run_model.py and weights/).")
+    n_reps = int(getattr(args, "s4pred_n_reps", 10))
+    device = getattr(args, "s4pred_device", "cpu")
+    work_root = getattr(args, "s4pred_work_root",
+                          "Pipeline/FoldPairs/_s4pred_work")
+    cmd = (f"python3 scripts/run_s4pred_per_cluster.py "
+           f"--pairs {shlex.quote(pair_id)} "
+           f"--s4pred_dir {shlex.quote(s4pred_dir)} "
+           f"--work_root {shlex.quote(work_root)} "
+           f"--n_reps {n_reps} --device {shlex.quote(device)}")
+    _run(cmd, args.run_job_mode)
+
+
 def task_boltz2(pair_id: str, args: argparse.Namespace) -> None:
     """Boltz-2 per cluster. Shells out to run_Boltz2.py which calls
     scripts/shell/RunBoltz2.sh (activates torch2-venv).
@@ -2388,6 +2418,7 @@ def main():
                    choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer", "run_cmap_ccmpred",
                             "run_esmfold", "run_AF", "run_ddg",
                             "run_cf_random", "run_speachaf", "run_alphaflow", "run_boltz2",
+                            "run_s4pred",
                             "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=True,
@@ -2417,6 +2448,21 @@ def main():
                         "every cluster's input YAML. Use for targeted "
                         "holo experiments outside the trigger CSV "
                         "(e.g. specific RfaH-RNAP runs).")
+
+    # --- S4PRED (8th method: secondary-structure prediction) options ---
+    p.add_argument("--s4pred_dir", default=None,
+                   help="Path to cloned s4pred repository containing "
+                        "run_model.py and weights/ (or set $S4PRED_DIR). "
+                        "Required for --run_mode run_s4pred.")
+    p.add_argument("--s4pred_n_reps", type=int, default=10,
+                   help="Number of representative sequences sampled per "
+                        "cluster for S4PRED (default 10, matching ESM).")
+    p.add_argument("--s4pred_device", default="cpu",
+                   choices=["cpu", "gpu"],
+                   help="Device for S4PRED (default cpu; S4PRED is fast "
+                        "enough that CPU is usually fine).")
+    p.add_argument("--s4pred_work_root", default="Pipeline/FoldPairs/_s4pred_work",
+                   help="Scratch dir for per-pair fasta + S4PRED outputs.")
 
     # --- Clustering options ---
     p.add_argument("--cluster_alg", default="tree", choices=["hdbscan", "tree", "ahc"],
@@ -2767,6 +2813,9 @@ def main():
 
         elif args.run_mode == "run_boltz2":
             task_boltz2(pair_id, args)
+
+        elif args.run_mode == "run_s4pred":
+            task_s4pred(pair_id, args)
 
         elif args.run_mode == "tree":
             task_tree(pair_id, args)
