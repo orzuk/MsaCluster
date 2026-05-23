@@ -80,6 +80,7 @@ HEAVY_PAIR_MODES = {
     "run_speachaf",           # SPEACH-AF per cluster
     "run_alphaflow",          # AlphaFlow per cluster
     "run_boltz2",             # Boltz-2 per cluster
+    "run_s4pred",             # S4PRED SS prediction per cluster
     "compute_deltaG",         # if you have a Rosetta/PyRosetta ΔG step
     "plot",                   # rendering/alignments can be slow
     "gen_pair_html",          # if HTML generation per pair is non-trivial
@@ -1635,6 +1636,27 @@ def task_alphaflow(pair_id: str, args: argparse.Namespace) -> None:
     _run(cmd, args.run_job_mode)
 
 
+def task_aggregate_s4pred(pair_id: str, args: argparse.Namespace) -> None:
+    """One-shot aggregator: walk all per-pair Pipeline/<pair>/Analysis/df_s4pred.csv
+    files, run mdtraj-DSSP on the two truth PDB structures per pair, compute
+    per-cluster S4PRED-to-fold similarity, and append method="S4PRED" rows to
+    docs/fold_diversity_survey.csv. Runs once across all pairs; pair_id is
+    ignored (we drive --pairs from --foldpair_ids inside the script).
+    """
+    write_mode = getattr(args, "s4pred_write_mode", "replace_method")
+    # Use --foldpair_ids if it's a real list, else ALL
+    pids = args.foldpair_ids
+    if pids in (None, []) or pids == ["ALL"] or "ALL" in pids:
+        pairs_arg = "ALL"
+    else:
+        pairs_arg = ",".join(pids)
+    cmd = (f"python3 scripts/aggregate_s4pred_into_survey.py "
+           f"--pairs {shlex.quote(pairs_arg)} "
+           f"--write_mode {shlex.quote(write_mode)}")
+    # Always inline; this is a single CSV-write step
+    _run(cmd, "inline")
+
+
 def task_s4pred(pair_id: str, args: argparse.Namespace) -> None:
     """S4PRED single-sequence secondary-structure prediction per cluster.
 
@@ -2418,7 +2440,7 @@ def main():
                    choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer", "run_cmap_ccmpred",
                             "run_esmfold", "run_AF", "run_ddg",
                             "run_cf_random", "run_speachaf", "run_alphaflow", "run_boltz2",
-                            "run_s4pred",
+                            "run_s4pred", "aggregate_s4pred",
                             "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=True,
@@ -2663,6 +2685,12 @@ def main():
         # Pass the full list so the function can filter to pairs that are ready
         task_postprocess(foldpairs, args)
         return  # or sys.exit(0)
+
+    if args.run_mode == "aggregate_s4pred":
+        # One-shot aggregator: reads per-pair df_s4pred.csv files + DSSPs
+        # the truth PDBs, appends method="S4PRED" rows to fold_diversity_survey.csv.
+        task_aggregate_s4pred(pair_id=None, args=args)
+        return
 
     # If we're plotting, do the global plots once locally, then fall through to per-pair handling.
     if args.run_mode == "plot":
