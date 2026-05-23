@@ -289,6 +289,78 @@ def load_af3_diversity(pair_id, delta):
 # ESM loader
 # ---------------------------------------------------------------------------
 
+def load_boltz2_diversity(pair_id, delta):
+    """Load df_boltz2.csv (apo Boltz-2) and compute per-cluster fold preference.
+
+    Schema (one row per ShallowMsa cluster, produced by run_Boltz2.py or
+    scripts/recover_boltz2_csv.py):
+        pair_id, cluster, n_models, rank1_tm_fold1, rank1_tm_fold2,
+        rank1_TMdiff, mean_tm_fold1, mean_tm_fold2,
+        partner_yaml, mode, ligand_ccds
+
+    We treat the rank-1 TM-scores as the per-cluster prediction strength
+    toward each fold, parallel to load_af2_diversity. With n_models=1 per
+    cluster the rank1 and mean values coincide for tm_fold1/tm_fold2.
+
+    Holo (df_boltz2_holo.csv) is intentionally NOT loaded here: holo
+    predictions are a separate orthogonal contrast (ligand-driven fold
+    preference) and are reported in a separate Results subsection rather
+    than commingled into the apo-only concordance statistic.
+    """
+    csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_boltz2.csv")
+    if not os.path.isfile(csv_path):
+        return []
+    try:
+        df = pd.read_csv(csv_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return []
+    if df.empty:
+        return []
+
+    if "rank1_tm_fold1" not in df.columns or "rank1_tm_fold2" not in df.columns:
+        return []
+
+    col = "cluster_num" if "cluster_num" in df.columns else "cluster"
+    if col not in df.columns:
+        return []
+    df["_tag"] = df[col].apply(_normalize_cluster)
+
+    df["TM1"] = pd.to_numeric(df["rank1_tm_fold1"], errors="coerce")
+    df["TM2"] = pd.to_numeric(df["rank1_tm_fold2"], errors="coerce")
+
+    rows = []
+    for tag, grp in df.groupby("_tag"):
+        tm1_max = grp["TM1"].max()
+        tm2_max = grp["TM2"].max()
+        tm1_mean = grp["TM1"].mean()
+        tm2_mean = grp["TM2"].mean()
+        n_models = int(grp["n_models"].iloc[0]) if "n_models" in grp.columns else len(grp)
+        # Per-model fold assignment (argmax). Each cluster has one model in
+        # the rank-1 row, so the vote is binary on that single prediction.
+        n_f1 = (grp["TM1"] > grp["TM2"]).sum()
+        n_f2 = (grp["TM2"] > grp["TM1"]).sum()
+        pref = _assign_pref(tm1_max, tm2_max, delta)
+        rows.append({
+            "pair_id": pair_id,
+            "cluster": tag,
+            "method": "Boltz2",
+            "TM1_max": round(tm1_max, 4) if pd.notna(tm1_max) else float("nan"),
+            "TM2_max": round(tm2_max, 4) if pd.notna(tm2_max) else float("nan"),
+            "TM1_mean": round(tm1_mean, 4) if pd.notna(tm1_mean) else float("nan"),
+            "TM2_mean": round(tm2_mean, 4) if pd.notna(tm2_mean) else float("nan"),
+            "TMdiff_max": round(tm1_max - tm2_max, 4)
+                          if (pd.notna(tm1_max) and pd.notna(tm2_max)) else float("nan"),
+            "TMdiff_mean": round(tm1_mean - tm2_mean, 4)
+                           if (pd.notna(tm1_mean) and pd.notna(tm2_mean)) else float("nan"),
+            "n_models": n_models,
+            "n_toward_f1": int(n_f1),
+            "n_toward_f2": int(n_f2),
+            "vote_frac_f1": round(n_f1 / max(n_models, 1), 3) if n_models > 0 else 0,
+            "pref": pref,
+        })
+    return rows
+
+
 def load_esm_diversity(pair_id, delta):
     """Load df_esm.csv and compute per-cluster fold preference.
 
@@ -758,7 +830,7 @@ def compute_pair_concordance(pair_id, cluster_rows_by_method):
                        max_concordance_methods (e.g. "AF2~DDG"),
                        max_concordance_pct
     """
-    methods = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG"]
+    methods = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2"]
     # Build per-method dict cluster -> centered value
     by_m = {}
     for m in methods:
@@ -872,7 +944,7 @@ def main():
     all_summaries = []
     all_concordance = []   # one row per pair (cross-method concordance)
 
-    n_af2 = n_af3 = n_esm = n_msat = n_ccmpred = n_ddg = 0
+    n_af2 = n_af3 = n_esm = n_msat = n_ccmpred = n_ddg = n_boltz2 = 0
 
     for pair_id in pairs:
         per_method_rows = {}   # used for cross-method concordance below
@@ -945,6 +1017,17 @@ def main():
             if s:
                 all_summaries.append(s)
 
+        # Boltz-2 (apo per-cluster predictions; reads df_boltz2.csv)
+        boltz2_rows = load_boltz2_diversity(pair_id, args.delta)
+        if boltz2_rows:
+            _apply_centered_classification(boltz2_rows, args.delta)
+            n_boltz2 += 1
+            all_cluster_rows.extend(boltz2_rows)
+            per_method_rows["Boltz2"] = boltz2_rows
+            s = summarize_pair(pair_id, boltz2_rows)
+            if s:
+                all_summaries.append(s)
+
         # Cross-method concordance for THIS pair
         if len(per_method_rows) >= 2:
             all_concordance.append(compute_pair_concordance(pair_id, per_method_rows))
@@ -983,6 +1066,7 @@ def main():
     print(f"Pairs with MSAT data:    {n_msat}")
     print(f"Pairs with CCMpred data: {n_ccmpred}")
     print(f"Pairs with DDG data:     {n_ddg}")
+    print(f"Pairs with Boltz2 data:  {n_boltz2}")
 
     for method in ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]:
         mdf = df_summary[df_summary["method"] == method]
