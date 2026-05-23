@@ -402,6 +402,7 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
     part = getattr(args, "sbatch_partition", None)
     cons = getattr(args, "sbatch_constraint", None)
     nlist= getattr(args, "sbatch_nodelist", None)
+    excl = getattr(args, "sbatch_exclude", None)
     acct = getattr(args, "sbatch_account", None)
     qos  = getattr(args, "sbatch_qos", None)
     mail = getattr(args, "sbatch_mail", None)
@@ -463,6 +464,9 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
             sb += ["--nodelist", nlist]
         elif with_partition and part:
             sb += ["-p", part]
+        # Always exclude bad nodes if user asked for it
+        if excl:
+            sb += ["--exclude", excl]
         if cons:
             sb += [f"--constraint={cons}"]
         if acct: sb += ["-A", acct]
@@ -2539,6 +2543,13 @@ def main():
                    help="Optional --mail-type (e.g., END,FAIL,ALL)")
     p.add_argument("--sbatch_nodelist", default=None,
                help="Comma-separated Slurm nodelist, e.g. salmon-[01-10],dogfish-[01-02]")
+    p.add_argument("--sbatch_exclude", default=None,
+               help="Comma-separated Slurm node-exclude list, e.g. "
+                    "catfish-03,catfish-04,salmon-02. Passed through as "
+                    "sbatch --exclude=<list>. Useful when specific nodes "
+                    "have a broken NFS prologue or other infrastructure "
+                    "issues that cause jobs to fail in 2-3 sec without "
+                    "writing any log.")
     p.add_argument("--sbatch_gres_heavy", default="gpu:l40s:1",
                    help="Slurm --gres to use automatically when chain length >= threshold (default: gpu:l40s:1).")
 
