@@ -1,6 +1,6 @@
 ================================================================================
 CODE_STRUCTURE.txt - MsaCluster Repository Summary
-Generated: 2026-02-19
+Generated: 2026-02-19  |  Updated: 2026-05-23
 ================================================================================
 
 PURPOSE
@@ -8,11 +8,18 @@ PURPOSE
 MsaCluster studies fold-switching proteins -- homologous proteins that adopt
 different 3D structures. It builds deep MSAs seeded by protein pairs with
 different folds, clusters them into sub-alignments, predicts structures per
-cluster (AF2/AF3/ESMFold/ESM3), evaluates contact maps (MSA-Transformer,
-CCMpred), builds phylogenetic trees, and computes energetics (Delta-G).
+cluster (AF2/AF3/ESMFold/ESM3/Boltz-2/AlphaFlow), evaluates contact maps
+(MSA-Transformer, CCMpred), builds phylogenetic trees with ancestral
+reconstruction, computes energetics (ThermoMPNN-based DDG and PyRosetta
+Delta-G), and runs cross-method concordance analysis with sequence-divergence
+correction + BH FDR control on the resulting candidate clade-level
+fold-switching families.
 
 DATASET: 93 protein pairs (full) or 10 pairs (test).
 FORMAT:  <pdb1><chain>_<pdb2><chain>  e.g. "1dzlA_5keqF"
+
+Controls: 100 IDP (Porter & Looger 2022), 48 Pfam-matched single-fold,
+          101 random single-chain PDB. Total 249 controls.
 
 ================================================================================
 DIRECTORY TREE
@@ -21,62 +28,103 @@ DIRECTORY TREE
 MsaCluster/
 |-- config.py                  # Central config: paths, constants, multi-user
 |-- run_foldswitch_pipeline.py # MAIN ENTRY POINT - orchestrates all stages
-|-- run_getMSA.py              # Stage: MSA generation via ColabFold/MMseqs2
-|-- run_ClusterMSA.py          # Stage: MSA clustering into shallow sub-MSAs
-|-- run_MSATrans.py            # Stage: Contact map prediction (MSA-Transformer)
-|-- run_ESMFoldHF.py           # Stage: ESMFold structure prediction
-|-- run_controls_pipeline.py   # Controls pipeline: single-protein MSA+AF+ESM
+|-- run_controls_pipeline.py   # Controls pipeline: 249 control proteins
 |-- Analysis_params.py         # Analysis parameter defaults
-|-- a3m_toaf3json.py           # Convert A3M to AF3 JSON input format
 |-- monitoring.py              # Pipeline monitoring utilities
+|-- a3m_toaf3json.py           # Convert A3M to AF3 JSON input format
 |
-|-- utils/                     # Core shared libraries (11 files)
+|-- # Per-stage entry points (top-level)
+|-- run_getMSA.py              # MSA generation via ColabFold/MMseqs2
+|-- run_ClusterMSA.py          # MSA clustering into shallow sub-MSAs
+|-- run_MSATrans.py            # Contact map prediction (MSA-Transformer)
+|-- run_ESMFoldHF.py           # ESMFold structure prediction
+|-- run_AlphaFlow.py           # AlphaFlow per-cluster (NEW)
+|-- run_Boltz2.py              # Boltz-2 per-cluster (NEW, all-atom AF3-class)
+|-- run_CFrandom.py            # ColabFold with random seed init (NEW)
+|-- run_DDG.py                 # ThermoMPNN per-cluster conformation-bias scoring (NEW)
+|-- run_SpeachAF.py            # SpeachAF (sequence pruning per fold) (NEW)
+|
+|-- utils/                     # Core shared libraries (13 files)
 |   |-- align_utils.py         #   TM-align, sequence identity, cmap alignment
+|   |-- ancestral_utils.py     #   Ancestral-sequence reconstruction (NEW)
 |   |-- cache_utils.py         #   JSON-based per-pair caching
-|   |-- energy_utils.py        #   PyRosetta delta-G, per-residue energy, DDG
+|   |-- energy_utils.py        #   PyRosetta delta-G, residue energy, DDG
 |   |-- msa_utils.py           #   MSA I/O, alignment, trimming, Neff computation
 |   |-- phytree_utils.py       #   Phylogenetic tree build/viz/manipulation
-|   |-- plot_3d.py             #   PyMOL/py3Dmol 3D structure rendering
-|   |-- plot_contacts.py       #   Contact map grid/panel visualization
-|   |-- plot_global.py         #   Cross-pair scatter plots
+|   |-- plot_3d.py             #   PyMOL/py3Dmol 3D structure rendering (SPLIT)
+|   |-- plot_contacts.py       #   Contact map grid/panel visualization (SPLIT)
+|   |-- plot_global.py         #   Cross-pair scatter plots (SPLIT)
 |   |-- protein_plot_utils.py  #   Plot orchestrator (delegates to plot_*.py)
 |   |-- protein_utils.py       #   PDB loading, sequence, contacts, evaluation
 |   |-- utils.py               #   General helpers (pair listing, SLURM, etc.)
 |
-|-- Analysis/                  # Post-processing & analysis (5 files)
-|   |-- AF_analysis.py         #   AF prediction TM-scores
-|   |-- cmap_analysis.py       #   Contact map metrics (P/R/F1/MCC)
+|-- Analysis/                  # Per-pair postprocessing & aggregation (4 files + 1 subdir)
+|   |-- AF_analysis.py         #   AF2/AF3 prediction TM-scores (mixes both into df_af.csv)
+|   |-- cmap_analysis.py       #   Contact map metrics (P/R/F1/MCC), MSAT + CCMpred
 |   |-- esmfold_analysis.py    #   ESMFold prediction TM-scores
-|   |-- postprocess_unified.py #   Main postprocessing: summary, detail & global tables
+|   |-- postprocess_unified.py #   Main postproc: summary, detail & global tables
 |   |-- NotebookGen/
 |       |-- generate_notebooks.py  # Execute template notebook per pair -> HTML
 |
-|-- scripts/                   # Standalone utility scripts
-|   |-- __init__.py            #   Package marker (empty)
-|   |-- Analysis_retry.py      #   Batch retry of AF analysis (uses config.DATA_DIR)
-|   |-- get_pdb_files.py       #   Download PDB from RCSB
-|   |-- get_sample_msa_algn.py #   Sample MSA sequences via UniProt+ColabFold
-|   |-- infer_esm3.py          #   ESM3/ESMFold CLI (tries ESM3, falls back HF)
-|   |-- plot_protein.py        #   PyMOL alignment+rendering script
-|   |-- run_tree_reconstruct.py#   CLI for phylogenetic tree from MSA
-|   |-- setup_porter_idp.py    #   Extract Porter 2022 IDP controls from Excel
-|   |-- setup_matched_controls.py # Find Pfam-matched single-fold controls for each pair
-|   |-- setup_random_controls.py  # Select random single-chain proteins from RCSB PDB
-|   |-- smoke_test.sh          #   Quick pipeline smoke test
-|   |-- shell/                 #   Pipeline shell scripts (16 files, moved from Pipeline/)
-|       |-- get_msa_params.sh  #     MSA generation via ColabFold
-|       |-- RunAF_params.sh    #     AlphaFold prediction parameters
-|       |-- RunAF2_Colabfold.sh#     AF2 via ColabFold
-|       |-- RunAF3_Colabfold.sh#     AF3 via ColabFold
-|       |-- RunEsmFold_params.sh#    ESMFold prediction parameters
-|       |-- cif_to_pdb.sh      #     CIF to PDB conversion
-|       |-- tree_reconstruct_params.sh  # Phylogenetic tree reconstruction
-|       |-- ...                #     (+ 9 more shell scripts)
+|-- scripts/                   # Standalone analysis + setup utilities
+|   |-- # ---- analysis scripts (drive the paper's quantitative claims) ----
+|   |-- fold_diversity_survey.py     # ★ 6-method per-cluster fold-preference survey
+|   |                                #   (AF2, ESM, MSAT, CCMpred, DDG; AF3 pending)
+|   |-- seq_divergence_correction.py # ★ Per-pair regression correction (OLS, PID-to-query)
+|   |-- regression_robustness.py     # ★ OLS vs Spearman vs Theil-Sen estimator robustness
+|   |-- permutation_null_concordance.py # ★ Pre-correction permutation null over concordance
+|   |-- permutation_null_corrected.py   # ★ Post-correction permutation null (1K + 100K)
+|   |-- bh_correct_concordance_p.py     # ★ BH FDR over the per-pair permutation p-values
+|   |-- bootstrap_concordance_ci.py     # ★ Bootstrap 95% CI on corrected concordance
+|   |-- phylo_placement.py              # ★ Phylogenetic placement of F1c/F2c labels on tree
+|   |-- phylo_placement_corrected.py    # ★ Same, but on residual-corrected labels (KEY 2026-05-18)
+|   |-- run_ancestral_analysis.py       # ★ Ancestral-sequence reconstruction analysis
+|   |-- classify_triggers_from_pdb.py   # ★ Auto-classify pairs by trigger type (mutation,
+|   |                                   #   protein_binding, ligand, oligomerization, equil_or_unk)
+|   |-- compare_controls_vs_pairs.py    # ★ Pairs vs controls intra-cluster TM diversity
+|   |-- compute_pair_intra_diversity.py # ★ Intra-cluster TM-score diversity per pair
+|   |-- make_venn.py                    # ★ 4-way Venn over centered-diverse pair sets
+|   |-- regen_case_study_figs.py        # ★ Regenerate SUN2/Phytochrome case-study figures
+|   |
+|   |-- # ---- controls / setup ----
+|   |-- setup_porter_idp.py             # Extract Porter 2022 IDP controls
+|   |-- setup_matched_controls.py       # Pfam-matched single-fold controls
+|   |-- setup_random_controls.py        # Random single-chain PDB controls
+|   |
+|   |-- # ---- legacy / housekeeping ----
+|   |-- Analysis_retry.py               # Batch retry of AF analysis
+|   |-- fix_cluster_data_paths.py       # Path normalization helper
+|   |-- gen_seed_both_all.py            # Build seed A3M (both chains)
+|   |-- get_pdb_files.py                # Download PDB from RCSB
+|   |-- get_sample_msa_algn.py          # Sample MSA sequences
+|   |-- infer_esm3.py                   # ESM3/ESMFold CLI
+|   |-- plot_protein.py                 # PyMOL alignment+rendering script
+|   |-- run_tree_reconstruct.py         # CLI for phylo tree
+|   |-- __init__.py
+|   |
+|   |-- shell/                # Pipeline shell scripts (18 files)
+|       |-- get_msa_params.sh           # MSA generation via ColabFold
+|       |-- RunAF.sh, RunAF_params.sh   # AF2/AF3 launchers
+|       |-- RunAF2_Colabfold.sh         # AF2 via ColabFold
+|       |-- RunAF3_Colabfold.sh         # AF3 via ColabFold
+|       |-- RunAlphaFlow.sh             # AlphaFlow (NEW)
+|       |-- RunBoltz2.sh                # Boltz-2 (NEW)
+|       |-- RunEsmFold_params.sh        # ESMFold prediction
+|       |-- ClusterMSA_params.sh        # MSA clustering
+|       |-- CmapESM_params.sh           # MSA-Transformer cmap
+|       |-- cif_to_pdb.sh               # CIF to PDB
+|       |-- colabfold_env.sh            # ColabFold environment setup
+|       |-- colabfold_dina_gpu.sh       # GPU-specific ColabFold
+|       |-- fasta2MSA_Colabfold.sh      # FASTA to MSA via ColabFold
+|       |-- tree_reconstruct_params.sh  # Phylo tree reconstruction
+|       |-- sample_msa.sh               # Sample MSA (NEW)
+|       |-- Analysis.sh                 # Postprocess launcher
+|       |-- test.sh                     # Smoke test
 |
 |-- TableResults/              # Report generation (3 files)
-|   |-- gen_html_table.py      #   Interactive HTML summary table
+|   |-- gen_html_table.py      #   Interactive HTML summary table (664 lines)
 |   |-- gen_latex_table.py     #   LaTeX table export
-|   |-- gen_pair_html.py       #   Per-pair HTML detail page
+|   |-- gen_pair_html.py       #   Per-pair HTML detail page (660 lines)
 |
 |-- data/                      # Input data & cached results
 |   |-- pickle/                #   Cached Python objects (.pkl)
@@ -84,49 +132,88 @@ MsaCluster/
 |   |-- df_esmfold_all.csv     #   Aggregated ESMFold results
 |   |-- df_cmap_all.csv        #   Aggregated contact map results
 |   |-- foldswitch_PDB_IDs.txt #   Test set (10 pairs)
-|   |-- foldswitch_PDB_IDs_full.txt  # Full dataset (93 pairs)
-|   |-- Table_S1B_final.xlsx   #   Reference supplementary table
+|   |-- foldswitch_PDB_IDs_full.txt   # Full dataset (93 pairs)
+|   |-- Table_S1B_final.xlsx          # Reference supplementary table
 |
-|-- docs/                      # GitHub Pages content
+|-- docs/                      # Analysis CSVs + GitHub Pages content
 |   |-- HTML/                  #   Per-pair HTML reports
 |   |-- figures/global/        #   Global comparison plots
+|   |-- figures/figs/vend.png  #   4-way Venn over centered-diverse sets
+|   |
+|   |-- # ---- per-cluster / per-pair surveys ----
+|   |-- fold_diversity_survey.csv             # ★ One row per (pair, cluster, method)
+|   |-- fold_diversity_summary.csv            # ★ Per-pair × method, raw + centered counts
+|   |-- fold_diversity_concordance.csv        # ★ Per-pair cross-method
+|   |-- fold_diversity_concordance_perm.csv   # ★ 1K-perm null on pre-correction concordance
+|   |-- fold_diversity_survey_corrected.csv          # ★ Post-regression-correction per-cluster
+|   |-- fold_diversity_concordance_corrected.csv     # ★ Post-correction per-pair concordance
+|   |-- fold_diversity_concordance_corrected_perm.csv     # ★ Post-correction perm null (1K)
+|   |-- fold_diversity_concordance_corrected_perm_bh.csv  # ★ BH FDR over 43-pair pool
+|   |
+|   |-- # ---- robustness + supporting analyses ----
+|   |-- regression_robustness.csv             # ★ Per-cluster, OLS+Spearman+Theil-Sen
+|   |-- regression_robustness_summary.csv     # ★ Per-pair, three estimators side-by-side
+|   |-- foldpair_intra_diversity.csv          # ★ Mean/median/min/max pairwise TM
+|   |-- per_cluster_pid_to_query.csv          # ★ Per-cluster PID to query (regression input)
+|   |
+|   |-- # ---- phylogenetic axis ----
+|   |-- phylo_placement.csv                   # ★ Per (pair, method), raw labels
+|   |-- phylo_placement_corrected.csv         # ★ Same, on residual-corrected labels (2026-05-18)
+|   |-- ancestral_summary.csv                 # ★ Ancestral fold-preference reconstruction
+|   |
+|   |-- # ---- meta-classification ----
+|   |-- triggers_from_pdb.csv                 # ★ Trigger-type classification (2026-05-19)
+|   |                                          #    Generated by classify_triggers_from_pdb.py
+|   |                                          #    Distribution: 29 ligand, 19 oligo,
+|   |                                          #    17 protein_binding, 15 equil_or_unk, 13 mutation
+|   |
+|   |-- # ---- legacy aggregates ----
 |   |-- detailed_final_res_all_pairs_df.csv
+|   |-- summary_final_res_all_pairs_df.csv
 |
-|-- Pipeline/                  # Root pipeline directory
-|   |-- FoldPairs/             #   Fold-switching protein pair directories
-|   |   |-- <pairID>/          #     One directory per protein pair (93 pairs)
-|   |       |-- *.fasta        #       Chain FASTA files
-|   |       |-- *_pdb_contacts.npy #   Ground truth contact maps
-|   |       |-- _seed_both.a3m #       Seed MSA with both chains
-|   |       |-- fasta_chain_files/ #   Per-chain FASTAs
-|   |       |-- chain_pdb_files/   #   Per-chain PDBs
-|   |       |-- output_get_msa/    #   Deep MSA output
-|   |       |-- output_msa_cluster/#   Shallow MSA clusters (ShallowMsa_###.a3m)
-|   |       |-- output_phytree/    #   Phylogenetic tree (.nwk)
-|   |       |-- AF_preds/          #   AlphaFold predictions
-|   |       |-- output_cmap_esm/   #   MSA-Transformer contact maps (.npz)
-|   |       |-- output_cmaps/      #   Contact map predictions
-|   |       |-- output_esm_fold/   #   ESMFold predictions
-|   |       |-- Analysis/          #   Per-pair result CSVs & cache
-|   |           |-- df_af.csv      #     AF TM-scores per cluster
-|   |           |-- df_esm.csv     #     ESM TM-scores per cluster
-|   |           |-- df_cmap.csv    #     Contact map metrics per cluster
-|   |           |-- cache.json     #     Cached values (TM, seq_id, etc.)
+|-- Pipeline/                  # Root pipeline directory (on cluster only)
+|   |-- FoldPairs/             #   93 fold-switching protein pair directories
+|   |   |-- <pairID>/          #     One directory per protein pair
+|   |       |-- *.fasta                        #   Chain FASTAs
+|   |       |-- *_pdb_contacts.npy             #   Ground truth contact maps
+|   |       |-- _seed_both.a3m                 #   Seed MSA with both chains
+|   |       |-- fasta_chain_files/             #   Per-chain FASTAs
+|   |       |-- chain_pdb_files/               #   Per-chain PDBs
+|   |       |-- output_get_msa/                #   Deep MSA output
+|   |       |-- output_msa_cluster/            #   Shallow MSA clusters (AHC; ShallowMsa_*.a3m)
+|   |       |-- output_phytree/                #   Phylogenetic tree (DeepMsa_tree.nwk)
+|   |       |-- output_AF/AF2/                 #   AlphaFold2 per-cluster predictions
+|   |       |-- output_AF/AF3/                 #   AlphaFold3 per-cluster predictions (NEW)
+|   |       |-- output_esm/                    #   ESMFold predictions
+|   |       |-- output_cmaps/msa_transformer/  #   MSA-Transformer contact maps
+|   |       |-- output_cmaps/ccmpred/          #   CCMpred contact maps (NEW)
+|   |       |-- output_boltz2/                 #   Boltz-2 predictions (PARTIAL)
+|   |       |-- output_alphaflow/              #   AlphaFlow predictions (PARTIAL)
+|   |       |-- output_ddg/                    #   ThermoMPNN DDG (NEW)
+|   |       |-- jobs/                          #   Per-pair SLURM job logs
+|   |       |-- Analysis/                      #   Per-pair result CSVs & cache
+|   |           |-- df_af.csv          # AF2+AF3 TM-scores per cluster (model column)
+|   |           |-- df_esm.csv         # ESM TM-scores per cluster
+|   |           |-- df_cmap.csv        # MSA-Transformer cmap metrics per cluster
+|   |           |-- df_cmap_ccmpred.csv # CCMpred cmap metrics per cluster (PENDING)
+|   |           |-- df_ddg.csv         # ThermoMPNN DDG per cluster (NEW)
+|   |           |-- df_diversity.csv   # Intra-cluster TM diversity
+|   |           |-- cache.json
+|   |   |-- jobs/              #   Project-wide SLURM job logs
+|   |
 |   |-- Controls/              #   Negative control protein directories
-|   |   |-- PorterIDP/         #     99 IDP controls (Porter & Looger 2022, DisProt)
-|   |   |   |-- <UniprotID>/   #       One directory per IDP protein
-|   |   |       |-- <UniprotID>.fasta  # Protein sequence
-|   |   |-- MatchedSingleFold/ #     Pfam-matched single-fold controls (1 per pair)
-|   |   |   |-- <PDB_ID>/      #       One directory per control protein
-|   |   |       |-- <PDB_ID>.fasta    # Protein sequence
-|   |   |-- RandomSingleFold/  #     100 random single-chain X-ray structures
-|   |       |-- <PDBchain>/    #       One directory per protein (e.g. 1UBQA)
-|   |           |-- <PDBchain>.fasta  # Protein sequence
+|   |   |-- PorterIDP/<UniprotID>/        # 100 IDP controls (Porter & Looger 2022, DisProt)
+|   |   |-- MatchedSingleFold/<PDB_ID>/   # 48 Pfam-matched single-fold controls
+|   |   |-- RandomSingleFold/<PDBchain>/  # 101 random single-chain X-ray structures
+|   |   Each <id>/Analysis/df_diversity.csv (per-protein)
+|   |   Each <ct>/controls_diversity_summary.csv (per-control-type aggregate; needs
+|   |        single-shot run with --protein_ids ALL after parallel jobs finish to avoid race)
+|   |
 |   |-- Results/               #   Global pipeline results & figures
 |   |-- pdb_files/             #   Shared PDB files
 |   |-- output/                #   Legacy output directory
 |
-|-- olds/old/                  # Archived/legacy code (14 files)
+|-- olds/old/                  # Archived/legacy code
 |-- Install/                   # Environment setup scripts
 |-- Pipeline_res/              # Pipeline results directory
 
@@ -144,13 +231,42 @@ PIPELINE STAGES (run_foldswitch_pipeline.py --run_mode <mode>)
  run_cmap_esm      MSA-Transformer contact maps                 run_MSATrans.py
  run_cmap_ccmpred  CCMpred contact maps                         (external tool)
  run_esmfold       ESMFold/ESM3 structure prediction            run_ESMFoldHF.py
+ run_boltz2        Boltz-2 per-cluster prediction (NEW)         run_Boltz2.py
+ run_alphaflow     AlphaFlow per-cluster prediction (NEW)       run_AlphaFlow.py
+ run_speachaf      SpeachAF per-cluster prediction (NEW)        run_SpeachAF.py
+ run_ddg           ThermoMPNN DDG conformation bias (NEW)       run_DDG.py
  compute_deltaG    PyRosetta energy calculations                energy_utils.py
  postprocess       Compute TM-scores, build result tables       postprocess_unified.py
  plot              Generate all visualizations                  protein_plot_utils.py
  msaclust_pipeline Run full sequence (all above)                (chained)
 
 ================================================================================
-FILE-BY-FILE FUNCTION INDEX
+ANALYSIS PIPELINE (downstream of run_foldswitch_pipeline.py postprocess)
+================================================================================
+
+ Stage                       Script                                  Output
+ -----                       ------                                  ------
+ Per-cluster fold-preference fold_diversity_survey.py                docs/fold_diversity_survey.csv
+ Per-pair × method counts    (same)                                  docs/fold_diversity_summary.csv
+ Cross-method concordance    (same)                                  docs/fold_diversity_concordance.csv
+ Pre-correction perm null    permutation_null_concordance.py         docs/fold_diversity_concordance_perm.csv
+ Sequence-divergence correction
+                             seq_divergence_correction.py            docs/fold_diversity_*_corrected.csv
+ Post-correction perm null   permutation_null_corrected.py           docs/fold_diversity_concordance_corrected_perm.csv
+ BH FDR over BH pool         bh_correct_concordance_p.py             docs/fold_diversity_concordance_corrected_perm_bh.csv
+ Bootstrap CI                bootstrap_concordance_ci.py             added to corrected CSV
+ Estimator robustness        regression_robustness.py                docs/regression_robustness*.csv
+ Intra-cluster diversity     compute_pair_intra_diversity.py         docs/foldpair_intra_diversity.csv
+ Phylo placement (raw)       phylo_placement.py                      docs/phylo_placement.csv
+ Phylo placement (residual)  phylo_placement_corrected.py            docs/phylo_placement_corrected.csv
+ Ancestral reconstruction    run_ancestral_analysis.py               docs/ancestral_summary.csv
+ Trigger classification      classify_triggers_from_pdb.py           docs/triggers_from_pdb.csv
+ Pairs vs controls compare   compare_controls_vs_pairs.py            docs/controls_vs_pairs_comparison.csv
+ 4-way Venn                  make_venn.py                            docs/figs/vend.png + vend_counts_*.csv
+ Case-study figures          regen_case_study_figs.py                figs/case_study/<pair>/{best_F1,best_F2,bestF1_vs_bestF2}.png
+
+================================================================================
+FILE-BY-FILE FUNCTION INDEX (changes since 2026-02-19)
 ================================================================================
 
 --- config.py (~140 lines) ---
@@ -160,254 +276,163 @@ FILE-BY-FILE FUNCTION INDEX
            DOCS_DIR, SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE,
            MSA_TRANS_MODEL_FILE, CONTACT_CUTOFF, PAIR_TARGET_DIRS,
            TM_ALIGN_BINARY, COLABFOLD_BATCH, etc.
-  Multi-user: detects Linux/Windows, sets paths per username.
 
---- run_foldswitch_pipeline.py (~2800 lines) ---
-  Main orchestrator. Key functions:
-    main()                        CLI entry: parse args, dispatch run_mode
-    run_load(pair_id)             Download PDB, extract chains, build seed A3M
-    run_get_msa(pair_id)          Call ColabFold for deep MSA
-    run_cluster_msa(pair_id)      Partition MSA into shallow clusters
-    run_tree(pair_id)             Build phylogenetic tree
-    run_AF(pair_id)               Run AlphaFold predictions
-    run_cmap_esm(pair_id)         Run MSA-Transformer predictions
-    run_cmap_ccmpred(pair_id)     Run CCMpred predictions
-    run_esmfold(pair_id)          Run ESMFold/ESM3 predictions
-    run_compute_deltaG(pair_id)   Compute free energy via PyRosetta
-    run_postprocess(pair_id)      Build per-pair analysis tables
-    run_plot(pair_id)             Generate all plots for pair
-    run_msaclust_pipeline(pair_id) Run all stages sequentially
+--- run_foldswitch_pipeline.py (2732 lines, slightly smaller than 2026-02 baseline) ---
+  Main orchestrator. New run_modes added: run_boltz2, run_alphaflow,
+  run_speachaf, run_ddg, run_cmap_ccmpred.
 
---- run_getMSA.py (~250 lines) ---
-  get_msa_for_pair(pair_id)      Calls colabfold_batch for deep MSA
-  main()                         CLI wrapper
+--- run_controls_pipeline.py (847 lines) ---
+  Mirror of run_foldswitch_pipeline.py for the 249 control proteins.
+  Postprocess aggregation must use --protein_ids ALL after per-protein
+  parallel runs (race-condition fix; see [[cluster-access]] in claude memory).
 
---- run_ClusterMSA.py (~350 lines) ---
-  cluster_msa(msa_file, ...)     Hierarchical clustering of MSA sequences
-  main()                         CLI: --input_msas, --n_clusters, etc.
+--- run_DDG.py (416 lines) (NEW) ---
+  ThermoMPNN per-cluster conformation-bias scoring (Cavanagh 2026).
+  Output: Pipeline/<pair>/output_ddg/ + Analysis/df_ddg.csv per pair.
 
---- run_MSATrans.py (~300 lines) ---
-  predict_contacts(msa_file)     MSA-Transformer contact map prediction
-  main()                         CLI: --input_msas, -o, --parallel
+--- run_Boltz2.py (NEW, partial scope) ---
+  Per-cluster Boltz-2 fold prediction. Modes:
+    --partner none     : per-cluster, alone (cf. AF3).
+    --partner <yaml>   : with binding partner (protein chain / SMILES / RNA).
+  Outputs: Pipeline/<pair>/output_boltz2/ + Analysis/df_boltz2.csv.
 
---- run_ESMFoldHF.py (~400 lines) ---
-  fold_sequences(fasta_dir, ...) Batch ESMFold prediction
-  main()                         CLI: --input_dir, --model, --device
+--- run_AlphaFlow.py, run_CFrandom.py, run_SpeachAF.py (~303 lines each) (NEW) ---
+  Per-cluster alternatives to AF2 (AlphaFlow = AF2 with sampled MSAs;
+  CFrandom = random-seed init; SpeachAF = sequence-pruning toward one fold).
 
---- utils/align_utils.py (512 lines) ---
-  tmalign_unified(pdb1, pdb2, chain1, chain2)
-    Dispatches to TM-align binary or tmtools Python fallback.
-  compute_tmscore_align(pdb1, pdb2, chain1, chain2)
-    Returns float TM-score.
-  get_or_compute_true_tm(pair_id)
-    Cached TM(true1, true2).
-  seq_identity_from_seed_msa(msa_path, keyA, keyB)
-    Sequence identity between two MSA query rows.
-  seq_identity_for_pair(pair_id)
-    Sequence identity for a protein pair.
-  align_cmaps_by_sequence(cmap1, cmap2, seq1, seq2)
-    Align two contact maps via sequence alignment.
-  align_truth_and_preds_via_msa_first2(...)
-    Align truth and predicted cmaps through shared MSA coordinates.
-  get_matching_indices_two_cmaps(aln, cmap1, cmap2)
-    Extract aligned sub-matrices from alignment object.
+--- utils/ancestral_utils.py (791 lines) (NEW) ---
+  Ancestral-sequence reconstruction (parsimony / ML) + tree-walk for
+  ancestral fold-preference labels.
 
---- utils/cache_utils.py (32 lines) ---
-  get_from_pair_cache(pair_dir, key)
-  put_in_pair_cache(pair_dir, key, value)
+--- utils/plot_3d.py (556 lines), plot_contacts.py (606 lines), plot_global.py (NEW) ---
+  Split from protein_plot_utils.py (which shrank from 2022 to 718 lines).
+  plot_3d.py is the PyMOL/py3Dmol 3D rendering module used by
+  regen_case_study_figs.py.
 
---- utils/energy_utils.py (554 lines) ---
-  compute_deltaG_and_residue_energies(pdb_path)
-    Returns (total_energy, residue_list, chain_count).
-  compute_global_and_residue_energies(pair_id, ...)
-    Full pipeline: load pairs, compute DG, align, write CSVs, plot.
-  align_and_compare_residues(energies1, energies2)
-    Align two energy profiles and compute DDG.
-  run_compute_deltaG_with_output(pair_files, output_file)
-    Batch Delta-G computation to TSV.
+--- utils/phytree_utils.py (1260 lines, up from 1210) ---
+  Phylogenetic tree build/viz/manipulation; now includes ancestral hooks.
 
---- utils/msa_utils.py (724 lines) ---
-  get_align_indexes(seqA, seqB)
-    Global alignment returning matched-position index pairs.
-  sequence_identity_percent(seq1, seq2)
-    Percent identity via global alignment.
-  trim_a3m_for_pair_union(a3m_path, ...)
-    Trim A3M to union of query-residue columns.
-  load_fasta(fil) / write_fasta(names, seqs, outfile)
-    Simple FASTA I/O.
-  build_pair_seed_a3m_from_pair(pair_id, ...)
-    Build 2-sequence aligned seed A3M.
-  compute_neff_from_a3m(a3m_path, ...)
-    Compute N_effective (Meff) from A3M.
-  find_two_query_rows_in_a3m(a3m_path, keyA, keyB)
-    Find two query sequences in A3M by header keywords.
+--- Analysis/postprocess_unified.py (1031 lines, up from ~925) ---
+  Now reads df_cmap_ccmpred.csv (line 231) alongside df_cmap.csv,
+  and iterates ("af2","AF2") and ("af3","AF3") (line 307) so AF3
+  predictions populate df_af.csv via the recursive glob
+  output_AF/AF*/*.pdb (line ~35 of AF_analysis.py).
 
---- utils/phytree_utils.py (1210 lines) ---
-  phytree_from_msa(msa_file, ...)
-    Build UPGMA tree from MSA via Hamming distances + fastcluster.
-  visualize_tree_with_heatmap(tree, df, ...)
-    Render tree + grouped heatmap.
-  compose_tree_and_heatmap(tree, df_leaf, ...)
-    Compose tree and heatmap side-by-side (current version).
-  draw_tree_aligned(ax, ete_tree, leaf_order)
-    Draw ETE3 tree on Matplotlib axis.
-  draw_grouped_heatmap(ax, df_leaf, col_groups, ...)
-    Draw grouped heatmap with separators.
-  prune_tree_to_leaves(tree, keep_leaves)
-    Prune tree to retain specified leaves.
-  reconstruct_ancestral_sequences(tree_file, alignment_file, output_file)
-    Parsimony-based ancestral reconstruction.
+--- scripts/fold_diversity_survey.py (1055 lines) (MAJOR) ---
+  Reads per-pair df_*.csv and emits docs/fold_diversity_survey.csv,
+  one row per (pair, cluster, method) with centered classification.
+  Functions: load_af2_diversity (L144), load_esm_diversity (L215),
+             load_msat_diversity (L290), load_ccmpred_diversity (L387),
+             load_ddg_diversity (L476).
+  methods = ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]  (line 684)
+  TODO: add load_af3_diversity + "AF3" to methods list. AF3 already
+        exists in df_af.csv (distinguished by `model` column).
 
---- utils/protein_plot_utils.py (2022 lines) --- LARGEST FILE
-  make_foldswitch_all_plots(pair_id, ...)
-    Main per-pair plot orchestrator.
-  plot_foldswitch_contacts_and_predictions(...)
-    Core cmap plotting: fold-specific triangles, shared/unique coloring.
-  global_pairs_statistics_plots(...)
-    Cross-pair scatter plots (AF/ESM TM-scores, MSAT recall).
-  _render_true_structures(pair_id, ...)
-    PyMOL overlay of two truth structures.
-  _render_true_vs_best_models_generic(pair_id, ...)
-    PyMOL overlay of truth vs best AF/ESM predictions.
-  _render_ddg_aligned_image(pair_id, ...)
-    Per-residue DDG profile images.
-  _prepare_tree_heatmap_inputs(pair_id, ...)
-    Prepare data for tree+heatmap visualization.
+--- scripts/seq_divergence_correction.py (429 lines) ---
+  Per-pair OLS regression of per-cluster centered TM-diff on per-cluster
+  mean PID-to-query, per method. Outputs corrected concordance.
+  Flag: --delta-sweep runs threshold sensitivity at delta in {0.03, 0.05, 0.07}.
 
---- utils/protein_utils.py (844 lines) ---
-  load_seq_and_struct(cur_family_dir, pdbids, pdbchains, ...)
-    Fetch PDB, extract sequence+contacts, save FASTA+npy.
-  extract_protein_sequence(pdb_file, chain, ca_only)
-    1-letter sequence from PDB.
-  load_cmap_and_idx(path)
-    Load contact-map predictions from .npz/.npy.
-  compute_precisions(predictions, targets, ...)
-    AUC, P@L, P@L2, P@L5 for contact prediction.
-  read_msa(filename)
-    Read MSA file, auto-remove insertions.
-  greedy_select(msa, num_seqs, mode)
-    Select diverse MSA sequences.
-  normalize_pair(pair)
-    Returns (a, b, "a_b") from various input formats.
+--- scripts/regression_robustness.py (295 lines) ---
+  Per-pair, per-method comparison of OLS vs Spearman vs Theil-Sen
+  estimators for the sequence-divergence correction. Result: XCL1 is
+  the only candidate stable across all three estimators (paper 2026-05-22).
 
---- utils/utils.py (341 lines) ---
-  list_protein_pairs(parsed, sort_result)
-    List all valid pair directories.
-  pair_str_to_tuple(s)
-    Split "1dzlA_5keqF" -> ("1dzlA", "5keqF").
-  pdb_to_contact_map(pdb_file, chain, cutoff)
-    Binary contact map from CA coordinates.
-  write_pair_pipeline_script(pair_id, args)
-    Generate SLURM sbatch script for a pair.
-  load_csv_or_none(path)
-    Safe CSV loading.
-  str2bool(v)
-    String to bool for argparse.
+--- scripts/permutation_null_concordance.py (505 lines), permutation_null_corrected.py ---
+  Empirical permutation null on the per-pair concordance statistic
+  (pre- and post-regression-correction). Default N_perm = 1000 with
+  ability to run candidate pairs at N_perm = 100,000.
 
---- Analysis/AF_analysis.py (65 lines) ---
-  compute_AF_pred_tmscores(fold_pair)
-    TM-scores for AF predictions vs ground truth.
+--- scripts/phylo_placement.py (895 lines), phylo_placement_corrected.py ---
+  Tests whether F1c/F2c labels on the per-pair coarse cluster-level
+  tree show non-random Fitch parsimony / NN-concordance, vs an empirical
+  permutation null. The _corrected version uses residual-corrected labels.
+  Result (2026-05-18): zero pairs pass BH on residual-corrected phylo.
 
---- Analysis/cmap_analysis.py (485 lines) ---
-  evaluate_pred_cmap(pred, truth1, truth2, ...)
-    Metrics dict for one predicted map vs 2 truths.
-  compute_cmap_metrics_for_pair(subdir, ...)
-    Build df_cmap.csv for a pair.
+--- scripts/classify_triggers_from_pdb.py (437 lines) ---
+  Auto-classifies each of the 93 pairs into trigger taxonomy directly
+  from PDB metadata (HETATM ligands, SEQRES, chain multiplicity):
+    mutation / protein_binding / ligand / oligomerization / equilibrium_or_unknown.
+  Output: docs/triggers_from_pdb.csv (16,894 bytes; 2026-05-19).
+  Distribution: 29 ligand, 19 oligomerization, 17 protein_binding,
+                15 equilibrium_or_unknown, 13 mutation.
 
---- Analysis/esmfold_analysis.py (121 lines) ---
-  compute_df_esm(fold_pair, write)
-    TM-scores for ESMFold predictions, classify fold direction.
+--- scripts/run_ancestral_analysis.py ---
+  Driver for ancestral-sequence reconstruction across the 93 pairs.
+  Output: docs/ancestral_summary.csv (85 testable pairs; 5f5rB_5f3kA reaches p=0.046).
 
---- Analysis/postprocess_unified.py (~925 lines) ---
-  post_processing_analysis(pairs)
-    Full recomputation of all analysis tables.
-  build_unified_tables_from_cluster_dfs(pairs)
-    Fast rebuild from cached CSVs.
-  build_pair_cluster_table(pair_id)
-    Per-cluster row assembly for a pair.
-  _add_seqid_column(df)                   [ported from postprocess_global.py]
-    Append SEQ_ID column via pairwise sequence identity.
-  build_or_load_global_tables(force)      [ported from postprocess_global.py]
-    Build (or load cached) summary + detailed CSVs for all pairs.
+--- scripts/compare_controls_vs_pairs.py ---
+  Compares intra-cluster TM-score diversity of the 93 fold-switching
+  pairs against the 240-protein control set (PorterIDP + Matched + Random).
+  Output: docs/controls_vs_pairs_comparison.csv.
+
+--- scripts/make_venn.py ---
+  4-way Venn over centered-diverse pair sets (AF2 / ESM / MSAT / DDG).
+  Output: docs/figs/vend.png + vend_counts_centered.csv (+ raw variants).
+
+--- scripts/regen_case_study_figs.py (NEW) ---
+  PyMOL-based regeneration of SUN2 and Phytochrome case-study cluster
+  figures against current AHC clusters (stale HDBSCAN-era filenames
+  cluster_47.png / cluster_18.png / cluster_45/66.png are replaced by
+  generic best_F1.png / best_F2.png / bestF1_vs_bestF2.png + manifest).
+
+--- scripts/bh_correct_concordance_p.py, bootstrap_concordance_ci.py ---
+  BH FDR and bootstrap CIs on the per-pair corrected concordance.
+  43-pair BH pool with |C_p| >= 10 cluster-count filter.
+
+--- scripts/compute_pair_intra_diversity.py ---
+  Mean/median/min/max pairwise TM-score across cluster prediction PDBs
+  within a pair. Input to controls comparison.
 
 ================================================================================
-DEPENDENCY GRAPH (which files import from which)
+LINE COUNTS (approximate, top 30 by size)
 ================================================================================
 
-config.py
-  <- (imported by nearly all files)
+run_foldswitch_pipeline.py             2732   (main orchestrator)
+utils/phytree_utils.py                 1260
+run_ClusterMSA.py                      1064
+scripts/fold_diversity_survey.py       1055   (★ analysis driver)
+Analysis/postprocess_unified.py        1031
+scripts/phylo_placement.py              895
+run_controls_pipeline.py                847
+utils/protein_utils.py                  843
+utils/ancestral_utils.py                791   (NEW)
+utils/msa_utils.py                      724
+utils/protein_plot_utils.py             718   (was 2022; split into plot_3d/contacts/global)
+TableResults/gen_html_table.py          664
+TableResults/gen_pair_html.py           660
+utils/plot_contacts.py                  606   (split from protein_plot_utils.py)
+Analysis/cmap_analysis.py               584
+run_ESMFoldHF.py                        574
+utils/plot_3d.py                        556   (split from protein_plot_utils.py)
+utils/energy_utils.py                   529
+utils/align_utils.py                    511
+scripts/permutation_null_concordance.py 505
+scripts/setup_matched_controls.py       490
+scripts/classify_triggers_from_pdb.py   437
+scripts/seq_divergence_correction.py    429
+run_DDG.py                              416   (NEW)
+scripts/setup_random_controls.py        353
+utils/utils.py                          351
+run_SpeachAF.py                         303
+run_CFrandom.py                         303
+scripts/regression_robustness.py        295
 
-utils/utils.py
-  <- config
-  imports: os, re, platform, argparse, pathlib, numpy, pandas, mdtraj (optional)
-
-utils/protein_utils.py
-  <- config
-  imports: biotite, biopython, numpy, pandas, string
-
-utils/msa_utils.py
-  <- config
-  imports: parasail (with biopython fallback), numpy, re
-
-utils/align_utils.py
-  <- config, utils/protein_utils, utils/msa_utils, utils/cache_utils
-  imports: subprocess, numpy, biopython, tmtools (optional)
-
-utils/cache_utils.py
-  (standalone, no project imports)
-  imports: json, os, datetime
-
-utils/energy_utils.py
-  <- config, utils/msa_utils
-  imports: pyrosetta, numpy, pandas, biopython, matplotlib
-
-utils/phytree_utils.py
-  <- config, utils/protein_utils, utils/msa_utils
-  imports: ete3, fastcluster, scipy, numpy, matplotlib, PIL, biopython
-
-utils/protein_plot_utils.py
-  <- config, utils/utils, utils/protein_utils, utils/msa_utils,
-     utils/align_utils, utils/phytree_utils, utils/cache_utils
-  imports: matplotlib, numpy, pandas, PIL, pymol (optional), py3Dmol (optional)
-
-Analysis/AF_analysis.py
-  <- config, utils/align_utils, utils/utils
-
-Analysis/cmap_analysis.py
-  <- config, utils/utils, utils/align_utils, utils/protein_utils
-
-Analysis/esmfold_analysis.py
-  <- config, utils/align_utils, utils/utils
-
-Analysis/postprocess_unified.py
-  <- config, utils/utils, utils/protein_utils, utils/align_utils,
-     utils/cache_utils, Analysis/cmap_analysis
-
-run_foldswitch_pipeline.py
-  <- config, utils/* (all), Analysis/* (all)
-
-run_getMSA.py         <- config, utils/msa_utils
-run_ClusterMSA.py     <- config, utils/msa_utils, utils/protein_utils
-run_MSATrans.py       <- config, utils/protein_utils
-run_ESMFoldHF.py      <- config, utils/msa_utils, utils/protein_utils
-
-TableResults/gen_html_table.py   <- config, utils/utils, pandas
-TableResults/gen_latex_table.py  <- config, utils/utils, pandas
-TableResults/gen_pair_html.py    <- config, utils/utils, pandas
-
-scripts/infer_esm3.py            <- utils/msa_utils
-scripts/run_tree_reconstruct.py  <- utils/phytree_utils
-scripts/plot_protein.py          <- config
+TOTAL: ~24,706 lines of Python (up from ~12,000 due to expanded
+analysis suite + new prediction modules)
 
 ================================================================================
 EXTERNAL DEPENDENCIES (major)
 ================================================================================
 
 Bioinformatics: biopython, biotite, parasail, tmtools, mdtraj, pyrosetta
-ML/Structure:   torch, transformers (ESMFold), esm (ESM3), colabfold
+ML/Structure:   torch, transformers (ESMFold), esm (ESM3), colabfold,
+                boltz (Boltz-2), thermompnn (DDG), alphaflow
 Phylogenetics:  ete3, fastcluster, scipy (linkage)
 Visualization:  matplotlib, PIL/Pillow, pymol, py3Dmol
 Data:           numpy, pandas
+Stats:          statsmodels (OLS), scipy.stats (Spearman, mannwhitneyu,
+                ks_2samp), permutation null implemented in scripts/
 Other:          requests, tqdm, argparse
 
 ================================================================================
@@ -416,56 +441,64 @@ KEY CONSTANTS (from config.py)
 
 CONTACT_CUTOFF     = 8.0 (Angstroms, for contact map computation)
 MAX_MSA_DEPTH      = configurable per pair
-N_CLUSTERS         = configurable (number of shallow MSA clusters)
 PAIR_TARGET_DIRS   = dict mapping stage names to output subdirectory names
+delta              = 0.05 (per-cluster centered classification threshold for TM-score
+                     methods); delta_ddg = 2.0 (kcal/mol, for DDG)
 
 ================================================================================
-KNOWN ISSUES / BUGS FOUND DURING REVIEW
+WHAT'S NEW SINCE 2026-02-19
 ================================================================================
 
-ALL FIXED (commits e344236 and bc5c914):
-  1. AF_analysis.py glob import       -> fixed
-  2. cmap_analysis.py cluster_name     -> fixed (extracted from filename)
-  3. postprocess_global.py json import -> file deleted (merged into unified)
-  4. Analysis_retry.py hardcoded paths -> uses config.DATA_DIR
-  5. Empty compute_energy file         -> deleted
-  6. MSA_Clust.py deprecated wrapper   -> deleted
-  7. Duplicate postprocess modules     -> merged into postprocess_unified.py
+PREDICTION MODULES (new top-level entry points):
+  - run_DDG.py            ThermoMPNN per-cluster conformation-bias scoring
+  - run_Boltz2.py         Boltz-2 all-atom AF3-class predictor
+  - run_AlphaFlow.py      AlphaFlow per-cluster
+  - run_CFrandom.py       ColabFold with random seed init
+  - run_SpeachAF.py       SpeachAF (sequence pruning per fold)
+  AF3 has been integrated into the existing AF pipeline (recursive glob
+  + `model` column in df_af.csv).
 
-REMAINING:
-  8. protein_plot_utils.py split DONE (SPLIT-1): orchestrator + plot_3d.py,
-     plot_contacts.py, plot_global.py submodules
-  9. run_foldswitch_pipeline.py at ~2800 lines could benefit from splitting
-     (see NEXT_TASKS.txt Phase 3, SPLIT-2)
+ANALYSIS SUITE (substantial new work):
+  - Centered classification + per-pair regression correction
+  - Empirical permutation null (1K and 100K resolutions)
+  - Estimator robustness (Spearman / Theil-Sen)
+  - BH FDR + bootstrap CIs
+  - Phylogenetic-placement test on raw + residual-corrected labels
+  - Ancestral-sequence reconstruction analysis
+  - Trigger-type classification from PDB metadata
+  - Controls comparison (pairs vs IDP/Matched/Random)
+  - 4-way Venn over centered-diverse sets
+  - Case-study figure regeneration
+
+REFACTORING:
+  - protein_plot_utils.py split into plot_3d.py / plot_contacts.py /
+    plot_global.py (orchestrator now 718 lines; was 2022).
+  - postprocess_unified.py absorbed legacy postprocess_global.py.
+
+DATASETS GENERATED ON CLUSTER (not yet aggregated in docs/):
+  - AF3 predictions: 92/93 pairs (already in df_af.csv per pair)
+  - CCMpred predictions: 82/93 pairs (per-pair df_cmap_ccmpred.csv pending)
+  - Boltz-2: 1/93 pairs (test only)
+  - ThermoMPNN DDG: complete (in df_ddg.csv)
+  - Ancestral reconstruction: complete (docs/ancestral_summary.csv)
+  - Phylo placement (both raw + residual-corrected): complete
 
 ================================================================================
-LINE COUNTS (approximate, excluding blanks/comments)
+KNOWN ISSUES / OPEN WORK
 ================================================================================
 
-utils/protein_plot_utils.py    2022
-utils/phytree_utils.py         1210
-Analysis/postprocess_unified.py ~925  (grew: absorbed postprocess_global.py)
-utils/protein_utils.py          844
-utils/msa_utils.py              724
-utils/energy_utils.py           554
-utils/align_utils.py            512
-Analysis/cmap_analysis.py      ~450  (shrank: consolidated into _truth_contact_map)
-run_ESMFoldHF.py               ~400
-run_ClusterMSA.py              ~350
-utils/utils.py                  341
-run_MSATrans.py                ~300
-run_getMSA.py                  ~250
-scripts/infer_esm3.py           243
-Analysis/NotebookGen/gen_notebooks.py 137
-config.py                      ~130
-Analysis/esmfold_analysis.py    121
-scripts/get_sample_msa_algn.py  122
-scripts/Analysis_retry.py        90
-Analysis/AF_analysis.py          65
-scripts/run_tree_reconstruct.py  55
-scripts/plot_protein.py          47
-utils/cache_utils.py             32
-scripts/get_pdb_files.py         21
-run_foldswitch_pipeline.py    ~2800  (main orchestrator)
+  1. fold_diversity_survey.py needs load_af3_diversity + "AF3" added to
+     methods list (line 684). AF3 already exists in df_af.csv.
+  2. df_cmap_ccmpred.csv per-pair aggregation not yet run (CCMpred predictions
+     exist in output_cmaps/ccmpred/, but postprocess step has not been
+     re-invoked since they landed).
+  3. Boltz-2 was only run on 1 test pair; full 93-pair run deferred to v2.
+  4. Stratified BH analysis by trigger_class not yet implemented as a
+     standalone script (planned: scripts/stratified_concordance_by_trigger.py).
+  5. Case-study figures still reference stale HDBSCAN cluster IDs in the
+     paper; regen script is ready (scripts/regen_case_study_figs.py) but
+     not yet run + synced to paper repo.
+  6. run_foldswitch_pipeline.py at 2732 lines could benefit from splitting
+     (see NEXT_TASKS.txt SPLIT-2).
 
-TOTAL: ~12,000+ lines of Python (down from ~13,000 after cleanup)
+================================================================================
