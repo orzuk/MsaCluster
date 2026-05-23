@@ -981,8 +981,12 @@ def compose_tree_and_heatmap(
     n_cb = len(col_groups) if col_groups else 0
     cbar_axes = []
     if n_cb > 0:
-        # take almost the full column height for the bars (~98%)
-        total_h = 0.98  # ↑ was 0.94; makes bars longer
+        # Shorter single colorbar when there's only one group (unified design):
+        # gives room for a multi-line title and tick labels.
+        if n_cb == 1:
+            total_h = 0.55  # one slim bar centred vertically
+        else:
+            total_h = 0.98
         pad = 0.006  # smaller spacing between bars
         left_margin = 0.01  # ← move bars left inside the cbar column (was 0.20)
         width_frac = 0.68  # keep them slim (0.68 of the column width)
@@ -1181,8 +1185,13 @@ def compose_tree_and_heatmap(
             # ticks at extremes + middle
             ticks = [vmin, 0.5 * (vmin + vmax), vmax]
 
-            # round to 2 decimals and avoid "-0.00"
-            labels = [("0.00" if abs(t) < 5e-6 else f"{t:.2f}") for t in ticks]
+            if unified_diverging:
+                # Normalized scale: mark −1 / 0 / +1 with F2 / 0 / F1 hints.
+                labels = [f"{vmin:+.1f}\n(F2)", "0",
+                          f"{vmax:+.1f}\n(F1)"]
+            else:
+                # round to 2 decimals and avoid "-0.00"
+                labels = [("0.00" if abs(t) < 5e-6 else f"{t:.2f}") for t in ticks]
 
             # <<< THIS is the key: set on the colorbar, not the axis >>>
             cb.locator = FixedLocator(ticks)
@@ -1190,7 +1199,14 @@ def compose_tree_and_heatmap(
             cb.update_ticks()
 
             title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
-            cbar_axes[gi].set_title(title, fontsize=11, pad=4)
+            # Wrap long titles so they don't overflow the colorbar column.
+            if len(title) > 18:
+                # split at the first space past the midpoint
+                mid = len(title) // 2
+                idx = title.find(" ", mid)
+                if idx != -1:
+                    title = title[:idx] + "\n" + title[idx + 1:]
+            cbar_axes[gi].set_title(title, fontsize=10, pad=6)
             cb.ax.tick_params(labelsize=8, pad=1)  # small pad so text doesn’t overflow
 
 
