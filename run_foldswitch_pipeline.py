@@ -2593,7 +2593,10 @@ def main():
     else:
         foldpairs = args.foldpair_ids
 
-    # Optional trigger-class filter (uses docs/triggers_from_pdb.csv)
+    # Optional trigger-class filter (uses docs/triggers_from_pdb.csv).
+    # list_protein_pairs() returns tuples like ('1dzlA', '5keqF') but the
+    # trigger CSV's pair_id column is the underscore-joined form
+    # '1dzlA_5keqF'. Normalise both sides before intersecting.
     if args.trigger_filter:
         try:
             from utils.trigger_utils import pairs_in_class
@@ -2603,8 +2606,10 @@ def main():
                       f"no pairs found in trigger CSV; aborting.",
                       file=sys.stderr)
                 sys.exit(2)
+            def _pair_str(p):
+                return "_".join(p) if isinstance(p, tuple) else p
             before = len(foldpairs)
-            foldpairs = [p for p in foldpairs if p in allowed]
+            foldpairs = [p for p in foldpairs if _pair_str(p) in allowed]
             print(f"[trigger_filter] {args.trigger_filter}: "
                   f"{before} -> {len(foldpairs)} pairs after filter",
                   flush=True)
