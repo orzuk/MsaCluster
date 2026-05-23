@@ -287,6 +287,38 @@ def _cluster_metrics_to_leaf_df(df_cluster, ete_tree, ete_leaves_cluster_ids,
 _UNIFIED_METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2"]
 
 
+def _consensus_fold_preference(df_centered: pd.DataFrame,
+                                threshold: float = 0.10) -> dict:
+    """Per-cluster F1/F2/Amb call from the cross-method consensus.
+
+    Uses the unified per-method normalized centered preference matrix
+    (rows = clusters, cols = methods) from `_build_unified_method_preference`.
+    For each cluster takes the row mean across methods (NaN-skip) and
+    thresholds:
+        mean > +threshold -> F1   (cluster more F1-leaning than the pair's
+                                   method-specific average across most methods)
+        mean < -threshold -> F2
+        otherwise         -> Amb
+
+    Replaces the legacy AF2-only `assign_fold_preference` call which was
+    redundant with the AF2 heatmap column.
+    """
+    if df_centered is None or df_centered.empty:
+        return {}
+    means = df_centered.mean(axis=1, skipna=True)
+    out: dict = {}
+    for tag, m in means.items():
+        if not np.isfinite(m):
+            out[tag] = "Amb"
+        elif m > threshold:
+            out[tag] = "F1"
+        elif m < -threshold:
+            out[tag] = "F2"
+        else:
+            out[tag] = "Amb"
+    return out
+
+
 def _load_af2_raw_tms_from_survey(foldpair_id: str) -> dict:
     """Return {cluster_tag: (TM1_max, TM2_max)} for the pair's AF2 rows.
 
@@ -639,14 +671,15 @@ def make_foldswitch_all_plots(
 
         ylabels_override = [_cluster_short_label_from_tag(t) for t in ordered_tags]
 
-        # ----- Compute fold preferences for colored tree tips + strip -----
+        # ----- Compute fold preferences for colored tree tips -----
+        # Multi-method consensus call (mean of normalized centered preferences
+        # across the 7 methods) rather than AF2-only — avoids visually repeating
+        # the AF2 signal on both the tree leaves and the AF2 heatmap column.
         _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
         fold_pref_per_row = None
         leaf_colors_dict = None
-        cluster_tms = _load_af2_raw_tms_from_survey(foldpair_id)
-        if cluster_tms:
-            from utils.ancestral_utils import assign_fold_preference
-            prefs = assign_fold_preference(cluster_tms, delta=0.05)
+        prefs = _consensus_fold_preference(df_cluster_ordered, threshold=0.10)
+        if prefs:
             fold_pref_per_row = [prefs.get(t, "Amb") for t in ordered_tags]
             leaf_colors_dict = {}
             for tag, leaf_name in zip(ordered_tags, leaf_order):
