@@ -159,17 +159,49 @@ def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
 
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, partner_yaml,
-                    ligand_ccds: Optional[List[str]] = None):
+                    ligand_ccds: Optional[List[str]] = None,
+                    force_rerun: bool = False):
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_boltz2" / tag
     out_root.mkdir(parents=True, exist_ok=True)
     truth1 = _truth_chain_pdb(pair_dir, pdbid1, chain1)
     truth2 = _truth_chain_pdb(pair_dir, pdbid2, chain2)
 
+    # Skip if we already have a valid rank_001 PDB for this cluster.
+    # An empty manifest.csv or zero-PDB output is treated as a failed
+    # previous attempt and re-run.
+    existing_rank1 = sorted(out_root.rglob("*rank_001*.pdb"))
+    if not existing_rank1:
+        existing_rank1 = sorted(out_root.rglob("*.pdb"))
+    if existing_rank1 and not force_rerun:
+        # Check the PDB has nonzero content (filters out zero-byte files
+        # from sbatch failures)
+        if any(p.stat().st_size > 100 for p in existing_rank1):
+            print(f"  [boltz2] {tag}: skipping ({len(existing_rank1)} PDB(s) on disk)")
+            # Still emit rows from the on-disk PDBs so the summary CSV
+            # picks them up.
+            rows = []
+            for i, pdb in enumerate(existing_rank1):
+                tm1 = _safe_tm(pdb, truth1)
+                tm2 = _safe_tm(pdb, truth2)
+                rows.append({
+                    "pair_id": pair_id, "cluster": tag, "rank": i,
+                    "tm_fold1": tm1, "tm_fold2": tm2,
+                    "TMdiff": (tm1 - tm2) if (tm1 == tm1 and tm2 == tm2) else float("nan"),
+                    "pdb_path": str(pdb),
+                    "partner_yaml": partner_yaml or "",
+                })
+            return rows
+
     consensus = _consensus_from_a3m(cluster_a3m)
     if not consensus:
         print(f"  [boltz2] {tag}: empty consensus, skip")
         return []
+    # Strip any dash characters from the consensus before passing to Boltz.
+    # Dashes occur when an MSA column is all-gap; Boltz parses them as
+    # invalid CCD components and aborts ("CCD component '-' error" seen in
+    # 49/93 pair logs). Replace with 'X' (unknown aa) to keep length.
+    consensus = consensus.replace("-", "X").replace(".", "X")
     in_yaml = out_root / "input.yaml"
     # Pass the cluster's own MSA so Boltz does not re-fetch a generic
     # one via --use_msa_server. This is the whole point of per-cluster
