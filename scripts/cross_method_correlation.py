@@ -31,7 +31,7 @@ import pandas as pd
 
 DOCS = "docs"
 OUT = os.path.join(DOCS, "figs", "cross_method_correlation.png")
-METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2"]
+METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2", "S4PRED"]
 DISPLAY = {"DDG": r"$\Delta\Delta G$"}
 
 
