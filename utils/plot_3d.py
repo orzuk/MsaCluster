@@ -176,13 +176,69 @@ def _best_cluster_from_table(pair_id: str, table: str, model_tag: str, fold_idx:
 # Rendering functions
 # ---------------------------------------------------------------------------
 def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix, make_interactive: bool = False):
-    """Save (1) two_structures.png and (2) two_structures_aligned.png, with legends."""
+    """Save (1) two_structures.png (side-by-side, color-by-SS) and
+    (2) two_structures_aligned.png (superimposed, with fold colours), with
+    legends. SS colouring: helix=red, sheet=yellow, loop=white;
+    N-terminal residue marked with a green sphere, C-terminal with magenta.
+    """
     out_two = os.path.join(out_dir, f"{out_prefix}_two_structures.png")
     out_aln = os.path.join(out_dir, f"{out_prefix}_two_structures_aligned.png")
     os.makedirs(out_dir, exist_ok=True)
 
     label_red  = os.path.splitext(pdb1)[0]
     label_blue = os.path.splitext(pdb2)[0]
+
+    # PyMOL setup common to both renders, applied as a script fragment.
+    # - color by SS (helix=red, sheet=yellow, loop=white)
+    # - cartoon style, white background, orthoscopic
+    # - N/C-terminal markers (small spheres) coloured green / magenta
+    _ss_setup = """
+bg_color white
+set orthoscopic, on
+hide everything
+show cartoon
+color white, all
+color red,    ss H
+color yellow, ss S
+# show N/C terminus markers as small spheres
+select n_term, name CA and (fold1 and resi {n1})
+select c_term, name CA and (fold1 and resi {c1})
+show spheres, n_term
+show spheres, c_term
+color green,   n_term
+color magenta, c_term
+select n_term2, name CA and (fold2 and resi {n2})
+select c_term2, name CA and (fold2 and resi {c2})
+show spheres, n_term2
+show spheres, c_term2
+color green,   n_term2
+color magenta, c_term2
+set sphere_scale, 0.7, n_term
+set sphere_scale, 0.7, c_term
+set sphere_scale, 0.7, n_term2
+set sphere_scale, 0.7, c_term2
+"""
+
+    # Get terminus residue indices via Biopython (lightweight, no PyMOL needed)
+    def _termini(pdb_path):
+        try:
+            from Bio.PDB import PDBParser
+            p = PDBParser(QUIET=True)
+            s = p.get_structure("x", pdb_path)
+            residues = [r for r in s.get_residues() if r.id[0] == " "]
+            if not residues:
+                return None, None
+            return residues[0].id[1], residues[-1].id[1]
+        except Exception:
+            return None, None
+
+    n1, c1 = _termini(os.path.join(pair_dir, pdb1))
+    n2, c2 = _termini(os.path.join(pair_dir, pdb2))
+    # Defensive fallbacks if Biopython fails
+    n1 = n1 or 1; c1 = c1 or 999999
+    n2 = n2 or 1; c2 = c2 or 999999
+
+    ss_setup = _ss_setup.format(n1=n1, c1=c1, n2=n2, c2=c2)
 
     if not PYMOL_AVAILABLE:
         exe = os.environ.get("PYMOL_BIN") or _PYMOL_BIN_CACHED
@@ -193,14 +249,20 @@ def _render_true_structures(pair_dir, pdb1, pdb2, out_dir, out_prefix, make_inte
 reinitialize
 load "{p1}", fold1
 load "{p2}", fold2
-color red, fold1
-color blue, fold2
-bg_color white
-set orthoscopic, on
+{ss_setup}
 viewport 1200, 900
 zoom all, 10
 png {out_two}, dpi=220, width=1200, height=900
+# Aligned view: superpose fold2 on fold1, recolor by SS for clarity
 align fold2, fold1
+hide everything
+show cartoon
+color white, all
+color red,    ss H
+color yellow, ss S
+# Tint by molecule to retain "which is which" info (light tint over SS)
+color salmon, fold1 and ss L
+color skyblue, fold2 and ss L
 png {out_aln}, dpi=220, width=1200, height=900
 quit
 """.lstrip()
@@ -216,13 +278,28 @@ quit
         cmd.delete('all')
         cmd.load(os.path.join(pair_dir, pdb1), 'fold1')
         cmd.load(os.path.join(pair_dir, pdb2), 'fold2')
-        cmd.color('red',  'fold1')
-        cmd.color('blue', 'fold2')
         cmd.bg_color('white')
         cmd.set('orthoscopic', 1)
+        cmd.hide('everything')
+        cmd.show('cartoon')
+        cmd.color('white', 'all')
+        cmd.color('red',    'ss H')
+        cmd.color('yellow', 'ss S')
+        cmd.select('n_term',  f'name CA and (fold1 and resi {n1})')
+        cmd.select('c_term',  f'name CA and (fold1 and resi {c1})')
+        cmd.select('n_term2', f'name CA and (fold2 and resi {n2})')
+        cmd.select('c_term2', f'name CA and (fold2 and resi {c2})')
+        for sel, col in (('n_term', 'green'), ('c_term', 'magenta'),
+                         ('n_term2', 'green'), ('c_term2', 'magenta')):
+            cmd.show('spheres', sel)
+            cmd.color(col, sel)
+            cmd.set('sphere_scale', 0.7, sel)
         cmd.zoom('all', buffer=10)
         cmd.png(out_two, dpi=220, width=1200, height=900)
         cmd.align('fold2', 'fold1')
+        # Tint loops to retain molecule identity in superposition
+        cmd.color('salmon',  'fold1 and ss L')
+        cmd.color('skyblue', 'fold2 and ss L')
         cmd.png(out_aln, dpi=220, width=1200, height=900)
     finally:
         cmd.quit()
