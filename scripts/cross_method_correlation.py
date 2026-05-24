@@ -31,7 +31,7 @@ import pandas as pd
 
 DOCS = "docs"
 OUT = os.path.join(DOCS, "figs", "cross_method_correlation.png")
-METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2", "S4PRED"]
+METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "DDG", "MSAT", "CCMpred", "S4PRED"]
 DISPLAY = {"DDG": r"$\Delta\Delta G$"}
 
 
@@ -100,7 +100,7 @@ def render(corr: pd.DataFrame, counts: pd.DataFrame, out_path: str) -> None:
                 txt = "—"
                 color = "#888"
             else:
-                txt = f"{v:.2f}\nn={n}"
+                txt = f"{v:.2f}"
                 color = "white" if abs(v) > 0.5 else "black"
             ax.text(j, i, txt, ha="center", va="center",
                     fontsize=8, color=color)
@@ -108,7 +108,7 @@ def render(corr: pd.DataFrame, counts: pd.DataFrame, out_path: str) -> None:
     cbar.set_label("Spearman ρ of TMdiff_centered\n(across all per-pair × cluster rows)",
                    fontsize=9)
     ax.set_title("Cross-method correlation of per-cluster centered fold preference\n"
-                 f"({M.shape[0]} methods, n shown per cell pair)",
+                 f"({M.shape[0]} methods, pooled across 85 pairs)",
                  fontsize=10, pad=8)
     plt.tight_layout()
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
