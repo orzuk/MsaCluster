@@ -85,7 +85,13 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-RCSB_BC_URL_TEMPLATE = "https://cdn.rcsb.org/resources/sequence/clusters/bc-{identity}.out"
+RCSB_CLUSTER_URL_TEMPLATES = [
+    # New (post-2022, MMseqs2-based, entity-level) endpoint
+    "https://cdn.rcsb.org/resources/sequence/clusters/clusters-by-entity-{identity}.txt",
+    # Old (BLAST-based, chain-level) endpoint -- kept as fallback in case the
+    # new endpoint is unavailable for the requested identity level.
+    "https://cdn.rcsb.org/resources/sequence/clusters/bc-{identity}.out",
+]
 RCSB_DATA_ENTRY_URL = "https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
 RCSB_DATA_POLYMER_URL = "https://data.rcsb.org/rest/v1/core/polymer_entity/{pdb_id}/{entity_id}"
 RCSB_DOWNLOAD_URL = "https://files.rcsb.org/download/{pdb_id}.pdb"
@@ -105,37 +111,59 @@ DEFAULT_OUTPUT = ROOT / "data" / "pdb_mining_candidates.csv"
 # ---------------------------------------------------------------------------
 
 def download_cluster_file(identity_pct: int, cache_dir: Path,
-                          force: bool = False) -> Path:
-    """Download the RCSB sequence-cluster file bc-{identity}.out and cache.
+                          force: bool = False) -> Tuple[Path, str]:
+    """Download the RCSB sequence-cluster file and cache.
 
-    Returns local path. Skips download if already cached unless force=True.
+    Tries the new MMseqs2-based endpoint
+    (clusters-by-entity-{identity}.txt; entity-level) first, then falls
+    back to the old BLAST-based endpoint (bc-{identity}.out; chain-level).
+    Returns (local_path, format_tag) where format_tag is 'entity' (new) or
+    'chain' (old).
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
-    fname = f"bc-{identity_pct}.out"
-    local = cache_dir / fname
-    if local.exists() and not force:
-        return local
-    url = RCSB_BC_URL_TEMPLATE.format(identity=identity_pct)
-    print(f"[mine] downloading {url} -> {local}")
-    try:
-        with urllib.request.urlopen(url, timeout=120) as r:
-            data = r.read()
-    except urllib.error.URLError as e:
-        raise RuntimeError(
-            f"Failed to download RCSB cluster file from {url}: {e}. "
-            f"Identity={identity_pct} may not be a supported level (try "
-            f"30, 40, 50, 70, 90, 95, 100)."
-        )
-    local.write_bytes(data)
-    return local
+    # Check for either cached file first
+    new_local = cache_dir / f"clusters-by-entity-{identity_pct}.txt"
+    old_local = cache_dir / f"bc-{identity_pct}.out"
+    if not force:
+        if new_local.exists():
+            return new_local, "entity"
+        if old_local.exists():
+            return old_local, "chain"
+    # Try each URL in turn
+    last_err = None
+    for tmpl in RCSB_CLUSTER_URL_TEMPLATES:
+        url = tmpl.format(identity=identity_pct)
+        is_new_endpoint = "clusters-by-entity" in tmpl
+        local = new_local if is_new_endpoint else old_local
+        print(f"[mine] trying {url}")
+        try:
+            with urllib.request.urlopen(url, timeout=120) as r:
+                data = r.read()
+        except urllib.error.URLError as e:
+            last_err = e
+            print(f"[mine]   -> {e}")
+            continue
+        local.write_bytes(data)
+        fmt = "entity" if is_new_endpoint else "chain"
+        print(f"[mine] downloaded {local} ({len(data) / 1024:.1f} KB, "
+              f"format={fmt})")
+        return local, fmt
+    raise RuntimeError(
+        f"Failed to download RCSB cluster file at identity={identity_pct}; "
+        f"last error: {last_err}. Supported identity levels are usually "
+        f"{{30, 40, 50, 70, 90, 95, 100}} for the new MMseqs2-based "
+        f"endpoint."
+    )
 
 
-def parse_clusters(cluster_file: Path) -> List[List[str]]:
-    """Parse RCSB bc-N.out into list of clusters.
+def parse_clusters(cluster_file: Path, fmt: str) -> List[List[str]]:
+    """Parse RCSB cluster file into list of clusters.
 
-    Each line is one cluster, members space-separated as 'PDBID_CHAIN'
-    (4-character PDB ID + underscore + author chain ID). Returns list of
-    [pdbid_chain, ...].
+    fmt='entity' (new MMseqs2 format): members are 'PDBID_ENTITYID' (e.g.
+    '4HHB_1'). These need a later entity->chain lookup pass before TM-align.
+    fmt='chain' (old BLAST format): members are 'PDBID_CHAINID' (e.g.
+    '4HHB_A'); usable directly for TM-align.
+    Returns list of [member, ...] where member is the raw cluster token.
     """
     out: List[List[str]] = []
     with cluster_file.open() as f:
@@ -144,15 +172,74 @@ def parse_clusters(cluster_file: Path) -> List[List[str]]:
             if not line:
                 continue
             members = line.split()
-            # Normalize: lowercase pdb id, uppercase chain
             normalized = []
             for m in members:
                 if "_" not in m:
                     continue
-                p, c = m.split("_", 1)
-                normalized.append(f"{p.lower()}_{c.upper()}")
+                p, suffix = m.split("_", 1)
+                if fmt == "chain":
+                    # chain ID -- upper-case is the convention
+                    normalized.append(f"{p.lower()}_{suffix.upper()}")
+                else:
+                    # entity ID -- a numeric suffix, leave as-is
+                    normalized.append(f"{p.lower()}_{suffix}")
             if normalized:
                 out.append(normalized)
+    return out
+
+
+def fetch_entity_chain_id(pdb_id: str, entity_id: str,
+                          cache_dir: Path) -> Optional[str]:
+    """For an entity reference (PDBID_ENTITYID), return one representative
+    author chain ID (the first one in the entity's auth_asym_ids list).
+    Cached as {cache_dir}/{pdb_id}_{entity_id}.json.
+
+    Required only for the new entity-level cluster format.
+    """
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"{pdb_id.lower()}_{entity_id}.json"
+    if cache_path.exists():
+        try:
+            j = json.loads(cache_path.read_text())
+            return j.get("chain_id")
+        except Exception:
+            cache_path.unlink(missing_ok=True)
+    j = _http_get_json(RCSB_DATA_POLYMER_URL.format(
+        pdb_id=pdb_id.lower(), entity_id=entity_id))
+    if j is None:
+        cache_path.write_text(json.dumps({"_unavailable": True}))
+        return None
+    container = j.get("rcsb_polymer_entity_container_identifiers", {}) or {}
+    auth_asym_ids = container.get("auth_asym_ids", []) or []
+    chain_id = auth_asym_ids[0] if auth_asym_ids else None
+    cache_path.write_text(json.dumps({"chain_id": chain_id}))
+    return chain_id
+
+
+def entity_clusters_to_chain_clusters(
+    clusters_entity: List[List[str]],
+    cache_dir: Path,
+) -> List[List[str]]:
+    """Convert entity-level cluster members (PDBID_ENTITYID) to chain-level
+    (PDBID_CHAIN) by looking up the first author chain for each entity.
+
+    Clusters that lose >=2 members after the lookup are dropped.
+    """
+    out: List[List[str]] = []
+    n_done = 0
+    n_total = sum(len(c) for c in clusters_entity)
+    for cluster in clusters_entity:
+        chain_members: list[str] = []
+        for entity_ref in cluster:
+            p, e = entity_ref.split("_", 1)
+            chain_id = fetch_entity_chain_id(p, e, cache_dir)
+            if chain_id:
+                chain_members.append(f"{p.lower()}_{chain_id.upper()}")
+            n_done += 1
+            if n_done % 200 == 0:
+                print(f"[mine]   entity->chain lookup {n_done}/{n_total}")
+        if len(chain_members) >= 2:
+            out.append(chain_members)
     return out
 
 
@@ -560,11 +647,11 @@ def main():
     if identity_pct not in (30, 40, 50, 70, 90, 95, 100):
         print(f"WARN: identity={identity_pct} is not a standard RCSB "
               f"clustering level; download may 404.")
-    cluster_file = download_cluster_file(
+    cluster_file, cluster_fmt = download_cluster_file(
         identity_pct, cache_dir,
         force=args.force_cluster_redownload,
     )
-    clusters = parse_clusters(cluster_file)
+    clusters = parse_clusters(cluster_file, fmt=cluster_fmt)
     clusters_multi = [c for c in clusters if len(c) >= 2]
     # Sort by cluster size DESC so test runs hit the most informative clusters
     clusters_multi.sort(key=len, reverse=True)
@@ -574,6 +661,17 @@ def main():
     print(f"[mine] {len(clusters)} total clusters at identity={identity_pct}%; "
           f"{len(clusters_multi)} have >=2 members; processing "
           f"{len(clusters_multi)} after --max-clusters")
+
+    # If the new MMseqs2 endpoint gave us entity-level cluster members,
+    # do the entity->chain lookup pass before metadata filtering.
+    if cluster_fmt == "entity":
+        entity_chain_cache = cache_dir / "entity_chains"
+        print(f"[mine] resolving entity -> chain IDs (caching to "
+              f"{entity_chain_cache})")
+        clusters_multi = entity_clusters_to_chain_clusters(
+            clusters_multi, entity_chain_cache,
+        )
+        print(f"[mine] {len(clusters_multi)} clusters remain after entity->chain")
 
     # --- 2. Metadata filtering ---
     allowed = set(ALLOWED_METHODS)
