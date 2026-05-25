@@ -25,6 +25,7 @@ DEFAULT_PREFERRED_COLS = [
 
 DEFAULT_EXPLANATIONS = {
     "trigger_class": "Auto-classified fold-switching trigger from PDB metadata: ligand / oligomerization / protein_binding / mutation / equilibrium_or_unknown. Source: docs/triggers_from_pdb.csv (scripts/classify_triggers_from_pdb.py).",
+    "SEQ_ID%": "Pairwise sequence identity between the two PDB chains of the pair, computed as best-matching chain-pair local-alignment identity (score over the local alignment divided by the length of the shorter sequence). Robust to terminal truncations. The 'mutation' trigger class is defined as SEQ_ID% < 95%. Source: docs/triggers_from_pdb.csv (scripts/classify_triggers_from_pdb.py).",
     "#RES": "Number of residues in the longer chain of the pair.",
     "MSA: DEPTH; #RES; #Clusters": "DEPTH = number of sequences in DeepMsa.a3m; #RES = alignment width (columns, including gaps); #Clusters = count of ShallowMsa_* a3m files.",
     "PAIR_TM": "TM-score between the two ground-truth folds (max of the two directions).",
@@ -164,34 +165,56 @@ def gen_html_from_summary_table(
                     f"<body><h2>{html.escape(title)}</h2><p>No data available.</p></body></html>")
         return output_html
 
-    # Merge in trigger_class from docs/triggers_from_pdb.csv (auto-classified).
+    # Merge in trigger_class + seq_identity from docs/triggers_from_pdb.csv
+    # (auto-classified by scripts/classify_triggers_from_pdb.py; seq_identity
+    # is the best-matching chain-pair local-alignment identity in [0,1]).
     _trig_csv = os.path.join(os.path.dirname(summary_csv), "triggers_from_pdb.csv")
     if os.path.isfile(_trig_csv):
         try:
-            _trig = pd.read_csv(_trig_csv)[["pair_id", "trigger_class"]].drop_duplicates("pair_id")
+            _trig_raw = pd.read_csv(_trig_csv)
+            _trig_cols = ["pair_id", "trigger_class"]
+            if "seq_identity" in _trig_raw.columns:
+                _trig_cols.append("seq_identity")
+            _trig = _trig_raw[_trig_cols].drop_duplicates("pair_id")
             _id_col = "pair_id" if "pair_id" in df.columns else ("fold_pair" if "fold_pair" in df.columns else df.columns[0])
             if _id_col != "pair_id":
                 df = df.rename(columns={_id_col: "pair_id"})
             df = df.merge(_trig, on="pair_id", how="left")
+            # Format seq_identity as percent for display, e.g. "0.983" -> "98.3%"
+            if "seq_identity" in df.columns:
+                df["SEQ_ID%"] = df["seq_identity"].map(
+                    lambda x: f"{float(x) * 100:.1f}%" if pd.notnull(x) else ""
+                )
+                df = df.drop(columns=["seq_identity"])
         except Exception as e:
-            print(f"[gen_html] WARN: failed to merge trigger_class: {e}")
+            print(f"[gen_html] WARN: failed to merge trigger_class/seq_identity: {e}")
 
 
     # Now also add RMSD for structure
 
 
-    # If SEQ_ID exists, add a formatted column for display (keep raw numeric in df)
-    if "SEQ_ID" in df.columns:
+    # If SEQ_ID exists from another source, add a formatted column for display
+    # (keep raw numeric in df). seq_identity merged from triggers_from_pdb.csv
+    # is already formatted as SEQ_ID% above, so we skip if already present.
+    if "SEQ_ID" in df.columns and "SEQ_ID%" not in df.columns:
         df["SEQ_ID%"] = df["SEQ_ID"].map(lambda x: f"{x:.1f}%" if pd.notnull(x) else "")
 
-    # Column ordering: insert "SEQ_ID%" right after "PAIR_TM"
+    # Column ordering: insert "SEQ_ID%" right after "trigger_class" (it is a
+    # property of the PDB pair, so it lives next to the trigger-class column);
+    # fall back to "PAIR_TM" if trigger_class is not in the frame.
     cols = list(df.columns)
-    if "PAIR_TM" in cols and "SEQ_ID%" in cols:
-        # move "SEQ_ID%" to just after "PAIR_TM"
+    if "SEQ_ID%" in cols:
         cols.remove("SEQ_ID%")
-        tm_pos = cols.index("PAIR_TM")
-        cols.insert(tm_pos + 1, "SEQ_ID%")
-        df = df[cols]
+        if "trigger_class" in cols:
+            anchor = "trigger_class"
+        elif "PAIR_TM" in cols:
+            anchor = "PAIR_TM"
+        else:
+            anchor = None
+        if anchor is not None:
+            pos = cols.index(anchor)
+            cols.insert(pos + 1, "SEQ_ID%")
+            df = df[cols]
 
     # Identify the column that carries cluster count in parentheses
     cluster_col = None
@@ -264,8 +287,16 @@ def gen_html_from_summary_table(
 
 
     # --- Table header (clickable for sorting) ---
+    # Display-name overrides: underlying CSV column names are kept for
+    # backward compatibility, but the header rendered to HTML uses the
+    # Greek symbols for ΔG and ΔΔG so the table matches the paper's
+    # notation. Anywhere "DDG" appears in a CSV column name is rewritten
+    # to "ΔΔG" in the display header.
+    def _display_header(col: str) -> str:
+        return col.replace("DDG", "ΔΔG")
+
     thead = "<tr>" + "".join(
-        f'<th onclick="sortTable({i})">{html.escape(col)}</th>'
+        f'<th onclick="sortTable({i})">{html.escape(_display_header(col))}</th>'
         for i, col in enumerate(df.columns)
     ) + "</tr>"
 
