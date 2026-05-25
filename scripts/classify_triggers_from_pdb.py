@@ -227,6 +227,40 @@ def _best_chain_match(meta1: Dict, meta2: Dict
     return best
 
 
+def _labeled_chain_match(meta1: Dict, meta2: Dict, ch1: str, ch2: str
+                         ) -> Tuple[str, str, str, str, float]:
+    """Return (chain1, seq1, chain2, seq2, identity) using the chain IDs
+    encoded in the pair label (e.g. 'B' in '4cmqB'). The dataset label is
+    the authoritative biological choice — the labeled chain is the
+    fold-switching protein chain that Porter / Chakravarty included in the
+    93-pair list, so enumerating all chains and taking the max would
+    over-estimate identity when, e.g., a hetero-complex partner happens
+    to be a paralog of the fold-switcher.
+
+    Returns identity = -1.0 if either labeled chain ID is missing from
+    the deposited PDB (callers fall back to `_best_chain_match`).
+    """
+    s1 = meta1["chain_seqs"].get(ch1, "")
+    s2 = meta2["chain_seqs"].get(ch2, "")
+    if not s1 or len(s1) < 20 or not s2 or len(s2) < 20:
+        return ("", "", "", "", -1.0)
+    return (ch1, s1, ch2, s2, _seq_identity(s1, s2))
+
+
+def _resolve_chains(meta1: Dict, meta2: Dict, ch1: str, ch2: str
+                    ) -> Tuple[str, str, str, str, float, str]:
+    """Return (chain1, seq1, chain2, seq2, identity, source) where source
+    is 'labeled' if both labeled chain IDs were present in the PDBs, or
+    'best_match' if the classifier fell back to enumerating all chains
+    because a labeled chain was missing.
+    """
+    bc1, s1, bc2, s2, iden = _labeled_chain_match(meta1, meta2, ch1, ch2)
+    if iden >= 0.0:
+        return (bc1, s1, bc2, s2, iden, "labeled")
+    bc1, s1, bc2, s2, iden = _best_chain_match(meta1, meta2)
+    return (bc1, s1, bc2, s2, iden, "best_match")
+
+
 _ALIGNER = None
 
 
@@ -275,20 +309,22 @@ def _seq_identity(a: str, b: str) -> float:
 
 
 def _classify_pair(meta1: Dict, meta2: Dict, chain1: str, chain2: str
-                   ) -> Tuple[str, str]:
-    """Return (trigger_class, evidence_string).
+                   ) -> Tuple[str, str, str]:
+    """Return (trigger_class, evidence_string, chain_source).
 
-    v2: match chains by best-sequence-identity across all chains in both
-    files (not by user-supplied chain IDs, which often don't match the
-    SEQRES chain IDs in the deposited PDBs). Mutation is decided only on
-    over-the-overlap identity; large length_diff alone (terminal
-    truncations between the same protein) no longer triggers mutation.
+    v3: prefer the labeled chain IDs encoded in the pair label (e.g. 'B'
+    in '4cmqB'). The dataset label is the authoritative biological
+    choice; enumerating all chains and taking the max can pick a
+    hetero-complex partner that happens to be a paralog. Falls back to
+    best-match only when a labeled chain ID is literally missing from
+    the deposited PDB.
     """
     lig1 = meta1["all_ligands"]
     lig2 = meta2["all_ligands"]
 
-    # Best-matching chain pair (regardless of user-supplied IDs)
-    bc1, s1, bc2, s2, id_frac = _best_chain_match(meta1, meta2)
+    # Use labeled chains by default; fall back to best-match only if a
+    # labeled chain is missing from the deposited PDB.
+    bc1, s1, bc2, s2, id_frac, chain_source = _resolve_chains(meta1, meta2, chain1, chain2)
     len_diff = abs(len(s1) - len(s2)) if s1 and s2 else 0
 
     # Count DISTINCT chain sequences (homomeric duplicates collapse)
@@ -301,13 +337,14 @@ def _classify_pair(meta1: Dict, meta2: Dict, chain1: str, chain2: str
     n_chains1 = len([c for c, s in meta1["chain_seqs"].items() if s and len(s) >= 20])
     n_chains2 = len([c for c, s in meta2["chain_seqs"].items() if s and len(s) >= 20])
 
-    # 1. MUTATION: best-matching chain pair shows < 95% identity over the
-    #    overlap. This now correctly skips terminal truncations.
+    # 1. MUTATION: chain pair shows < 95% identity over the overlap.
+    #    This correctly skips terminal truncations.
     if s1 and s2 and id_frac < 0.95:
         return ("mutation",
-                f"best chain pair {bc1}/{bc2}: identity={id_frac:.3f} "
+                f"{chain_source} chains {bc1}/{bc2}: identity={id_frac:.3f} "
                 f"over {min(len(s1), len(s2))} residues "
-                f"(length_diff={len_diff})")
+                f"(length_diff={len_diff})",
+                chain_source)
 
     # 2. PROTEIN_BINDING: heteromeric vs homomeric.
     #    One entry has >1 distinct chain sequence (a complex); the other
@@ -316,7 +353,8 @@ def _classify_pair(meta1: Dict, meta2: Dict, chain1: str, chain2: str
         return ("protein_binding",
                 f"pdb1 distinct_chains={n_unique1}; "
                 f"pdb2 distinct_chains={n_unique2} "
-                f"(best-match identity={id_frac:.3f})")
+                f"({chain_source} identity={id_frac:.3f})",
+                chain_source)
 
     # 3. LIGAND: same protein (identity >= 0.95), distinct non-buffer
     #    HETATM sets.
@@ -325,7 +363,8 @@ def _classify_pair(meta1: Dict, meta2: Dict, chain1: str, chain2: str
         if diff:
             return ("ligand",
                     f"ligands_pdb1={sorted(lig1)}; ligands_pdb2={sorted(lig2)}; "
-                    f"diff={sorted(diff)} (identity={id_frac:.3f})")
+                    f"diff={sorted(diff)} (identity={id_frac:.3f})",
+                    chain_source)
 
     # 4. OLIGOMERIZATION: same sequence, same ligands, different total
     #    chain INSTANCE count (monomer vs dimer/trimer/etc.).
@@ -333,12 +372,14 @@ def _classify_pair(meta1: Dict, meta2: Dict, chain1: str, chain2: str
         return ("oligomerization",
                 f"chain instances: pdb1={n_chains1}, pdb2={n_chains2} "
                 f"(distinct seqs n1={n_unique1}, n2={n_unique2}; "
-                f"identity={id_frac:.3f})")
+                f"identity={id_frac:.3f})",
+                chain_source)
 
     return ("equilibrium_or_unknown",
             f"identical sequence over {min(len(s1), len(s2))} residues "
             f"(identity={id_frac:.3f}), same ligands, same chain count "
-            f"(n1={n_chains1}, n2={n_chains2}); paper inspection required")
+            f"(n1={n_chains1}, n2={n_chains2}); paper inspection required",
+            chain_source)
 
 
 def _load_pair_list(path: str) -> List[Tuple[str, str, str, str, str]]:
@@ -385,25 +426,34 @@ def main() -> None:
         p2 = _pdb_path_for(pair_id, f"{pdb2}{ch2}", fetch=args.fetch_rcsb)
         if not p1 or not p2:
             rows.append({
-                "pair_id": pair_id, "pdbid1": pdb1, "chain1": ch1,
-                "pdbid2": pdb2, "chain2": ch2,
+                "pair_id": pair_id, "pdbid1": pdb1, "chain1_requested": ch1,
+                "pdbid2": pdb2, "chain2_requested": ch2,
+                "chain1_used": "", "chain2_used": "",
+                "chain_source": "",
                 "trigger_class": "unresolved_no_pdb",
                 "evidence": f"missing PDB file(s): pdb1={p1}, pdb2={p2}",
                 "ligands_pdb1": "", "ligands_pdb2": "",
                 "n_unique_chains_pdb1": "", "n_unique_chains_pdb2": "",
-                "seq_identity": "", "length_diff": "", "notes": "",
+                "seq_identity": "", "seq_identity_bestmatch": "",
+                "chain1_best_match": "", "chain2_best_match": "",
+                "length_diff": "", "notes": "",
             })
             summary["unresolved_no_pdb"] += 1
             continue
 
         m1 = _parse_pdb(p1, ch1)
         m2 = _parse_pdb(p2, ch2)
-        trig, evid = _classify_pair(m1, m2, ch1, ch2)
-        bc1, s1, bc2, s2, id_frac = _best_chain_match(m1, m2)
+        trig, evid, chain_source = _classify_pair(m1, m2, ch1, ch2)
+        # Chains and identity actually used by the classifier
+        bc1_used, s1_used, bc2_used, s2_used, id_used, _ = _resolve_chains(m1, m2, ch1, ch2)
+        # Audit: best-match identity (may differ from labeled if labeled is
+        # not the chain with maximum identity across chain pairs).
+        bcb1, sb1, bcb2, sb2, id_best = _best_chain_match(m1, m2)
         rows.append({
             "pair_id": pair_id, "pdbid1": pdb1, "chain1_requested": ch1,
             "pdbid2": pdb2, "chain2_requested": ch2,
-            "chain1_best_match": bc1, "chain2_best_match": bc2,
+            "chain1_used": bc1_used, "chain2_used": bc2_used,
+            "chain_source": chain_source,
             "trigger_class": trig,
             "evidence": evid,
             "ligands_pdb1": "|".join(sorted(m1["all_ligands"])),
@@ -412,8 +462,10 @@ def main() -> None:
                                          if s and len(s) >= 20}),
             "n_unique_chains_pdb2": len({s for s in m2["chain_seqs"].values()
                                          if s and len(s) >= 20}),
-            "seq_identity": f"{id_frac:.3f}" if id_frac >= 0 else "",
-            "length_diff": abs(len(s1) - len(s2)) if s1 and s2 else "",
+            "seq_identity": f"{id_used:.3f}" if id_used >= 0 else "",
+            "seq_identity_bestmatch": f"{id_best:.3f}" if id_best >= 0 else "",
+            "chain1_best_match": bcb1, "chain2_best_match": bcb2,
+            "length_diff": abs(len(s1_used) - len(s2_used)) if s1_used and s2_used else "",
             "notes": f"{m1['header']} | {m2['header']}",
         })
         summary[trig] += 1
