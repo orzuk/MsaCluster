@@ -78,19 +78,19 @@ echo
 case "$MODE" in
     test)
         # 100 largest clusters -- 5-15 min, validates pipeline end-to-end
-        python3 scripts/pdb_mine_foldswitch_candidates.py \
+        python3 -u scripts/pdb_mine_foldswitch_candidates.py \
             --max-clusters 100 \
             --workers "${SLURM_CPUS_PER_TASK:-16}" \
             --output data/pdb_mining_candidates_test.csv
         ;;
     full)
         # Full PDB scan at default 95% identity, default thresholds
-        python3 scripts/pdb_mine_foldswitch_candidates.py \
+        python3 -u scripts/pdb_mine_foldswitch_candidates.py \
             --workers "${SLURM_CPUS_PER_TASK:-16}"
         ;;
     strict)
         # Strict: 99% identity, no SS filter (compare TM-only vs Porter SS)
-        python3 scripts/pdb_mine_foldswitch_candidates.py \
+        python3 -u scripts/pdb_mine_foldswitch_candidates.py \
             --min-seq-identity 0.99 \
             --min-ss-switch-fraction 0.0 \
             --workers "${SLURM_CPUS_PER_TASK:-16}" \
@@ -98,13 +98,13 @@ case "$MODE" in
         ;;
     resume)
         # Pick up after an interrupted full run
-        python3 scripts/pdb_mine_foldswitch_candidates.py \
+        python3 -u scripts/pdb_mine_foldswitch_candidates.py \
             --workers "${SLURM_CPUS_PER_TASK:-16}" \
             --resume
         ;;
     custom)
         shift  # drop the "custom" arg, pass the rest through
-        python3 scripts/pdb_mine_foldswitch_candidates.py \
+        python3 -u scripts/pdb_mine_foldswitch_candidates.py \
             --workers "${SLURM_CPUS_PER_TASK:-16}" \
             "$@"
         ;;

@@ -219,25 +219,64 @@ def fetch_entity_chain_id(pdb_id: str, entity_id: str,
 def entity_clusters_to_chain_clusters(
     clusters_entity: List[List[str]],
     cache_dir: Path,
+    max_per_cluster: int = 20,
+    n_threads: int = 16,
+    seed: int = 42,
 ) -> List[List[str]]:
     """Convert entity-level cluster members (PDBID_ENTITYID) to chain-level
     (PDBID_CHAIN) by looking up the first author chain for each entity.
 
+    Subsamples each cluster to at most max_per_cluster members BEFORE the
+    lookup (which is the same cap we apply during TM-align, so doing the
+    full lookup would just waste API calls on members we'll never use).
+    HTTP lookups run in a ThreadPoolExecutor with n_threads workers --
+    each call is short and network-bound, so threading scales well.
     Clusters that lose >=2 members after the lookup are dropped.
     """
-    out: List[List[str]] = []
-    n_done = 0
-    n_total = sum(len(c) for c in clusters_entity)
+    from concurrent.futures import ThreadPoolExecutor
+
+    rng = random.Random(seed)
+    # Subsample first
+    sampled = []
     for cluster in clusters_entity:
-        chain_members: list[str] = []
-        for entity_ref in cluster:
-            p, e = entity_ref.split("_", 1)
-            chain_id = fetch_entity_chain_id(p, e, cache_dir)
-            if chain_id:
-                chain_members.append(f"{p.lower()}_{chain_id.upper()}")
+        if len(cluster) > max_per_cluster:
+            sampled.append(rng.sample(cluster, max_per_cluster))
+        else:
+            sampled.append(list(cluster))
+
+    # Build the flat list of unique (pdb_id, entity_id) lookups to run
+    unique_entities = sorted({
+        e for cl in sampled for e in cl
+    })
+    n_total = len(unique_entities)
+    print(f"[mine]   {n_total} unique entities to resolve "
+          f"(across {len(sampled)} clusters, capped at "
+          f"max_per_cluster={max_per_cluster})", flush=True)
+
+    chain_lookup: Dict[str, Optional[str]] = {}
+
+    def _lookup_one(entity_ref: str) -> Tuple[str, Optional[str]]:
+        p, e = entity_ref.split("_", 1)
+        return entity_ref, fetch_entity_chain_id(p, e, cache_dir)
+
+    n_done = 0
+    with ThreadPoolExecutor(max_workers=n_threads) as ex:
+        for entity_ref, chain_id in ex.map(_lookup_one, unique_entities):
+            chain_lookup[entity_ref] = chain_id
             n_done += 1
-            if n_done % 200 == 0:
-                print(f"[mine]   entity->chain lookup {n_done}/{n_total}")
+            if n_done % 200 == 0 or n_done == n_total:
+                print(f"[mine]   entity->chain lookup {n_done}/{n_total}",
+                      flush=True)
+
+    # Build final chain-level clusters
+    out: List[List[str]] = []
+    for cluster in sampled:
+        chain_members = []
+        for entity_ref in cluster:
+            chain_id = chain_lookup.get(entity_ref)
+            if chain_id:
+                p, _ = entity_ref.split("_", 1)
+                chain_members.append(f"{p.lower()}_{chain_id.upper()}")
         if len(chain_members) >= 2:
             out.append(chain_members)
     return out
@@ -663,15 +702,21 @@ def main():
           f"{len(clusters_multi)} after --max-clusters")
 
     # If the new MMseqs2 endpoint gave us entity-level cluster members,
-    # do the entity->chain lookup pass before metadata filtering.
+    # do the entity->chain lookup pass before metadata filtering. We
+    # subsample to max_chains_per_cluster here (the same cap as TM-align)
+    # so we don't waste API calls on members we'd never align.
     if cluster_fmt == "entity":
         entity_chain_cache = cache_dir / "entity_chains"
         print(f"[mine] resolving entity -> chain IDs (caching to "
-              f"{entity_chain_cache})")
+              f"{entity_chain_cache})", flush=True)
         clusters_multi = entity_clusters_to_chain_clusters(
             clusters_multi, entity_chain_cache,
+            max_per_cluster=args.max_chains_per_cluster,
+            n_threads=max(args.workers, 8),
+            seed=args.seed,
         )
-        print(f"[mine] {len(clusters_multi)} clusters remain after entity->chain")
+        print(f"[mine] {len(clusters_multi)} clusters remain after "
+              f"entity->chain", flush=True)
 
     # --- 2. Metadata filtering ---
     allowed = set(ALLOWED_METHODS)
@@ -681,17 +726,36 @@ def main():
     print(f"[mine] filtering by metadata: methods={sorted(allowed)}, "
           f"resolution<={args.max_resolution}, "
           f"length in [{args.min_length}, {args.max_length}]")
+    # Prefetch metadata for all PDB IDs in parallel before the filter pass
+    # (each entry call is cheap and cacheable; threading is the right
+    # parallelism here since the calls are network-I/O-bound).
+    from concurrent.futures import ThreadPoolExecutor
+    unique_pdbs = sorted({m.split("_", 1)[0] for cl in clusters_multi
+                          for m in cl})
+    print(f"[mine] prefetching metadata for {len(unique_pdbs)} unique PDB "
+          f"entries (threaded)", flush=True)
+    n_done = 0
+    with ThreadPoolExecutor(max_workers=max(args.workers, 8)) as ex:
+        for _ in ex.map(lambda pid: fetch_entry_metadata(pid, metadata_cache),
+                        unique_pdbs):
+            n_done += 1
+            if n_done % 500 == 0 or n_done == len(unique_pdbs):
+                print(f"[mine]   metadata prefetch {n_done}/{len(unique_pdbs)}",
+                      flush=True)
+
     filtered_clusters = []
     for i, cl in enumerate(clusters_multi):
         if i % 100 == 0 and i > 0:
-            print(f"[mine]   metadata-filter cluster {i}/{len(clusters_multi)}")
+            print(f"[mine]   metadata-filter cluster {i}/{len(clusters_multi)}",
+                  flush=True)
         kept = filter_cluster_members_by_metadata(
             cl, metadata_cache, allowed,
             args.max_resolution, args.min_length, args.max_length,
         )
         if len(kept) >= 2:
             filtered_clusters.append(kept)
-    print(f"[mine] {len(filtered_clusters)} clusters pass metadata filter")
+    print(f"[mine] {len(filtered_clusters)} clusters pass metadata filter",
+          flush=True)
 
     # --- 3. Optional resume ---
     seen_pair_ids: set[str] = set()
@@ -738,7 +802,7 @@ def main():
             n_clusters_done += 1
             if n_clusters_done % 10 == 0:
                 print(f"[mine]   processed {n_clusters_done}/{len(work)} clusters; "
-                      f"{len(candidates)} candidates so far")
+                      f"{len(candidates)} candidates so far", flush=True)
             if len(candidates) % args.checkpoint_every == 0 and candidates:
                 pd.DataFrame(candidates).to_csv(output_path, index=False)
     else:
