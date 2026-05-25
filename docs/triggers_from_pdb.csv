@@ -1,94 +1,94 @@
-pair_id,pdbid1,chain1_requested,pdbid2,chain2_requested,chain1_best_match,chain2_best_match,trigger_class,evidence,ligands_pdb1,ligands_pdb2,n_unique_chains_pdb1,n_unique_chains_pdb2,seq_identity,length_diff,notes
-1dzlA_5keqF,1dzl,A,5keq,F,A,A,oligomerization,"chain instances: pdb1=1, pdb2=6 (distinct seqs n1=1, n2=1; identity=0.983)",,,1,1,0.983,22,VIRUS | VIRUS LIKE PARTICLE
-1eboE_5fhcJ,1ebo,E,5fhc,J,A,J,mutation,best chain pair A/J: identity=0.469 over 98 residues (length_diff=33),,,1,6,0.469,33,VIRAL PROTEIN | VIRAL PROTEIN/IMMUNE SYSTEM
-1fzpD_2frhA,1fzp,D,2frh,A,D,A,equilibrium_or_unknown,"identical sequence over 123 residues (identity=1.000), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,1.000,4,TRANSCRIPTION/DNA | TRANSCRIPTION
-1iytA_2naoF,1iyt,A,2nao,F,A,A,oligomerization,"chain instances: pdb1=1, pdb2=6 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,0,PROTEIN BINDING | PROTEIN FIBRIL
-1jfkA_2nxqB,1jfk,A,2nxq,B,A,A,oligomerization,"chain instances: pdb1=1, pdb2=2 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,0,METAL BINDING PROTEIN | METAL BINDING PROTEIN
-1rk4B_1k0nA,1rk4,B,1k0n,A,A,A,ligand,ligands_pdb1=[]; ligands_pdb2=['GSH']; diff=['GSH'] (identity=0.983),,GSH,1,1,0.983,2,ION TRANSPORT/MEMBRANE PROTEIN | METAL TRANSPORT
-1kctA_3t1pA,1kct,A,3t1p,A,A,A,equilibrium_or_unknown,"identical sequence over 371 residues (identity=0.962), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,0.962,23,SERINE PROTEASE INHIBITOR | HYDROLASE INHIBITOR
-1miqB_1qs8B,1miq,B,1qs8,B,A,A,ligand,"ligands_pdb1=[]; ligands_pdb2=['IVA', 'STA']; diff=['IVA', 'STA'] (identity=0.994)",,IVA|STA,1,1,0.994,46,HYDROLASE | HYDROLASE/HYDROLASE INHIBITOR
-1mnmD_1mnmC,1mnm,D,1mnm,C,E,E,equilibrium_or_unknown,"identical sequence over 26 residues (identity=1.000), same ligands, same chain count (n1=6, n2=6); paper inspection required",,,3,3,1.000,0,TRANSCRIPTION/DNA | TRANSCRIPTION/DNA
-1nocA_1qomB,1noc,A,1qom,B,A,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=1.000),HEM|IMD,H4B|HEM,2,1,1.000,52,COMPLEX (OXIDOREDUCTASE/TRANSFERASE) | OXIDOREDUCTASE
-1nqjB_1nqdA,1nqj,B,1nqd,A,A,A,equilibrium_or_unknown,"identical sequence over 119 residues (identity=0.983), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,0.983,3,HYDROLASE | HYDROLASE
-1nrjB_2gedB,1nrj,B,2ged,B,B,A,mutation,best chain pair B/A: identity=0.767 over 193 residues (length_diff=25),GTP,,2,1,0.767,25,"PROTEIN TRANSPORT | PROTEIN TRANSPORT, SIGNALING PROTEIN"
-1qb3A_3qy2A,1qb3,A,3qy2,A,A,A,ligand,ligands_pdb1=[]; ligands_pdb2=['FLC']; diff=['FLC'] (identity=0.983),,FLC,1,1,0.983,33,CELL CYCLE | TRANSFERASE REGULATOR
-1qlnA_1h38D,1qln,A,1h38,D,A,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=1.000),GTP,,2,1,1.000,0,NUCLEOTIDYLTRANSFERASE | TRANSFERASE
-2z9oB_1repC,2z9o,B,1rep,C,C,A,oligomerization,"chain instances: pdb1=4, pdb2=3 (distinct seqs n1=2, n2=2; identity=1.000)",,,2,2,1.000,11,REPLICATION/DNA | REPLICATION/DNA
-1svfC_4wsgC,1svf,C,4wsg,C,A,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=0.984),,NAG,2,1,0.984,433,VIRAL PROTEIN | VIRAL PROTEIN
-2namA_1uxmK,2nam,A,1uxm,K,A,A,oligomerization,"chain instances: pdb1=1, pdb2=12 (distinct seqs n1=1, n2=1; identity=0.987)",,,1,1,0.987,8,METAL BINDING PROTEIN | OXIDOREDUCTASE
-1wp8C_5ejbC,1wp8,C,5ejb,C,A,B,mutation,best chain pair A/B: identity=0.472 over 89 residues (length_diff=412),,NAG,1,1,0.472,412,VIRAL PROTEIN | VIRAL PROTEIN
-1x0gD_1x0gA,1x0g,D,1x0g,A,A,A,equilibrium_or_unknown,"identical sequence over 112 residues (identity=1.000), same ligands, same chain count (n1=4, n2=4); paper inspection required",FES,FES,1,1,1.000,0,METAL BINDING PROTEIN | METAL BINDING PROTEIN
-1xjuB_1xjtA,1xju,B,1xjt,A,A,A,ligand,"ligands_pdb1=[]; ligands_pdb2=['CIT', 'MSE']; diff=['CIT', 'MSE'] (identity=1.000)",,CIT|MSE,1,1,1.000,28,HYDROLASE | HYDROLASE
-3lqcA_1xntA,3lqc,A,1xnt,A,A,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=0.989),,,2,1,0.989,6,DNA BINDING PROTEIN | DNA BINDING PROTEIN
-3l5nB_2a73B,3l5n,B,2a73,B,B,B,ligand,"ligands_pdb1=['MAN', 'NAG']; ligands_pdb2=['BMA', 'MAN', 'NAG']; diff=['BMA'] (identity=1.000)",MAN|NAG,BMA|MAN|NAG,3,2,1.000,76,IMMUNE SYSTEM | IMMUNE SYSTEM
-2bzyB_2lqwA,2bzy,B,2lqw,A,A,A,ligand,ligands_pdb1=[]; ligands_pdb2=['PTR']; diff=['PTR'] (identity=1.000),,PTR,1,1,1.000,236,SH3 DOMAIN | SIGNALING PROTEIN
-2c1vB_2c1uC,2c1v,B,2c1u,C,A,A,oligomerization,"chain instances: pdb1=2, pdb2=4 (distinct seqs n1=1, n2=1; identity=1.000)",HEC,HEC,1,1,1.000,0,OXIDOREDUCTASE | OXIDOREDUCTASE
-2grmB_2axzA,2grm,B,2axz,A,A,A,ligand,ligands_pdb1=[]; ligands_pdb2=['MSE']; diff=['MSE'] (identity=0.994),,MSE,1,1,0.994,0,TRANSCRIPTION | TRANSCRIPTION
-2h44A_1rkpA,2h44,A,1rkp,A,A,A,ligand,"ligands_pdb1=['7CA']; ligands_pdb2=['IBM']; diff=['7CA', 'IBM'] (identity=0.994)",7CA,IBM,1,1,0.994,0,HYDROLASE | HYDROLASE
-2n54B_2hdmA,2n54,B,2hdm,A,A,A,mutation,best chain pair A/A: identity=0.913 over 92 residues (length_diff=1),,,1,1,0.913,1,CYTOKINE | CYTOKINE
-2jmrA_4j3oF,2jmr,A,4j3o,F,A,F,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=5 (best-match identity=1.000),,,1,5,1.000,25,CELL ADHESION | CELL ADHESION/CHAPERONE/MEMBRANE PROTEIN
-2k42A_1ceeB,2k42,A,1cee,B,A,B,mutation,best chain pair A/B: identity=0.797 over 59 residues (length_diff=13),,GCP,2,2,0.797,13,SIGNALING PROTEIN | STRUCTURAL PROTEIN REGULATION
-2kb8A_6vw2A,2kb8,A,6vw2,A,A,A,oligomerization,"chain instances: pdb1=1, pdb2=10 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,118,HORMONE | PROTEIN FIBRIL
-2kkwA_2n0aD,2kkw,A,2n0a,D,A,A,oligomerization,"chain instances: pdb1=1, pdb2=10 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,0,LIPID BINDING PROTEIN | STRUCTURAL PROTEIN
-3r9jC_2kxoA,3r9j,C,2kxo,A,C,A,mutation,best chain pair C/A: identity=0.091 over 77 residues (length_diff=18),ADP,,2,1,0.091,18,"CELL CYCLE,HYDROLASE/CELL CYCLE | CELL CYCLE"
-2lelA_2k0qA,2lel,A,2k0q,A,A,A,ligand,ligands_pdb1=['CU1']; ligands_pdb2=[]; diff=['CU1'] (identity=1.000),CU1,,1,1,1.000,0,METAL BINDING PROTEIN | METAL BINDING PROTEIN
-2lepA_4hddA,2lep,A,4hdd,A,A,A,mutation,best chain pair A/A: identity=0.870 over 69 residues (length_diff=10),,MSE,1,1,0.870,10,HYDROLASE | HYDROLASE
-2lv1A_6lniA,2lv1,A,6lni,A,A,A,oligomerization,"chain instances: pdb1=1, pdb2=10 (distinct seqs n1=1, n2=1; identity=0.952)",,,1,1,0.952,63,MEMBRANE PROTEIN | PROTEIN FIBRIL
-2mwfA_2nntA,2mwf,A,2nnt,A,A,A,mutation,best chain pair A/A: identity=0.875 over 32 residues (length_diff=8),,,1,1,0.875,8,TRANSCRIPTION | PROTEIN FIBRIL
-6c6sD_2ougC,6c6s,D,2oug,C,D,A,protein_binding,pdb1 distinct_chains=7; pdb2 distinct_chains=1 (best-match identity=1.000),,,7,1,1.000,0,TRANSCRIPTION/DNA/RNA | TRANSCRIPTION
-2p3vD_2p3vA,2p3v,D,2p3v,A,A,A,equilibrium_or_unknown,"identical sequence over 256 residues (identity=1.000), same ligands, same chain count (n1=4, n2=4); paper inspection required",SRT,SRT,1,1,1.000,0,HYDROLASE | HYDROLASE
-2pbkB_3njqA,2pbk,B,3njq,A,A,A,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (best-match identity=0.990),ACE|GG7|TBG,CSO|NJQ,1,2,0.990,35,HYDROLASE/HYDROLASE INHIBITOR | VIRAL PROTEIN/INHIBITOR
-2qqjA_4qdsA,2qqj,A,4qds,A,A,A,oligomerization,"chain instances: pdb1=1, pdb2=2 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,138,SIGNALING PROTEIN | CELL ADHESION
-2vfxL_3gmhL,2vfx,L,3gmh,L,A,A,mutation,best chain pair A/A: identity=0.917 over 206 residues (length_diff=1),PE3,,1,1,0.917,1,CELL CYCLE | CELL CYCLE
-3m7pA_3ejhA,3m7p,A,3ejh,A,A,A,mutation,best chain pair A/A: identity=0.914 over 93 residues (length_diff=215),12P|NAG,HYP|NAG,1,2,0.914,215,CELL ADHESION | CELL ADHESION
-3g0hA_3ewsB,3g0h,A,3ews,B,A,A,ligand,"ligands_pdb1=['ANP']; ligands_pdb2=['ADP']; diff=['ADP', 'ANP'] (identity=1.000)",ANP,ADP,1,1,1.000,21,HYDROLASE/RNA | HYDROLASE
-3hdfA_3hdeA,3hdf,A,3hde,A,A,A,oligomerization,"chain instances: pdb1=2, pdb2=4 (distinct seqs n1=1, n2=1; identity=0.993)",,,1,1,0.993,25,HYDROLASE | HYDROLASE
-5et5A_3ifaA,5et5,A,3ifa,A,A,A,ligand,ligands_pdb1=[]; ligands_pdb2=['AMP']; diff=['AMP'] (identity=0.994),,AMP,1,1,0.994,0,HYDROLASE | HYDROLASE
-3j7vG_3j7wB,3j7v,G,3j7w,B,A,A,equilibrium_or_unknown,"identical sequence over 345 residues (identity=1.000), same ligands, same chain count (n1=7, n2=7); paper inspection required",,,1,1,1.000,0,VIRUS | VIRUS
-1xtgB_3j97M,1xtg,B,3j97,M,B,M,oligomerization,"chain instances: pdb1=2, pdb2=13 (distinct seqs n1=2, n2=5; identity=1.000)",,,2,5,1.000,139,TOXIN | HYDROLASE
-1zk9A_3jv6A,1zk9,A,3jv6,A,A,A,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (best-match identity=1.000),,,1,2,1.000,9,TRANSCRIPTION | TRANSCRIPTION
-3kdsG_2ce7C,3kds,G,2ce7,C,E,A,ligand,"ligands_pdb1=['NHX']; ligands_pdb2=['ADP']; diff=['ADP', 'NHX'] (identity=0.996)",NHX,ADP,1,1,0.996,11,METAL BINDING PROTEIN | CELL DIVISION PROTEIN
-5c3iF_3kuyA,5c3i,F,3kuy,A,C,B,ligand,ligands_pdb1=[]; ligands_pdb2=['ATV']; diff=['ATV'] (identity=1.000),,ATV,4,5,1.000,1,REPLICATION | STRUCTURAL PROTEIN/DNA
-3l9qB_4rr2D,3l9q,B,4rr2,D,A,B,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (best-match identity=0.990),SF4,SF4,1,2,0.990,314,TRANSFERASE | TRANSFERASE
-3lowA_3m1bF,3low,A,3m1b,F,A,B,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (best-match identity=1.000),,LE1|MLE|SAR,1,2,1.000,1,PROTEIN FIBRIL | IMMUNE SYSTEM/INHIBITOR
-3meeA_4b3oB,3mee,A,4b3o,B,B,A,ligand,"ligands_pdb1=['T27']; ligands_pdb2=['3DR', 'EFZ']; diff=['3DR', 'EFZ', 'T27'] (identity=0.986)",T27,3DR|EFZ,2,4,0.986,120,TRANSFERASE | HYDROLASE/DNA/RNA
-1xezA_3o44A,1xez,A,3o44,A,A,A,ligand,ligands_pdb1=['BOG']; ligands_pdb2=[]; diff=['BOG'] (identity=1.000),BOG,,1,1,1.000,128,TOXIN | TOXIN
-3t5oA_4a5wB,3t5o,A,4a5w,B,A,B,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (best-match identity=1.000),BGC|CD|FUC|FUL|MAN|NAG,FUC|MAN|NAG,1,2,1.000,0,IMMUNE SYSTEM | IMMUNE SYSTEM
-5lj3M_3tp2A,5lj3,M,3tp2,A,M,A,protein_binding,pdb1 distinct_chains=30; pdb2 distinct_chains=1 (best-match identity=0.983),GTP,,30,1,0.983,110,SPLICING | SPLICING
-3v0tA_3uyiA,3v0t,A,3uyi,A,A,A,ligand,"ligands_pdb1=['ATR']; ligands_pdb2=['MLZ']; diff=['ATR', 'MLZ'] (identity=0.985)",ATR,MLZ,1,1,0.985,0,OXIDOREDUCTASE | OXIDOREDUCTASE
-4tsyD_3zwgN,4tsy,D,3zwg,N,A,A,ligand,"ligands_pdb1=['HTO', 'HXJ']; ligands_pdb2=[]; diff=['HTO', 'HXJ'] (identity=1.000)",HTO|HXJ,,1,1,1.000,0,TOXIN | TOXIN
-3zxgB_5ec5P,3zxg,B,5ec5,P,A,A,ligand,"ligands_pdb1=['0SM']; ligands_pdb2=['HG', 'MBO']; diff=['0SM', 'HG', 'MBO'] (identity=0.960)",0SM,HG|MBO,1,1,0.960,11,TOXIN | TOXIN
-4aalA_4aanA,4aal,A,4aan,A,A,A,ligand,"ligands_pdb1=['EOH', 'HEC']; ligands_pdb2=['BU3', 'HEC']; diff=['BU3', 'EOH'] (identity=1.000)",EOH|HEC,BU3|HEC,1,1,1.000,0,OXIDOREDUCTASE | OXIDOREDUCTASE
-4dxrA_4dxtA,4dxr,A,4dxt,A,A,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=0.990),DMU,,2,1,0.990,4,STRUCTURAL PROTEIN | STRUCTURAL PROTEIN
-4g0dZ_4fu4C,4g0d,Z,4fu4,C,A,A,ligand,ligands_pdb1=['PGO']; ligands_pdb2=[]; diff=['PGO'] (identity=1.000),PGO,,2,2,1.000,0,HYDROLASE | HYDROLASE
-4gqcB_4gqcC,4gqc,B,4gqc,C,A,A,equilibrium_or_unknown,"identical sequence over 164 residues (identity=1.000), same ligands, same chain count (n1=4, n2=4); paper inspection required",DTD,DTD,1,1,1.000,0,OXIDOREDUCTASE | OXIDOREDUCTASE
-4h2aA_3j9cA,4h2a,A,3j9c,A,A,A,equilibrium_or_unknown,"identical sequence over 562 residues (identity=1.000), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,1.000,173,"TOXIN | TOXIN, TRANSPORT PROTEIN"
-4cmqB_4zt0C,4cmq,B,4zt0,C,A,A,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (best-match identity=0.999),,MSE,1,2,0.999,3,HYDROLASE | HYDROLASE/RNA
-5hk5H_4jphB,5hk5,H,4jph,B,E,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=1.000),,CIT|GSH,2,1,1.000,1,CYTOKINE | CYTOKINE
-4n9wA_4nc9C,4n9w,A,4nc9,C,A,A,ligand,ligands_pdb1=['GDP']; ligands_pdb2=[]; diff=['GDP'] (identity=1.000),GDP,,1,1,1.000,0,TRANSFERASE | TRANSFERASE
-4o01D_4o0pA,4o01,D,4o0p,A,A,A,oligomerization,"chain instances: pdb1=4, pdb2=2 (distinct seqs n1=1, n2=1; identity=1.000)",LBV,LBV,1,1,1.000,0,TRANSFERASE | TRANSFERASE
-4ow6B_4ae0A,4ow6,B,4ae0,A,A,A,oligomerization,"chain instances: pdb1=2, pdb2=1 (distinct seqs n1=1, n2=1; identity=0.996)",,,1,1,0.996,0,"TOXIN, TRANSFERASE | TOXIN"
-2wcdX_4phqA,2wcd,X,4phq,A,A,A,ligand,ligands_pdb1=['EMC']; ligands_pdb2=[]; diff=['EMC'] (identity=0.977),EMC,,1,1,0.977,11,TOXIN | TOXIN
-4pyjA_4pyiA,4pyj,A,4pyi,A,A,A,equilibrium_or_unknown,"identical sequence over 221 residues (identity=1.000), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,1.000,0,TRANSFERASE | TRANSFERASE
-4qhhA_4qhfA,4qhh,A,4qhf,A,A,A,equilibrium_or_unknown,"identical sequence over 110 residues (identity=1.000), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,1.000,0,HYDROLASE | HYDROLASE
-4rmbB_4rmbA,4rmb,B,4rmb,A,A,A,equilibrium_or_unknown,"identical sequence over 166 residues (identity=1.000), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,1.000,0,CELL ADHESION | CELL ADHESION
-4rwqB_4rwnA,4rwq,B,4rwn,A,A,A,ligand,ligands_pdb1=[]; ligands_pdb2=['APC']; diff=['APC'] (identity=1.000),,APC,1,1,1.000,0,TRANSFERASE | TRANSFERASE/RNA
-4q79F_4uv2D,4q79,F,4uv2,D,D,A,ligand,"ligands_pdb1=['HG']; ligands_pdb2=['MSE']; diff=['HG', 'MSE'] (identity=0.996)",HG,MSE,1,1,0.996,15,MEMBRANE PROTEIN | TRANSPORT PROTEIN
-4xwsD_4y0mJ,4xws,D,4y0m,J,A,A,ligand,ligands_pdb1=[]; ligands_pdb2=['MSE']; diff=['MSE'] (identity=0.991),,MSE,1,1,0.991,0,DNA BINDING PROTEIN | DNA BINDING PROTEIN
-4ydqB_4twaA,4ydq,B,4twa,A,A,A,ligand,"ligands_pdb1=['ANP', 'HFG']; ligands_pdb2=[]; diff=['ANP', 'HFG'] (identity=1.000)",ANP|HFG,,1,1,1.000,0,LIGASE | LIGASE
-4yhdG_7ahlE,4yhd,G,7ahl,E,A,A,oligomerization,"chain instances: pdb1=6, pdb2=7 (distinct seqs n1=1, n2=1; identity=0.986)",,,1,1,0.986,9,TOXIN | CYTOLYTIC PROTEIN
-4zrbH_4zrbC,4zrb,H,4zrb,C,A,A,equilibrium_or_unknown,"identical sequence over 137 residues (identity=1.000), same ligands, same chain count (n1=8, n2=8); paper inspection required",COA,COA,1,1,1.000,0,HYDROLASE | HYDROLASE
-3mkoA_5ineA,3mko,A,5ine,A,A,A,mutation,best chain pair A/A: identity=0.912 over 137 residues (length_diff=301),IUM,BMA|MAN|NAG,1,1,0.912,301,VIRAL PROTEIN | VIRAL PROTEIN
-5ly6B_5aoeB,5ly6,B,5aoe,B,B,A,oligomerization,"chain instances: pdb1=1, pdb2=2 (distinct seqs n1=1, n2=1; identity=0.966)",,,1,1,0.966,17,TOXIN | TOXIN
-5bmyA_5b3zA,5bmy,A,5b3z,A,A,A,oligomerization,"chain instances: pdb1=1, pdb2=4 (distinct seqs n1=1, n2=1; identity=0.964)",GLC,GLC,1,1,0.964,14,"SUGAR BINDING PROTEIN | ISOMERASE,SUGAR BINDING PROTEIN"
-5c1vB_5c1vA,5c1v,B,5c1v,A,A,A,equilibrium_or_unknown,"identical sequence over 346 residues (identity=1.000), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,1.000,0,HYDROLASE | HYDROLASE
-3ztjE_5hmgA,3ztj,E,5hmg,A,A,A,ligand,"ligands_pdb1=['BMA', 'NAG']; ligands_pdb2=['MAN', 'NAG', 'SIA']; diff=['BMA', 'MAN', 'SIA'] (identity=1.000)",BMA|NAG,MAN|NAG|SIA,4,2,1.000,1,IMMUNE SYSTEM/VIRAL PROTEIN | VIRAL PROTEIN
-5f5rB_5f3kA,5f5r,B,5f3k,A,A,A,ligand,ligands_pdb1=['ANP']; ligands_pdb2=[]; diff=['ANP'] (identity=1.000),ANP,,1,1,1.000,0,CHAPERONE | CHAPERONE
-2uy7D_5fluE,2uy7,D,5flu,E,B,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=0.988),,,2,1,0.988,0,CHAPERONE | STRUCTURAL PROTEIN
-5i2sA_5i2mA,5i2s,A,5i2m,A,A,A,ligand,"ligands_pdb1=['NAG', 'YB']; ligands_pdb2=[]; diff=['NAG', 'YB'] (identity=1.000)",NAG|YB,,1,1,1.000,0,VIRAL PROTEIN | MEMBRANE PROTEIN
-5jytA_2qkeE,5jyt,A,2qke,E,A,A,mutation,best chain pair A/A: identity=0.840 over 106 residues (length_diff=2),,,1,1,0.840,2,SIGALING PROTEIN | CIRCADIAN CLOCK PROTEIN
-5jztG_5jzhA,5jzt,G,5jzh,A,A,A,oligomerization,"chain instances: pdb1=7, pdb2=14 (distinct seqs n1=1, n2=1; identity=0.995)",,,1,1,0.995,0,TOXIN | TOXIN
-5l35G_5l35D,5l35,G,5l35,D,A,A,equilibrium_or_unknown,"identical sequence over 422 residues (identity=1.000), same ligands, same chain count (n1=7, n2=7); paper inspection required",,,1,1,1.000,0,VIRUS | VIRUS
-5wrgC_1wyyB,5wrg,C,1wyy,B,A,A,mutation,best chain pair A/A: identity=0.651 over 149 residues (length_diff=1054),,,1,1,0.651,1054,VIRUS LIKE PARTICLE | VIRAL PROTEIN
-5tpnA_1g2cF,5tpn,A,1g2c,F,A,A,oligomerization,"chain instances: pdb1=3, pdb2=24 (distinct seqs n1=3, n2=2; identity=1.000)",,,3,2,1.000,458,IMMUNE SYSTEM | VIRAL PROTEIN
-7kdtB_6z4uA,7kdt,B,6z4u,A,B,A,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (best-match identity=1.000),,15P,2,1,1.000,0,VIRAL PROTEIN | VIRAL PROTEIN
+pair_id,pdbid1,chain1_requested,pdbid2,chain2_requested,chain1_used,chain2_used,chain_source,trigger_class,evidence,ligands_pdb1,ligands_pdb2,n_unique_chains_pdb1,n_unique_chains_pdb2,seq_identity,seq_identity_bestmatch,chain1_best_match,chain2_best_match,length_diff,notes
+1dzlA_5keqF,1dzl,A,5keq,F,A,F,labeled,oligomerization,"chain instances: pdb1=1, pdb2=6 (distinct seqs n1=1, n2=1; identity=0.983)",,,1,1,0.983,0.983,A,A,22,VIRUS | VIRUS LIKE PARTICLE
+1eboE_5fhcJ,1ebo,E,5fhc,J,E,J,labeled,mutation,labeled chains E/J: identity=0.469 over 98 residues (length_diff=33),,,1,6,0.469,0.469,A,J,33,VIRAL PROTEIN | VIRAL PROTEIN/IMMUNE SYSTEM
+1fzpD_2frhA,1fzp,D,2frh,A,D,A,labeled,equilibrium_or_unknown,"identical sequence over 123 residues (identity=1.000), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,1.000,1.000,D,A,4,TRANSCRIPTION/DNA | TRANSCRIPTION
+1iytA_2naoF,1iyt,A,2nao,F,A,F,labeled,oligomerization,"chain instances: pdb1=1, pdb2=6 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,1.000,A,A,0,PROTEIN BINDING | PROTEIN FIBRIL
+1jfkA_2nxqB,1jfk,A,2nxq,B,A,B,labeled,oligomerization,"chain instances: pdb1=1, pdb2=2 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,1.000,A,A,0,METAL BINDING PROTEIN | METAL BINDING PROTEIN
+1rk4B_1k0nA,1rk4,B,1k0n,A,B,A,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['GSH']; diff=['GSH'] (identity=0.983),,GSH,1,1,0.983,0.983,A,A,2,ION TRANSPORT/MEMBRANE PROTEIN | METAL TRANSPORT
+1kctA_3t1pA,1kct,A,3t1p,A,A,A,labeled,equilibrium_or_unknown,"identical sequence over 371 residues (identity=0.962), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,0.962,0.962,A,A,23,SERINE PROTEASE INHIBITOR | HYDROLASE INHIBITOR
+1miqB_1qs8B,1miq,B,1qs8,B,B,B,labeled,ligand,"ligands_pdb1=[]; ligands_pdb2=['IVA', 'STA']; diff=['IVA', 'STA'] (identity=0.994)",,IVA|STA,1,1,0.994,0.994,A,A,46,HYDROLASE | HYDROLASE/HYDROLASE INHIBITOR
+1mnmD_1mnmC,1mnm,D,1mnm,C,D,C,labeled,equilibrium_or_unknown,"identical sequence over 87 residues (identity=1.000), same ligands, same chain count (n1=6, n2=6); paper inspection required",,,3,3,1.000,1.000,E,E,0,TRANSCRIPTION/DNA | TRANSCRIPTION/DNA
+1nocA_1qomB,1noc,A,1qom,B,A,B,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=1.000),HEM|IMD,H4B|HEM,2,1,1.000,1.000,A,A,52,COMPLEX (OXIDOREDUCTASE/TRANSFERASE) | OXIDOREDUCTASE
+1nqjB_1nqdA,1nqj,B,1nqd,A,B,A,labeled,equilibrium_or_unknown,"identical sequence over 119 residues (identity=0.983), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,0.983,0.983,A,A,3,HYDROLASE | HYDROLASE
+1nrjB_2gedB,1nrj,B,2ged,B,B,B,labeled,mutation,labeled chains B/B: identity=0.767 over 193 residues (length_diff=25),GTP,,2,1,0.767,0.767,B,A,25,"PROTEIN TRANSPORT | PROTEIN TRANSPORT, SIGNALING PROTEIN"
+1qb3A_3qy2A,1qb3,A,3qy2,A,A,A,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['FLC']; diff=['FLC'] (identity=0.983),,FLC,1,1,0.983,0.983,A,A,33,CELL CYCLE | TRANSFERASE REGULATOR
+1qlnA_1h38D,1qln,A,1h38,D,A,D,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=1.000),GTP,,2,1,1.000,1.000,A,A,0,NUCLEOTIDYLTRANSFERASE | TRANSFERASE
+2z9oB_1repC,2z9o,B,1rep,C,B,C,labeled,oligomerization,"chain instances: pdb1=4, pdb2=3 (distinct seqs n1=2, n2=2; identity=0.988)",,,2,2,0.988,1.000,C,A,15,REPLICATION/DNA | REPLICATION/DNA
+1svfC_4wsgC,1svf,C,4wsg,C,C,C,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=0.984),,NAG,2,1,0.984,0.984,A,A,433,VIRAL PROTEIN | VIRAL PROTEIN
+2namA_1uxmK,2nam,A,1uxm,K,A,K,labeled,oligomerization,"chain instances: pdb1=1, pdb2=12 (distinct seqs n1=1, n2=1; identity=0.987)",,,1,1,0.987,0.987,A,A,8,METAL BINDING PROTEIN | OXIDOREDUCTASE
+1wp8C_5ejbC,1wp8,C,5ejb,C,C,C,labeled,mutation,labeled chains C/C: identity=0.472 over 89 residues (length_diff=412),,NAG,1,1,0.472,0.472,A,B,412,VIRAL PROTEIN | VIRAL PROTEIN
+1x0gD_1x0gA,1x0g,D,1x0g,A,D,A,labeled,equilibrium_or_unknown,"identical sequence over 112 residues (identity=1.000), same ligands, same chain count (n1=4, n2=4); paper inspection required",FES,FES,1,1,1.000,1.000,A,A,0,METAL BINDING PROTEIN | METAL BINDING PROTEIN
+1xjuB_1xjtA,1xju,B,1xjt,A,B,A,labeled,ligand,"ligands_pdb1=[]; ligands_pdb2=['CIT', 'MSE']; diff=['CIT', 'MSE'] (identity=1.000)",,CIT|MSE,1,1,1.000,1.000,A,A,28,HYDROLASE | HYDROLASE
+3lqcA_1xntA,3lqc,A,1xnt,A,A,A,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=0.989),,,2,1,0.989,0.989,A,A,6,DNA BINDING PROTEIN | DNA BINDING PROTEIN
+3l5nB_2a73B,3l5n,B,2a73,B,B,B,labeled,ligand,"ligands_pdb1=['MAN', 'NAG']; ligands_pdb2=['BMA', 'MAN', 'NAG']; diff=['BMA'] (identity=1.000)",MAN|NAG,BMA|MAN|NAG,3,2,1.000,1.000,B,B,76,IMMUNE SYSTEM | IMMUNE SYSTEM
+2bzyB_2lqwA,2bzy,B,2lqw,A,B,A,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['PTR']; diff=['PTR'] (identity=1.000),,PTR,1,1,1.000,1.000,A,A,236,SH3 DOMAIN | SIGNALING PROTEIN
+2c1vB_2c1uC,2c1v,B,2c1u,C,B,C,labeled,oligomerization,"chain instances: pdb1=2, pdb2=4 (distinct seqs n1=1, n2=1; identity=1.000)",HEC,HEC,1,1,1.000,1.000,A,A,0,OXIDOREDUCTASE | OXIDOREDUCTASE
+2grmB_2axzA,2grm,B,2axz,A,B,A,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['MSE']; diff=['MSE'] (identity=0.994),,MSE,1,1,0.994,0.994,A,A,0,TRANSCRIPTION | TRANSCRIPTION
+2h44A_1rkpA,2h44,A,1rkp,A,A,A,labeled,ligand,"ligands_pdb1=['7CA']; ligands_pdb2=['IBM']; diff=['7CA', 'IBM'] (identity=0.994)",7CA,IBM,1,1,0.994,0.994,A,A,0,HYDROLASE | HYDROLASE
+2n54B_2hdmA,2n54,B,2hdm,A,B,A,labeled,mutation,labeled chains B/A: identity=0.913 over 92 residues (length_diff=1),,,1,1,0.913,0.913,A,A,1,CYTOKINE | CYTOKINE
+2jmrA_4j3oF,2jmr,A,4j3o,F,A,F,labeled,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=5 (labeled identity=1.000),,,1,5,1.000,1.000,A,F,25,CELL ADHESION | CELL ADHESION/CHAPERONE/MEMBRANE PROTEIN
+2k42A_1ceeB,2k42,A,1cee,B,A,B,labeled,mutation,labeled chains A/B: identity=0.797 over 59 residues (length_diff=13),,GCP,2,2,0.797,0.797,A,B,13,SIGNALING PROTEIN | STRUCTURAL PROTEIN REGULATION
+2kb8A_6vw2A,2kb8,A,6vw2,A,A,A,labeled,oligomerization,"chain instances: pdb1=1, pdb2=10 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,1.000,A,A,118,HORMONE | PROTEIN FIBRIL
+2kkwA_2n0aD,2kkw,A,2n0a,D,A,D,labeled,oligomerization,"chain instances: pdb1=1, pdb2=10 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,1.000,A,A,0,LIPID BINDING PROTEIN | STRUCTURAL PROTEIN
+3r9jC_2kxoA,3r9j,C,2kxo,A,C,A,labeled,mutation,labeled chains C/A: identity=0.091 over 77 residues (length_diff=18),ADP,,2,1,0.091,0.091,C,A,18,"CELL CYCLE,HYDROLASE/CELL CYCLE | CELL CYCLE"
+2lelA_2k0qA,2lel,A,2k0q,A,A,A,labeled,ligand,ligands_pdb1=['CU1']; ligands_pdb2=[]; diff=['CU1'] (identity=1.000),CU1,,1,1,1.000,1.000,A,A,0,METAL BINDING PROTEIN | METAL BINDING PROTEIN
+2lepA_4hddA,2lep,A,4hdd,A,A,A,labeled,mutation,labeled chains A/A: identity=0.870 over 69 residues (length_diff=10),,MSE,1,1,0.870,0.870,A,A,10,HYDROLASE | HYDROLASE
+2lv1A_6lniA,2lv1,A,6lni,A,A,A,labeled,oligomerization,"chain instances: pdb1=1, pdb2=10 (distinct seqs n1=1, n2=1; identity=0.952)",,,1,1,0.952,0.952,A,A,63,MEMBRANE PROTEIN | PROTEIN FIBRIL
+2mwfA_2nntA,2mwf,A,2nnt,A,A,A,labeled,mutation,labeled chains A/A: identity=0.875 over 32 residues (length_diff=8),,,1,1,0.875,0.875,A,A,8,TRANSCRIPTION | PROTEIN FIBRIL
+6c6sD_2ougC,6c6s,D,2oug,C,D,C,labeled,protein_binding,pdb1 distinct_chains=7; pdb2 distinct_chains=1 (labeled identity=1.000),,,7,1,1.000,1.000,D,A,0,TRANSCRIPTION/DNA/RNA | TRANSCRIPTION
+2p3vD_2p3vA,2p3v,D,2p3v,A,D,A,labeled,equilibrium_or_unknown,"identical sequence over 256 residues (identity=1.000), same ligands, same chain count (n1=4, n2=4); paper inspection required",SRT,SRT,1,1,1.000,1.000,A,A,0,HYDROLASE | HYDROLASE
+2pbkB_3njqA,2pbk,B,3njq,A,B,A,labeled,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (labeled identity=0.990),ACE|GG7|TBG,CSO|NJQ,1,2,0.990,0.990,A,A,35,HYDROLASE/HYDROLASE INHIBITOR | VIRAL PROTEIN/INHIBITOR
+2qqjA_4qdsA,2qqj,A,4qds,A,A,A,labeled,oligomerization,"chain instances: pdb1=1, pdb2=2 (distinct seqs n1=1, n2=1; identity=1.000)",,,1,1,1.000,1.000,A,A,138,SIGNALING PROTEIN | CELL ADHESION
+2vfxL_3gmhL,2vfx,L,3gmh,L,L,L,labeled,mutation,labeled chains L/L: identity=0.917 over 206 residues (length_diff=1),PE3,,1,1,0.917,0.917,A,A,1,CELL CYCLE | CELL CYCLE
+3m7pA_3ejhA,3m7p,A,3ejh,A,A,A,labeled,mutation,labeled chains A/A: identity=0.914 over 93 residues (length_diff=215),12P|NAG,HYP|NAG,1,2,0.914,0.914,A,A,215,CELL ADHESION | CELL ADHESION
+3g0hA_3ewsB,3g0h,A,3ews,B,A,B,labeled,ligand,"ligands_pdb1=['ANP']; ligands_pdb2=['ADP']; diff=['ADP', 'ANP'] (identity=1.000)",ANP,ADP,1,1,1.000,1.000,A,A,21,HYDROLASE/RNA | HYDROLASE
+3hdfA_3hdeA,3hdf,A,3hde,A,A,A,labeled,oligomerization,"chain instances: pdb1=2, pdb2=4 (distinct seqs n1=1, n2=1; identity=0.993)",,,1,1,0.993,0.993,A,A,25,HYDROLASE | HYDROLASE
+5et5A_3ifaA,5et5,A,3ifa,A,A,A,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['AMP']; diff=['AMP'] (identity=0.994),,AMP,1,1,0.994,0.994,A,A,0,HYDROLASE | HYDROLASE
+3j7vG_3j7wB,3j7v,G,3j7w,B,G,B,labeled,equilibrium_or_unknown,"identical sequence over 345 residues (identity=1.000), same ligands, same chain count (n1=7, n2=7); paper inspection required",,,1,1,1.000,1.000,A,A,0,VIRUS | VIRUS
+1xtgB_3j97M,1xtg,B,3j97,M,B,M,labeled,oligomerization,"chain instances: pdb1=2, pdb2=13 (distinct seqs n1=2, n2=5; identity=1.000)",,,2,5,1.000,1.000,B,M,139,TOXIN | HYDROLASE
+1zk9A_3jv6A,1zk9,A,3jv6,A,A,A,labeled,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (labeled identity=1.000),,,1,2,1.000,1.000,A,A,9,TRANSCRIPTION | TRANSCRIPTION
+3kdsG_2ce7C,3kds,G,2ce7,C,G,C,labeled,ligand,"ligands_pdb1=['NHX']; ligands_pdb2=['ADP']; diff=['ADP', 'NHX'] (identity=0.996)",NHX,ADP,1,1,0.996,0.996,E,A,11,METAL BINDING PROTEIN | CELL DIVISION PROTEIN
+5c3iF_3kuyA,5c3i,F,3kuy,A,F,A,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['ATV']; diff=['ATV'] (identity=0.970),,ATV,4,5,0.970,1.000,C,B,1,REPLICATION | STRUCTURAL PROTEIN/DNA
+3l9qB_4rr2D,3l9q,B,4rr2,D,B,D,labeled,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (labeled identity=0.990),SF4,SF4,1,2,0.990,0.990,A,B,314,TRANSFERASE | TRANSFERASE
+3lowA_3m1bF,3low,A,3m1b,F,A,F,labeled,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (labeled identity=1.000),,LE1|MLE|SAR,1,2,1.000,1.000,A,B,1,PROTEIN FIBRIL | IMMUNE SYSTEM/INHIBITOR
+3meeA_4b3oB,3mee,A,4b3o,B,A,B,labeled,ligand,"ligands_pdb1=['T27']; ligands_pdb2=['3DR', 'EFZ']; diff=['3DR', 'EFZ', 'T27'] (identity=0.984)",T27,3DR|EFZ,2,4,0.984,0.986,B,A,119,TRANSFERASE | HYDROLASE/DNA/RNA
+1xezA_3o44A,1xez,A,3o44,A,A,A,labeled,ligand,ligands_pdb1=['BOG']; ligands_pdb2=[]; diff=['BOG'] (identity=1.000),BOG,,1,1,1.000,1.000,A,A,128,TOXIN | TOXIN
+3t5oA_4a5wB,3t5o,A,4a5w,B,A,B,labeled,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (labeled identity=1.000),BGC|CD|FUC|FUL|MAN|NAG,FUC|MAN|NAG,1,2,1.000,1.000,A,B,0,IMMUNE SYSTEM | IMMUNE SYSTEM
+5lj3M_3tp2A,5lj3,M,3tp2,A,M,A,labeled,protein_binding,pdb1 distinct_chains=30; pdb2 distinct_chains=1 (labeled identity=0.983),GTP,,30,1,0.983,0.983,M,A,110,SPLICING | SPLICING
+3v0tA_3uyiA,3v0t,A,3uyi,A,A,A,labeled,ligand,"ligands_pdb1=['ATR']; ligands_pdb2=['MLZ']; diff=['ATR', 'MLZ'] (identity=0.985)",ATR,MLZ,1,1,0.985,0.985,A,A,0,OXIDOREDUCTASE | OXIDOREDUCTASE
+4tsyD_3zwgN,4tsy,D,3zwg,N,D,N,labeled,ligand,"ligands_pdb1=['HTO', 'HXJ']; ligands_pdb2=[]; diff=['HTO', 'HXJ'] (identity=1.000)",HTO|HXJ,,1,1,1.000,1.000,A,A,0,TOXIN | TOXIN
+3zxgB_5ec5P,3zxg,B,5ec5,P,B,P,labeled,ligand,"ligands_pdb1=['0SM']; ligands_pdb2=['HG', 'MBO']; diff=['0SM', 'HG', 'MBO'] (identity=0.960)",0SM,HG|MBO,1,1,0.960,0.960,A,A,11,TOXIN | TOXIN
+4aalA_4aanA,4aal,A,4aan,A,A,A,labeled,ligand,"ligands_pdb1=['EOH', 'HEC']; ligands_pdb2=['BU3', 'HEC']; diff=['BU3', 'EOH'] (identity=1.000)",EOH|HEC,BU3|HEC,1,1,1.000,1.000,A,A,0,OXIDOREDUCTASE | OXIDOREDUCTASE
+4dxrA_4dxtA,4dxr,A,4dxt,A,A,A,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=0.990),DMU,,2,1,0.990,0.990,A,A,4,STRUCTURAL PROTEIN | STRUCTURAL PROTEIN
+4g0dZ_4fu4C,4g0d,Z,4fu4,C,Z,C,labeled,ligand,ligands_pdb1=['PGO']; ligands_pdb2=[]; diff=['PGO'] (identity=1.000),PGO,,2,2,1.000,1.000,A,A,0,HYDROLASE | HYDROLASE
+4gqcB_4gqcC,4gqc,B,4gqc,C,B,C,labeled,equilibrium_or_unknown,"identical sequence over 164 residues (identity=1.000), same ligands, same chain count (n1=4, n2=4); paper inspection required",DTD,DTD,1,1,1.000,1.000,A,A,0,OXIDOREDUCTASE | OXIDOREDUCTASE
+4h2aA_3j9cA,4h2a,A,3j9c,A,A,A,labeled,equilibrium_or_unknown,"identical sequence over 562 residues (identity=1.000), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,1.000,1.000,A,A,173,"TOXIN | TOXIN, TRANSPORT PROTEIN"
+4cmqB_4zt0C,4cmq,B,4zt0,C,B,C,labeled,protein_binding,pdb1 distinct_chains=1; pdb2 distinct_chains=2 (labeled identity=0.999),,MSE,1,2,0.999,0.999,A,A,3,HYDROLASE | HYDROLASE/RNA
+5hk5H_4jphB,5hk5,H,4jph,B,H,B,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=1.000),,CIT|GSH,2,1,1.000,1.000,E,A,1,CYTOKINE | CYTOKINE
+4n9wA_4nc9C,4n9w,A,4nc9,C,A,C,labeled,ligand,ligands_pdb1=['GDP']; ligands_pdb2=[]; diff=['GDP'] (identity=1.000),GDP,,1,1,1.000,1.000,A,A,0,TRANSFERASE | TRANSFERASE
+4o01D_4o0pA,4o01,D,4o0p,A,D,A,labeled,oligomerization,"chain instances: pdb1=4, pdb2=2 (distinct seqs n1=1, n2=1; identity=1.000)",LBV,LBV,1,1,1.000,1.000,A,A,0,TRANSFERASE | TRANSFERASE
+4ow6B_4ae0A,4ow6,B,4ae0,A,B,A,labeled,oligomerization,"chain instances: pdb1=2, pdb2=1 (distinct seqs n1=1, n2=1; identity=0.996)",,,1,1,0.996,0.996,A,A,0,"TOXIN, TRANSFERASE | TOXIN"
+2wcdX_4phqA,2wcd,X,4phq,A,X,A,labeled,ligand,ligands_pdb1=['EMC']; ligands_pdb2=[]; diff=['EMC'] (identity=0.977),EMC,,1,1,0.977,0.977,A,A,11,TOXIN | TOXIN
+4pyjA_4pyiA,4pyj,A,4pyi,A,A,A,labeled,equilibrium_or_unknown,"identical sequence over 221 residues (identity=1.000), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,1.000,1.000,A,A,0,TRANSFERASE | TRANSFERASE
+4qhhA_4qhfA,4qhh,A,4qhf,A,A,A,labeled,equilibrium_or_unknown,"identical sequence over 110 residues (identity=1.000), same ligands, same chain count (n1=1, n2=1); paper inspection required",,,1,1,1.000,1.000,A,A,0,HYDROLASE | HYDROLASE
+4rmbB_4rmbA,4rmb,B,4rmb,A,B,A,labeled,equilibrium_or_unknown,"identical sequence over 166 residues (identity=1.000), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,1.000,1.000,A,A,0,CELL ADHESION | CELL ADHESION
+4rwqB_4rwnA,4rwq,B,4rwn,A,B,A,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['APC']; diff=['APC'] (identity=1.000),,APC,1,1,1.000,1.000,A,A,0,TRANSFERASE | TRANSFERASE/RNA
+4q79F_4uv2D,4q79,F,4uv2,D,F,D,labeled,ligand,"ligands_pdb1=['HG']; ligands_pdb2=['MSE']; diff=['HG', 'MSE'] (identity=0.996)",HG,MSE,1,1,0.996,0.996,D,A,15,MEMBRANE PROTEIN | TRANSPORT PROTEIN
+4xwsD_4y0mJ,4xws,D,4y0m,J,D,J,labeled,ligand,ligands_pdb1=[]; ligands_pdb2=['MSE']; diff=['MSE'] (identity=0.991),,MSE,1,1,0.991,0.991,A,A,0,DNA BINDING PROTEIN | DNA BINDING PROTEIN
+4ydqB_4twaA,4ydq,B,4twa,A,B,A,labeled,ligand,"ligands_pdb1=['ANP', 'HFG']; ligands_pdb2=[]; diff=['ANP', 'HFG'] (identity=1.000)",ANP|HFG,,1,1,1.000,1.000,A,A,0,LIGASE | LIGASE
+4yhdG_7ahlE,4yhd,G,7ahl,E,G,E,labeled,oligomerization,"chain instances: pdb1=6, pdb2=7 (distinct seqs n1=1, n2=1; identity=0.986)",,,1,1,0.986,0.986,A,A,9,TOXIN | CYTOLYTIC PROTEIN
+4zrbH_4zrbC,4zrb,H,4zrb,C,H,C,labeled,equilibrium_or_unknown,"identical sequence over 137 residues (identity=1.000), same ligands, same chain count (n1=8, n2=8); paper inspection required",COA,COA,1,1,1.000,1.000,A,A,0,HYDROLASE | HYDROLASE
+3mkoA_5ineA,3mko,A,5ine,A,A,A,labeled,mutation,labeled chains A/A: identity=0.912 over 137 residues (length_diff=301),IUM,BMA|MAN|NAG,1,1,0.912,0.912,A,A,301,VIRAL PROTEIN | VIRAL PROTEIN
+5ly6B_5aoeB,5ly6,B,5aoe,B,B,B,labeled,oligomerization,"chain instances: pdb1=1, pdb2=2 (distinct seqs n1=1, n2=1; identity=0.966)",,,1,1,0.966,0.966,B,A,17,TOXIN | TOXIN
+5bmyA_5b3zA,5bmy,A,5b3z,A,A,A,labeled,oligomerization,"chain instances: pdb1=1, pdb2=4 (distinct seqs n1=1, n2=1; identity=0.964)",GLC,GLC,1,1,0.964,0.964,A,A,14,"SUGAR BINDING PROTEIN | ISOMERASE,SUGAR BINDING PROTEIN"
+5c1vB_5c1vA,5c1v,B,5c1v,A,B,A,labeled,equilibrium_or_unknown,"identical sequence over 346 residues (identity=1.000), same ligands, same chain count (n1=2, n2=2); paper inspection required",,,1,1,1.000,1.000,A,A,0,HYDROLASE | HYDROLASE
+3ztjE_5hmgA,3ztj,E,5hmg,A,E,A,labeled,ligand,"ligands_pdb1=['BMA', 'NAG']; ligands_pdb2=['MAN', 'NAG', 'SIA']; diff=['BMA', 'MAN', 'SIA'] (identity=1.000)",BMA|NAG,MAN|NAG|SIA,4,2,1.000,1.000,A,A,1,IMMUNE SYSTEM/VIRAL PROTEIN | VIRAL PROTEIN
+5f5rB_5f3kA,5f5r,B,5f3k,A,B,A,labeled,ligand,ligands_pdb1=['ANP']; ligands_pdb2=[]; diff=['ANP'] (identity=1.000),ANP,,1,1,1.000,1.000,A,A,0,CHAPERONE | CHAPERONE
+2uy7D_5fluE,2uy7,D,5flu,E,D,E,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=0.988),,,2,1,0.988,0.988,B,A,0,CHAPERONE | STRUCTURAL PROTEIN
+5i2sA_5i2mA,5i2s,A,5i2m,A,A,A,labeled,ligand,"ligands_pdb1=['NAG', 'YB']; ligands_pdb2=[]; diff=['NAG', 'YB'] (identity=1.000)",NAG|YB,,1,1,1.000,1.000,A,A,0,VIRAL PROTEIN | MEMBRANE PROTEIN
+5jytA_2qkeE,5jyt,A,2qke,E,A,E,labeled,mutation,labeled chains A/E: identity=0.840 over 106 residues (length_diff=2),,,1,1,0.840,0.840,A,A,2,SIGALING PROTEIN | CIRCADIAN CLOCK PROTEIN
+5jztG_5jzhA,5jzt,G,5jzh,A,G,A,labeled,oligomerization,"chain instances: pdb1=7, pdb2=14 (distinct seqs n1=1, n2=1; identity=0.995)",,,1,1,0.995,0.995,A,A,0,TOXIN | TOXIN
+5l35G_5l35D,5l35,G,5l35,D,G,D,labeled,equilibrium_or_unknown,"identical sequence over 422 residues (identity=1.000), same ligands, same chain count (n1=7, n2=7); paper inspection required",,,1,1,1.000,1.000,A,A,0,VIRUS | VIRUS
+5wrgC_1wyyB,5wrg,C,1wyy,B,C,B,labeled,mutation,labeled chains C/B: identity=0.651 over 149 residues (length_diff=1054),,,1,1,0.651,0.651,A,A,1054,VIRUS LIKE PARTICLE | VIRAL PROTEIN
+5tpnA_1g2cF,5tpn,A,1g2c,F,A,F,labeled,mutation,labeled chains A/F: identity=0.814 over 43 residues (length_diff=467),,,3,2,0.814,1.000,A,A,467,IMMUNE SYSTEM | VIRAL PROTEIN
+7kdtB_6z4uA,7kdt,B,6z4u,A,B,A,labeled,protein_binding,pdb1 distinct_chains=2; pdb2 distinct_chains=1 (labeled identity=1.000),,15P,2,1,1.000,1.000,B,A,0,VIRAL PROTEIN | VIRAL PROTEIN
