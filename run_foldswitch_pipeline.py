@@ -1005,7 +1005,8 @@ def _postprocess_af2_run(out_dir: str):
                 print(f"[cleanup] warn: could not compress {jf}: {e}")
 
 
-def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, out_path: str) -> bool:
+def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
+                              out_path: str, query_type: str = "chain") -> bool:
     """
     Build a per-chain A3M for AF:
       • For clustered A3M: try to take the mask from a seed/aligned row for this chain.
@@ -1013,6 +1014,22 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
       • If no suitable row is found in the cluster A3M, fall back to using the aligned row from DeepMsa.a3m.
       • For DeepMsa (cluster_a3m is None): require an aligned row for the chain in DeepMsa and use it.
     The query row is written ungapped; all other rows are column-masked (drop columns where the query has gaps).
+
+    query_type controls which sequence is written as row 1 of the per-cluster A3M:
+      "chain"   (default, legacy): the original PDB-chain FASTA. All clusters
+                share the same query, which makes downstream TM-scoring direct
+                but means AF2/AF3 are anchored to the chain's primary sequence
+                even when the cluster's coevolution context favours a different
+                fold (see Wayment-Steele 2024).
+      "medoid"  : the cluster's medoid sequence (the row in the cluster A3M
+                with minimum mean Hamming distance to the rest of the cluster).
+                Variant-as-query, matches AF-Cluster's protocol. Predictions
+                across clusters then have different sequences, so downstream
+                TM-alignment compares each prediction against the fixed F1/F2
+                backbones at its own length.
+      "consensus" : the cluster's per-column majority-vote consensus
+                sequence (matches what Boltz-2 uses).
+    Falling back to "chain" if the cluster A3M is empty or query_type is unknown.
     """
     def _ungap_upper(s: str) -> str:
         return "".join(ch for ch in (s or "") if ch.isalpha()).upper()
@@ -1105,11 +1122,74 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str, o
         seed_aln = candidates[chosen_hdr]
         return seed_aln, rows, L
 
+    def _cluster_medoid_or_consensus(rows, mode: str) -> str | None:
+        """Return the medoid or consensus sequence (ungapped, uppercase) of
+        the given cluster rows. mode: 'medoid' or 'consensus'. Returns None
+        if rows is empty.
+
+        The medoid is the row whose summed Hamming distance to all other
+        rows in the cluster is minimum, computed on aligned characters
+        (uppercase match-state positions). The consensus is the per-column
+        majority-vote over those match-state positions.
+        """
+        if not rows:
+            return None
+        aligned = [aln for _, aln in rows if aln]
+        if not aligned:
+            return None
+        L = len(aligned[0])
+        aligned = [a for a in aligned if len(a) == L]
+        if not aligned:
+            return None
+        if mode == "consensus":
+            cols: list[str] = []
+            for j in range(L):
+                col_counts: dict[str, int] = {}
+                for a in aligned:
+                    c = a[j]
+                    if c == "-" or c == ".":
+                        continue
+                    col_counts[c] = col_counts.get(c, 0) + 1
+                if not col_counts:
+                    cols.append("-")
+                else:
+                    cols.append(max(col_counts, key=col_counts.get))
+            return "".join(c for c in cols if c.isalpha()).upper()
+        # medoid: minimise sum of Hamming distances over match-state columns
+        import numpy as _np
+        # Cap to first 200 rows for tractability on huge clusters
+        sub = aligned[:200]
+        as_arr = _np.array([[ch for ch in s] for s in sub])
+        # Distance matrix: count mismatches per pair
+        n = as_arr.shape[0]
+        dist = _np.zeros((n, n), dtype=_np.int32)
+        for i in range(n):
+            dist[i] = (as_arr[i] != as_arr).sum(axis=1)
+        idx_best = int(dist.sum(axis=1).argmin())
+        return _ungap_upper(sub[idx_best])
+
+    # Normalise legacy / unknown query_type to "chain"
+    qt = (query_type or "chain").lower()
+    if qt not in ("chain", "medoid", "consensus"):
+        qt = "chain"
+
     # ========== clustered A3M path ==========
     if cluster_a3m:
         seed = seed_from_cluster(cluster_a3m)
         if seed is not None:
             seed_aln, all_rows, L = seed
+            # Optional: override the row-1 query with the cluster medoid or
+            # consensus. We keep the original behavior (chain FASTA) by
+            # default for backward compatibility.
+            if qt != "chain":
+                alt_query = _cluster_medoid_or_consensus(all_rows, qt)
+                if alt_query and len(alt_query) >= 0.5 * len(chain_seq):
+                    chain_seq = alt_query
+                    print(f"[a3m] {chain_tag}: query_type={qt} -> "
+                          f"replaced chain query (len {len(alt_query)})")
+                else:
+                    print(f"[a3m] WARN {chain_tag}: query_type={qt} requested "
+                          f"but {qt} sequence invalid; falling back to chain")
             keep = [ch != "-" for ch in seed_aln]
             kept = sum(keep)
             if kept != len(chain_seq):
@@ -1759,6 +1839,9 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
         raise SystemExit("AlphaFold must run on Linux.")
 
     af_ver = str(getattr(args, "af_ver", "both")).lower()  # default: do both
+    # Per-cluster query source for AF: "chain" (legacy, default), "medoid", or
+    # "consensus". See _write_pair_a3m_for_chain docstring.
+    query_type = str(getattr(args, "query_type", "chain")).lower()
 
     pair_dir = f"Pipeline/FoldPairs/{pair_id}"
     foldA, foldB = pair_str_to_tuple(pair_id)
@@ -1789,7 +1872,8 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
         print(f"[af-plan] build pair A3M (DeepMsa): src={deep_a3m} → {pair_a3m}  chain={ch}", flush=True)
         try:
             with _alarm_timeout(180, f"_write_pair_a3m_for_chain(DeepMsa,{ch})"):
-                ok = _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m)
+                ok = _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m,
+                                               query_type=query_type)
         except TimeoutError as te:
             print(f"[af-plan] DeepMsa→{ch}: TIMEOUT {te}; skipping", flush=True)
             ok = False
@@ -1813,7 +1897,8 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
             print(f"[af-plan] build pair A3M ({cl_stem}): src={a3m} → {pair_a3m}  chain={ch}", flush=True)
             try:
                 with _alarm_timeout(180, f"_write_pair_a3m_for_chain({cl_stem},{ch})"):
-                    ok = _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m)
+                    ok = _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m,
+                                                   query_type=query_type)
             except TimeoutError as te:
                 print(f"[af-plan] {cl_stem}→{ch}: TIMEOUT {te}; skipping", flush=True)
                 ok = False
@@ -2528,6 +2613,19 @@ def main():
                     help="Allow AF2 to run inline even if not in a Slurm session (expert only).")
     p.add_argument("--af_ver", default="both", choices=["2", "3", "both"],
                     help="Which AlphaFold to run for --run_mode run_AF")  # default do both AF2 and AF3
+
+    p.add_argument("--query_type", default="chain",
+                    choices=["chain", "medoid", "consensus"],
+                    help="Per-cluster AF2/AF3 query source. "
+                         "'chain' (default, legacy): always use the original "
+                         "PDB-chain FASTA as the AF query, with the cluster "
+                         "MSA as context only. "
+                         "'medoid': use the cluster medoid sequence as the "
+                         "query (variant-as-query, matches AF-Cluster's "
+                         "protocol; the right setup for the clade-level "
+                         "evolutionary question). "
+                         "'consensus': use the per-column majority-vote "
+                         "consensus of the cluster (matches Boltz-2's input).")
 
     p.add_argument("--force_rerun_AF", default="FALSE", choices=["TRUE", "FALSE"],
                     help="Run new AF2/AF3 predictions even if outputs exist. Default FALSE (skip if found).")
