@@ -1482,14 +1482,26 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
 
         tree_arg = f"--tree_path {shlex.quote(tree_path)} "
 
+    # Target minimum number of clusters (tree-cut only). When set, gets
+    # passed through to run_ClusterMSA.py as --tree_min_num_clusters K.
+    tree_min_arg = ""
+    if alg == "tree" and getattr(args, "cluster_tree_min_num_clusters", 0):
+        tree_min_arg = (f"--tree_min_num_clusters "
+                        f"{int(args.cluster_tree_min_num_clusters)} ")
+
+    # Output directory under the pair dir (default: output_msa_cluster).
+    # Use --cluster_outdir to write to a parallel directory (e.g.
+    # output_msa_cluster_treek40) so the existing clusters are preserved.
+    outdir = (getattr(args, "cluster_outdir", None)
+              or "output_msa_cluster")
 
     cmd = (
         f"bash -lc 'cd Pipeline/{pid} && "
         f"{py} ../../run_ClusterMSA.py "
         f"--keyword ShallowMsa "
         f"--a3m output_get_msa/DeepMsa.a3m "
-        f"-o output_msa_cluster "
-        f"--cluster_alg {shlex.quote(alg)} {tree_arg} "
+        f"-o {shlex.quote(outdir)} "
+        f"--cluster_alg {shlex.quote(alg)} {tree_arg}{tree_min_arg}"
         f"--max_clusters {int(args.cluster_max_clusters)} "
         f"--min_output_size {int(args.cluster_min_output_size)} "
         f"--min_neff {int(args.cluster_min_neff)} "
@@ -2589,6 +2601,18 @@ def main():
                    help="Clustering algorithm for --run_mode cluster_msa (default: tree).")
     p.add_argument("--cluster_tree_path", default=None,
                    help="Path to Newick tree for --cluster_alg tree (e.g., Pipeline/<pair>/output_phytree/DeepMsa_tree.nwk).")
+    p.add_argument("--cluster_outdir", default=None,
+                   help="Output subdirectory under Pipeline/<pair>/ for the "
+                        "ShallowMsa_*.a3m files (default: 'output_msa_cluster'). "
+                        "Set to e.g. 'output_msa_cluster_treek40' to write a "
+                        "parallel re-clustering without overwriting the existing "
+                        "default-cluster output.")
+    p.add_argument("--cluster_tree_min_num_clusters", type=int, default=0,
+                   help="For --cluster_alg tree: target MINIMUM number of "
+                        "clusters (sets a per-cluster size cap of total_n/K). "
+                        "0 (default) leaves the tree-cut at its natural K; set "
+                        "to e.g. 40 to force finer clustering. Capped above by "
+                        "--cluster_max_clusters.")
     p.add_argument("--cluster_max_clusters", type=int, default=100,
                    help="Maximum clusters to output (default: 100).")
     p.add_argument("--cluster_min_output_size", type=int, default=200,
@@ -2883,6 +2907,11 @@ def main():
                 ]
                 if getattr(args, "cluster_tree_path", None):
                     extras += [f"--cluster_tree_path {args.cluster_tree_path}"]
+                if getattr(args, "cluster_outdir", None):
+                    extras += [f"--cluster_outdir {shlex.quote(args.cluster_outdir)}"]
+                if getattr(args, "cluster_tree_min_num_clusters", 0):
+                    extras += [(f"--cluster_tree_min_num_clusters "
+                                f"{int(args.cluster_tree_min_num_clusters)}")]
 
                 extras += [
                     f"--cluster_max_clusters {int(args.cluster_max_clusters)}",
