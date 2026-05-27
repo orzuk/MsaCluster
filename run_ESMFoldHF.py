@@ -380,7 +380,12 @@ def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Pa
             env = os.environ.copy()
             repo_root = Path(__file__).resolve().parent
             env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
-            cmd = [sys.executable, str(script), "--fasta", fasta_path, "--device", device]
+            # Honor ESM3_PYTHON env var so the inference subprocess can live
+            # in a different venv (e.g. torch2-venv) that has the
+            # EvolutionaryScale esm package. Fall back to sys.executable
+            # (the parent's python) if ESM3_PYTHON is unset.
+            esm3_python = os.environ.get("ESM3_PYTHON", sys.executable)
+            cmd = [esm3_python, str(script), "--fasta", fasta_path, "--device", device]
             res = subprocess.run(cmd, capture_output=True, text=True,
                                  cwd=str(Path(script).parent), env=env)
             if res.returncode != 0:
