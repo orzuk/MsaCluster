@@ -1006,7 +1006,8 @@ def _postprocess_af2_run(out_dir: str):
 
 
 def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
-                              out_path: str, query_type: str = "chain") -> bool:
+                              out_path: str, query_type: str = "chain",
+                              msa_top_n: int = 0) -> bool:
     """
     Build a per-chain A3M for AF:
       • For clustered A3M: try to take the mask from a seed/aligned row for this chain.
@@ -1030,6 +1031,12 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
       "consensus" : the cluster's per-column majority-vote consensus
                 sequence (matches what Boltz-2 uses).
     Falling back to "chain" if the cluster A3M is empty or query_type is unknown.
+
+    msa_top_n: if > 0, subsample the per-cluster MSA to the top_n rows
+    closest to the query (by mismatch count on match-state columns) before
+    writing. This matches the AF-Cluster shallow-MSA protocol
+    (Wayment-Steele 2024 used the 10 closest sequences as input MSA).
+    msa_top_n=0 (default) keeps the full cluster MSA.
     """
     def _ungap_upper(s: str) -> str:
         return "".join(ch for ch in (s or "") if ch.isalpha()).upper()
@@ -1207,11 +1214,34 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
             kept = sum(keep)
             if kept != len(chain_seq):
                 print(f"[a3m] WARN {chain_tag}: keep={kept} vs |query|={len(chain_seq)} in {os.path.basename(cluster_a3m)}")
+            # Optional shallow-MSA subsample: keep only the top_n rows
+            # closest to the query, measured by mismatches on kept columns.
+            # AF-Cluster default top_n=10 (Wayment-Steele 2024).
+            rows_to_write = all_rows
+            if msa_top_n and msa_top_n > 0:
+                ref = chain_seq.upper()
+                scored = []  # (distance, idx)
+                for i, (hdr, aln) in enumerate(all_rows):
+                    if aln is None or len(aln) != L:
+                        continue
+                    masked = "".join(ch for ch, k in zip(aln, keep)
+                                     if k and ch != ".").upper()
+                    n_cmp = min(len(masked), len(ref))
+                    if n_cmp < max(20, int(0.5 * len(ref))):
+                        continue
+                    d = sum(1 for a, b in zip(masked[:n_cmp], ref[:n_cmp])
+                            if a != b)
+                    scored.append((d, i))
+                scored.sort(key=lambda x: x[0])
+                keep_idx = {i for _, i in scored[:msa_top_n]}
+                rows_to_write = [all_rows[i] for i in sorted(keep_idx)]
+                print(f"[a3m] {chain_tag}: msa_top_n={msa_top_n} -> "
+                      f"kept {len(rows_to_write)} rows (of {len(all_rows)})")
             # stream from the cluster file to preserve order
             ensure_dir(os.path.dirname(out_path))
             with open(out_path, "w", encoding="utf-8") as fh:
                 fh.write(f">{chain_tag}\n{chain_seq}\n")
-                for hdr, aln in all_rows:
+                for hdr, aln in rows_to_write:
                     if aln is None or len(aln) != L:
                         continue
                     masked = "".join(ch for ch, k in zip(aln, keep) if k and ch != ".")
@@ -1854,6 +1884,11 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     # Per-cluster query source for AF: "chain" (legacy, default), "medoid", or
     # "consensus". See _write_pair_a3m_for_chain docstring.
     query_type = str(getattr(args, "query_type", "chain")).lower()
+    # Optional shallow-MSA subsample to top_n nearest to query (0 = keep full).
+    af_msa_top_n = int(getattr(args, "af_msa_top_n", 0))
+    # Optional output-dir suffix so e.g. full-MSA and top-10 runs land in
+    # different output_AF subdirectories and don't overwrite each other.
+    af_output_suffix = str(getattr(args, "af_output_suffix", "") or "")
 
     pair_dir = f"Pipeline/FoldPairs/{pair_id}"
     foldA, foldB = pair_str_to_tuple(pair_id)
@@ -1885,7 +1920,8 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
         try:
             with _alarm_timeout(180, f"_write_pair_a3m_for_chain(DeepMsa,{ch})"):
                 ok = _write_pair_a3m_for_chain(None, deep_a3m, ch, pair_a3m,
-                                               query_type=query_type)
+                                               query_type=query_type,
+                                               msa_top_n=af_msa_top_n)
         except TimeoutError as te:
             print(f"[af-plan] DeepMsa→{ch}: TIMEOUT {te}; skipping", flush=True)
             ok = False
@@ -1910,7 +1946,8 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
             try:
                 with _alarm_timeout(180, f"_write_pair_a3m_for_chain({cl_stem},{ch})"):
                     ok = _write_pair_a3m_for_chain(a3m, deep_a3m, ch, pair_a3m,
-                                                   query_type=query_type)
+                                                   query_type=query_type,
+                                                   msa_top_n=af_msa_top_n)
             except TimeoutError as te:
                 print(f"[af-plan] {cl_stem}→{ch}: TIMEOUT {te}; skipping", flush=True)
                 ok = False
@@ -1969,7 +2006,11 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
 
     versions = ["2"] if af_ver == "2" else (["3"] if af_ver == "3" else ["2", "3"])
     for ver in versions:
-        out_root = os.path.join(pair_dir, f"output_AF/AF{ver}")
+        # Optional suffix on the AF output dir so e.g. "full" and "top10"
+        # MSA-subsampling runs land in separate places. Empty suffix
+        # preserves the legacy default.
+        suffix_tag = f"_{af_output_suffix}" if af_output_suffix else ""
+        out_root = os.path.join(pair_dir, f"output_AF/AF{ver}{suffix_tag}")
         ensure_dir(out_root)
         log_dir = os.path.join(out_root, "logs")
         ensure_dir(log_dir)
@@ -2638,6 +2679,17 @@ def main():
     p.add_argument("--af_ver", default="both", choices=["2", "3", "both"],
                     help="Which AlphaFold to run for --run_mode run_AF")  # default do both AF2 and AF3
 
+    p.add_argument("--af_msa_top_n", type=int, default=0,
+                    help="If > 0, subsample the per-cluster AF input MSA to "
+                         "the N rows closest to the query (by mismatch on "
+                         "match-state columns). Matches the AF-Cluster "
+                         "shallow-MSA protocol (Wayment-Steele 2024 used "
+                         "N=10). Default 0 keeps the full cluster MSA.")
+    p.add_argument("--af_output_suffix", default="",
+                    help="Optional suffix added to the AF output directory "
+                         "(default empty -> output_AF/AF2 and output_AF/AF3). "
+                         "Set to e.g. 'treek100_full' or 'treek100_top10' to "
+                         "keep multiple methodology variants side by side.")
     p.add_argument("--query_type", default="chain",
                     choices=["chain", "medoid", "consensus"],
                     help="Per-cluster AF2/AF3 query source. "
