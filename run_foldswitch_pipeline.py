@@ -1283,10 +1283,111 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
             print(f"[a3m] wrote {out_path}  (mask L={L}, keep={kept}, drop={L-kept})")
             return True
 
-        # no seed row found in cluster; fall back to DeepMsa
-        print(f"[a3m] WARN {chain_tag}: no seed row found in {os.path.basename(cluster_a3m)}; falling back to DeepMsa mask")
+        # ========== cluster A3M path WITHOUT a named seed row ==========
+        # Tree-cut clusters (and any cluster format that doesn't prepend the
+        # query sequence) hit this branch: seed_from_cluster() returned None
+        # because the cluster contains only UniRef100 hits, not S1/S2/chain_tag.
+        # The previous behavior was to fall through to the DeepMsa-everything
+        # branch below, which writes ALL 14000+ DeepMsa rows as the per-cluster
+        # input -- that disables cluster-specific MSA entirely.
+        #
+        # Correct behavior: use the cluster's actual member rows, with a keep
+        # mask derived from the chain query's row in the DeepMsa (the cluster
+        # A3M preserves the DeepMsa column structure since it's a row-subset).
+        print(f"[a3m] {chain_tag}: cluster A3M has no named seed row "
+              f"({os.path.basename(cluster_a3m)}); using cluster members + "
+              f"DeepMsa-derived keep mask")
+        # Read cluster member rows directly
+        cluster_rows: List[Tuple[Optional[str], str]] = []  # type: ignore
+        try:
+            with open(cluster_a3m, "r", encoding="utf-8", errors="ignore") as fin:
+                cur_hdr: Optional[str] = None
+                for line in fin:
+                    line = line.rstrip("\n")
+                    if not line:
+                        continue
+                    if line.startswith(">"):
+                        cur_hdr = line[1:].split()[0]
+                    else:
+                        cluster_rows.append((cur_hdr, line))
+        except Exception as e:
+            print(f"[a3m] ERR {chain_tag}: failed to read cluster A3M: {e}")
+            return False
+        if not cluster_rows:
+            print(f"[a3m] ERR {chain_tag}: cluster A3M is empty")
+            return False
 
-    # ========== DeepMsa path (or fallback) ==========
+        # Find chain query's row in the DeepMsa for the keep mask
+        base_entries = read_msa(deep_a3m)
+        deep_idx = build_index(base_entries)
+        if chain_key not in deep_idx:
+            print(f"[a3m] ERR {chain_tag}: cannot find chain row in DeepMsa for "
+                  f"mask derivation")
+            return False
+        _, chain_aln_deep = deep_idx[chain_key][0]
+        L_cluster = len(cluster_rows[0][1])
+        L_deep = len(chain_aln_deep)
+        if L_cluster != L_deep:
+            print(f"[a3m] WARN {chain_tag}: cluster L={L_cluster} != DeepMsa "
+                  f"L={L_deep}; cluster alignment differs from DeepMsa column "
+                  f"structure. Falling back to DeepMsa-everything write.")
+        else:
+            # Cluster columns align to DeepMsa columns -- can apply the mask
+            keep = [ch.isalpha() for ch in chain_aln_deep]
+
+            # Optional: medoid/consensus query override
+            if qt != "chain":
+                alt_query = _cluster_medoid_or_consensus(cluster_rows, qt)
+                if alt_query and len(alt_query) >= 0.5 * len(chain_seq):
+                    # Use the medoid's own row in the cluster for the keep mask
+                    for hdr_m, aln_m in cluster_rows:
+                        if aln_m is None or len(aln_m) != L_cluster:
+                            continue
+                        if _ungap_upper(aln_m) == alt_query.upper():
+                            keep = [ch != "-" for ch in aln_m]
+                            chain_seq = alt_query
+                            print(f"[a3m] {chain_tag}: query_type={qt} -> "
+                                  f"replaced query+mask (len {len(alt_query)}, "
+                                  f"keep={sum(keep)})")
+                            break
+
+            # Optional: top-N MSA subsample
+            rows_to_write = cluster_rows
+            if msa_top_n and msa_top_n > 0:
+                ref = chain_seq.upper()
+                scored = []
+                for i, (hdr, aln) in enumerate(cluster_rows):
+                    if aln is None or len(aln) != L_cluster:
+                        continue
+                    masked = "".join(ch for ch, k in zip(aln, keep)
+                                     if k and ch != ".").upper()
+                    n_cmp = min(len(masked), len(ref))
+                    if n_cmp < max(20, int(0.5 * len(ref))):
+                        continue
+                    d = sum(1 for a, b in zip(masked[:n_cmp], ref[:n_cmp])
+                            if a != b)
+                    scored.append((d, i))
+                scored.sort(key=lambda x: x[0])
+                keep_idx = {i for _, i in scored[:msa_top_n]}
+                rows_to_write = [cluster_rows[i] for i in sorted(keep_idx)]
+                print(f"[a3m] {chain_tag}: msa_top_n={msa_top_n} -> "
+                      f"kept {len(rows_to_write)} rows (of {len(cluster_rows)})")
+
+            ensure_dir(os.path.dirname(out_path))
+            with open(out_path, "w", encoding="utf-8") as fh:
+                fh.write(f">{chain_tag}\n{chain_seq}\n")
+                for hdr, aln in rows_to_write:
+                    if aln is None or len(aln) != L_cluster:
+                        continue
+                    masked = "".join(ch for ch, k in zip(aln, keep) if k and ch != ".")
+                    fh.write(f">{hdr or 'cluster_member'}\n{masked}\n")
+            kept_count = sum(keep)
+            print(f"[a3m] wrote {out_path}  (cluster members + DeepMsa-derived "
+                  f"mask, keep={kept_count}, n_rows={len(rows_to_write)})")
+            return True
+
+    # ========== DeepMsa path (true fallback: no cluster_a3m at all,
+    # or cluster L != DeepMsa L) ==========
     base_entries = read_entries(deep_a3m)
     if not base_entries:
         print(f"[a3m] ERR base alignment empty for {out_path}")
