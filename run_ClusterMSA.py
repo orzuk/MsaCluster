@@ -669,7 +669,9 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
                 break
             accepted[best].extend(accepted[smin])
             if verbose:
-                print(f"[TREE] accept clade: n={n}, total_branch={total_len:.2f}, longest_ib={longest_ib:.2f}")
+                print(f"[TREE] merge: cluster {smin} (n={len(accepted[smin])}) "
+                      f"-> cluster {best} (new n={len(accepted[best])}); "
+                      f"PID-Hamming dist={bestd:.3f}")
 
             # refresh rep of the target
             reps[best] = rep_of(accepted[best])
