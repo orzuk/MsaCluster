@@ -1526,8 +1526,8 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
               or "output_msa_cluster")
 
     cmd = (
-        f"bash -lc 'cd Pipeline/{pid} && "
-        f"{py} ../../run_ClusterMSA.py "
+        f"bash -lc 'cd Pipeline/FoldPairs/{pid} && "
+        f"{py} ../../../run_ClusterMSA.py "
         f"--keyword ShallowMsa "
         f"--a3m output_get_msa/DeepMsa.a3m "
         f"-o {shlex.quote(outdir)} "
