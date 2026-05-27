@@ -1188,16 +1188,50 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
             # Optional: override the row-1 query with the cluster medoid or
             # consensus. We keep the original behavior (chain FASTA) by
             # default for backward compatibility.
+            #
+            # IMPORTANT: when we replace the query, we must ALSO replace the
+            # keep mask, because the new query has a different gap pattern in
+            # the cluster A3M than chain_tag does. Without this, the keep
+            # mask is based on chain_tag's row but `kept` is compared against
+            # the medoid's ungapped length -- they don't match, and the code
+            # silently falls back to the entire DeepMsa as input (effectively
+            # disabling cluster-specific MSA + subsampling).
+            keep = None
             if qt != "chain":
                 alt_query = _cluster_medoid_or_consensus(all_rows, qt)
                 if alt_query and len(alt_query) >= 0.5 * len(chain_seq):
                     chain_seq = alt_query
-                    print(f"[a3m] {chain_tag}: query_type={qt} -> "
-                          f"replaced chain query (len {len(alt_query)})")
+                    # Find the row in the cluster A3M whose ungapped
+                    # match-state sequence == alt_query. Its keep mask
+                    # (non-gap positions) is the correct mask for the new
+                    # query.
+                    new_seed_aln = None
+                    for hdr, aln in all_rows:
+                        if aln is None or len(aln) != L:
+                            continue
+                        if _ungap_upper(aln) == alt_query.upper():
+                            new_seed_aln = aln
+                            break
+                    if new_seed_aln is not None:
+                        keep = [ch != "-" for ch in new_seed_aln]
+                        print(f"[a3m] {chain_tag}: query_type={qt} -> "
+                              f"replaced query+mask (len {len(alt_query)}, "
+                              f"keep={sum(keep)})")
+                    else:
+                        # Couldn't find the medoid's row in the alignment
+                        # (shouldn't happen, but be safe).
+                        keep = [ch.isalpha() for ch in alt_query]
+                        print(f"[a3m] {chain_tag}: query_type={qt} -> "
+                              f"replaced query (len {len(alt_query)}); "
+                              f"row not found in cluster A3M, using "
+                              f"identity mask")
                 else:
                     print(f"[a3m] WARN {chain_tag}: query_type={qt} requested "
                           f"but {qt} sequence invalid; falling back to chain")
-            keep = [ch != "-" for ch in seed_aln]
+            if keep is None:
+                # chain-query path or medoid fallback: use the original
+                # seed_aln-based mask
+                keep = [ch != "-" for ch in seed_aln]
             kept = sum(keep)
             if kept != len(chain_seq):
                 print(f"[a3m] WARN {chain_tag}: seed mask (keep={kept}) "
@@ -1909,7 +1943,11 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
     if not cluster_a3ms:
         print(f"[af-plan]   (no ShallowMsa_*.a3m under {cluster_dir})", flush=True)
 
-    tmp_pairs_dir = os.path.join(pair_dir, "tmp_msa_files")
+    # Tmp dir is suffix-aware so parallel jobs with different --af_output_suffix
+    # (e.g., treek100_full and treek100_top10) don't overwrite each other's
+    # per-cluster A3M inputs.
+    tmp_suffix = f"_{af_output_suffix}" if af_output_suffix else ""
+    tmp_pairs_dir = os.path.join(pair_dir, f"tmp_msa_files{tmp_suffix}")
     ensure_dir(tmp_pairs_dir)
 
     # Build pair-specific A3Ms per chain for DeepMsa + each cluster (same as before)
