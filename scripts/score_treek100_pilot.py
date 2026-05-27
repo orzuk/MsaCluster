@@ -36,7 +36,12 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from utils.align_utils import _run_tmalign_binary
+try:
+    # Preferred: unified wrapper that auto-falls back to Python tmtools
+    # when the TMalign binary is missing or not executable.
+    from utils.align_utils import tmalign_unified as _tmalign
+except ImportError:
+    from utils.align_utils import _run_tmalign_binary as _tmalign  # type: ignore
 
 
 def find_af2_rank1(cluster_dir: Path, chain: str) -> Optional[Path]:
@@ -140,8 +145,8 @@ def main():
                     continue
                 try:
                     # TM-align uses the first chain in the file if no chain specified
-                    res_F1 = _run_tmalign_binary(str(pred_pdb), str(truth_F1), None, ch1)
-                    res_F2 = _run_tmalign_binary(str(pred_pdb), str(truth_F2), None, ch2)
+                    res_F1 = _tmalign(str(pred_pdb), str(truth_F1), chain1=None, chain2=ch1)
+                    res_F2 = _tmalign(str(pred_pdb), str(truth_F2), chain1=None, chain2=ch2)
                     # Use max of by-1 and by-2 normalization, matching the
                     # rest of the pipeline convention
                     tm_F1 = max(res_F1.get("tm_by_1") or 0.0,
