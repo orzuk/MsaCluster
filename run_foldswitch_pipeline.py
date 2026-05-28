@@ -2924,14 +2924,18 @@ def main():
     p.add_argument("--cluster_adaptive_k_seqs_per_cluster_coarse",
                    type=int, default=200,
                    help="Coarse: seqs per cluster target (default 200).")
-    p.add_argument("--cluster_adaptive_k_min_coarse", type=int, default=10,
-                   help="Coarse: K_min floor (default 10).")
+    p.add_argument("--cluster_adaptive_k_min_coarse", type=int, default=2,
+                   help="Coarse: K_min floor (default 2). Keep low so any "
+                        "fine-viable pair also has a coarse clustering; "
+                        "the natural depth of coarse clusters comes from "
+                        "the lower K_max_coarse not from filters.")
     p.add_argument("--cluster_adaptive_k_max_coarse", type=int, default=30,
                    help="Coarse: K_max cap (default 30).")
-    p.add_argument("--cluster_min_output_size_coarse", type=int, default=100,
-                   help="Coarse: minimum sequences per cluster (default 100).")
-    p.add_argument("--cluster_min_neff_coarse", type=int, default=30,
-                   help="Coarse: minimum Neff per cluster (default 30).")
+    p.add_argument("--cluster_min_output_size_coarse", type=int, default=30,
+                   help="Coarse: minimum sequences per cluster (default 30, "
+                        "matches fine; depth comes from K_max not min_size).")
+    p.add_argument("--cluster_min_neff_coarse", type=int, default=10,
+                   help="Coarse: minimum Neff per cluster (default 10).")
     p.add_argument("--cluster_max_clusters", type=int, default=100,
                    help="Maximum clusters to output (default: 100).")
     p.add_argument("--cluster_min_output_size", type=int, default=200,

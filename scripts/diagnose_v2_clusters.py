@@ -41,7 +41,7 @@ def main():
         cdir_name = "output_msa_cluster_coarse"
         glob_pat = "CoarseMsa_*.a3m"
         default_out = "docs/v2_viable_pairs_coarse.txt"
-        default_kmin = 5
+        default_kmin = 2
 
     k_min = args.k_min if args.k_min != 10 else default_kmin
     out_path = Path(args.output or default_out)

@@ -65,13 +65,22 @@ Used by methods that work with shallow MSAs or single sequences.
 
 Used by methods that need deep MSA input.
 
-- **K_target_coarse:** `clip(N_seqs / 200, 10, 30)` per pair
-- **min_output_size:** 100 (CCMpred / MSAT depth requirement)
-- **min_neff:** 30
+- **K_target_coarse:** `clip(N_seqs / 200, 2, 30)` per pair
+- **min_output_size:** 30 (same as fine — depth comes from the lower K_max, not from filters)
+- **min_neff:** 10
 - **Per-cluster representative:** medoid
 - **Output directory:** `Pipeline/FoldPairs/<pair>/output_msa_cluster_coarse/`
 - **File naming:** `CoarseMsa_NNN.a3m`
-- **Per-cluster size range:** typically 100–500 sequences
+- **Per-cluster size range:** typically 100–500 sequences (small MSAs hit
+  K=2 floor → ~250 seqs/cluster; large MSAs hit K=30 cap → ~500 seqs/cluster)
+
+Filters intentionally LESS strict than fine: by mathematics any pair that
+produces fine clusters must also be able to produce coarse clusters (we
+are merely cutting the same tree higher up). The old defaults
+(min_size=100, K_min=10) dropped 13 pairs that were fine-viable; the
+relaxed defaults recover them at the cost of small-MSA pairs getting
+shallower coarse clusters than ideal. CCMpred/MSAT results on those pairs
+will be noisier but not invalid.
 
 ### 2.4 Fine ↔ coarse mapping
 
@@ -137,9 +146,12 @@ before observing any p-values.
   the placement test.
 
 ### 4.2 Coarse resolution
-- Include pair if it produces **≥ 5 coarse clusters** after applying
-  K_adapt_coarse(10,30) with min_output_size=100 / min_neff=30.
-- Justification: K < 5 yields trivial phylogenetic tests.
+- Include pair if it produces **≥ 2 coarse clusters** after applying
+  K_adapt_coarse(2, 30) with min_output_size=30 / min_neff=10.
+- Justification: K < 2 means no clustering at all. K=2-4 still supports
+  binary fold-preference comparison (F1c vs F2c labeling on the tree).
+- This ensures the coarse set is a **superset** of the fine viable set:
+  any pair viable at fine is viable at coarse.
 
 ### 4.3 Reporting in the paper
 - Methods section will state the count M_fine and M_coarse explicitly.

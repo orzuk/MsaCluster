@@ -41,12 +41,15 @@ SUFFIX="newmethod_top10"
 # and Neff requirements relax because AF input is a shallow MSA.
 MIN_OUTPUT_SIZE=10
 MIN_NEFF=5
-# Coarse-resolution params (for CCMpred / MSATransformer)
+# Coarse-resolution params (for CCMpred / MSATransformer).
+# K_min=2 / min_size=30 / min_neff=10 chosen so every fine-viable pair
+# also has a coarse clustering. Depth (~200 seqs/cluster) comes from the
+# K_max=30 cap not from filters.
 SEQS_PER_CLUSTER_COARSE=200
-K_MIN_COARSE=10
+K_MIN_COARSE=2
 K_MAX_COARSE=30
-MIN_OUTPUT_SIZE_COARSE=100
-MIN_NEFF_COARSE=30
+MIN_OUTPUT_SIZE_COARSE=30
+MIN_NEFF_COARSE=10
 
 # ---- parse args -------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
