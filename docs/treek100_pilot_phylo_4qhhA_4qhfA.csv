@@ -1,0 +1,2 @@
+n_labelled,n_F1c,n_F2c,nn1_obs,nn1_null_mean,p_nn1,fitch_obs,fitch_null_mean,p_fitch,n_perm,mode,delta
+44,27,17,0.8409090909090909,0.5154954545454545,0.00039996000399960006,6,13.7632,9.999000099990002e-05,10000,AF2_treek100_top10,0.05
