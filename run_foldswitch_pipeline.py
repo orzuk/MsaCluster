@@ -1130,50 +1130,15 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
         return seed_aln, rows, L
 
     def _cluster_medoid_or_consensus(rows, mode: str) -> str | None:
-        """Return the medoid or consensus sequence (ungapped, uppercase) of
-        the given cluster rows. mode: 'medoid' or 'consensus'. Returns None
-        if rows is empty.
+        """Return the medoid or consensus sequence of the given cluster rows.
 
-        The medoid is the row whose summed Hamming distance to all other
-        rows in the cluster is minimum, computed on aligned characters
-        (uppercase match-state positions). The consensus is the per-column
-        majority-vote over those match-state positions.
+        Thin wrapper that delegates to
+        utils.cluster_representative.representative_from_rows so AF2/AF3,
+        Boltz-2, ESMFold2 and any other per-cluster method share identical
+        cluster->representative logic.
         """
-        if not rows:
-            return None
-        aligned = [aln for _, aln in rows if aln]
-        if not aligned:
-            return None
-        L = len(aligned[0])
-        aligned = [a for a in aligned if len(a) == L]
-        if not aligned:
-            return None
-        if mode == "consensus":
-            cols: list[str] = []
-            for j in range(L):
-                col_counts: dict[str, int] = {}
-                for a in aligned:
-                    c = a[j]
-                    if c == "-" or c == ".":
-                        continue
-                    col_counts[c] = col_counts.get(c, 0) + 1
-                if not col_counts:
-                    cols.append("-")
-                else:
-                    cols.append(max(col_counts, key=col_counts.get))
-            return "".join(c for c in cols if c.isalpha()).upper()
-        # medoid: minimise sum of Hamming distances over match-state columns
-        import numpy as _np
-        # Cap to first 200 rows for tractability on huge clusters
-        sub = aligned[:200]
-        as_arr = _np.array([[ch for ch in s] for s in sub])
-        # Distance matrix: count mismatches per pair
-        n = as_arr.shape[0]
-        dist = _np.zeros((n, n), dtype=_np.int32)
-        for i in range(n):
-            dist[i] = (as_arr[i] != as_arr).sum(axis=1)
-        idx_best = int(dist.sum(axis=1).argmin())
-        return _ungap_upper(sub[idx_best])
+        from utils.cluster_representative import representative_from_rows
+        return representative_from_rows(rows, method=mode)
 
     # Normalise legacy / unknown query_type to "chain"
     qt = (query_type or "chain").lower()

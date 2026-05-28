@@ -30,29 +30,21 @@ from pathlib import Path
 from typing import Optional
 
 
-def _read_first_seq_from_a3m(path: Path) -> tuple[Optional[str], str]:
-    """Return (header, sequence) for the first record in an a3m.
+def _read_representative_from_a3m(
+    path: Path,
+    method: str = "medoid",
+) -> tuple[Optional[str], str]:
+    """Extract the cluster's representative sequence (medoid by default).
 
-    a3m files use uppercase for match-state columns and lowercase for
-    insertions; ESMFold2 wants a clean uppercase sequence with gaps
-    stripped (matching what the cluster medoid would look like as a
-    single sequence input).
+    Delegates to utils.cluster_representative.get_cluster_representative so
+    AF2/AF3/Boltz-2/ESMFold2 all share the same logic. Returns
+    (header, sequence). Sequence is ungapped, uppercased.
     """
-    header: Optional[str] = None
-    chunks: list[str] = []
-    with path.open() as f:
-        for line in f:
-            line = line.rstrip("\n")
-            if line.startswith(">"):
-                if header is not None:
-                    break  # finished the first record
-                header = line[1:].split()[0]
-                continue
-            if header is None:
-                continue
-            chunks.append(line)
-    seq = "".join(chunks).upper().replace("-", "").replace(".", "")
-    return header, seq
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from utils.cluster_representative import get_cluster_representative
+    header, seq = get_cluster_representative(path, method=method)
+    return header, seq or ""
 
 
 def _load_model(device: str):
@@ -133,6 +125,9 @@ def main():
                     help="Comma-separated foldpair ids; replaces "
                          "--input_dir/--output_dir")
     ap.add_argument("--pattern", default="ShallowMsa_*.a3m")
+    ap.add_argument("--representative_method", default="medoid",
+                    choices=["medoid", "consensus", "first"],
+                    help="How to pick one sequence per cluster (default: medoid).")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--num_loops", type=int, default=3)
     ap.add_argument("--num_sampling_steps", type=int, default=50)
@@ -164,7 +159,7 @@ def main():
             if args.skip_existing and out_pdb.is_file() and out_pdb.stat().st_size > 0:
                 total_skip += 1
                 continue
-            header, seq = _read_first_seq_from_a3m(fa)
+            header, seq = _read_representative_from_a3m(fa, method=args.representative_method)
             if not seq:
                 print(f"  [{name}] empty sequence; skip")
                 total_fail += 1

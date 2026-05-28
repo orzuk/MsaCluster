@@ -57,33 +57,18 @@ from utils.trigger_utils import (  # noqa: E402
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunBoltz2.sh")
 
 
-def _consensus_from_a3m(a3m: Path) -> str:
-    seqs: List[str] = []
-    name, cur = "", []
-    with open(a3m) as f:
-        for line in f:
-            line = line.rstrip("\n")
-            if line.startswith(">"):
-                if name and cur:
-                    seqs.append("".join(cur))
-                name, cur = line[1:], []
-            elif line:
-                cur.append(line)
-        if name and cur:
-            seqs.append("".join(cur))
-    if not seqs:
-        return ""
-    reduced = ["".join(ch for ch in s if (ch.isupper() or ch == "-"))
-               for s in seqs]
-    L = max(len(s) for s in reduced)
-    out = []
-    for col in range(L):
-        chars = [s[col] for s in reduced if col < len(s) and s[col] != "-"]
-        if not chars:
-            out.append(reduced[0][col] if col < len(reduced[0]) else "X")
-            continue
-        out.append(Counter(chars).most_common(1)[0][0])
-    return "".join(out)
+def _representative_from_a3m(a3m: Path, method: str = "medoid") -> str:
+    """Extract one representative sequence from the cluster a3m.
+
+    Delegates to utils.cluster_representative.get_cluster_representative so
+    AF2/AF3/Boltz-2/ESMFold2 all use identical logic for picking the
+    cluster's representative. Default is 'medoid' (the cluster's central
+    member). Was 'consensus' historically; medoid is more biologically
+    meaningful and matches the AF2/AF3 v2 methodology.
+    """
+    from utils.cluster_representative import get_cluster_representative
+    _hdr, seq = get_cluster_representative(a3m, method=method)
+    return seq or ""
 
 
 def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
@@ -193,15 +178,17 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                 })
             return rows
 
-    consensus = _consensus_from_a3m(cluster_a3m)
-    if not consensus:
-        print(f"  [boltz2] {tag}: empty consensus, skip")
+    # v2 methodology: use medoid (the cluster's central member) as the
+    # query, matching what AF2/AF3 use. Was 'consensus' previously.
+    seq = _representative_from_a3m(cluster_a3m, method="medoid")
+    if not seq:
+        print(f"  [boltz2] {tag}: empty representative, skip")
         return []
-    # Strip any dash characters from the consensus before passing to Boltz.
+    # Strip any dash characters before passing to Boltz (defensive).
     # Dashes occur when an MSA column is all-gap; Boltz parses them as
     # invalid CCD components and aborts ("CCD component '-' error" seen in
-    # 49/93 pair logs). Replace with 'X' (unknown aa) to keep length.
-    consensus = consensus.replace("-", "X").replace(".", "X")
+    # 49/93 pair logs in the original consensus mode). Replace with 'X'.
+    consensus = seq.replace("-", "X").replace(".", "X")
     in_yaml = out_root / "input.yaml"
     # Pass the cluster's own MSA so Boltz does not re-fetch a generic
     # one via --use_msa_server. This is the whole point of per-cluster
