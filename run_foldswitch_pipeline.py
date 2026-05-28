@@ -1975,6 +1975,36 @@ def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
         print(f"[esm] ERROR on GPU: {e}")
 
 
+def task_esmfold2(pair_id: str, args: argparse.Namespace) -> None:
+    """ESMFold2 (Biohub, May 2026) single-sequence prediction per cluster.
+
+    For each cluster, takes the medoid sequence and runs ESMFold2.
+    Output: Pipeline/FoldPairs/<pair>/output_esmfold2/ShallowMsa_NNN.{pdb,cif}
+
+    Requires the esmfold2-venv (separate from my-python-venv) because the
+    new biohub/ESMFold2 model has its own transformers + esm version pinned.
+    """
+    if _is_windows():
+        raise SystemExit("ESMFold2 can't run on Windows. Run on Moriah/Linux.")
+
+    esmfold2_venv = getattr(args, "esmfold2_venv",
+                            "/sci/labs/orzuk/orzuk/venvs/esmfold2-venv")
+    force = _bool_from_tf(getattr(args, "force_rerun_esmfold2", "FALSE"))
+    skip_flag = "" if force else " --skip_existing"
+    rep_method = getattr(args, "esmfold2_representative_method", "medoid")
+
+    ensure_dir(f"Pipeline/FoldPairs/{pair_id}/output_esmfold2")
+
+    inner = (f"source {esmfold2_venv}/bin/activate && "
+             f"python3 run_ESMFold2.py --foldpair_ids {pair_id} "
+             f"--representative_method {rep_method}{skip_flag}")
+    cmd = f"bash -c {shlex.quote(inner)}"
+    try:
+        _run(cmd, args.run_job_mode)
+    except Exception as e:
+        print(f"[esmfold2] ERROR: {e}", flush=True)
+
+
 def task_cf_random(pair_id: str, args: argparse.Namespace) -> None:
     """CF-random per cluster (Lee/Schafer/Porter 2025). Shells out to
     run_CFrandom.py which uses the existing colabfold install in
@@ -2718,42 +2748,78 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"AF step skipped: {e}")
 
-    # 6) CMAPs (MSA-Transformer)
-    _step_hdr(6, "MSA-Transformer CMAPs")
+    # 6) CMAPs (MSA-Transformer) — v2: coarse resolution (deep MSA needed).
+    _step_hdr(6, "MSA-Transformer CMAPs (coarse)")
     try:
+        a_msat = deepcopy(args); a_msat.cluster_resolution = "coarse"
         shallow_ok = _has_cmaps_shallow_local(pair_id)
         deep_ok    = _has_cmaps_deep_local(pair_id)
         if force_all or not (shallow_ok and deep_ok):
             need_sh = "missing" if not shallow_ok else "ok"
             need_dp = "missing" if not deep_ok else "ok"
-            print(f"Running MSA-Transformer … (shallow: {need_sh}, deep: {need_dp})")
-            task_cmap_msa_transformer(pair_id, "inline", args)
+            print(f"Running MSA-Transformer @ coarse … (shallow: {need_sh}, deep: {need_dp})")
+            task_cmap_msa_transformer(pair_id, "inline", a_msat)
         else:
             print("Shallow & deep CMAPs present → skipped")
     except Exception as e:
         print(f"MSA-Transformer step skipped: {e}")
 
-    # 6b) CMAPs (CCMpred) — best-effort
-    _step_hdr(7, "CCMpred CMAPs")
+    # 6b) CMAPs (CCMpred) — v2: coarse resolution (deep MSA needed).
+    _step_hdr(7, "CCMpred CMAPs (coarse)")
     try:
-        print("Invoking CCMpred (per-tag auto-skip inside) …")
-        task_cmap_ccmpred(pair_id, "inline", args)
+        a_ccm = deepcopy(args); a_ccm.cluster_resolution = "coarse"
+        print("Invoking CCMpred @ coarse (per-tag auto-skip inside) …")
+        task_cmap_ccmpred(pair_id, "inline", a_ccm)
     except Exception as e:
         print(f"CCMpred step skipped: {e}")
 
-    # 7) ESMFold (esm2/esm3 or user-specified)
-    _step_hdr(8, "ESMFold Predictions")
-    wanted_models = ["esm2", "esm3"] if getattr(args, "esm_model", None) in (None, "both") else [args.esm_model]
-    for model in wanted_models:
-        try:
-            a2 = deepcopy(args); a2.esm_model = model
-            if force_all or not _has_esm_model(pair_id, model):
-                print(f"Running esmfold({model}) …")
-                task_esmfold(pair_id, a2)
+    # 7) ESMFold2 (Biohub, May 2026; replaces old ESMFold v1).
+    # Single-sequence on each cluster's medoid sequence.
+    _step_hdr(8, "ESMFold2 Predictions")
+    try:
+        out_dir = f"Pipeline/FoldPairs/{pair_id}/output_esmfold2"
+        has_outputs = (
+            os.path.isdir(out_dir)
+            and any(fn.endswith((".pdb", ".cif"))
+                    for fn in os.listdir(out_dir))
+        )
+        if force_all:
+            setattr(args, "force_rerun_esmfold2", "TRUE")
+        if force_all or not has_outputs:
+            print("Running ESMFold2 …")
+            task_esmfold2(pair_id, args)
+        else:
+            print("ESMFold2 outputs exist → skipped")
+    except Exception as e:
+        print(f"ESMFold2 step skipped: {e}")
+
+    # 7b) Boltz-2 per cluster (fine resolution by default).
+    _step_hdr("8b", "Boltz-2 Predictions")
+    try:
+        boltz_dir = f"Pipeline/FoldPairs/{pair_id}/output_boltz2"
+        has_boltz = os.path.isdir(boltz_dir) and bool(os.listdir(boltz_dir))
+        if force_all or not has_boltz:
+            print("Running Boltz-2 …")
+            task_boltz2(pair_id, args)
+        else:
+            print("Boltz-2 outputs exist → skipped")
+    except Exception as e:
+        print(f"Boltz-2 step skipped: {e}")
+
+    # 7c) S4PRED per cluster (CPU, single-sequence secondary-structure).
+    _step_hdr("8c", "S4PRED Predictions")
+    try:
+        s4_csv = f"Pipeline/FoldPairs/{pair_id}/Analysis/df_s4pred.csv"
+        if force_all or not os.path.isfile(s4_csv):
+            if getattr(args, "s4pred_dir", None) or os.environ.get("S4PRED_DIR"):
+                print("Running S4PRED …")
+                task_s4pred(pair_id, args)
             else:
-                print(f"esmfold({model}) outputs exist → skipped")
-        except Exception as e:
-            print(f"esmfold({model}) step skipped: {e}")
+                print("S4PRED skipped: --s4pred_dir not set")
+        else:
+            print("S4PRED outputs exist → skipped")
+    except Exception as e:
+        print(f"S4PRED step skipped: {e}")
 
     # 8) ΔG energies (PyRosetta) — best-effort
     _step_hdr(9, "ΔG Energies")
@@ -2961,27 +3027,28 @@ def main():
     p.add_argument("--af_ver", default="both", choices=["2", "3", "both"],
                     help="Which AlphaFold to run for --run_mode run_AF")  # default do both AF2 and AF3
 
-    p.add_argument("--af_msa_top_n", type=int, default=0,
+    p.add_argument("--af_msa_top_n", type=int, default=10,
                     help="If > 0, subsample the per-cluster AF input MSA to "
                          "the N rows closest to the query (by mismatch on "
                          "match-state columns). Matches the AF-Cluster "
                          "shallow-MSA protocol (Wayment-Steele 2024 used "
-                         "N=10). Default 0 keeps the full cluster MSA.")
+                         "N=10, the v2 default). Set 0 to keep the full "
+                         "cluster MSA (v1 legacy behavior).")
     p.add_argument("--af_output_suffix", default="",
                     help="Optional suffix added to the AF output directory "
                          "(default empty -> output_AF/AF2 and output_AF/AF3). "
                          "Set to e.g. 'treek100_full' or 'treek100_top10' to "
                          "keep multiple methodology variants side by side.")
-    p.add_argument("--query_type", default="chain",
+    p.add_argument("--query_type", default="medoid",
                     choices=["chain", "medoid", "consensus"],
                     help="Per-cluster AF2/AF3 query source. "
-                         "'chain' (default, legacy): always use the original "
+                         "'medoid' (default, v2): use the cluster medoid "
+                         "sequence as the query (variant-as-query, matches "
+                         "AF-Cluster's protocol; the right setup for the "
+                         "clade-level evolutionary question). "
+                         "'chain' (legacy, v1): always use the original "
                          "PDB-chain FASTA as the AF query, with the cluster "
                          "MSA as context only. "
-                         "'medoid': use the cluster medoid sequence as the "
-                         "query (variant-as-query, matches AF-Cluster's "
-                         "protocol; the right setup for the clade-level "
-                         "evolutionary question). "
                          "'consensus': use the per-column majority-vote "
                          "consensus of the cluster (matches Boltz-2's input).")
 
