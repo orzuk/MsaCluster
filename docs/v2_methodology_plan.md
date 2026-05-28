@@ -395,13 +395,14 @@ Updated 2026-05-28. Status legend: ✅ done, 🟡 in progress, ❌ blocked, ◻ 
   Per-pair `fine_to_coarse.csv` available in each pair's
   `output_msa_cluster/` directory.
 
-### Task 3: Backup of v1 method results
+### Task 3: Backup of v1 method results — ✅ COMPLETE
 - ✅ Cluster .a3m files: backed up to `backups/clusters_v1_<date>/`
-- 🟡 Method results (`output_AF/`, `output_DDG/`, ...): user started
-  `cp -r`, unclear if finished. Resumable rsync script
-  (`scripts/backup_v1_results.sh`) is ready.
-- ◻ Verify completion: `du -sh backups/results_v1_*/` and
-  re-run `scripts/backup_v1_results.sh` if incomplete
+- ✅ Method results (`output_AF/`, `output_DDG/`, ...) backed up to
+  `backups/results_v1_<date>/` — 61 GB across 93 pair__subdir entries,
+  matching the source count exactly.
+- Optional: compress with `tar -czf backups/results_v1_<date>.tar.gz
+  backups/results_v1_<date>/ && rm -rf backups/results_v1_<date>/`
+  to shrink ~61 GB to ~20 GB.
 
 ### Task 4: Run 8 methods on new clusters
 Pre-flight per-method (wrapper resolution-routing):
