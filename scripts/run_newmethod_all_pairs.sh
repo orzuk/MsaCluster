@@ -169,6 +169,32 @@ if [[ "$STAGE" == "cluster_mapping" ]] || [[ "$STAGE" == "cluster_both" ]] \
     echo
 fi
 
+# ---- Stage 2: CCMpred at COARSE resolution ---------------------------------
+if [[ "$STAGE" == "ccmpred_coarse" ]] || [[ "$STAGE" == "ccmpred" ]]; then
+    echo "==================================================================="
+    echo "[v2] STAGE: CCMpred at COARSE resolution"
+    echo "==================================================================="
+    CMD="python3 run_foldswitch_pipeline.py \
+        --run_mode run_cmap_ccmpred --foldpair_ids $PAIRS_ARG \
+        --cluster_resolution coarse \
+        --run_job_mode sbatch"
+    run_or_echo "$CMD"
+    echo
+fi
+
+# ---- Stage 2: MSA-Transformer at COARSE resolution -------------------------
+if [[ "$STAGE" == "msat_coarse" ]] || [[ "$STAGE" == "msat" ]]; then
+    echo "==================================================================="
+    echo "[v2] STAGE: MSA-Transformer at COARSE resolution"
+    echo "==================================================================="
+    CMD="python3 run_foldswitch_pipeline.py \
+        --run_mode run_cmap_msa_transformer --foldpair_ids $PAIRS_ARG \
+        --cluster_resolution coarse \
+        --run_job_mode sbatch"
+    run_or_echo "$CMD"
+    echo
+fi
+
 # ---- Stage 2: AF2+AF3 with medoid + top-10 ---------------------------------
 if [[ "$STAGE" == "af" ]] || [[ "$STAGE" == "all" ]]; then
     echo "==================================================================="

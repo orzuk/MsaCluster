@@ -270,15 +270,22 @@ def _truth_pdb_paths_for_pair(pair_id: str) -> tuple[str, str]:
     return pdb1, pdb2
 
 
-def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True) -> str:
+def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True,
+                            cluster_subdir: str = "output_msa_cluster",
+                            cluster_pattern: str = "ShallowMsa_*.a3m",
+                            ) -> str:
     """
     Create pair-trimmed A3Ms (keep columns where S1 OR S2 has a residue) to avoid
     gap-gap columns and length explosions for MSA-Transformer/CCMpred.
     Returns the directory that contains the pair-trimmed cluster A3Ms.
+
+    cluster_subdir / cluster_pattern allow callers to point at the
+    coarse-resolution cluster set (output_msa_cluster_coarse/CoarseMsa_*.a3m)
+    instead of the default fine set.
     """
     deep_src = f"Pipeline/FoldPairs/{pair_id}/output_get_msa/DeepMsa.a3m"
-    clus_src = f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster"
-    clus_dst = f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster_pairtrim"
+    clus_src = f"Pipeline/FoldPairs/{pair_id}/{cluster_subdir}"
+    clus_dst = f"Pipeline/FoldPairs/{pair_id}/{cluster_subdir}_pairtrim"
     ensure_dir(clus_dst)
 
     pA, pB = pair_str_to_tuple(pair_id)
@@ -304,7 +311,7 @@ def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True) -> str:
         print(f"[seed_pairtrim] WARN: {e}")
 
     # Clusters
-    for a3m in sorted(glob(os.path.join(clus_src, "ShallowMsa_*.a3m"))):
+    for a3m in sorted(glob(os.path.join(clus_src, cluster_pattern))):
         dst = os.path.join(clus_dst, os.path.basename(a3m))
         trim_a3m_for_pair_union(a3m, dst, s1_tokens, s2_tokens, max_len=max_len)
 
@@ -1752,17 +1759,37 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
         print(f"[cache] WARN cluster_msa: {e}")
 
 
-def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
+def task_cmap_msa_transformer(pair_id: str, run_job_mode: str,
+                               args: argparse.Namespace | None = None) -> None:
     """
     Always run MSA-Transformer on the *trimmed* MSAs for both clusters and deep,
     but save the deep output as 'msa_t__DeepMsa.npy' (no 'pairtrim' in the name).
+
+    Honors --cluster_resolution: 'coarse' routes input to
+    output_msa_cluster_coarse/CoarseMsa_*.a3m (recommended for MSAT since it
+    needs MSAs with depth >= 128). Default 'fine' uses output_msa_cluster/.
     """
 
     outdir = f"Pipeline/FoldPairs/{pair_id}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
 
+    # Select cluster set based on resolution (v2 methodology)
+    resolution = (getattr(args, "cluster_resolution", "fine") or "fine") if args else "fine"
+    if resolution == "coarse":
+        cluster_subdir = (getattr(args, "cluster_outdir_coarse", None)
+                          or "output_msa_cluster_coarse")
+        cluster_pattern = "CoarseMsa_*.a3m"
+        print(f"[msat] using COARSE clusters from {cluster_subdir}")
+    else:
+        cluster_subdir = (getattr(args, "cluster_outdir", None)
+                          or "output_msa_cluster") if args else "output_msa_cluster"
+        cluster_pattern = "ShallowMsa_*.a3m"
+
     # 1) Make trimmed Deep + trimmed clusters (≤1024)
-    clus_dir_pairtrim = _prepare_pairtrim_msas(pair_id, cap_1024=True)
+    clus_dir_pairtrim = _prepare_pairtrim_msas(
+        pair_id, cap_1024=True,
+        cluster_subdir=cluster_subdir, cluster_pattern=cluster_pattern,
+    )
 
     # 2) Clusters (trimmed)
     # NOTE the leading space before --model is important.
@@ -1809,8 +1836,15 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str) -> None:
 
 def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace) -> None:
     """
-    Run CCMpred on DeepMsa and on every ShallowMsa_XXX in output_msa_cluster.
-    Outputs: Pipeline/<pair>/output_cmaps/ccmpred/<tag>.ccmpred.npy (APC-corrected)
+    Run CCMpred on DeepMsa and on every cluster MSA in the selected
+    resolution's directory.
+
+    Honors --cluster_resolution: 'coarse' uses
+    output_msa_cluster_coarse/CoarseMsa_*.a3m (recommended for CCMpred
+    since it needs Neff >= 50 for coevolution detection). Default
+    'fine' uses output_msa_cluster/ShallowMsa_*.a3m.
+
+    Outputs: Pipeline/<pair>/output_cmaps/ccmpred/<tag>.ccmpred.npz
     """
 
     pair_dir = Path(f"Pipeline/FoldPairs/{pair_id}")
@@ -1818,6 +1852,18 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
     tmp_dir = pair_dir / "tmp_ccmpred"
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Select cluster set based on resolution (v2 methodology)
+    resolution = (getattr(args, "cluster_resolution", "fine") or "fine")
+    if resolution == "coarse":
+        cluster_subdir = (getattr(args, "cluster_outdir_coarse", None)
+                          or "output_msa_cluster_coarse")
+        cluster_pattern = "CoarseMsa_*.a3m"
+        print(f"[ccmpred] using COARSE clusters from {cluster_subdir}")
+    else:
+        cluster_subdir = (getattr(args, "cluster_outdir", None)
+                          or "output_msa_cluster")
+        cluster_pattern = "ShallowMsa_*.a3m"
 
     ccmpred_bin = getattr(args, "ccmpred_bin", CCMPRED_EXE)
     threads = int(getattr(args, "ccmpred_threads", 8))
@@ -1883,8 +1929,8 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
     if deep.exists():
         run_one(deep, "DeepMsa")
 
-    # All clusters
-    for a3m in sorted((pair_dir / "output_msa_cluster").glob("ShallowMsa_*.a3m")):
+    # All clusters (fine or coarse depending on --cluster_resolution)
+    for a3m in sorted((pair_dir / cluster_subdir).glob(cluster_pattern)):
         run_one(a3m, a3m.stem)
 
 
@@ -2681,7 +2727,7 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
             need_sh = "missing" if not shallow_ok else "ok"
             need_dp = "missing" if not deep_ok else "ok"
             print(f"Running MSA-Transformer … (shallow: {need_sh}, deep: {need_dp})")
-            task_cmap_msa_transformer(pair_id, "inline")
+            task_cmap_msa_transformer(pair_id, "inline", args)
         else:
             print("Shallow & deep CMAPs present → skipped")
     except Exception as e:
@@ -3263,7 +3309,7 @@ def main():
             task_cluster_msa(pair_id, args.run_job_mode, args)
 
         elif args.run_mode == "run_cmap_msa_transformer":
-            task_cmap_msa_transformer(pair_id, args.run_job_mode)
+            task_cmap_msa_transformer(pair_id, args.run_job_mode, args)
 
         elif args.run_mode == "run_cmap_ccmpred":
             task_cmap_ccmpred(pair_id, args.run_job_mode, args)
