@@ -1649,10 +1649,35 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
 
     # Target minimum number of clusters (tree-cut only). When set, gets
     # passed through to run_ClusterMSA.py as --tree_min_num_clusters K.
-    tree_min_arg = ""
-    if alg == "tree" and getattr(args, "cluster_tree_min_num_clusters", 0):
-        tree_min_arg = (f"--tree_min_num_clusters "
-                        f"{int(args.cluster_tree_min_num_clusters)} ")
+    # Adaptive-K (v2 methodology): if enabled, override the static
+    # cluster_tree_min_num_clusters / cluster_max_clusters with a value
+    # computed from this pair's DeepMsa size.
+    k_target = int(getattr(args, "cluster_tree_min_num_clusters", 0))
+    k_cap = int(args.cluster_max_clusters)
+    spc = int(getattr(args, "cluster_adaptive_k_seqs_per_cluster", 0))
+    if alg == "tree" and spc > 0:
+        msa_path = os.path.join("Pipeline", "FoldPairs", pair_id,
+                                 "output_get_msa", "DeepMsa.a3m")
+        try:
+            n_seqs = 0
+            with open(msa_path) as f:
+                for line in f:
+                    if line.startswith(">"):
+                        n_seqs += 1
+            k_min = int(getattr(args, "cluster_adaptive_k_min", 20))
+            k_max = int(getattr(args, "cluster_adaptive_k_max", 100))
+            k_adapt = max(k_min, min(k_max, n_seqs // spc))
+            print(f"[adapt-K] pair={pair_id} N_seqs={n_seqs} "
+                  f"-> K_target={k_adapt} (seqs_per_cluster={spc}, "
+                  f"K_min={k_min}, K_max={k_max})")
+            k_target = k_adapt
+            k_cap = k_adapt
+        except Exception as e:
+            print(f"[adapt-K] WARN: could not read MSA size for {pair_id} "
+                  f"({e}); falling back to static "
+                  f"--cluster_tree_min_num_clusters={k_target}")
+
+    tree_min_arg = f"--tree_min_num_clusters {k_target} " if k_target else ""
 
     # Output directory under the pair dir (default: output_msa_cluster).
     # Use --cluster_outdir to write to a parallel directory (e.g.
@@ -1667,7 +1692,7 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
         f"--a3m output_get_msa/DeepMsa.a3m "
         f"-o {shlex.quote(outdir)} "
         f"--cluster_alg {shlex.quote(alg)} {tree_arg}{tree_min_arg}"
-        f"--max_clusters {int(args.cluster_max_clusters)} "
+        f"--max_clusters {k_cap} "
         f"--min_output_size {int(args.cluster_min_output_size)} "
         f"--min_neff {int(args.cluster_min_neff)} "
         f"--neff_id_thresh {float(args.cluster_neff_id_thresh)} "
@@ -2793,6 +2818,20 @@ def main():
                         "0 (default) leaves the tree-cut at its natural K; set "
                         "to e.g. 40 to force finer clustering. Capped above by "
                         "--cluster_max_clusters.")
+    # Adaptive-K policy (v2 paper methodology). When
+    # --cluster_adaptive_k_seqs_per_cluster > 0, K_target is computed per pair
+    # as clip(N_seqs / seqs_per_cluster, k_min, k_max), where N_seqs is read
+    # from the pair's DeepMsa.a3m. The computed value OVERRIDES both
+    # --cluster_tree_min_num_clusters and --cluster_max_clusters for that
+    # pair. This lets a single CLI invocation scale K to MSA size.
+    p.add_argument("--cluster_adaptive_k_seqs_per_cluster", type=int, default=0,
+                   help="If > 0, compute K_target = clip(N_seqs / N, K_min, "
+                        "K_max) per pair, overriding --cluster_tree_min_num_clusters "
+                        "and --cluster_max_clusters. Typical: 30 (v2 paper).")
+    p.add_argument("--cluster_adaptive_k_min", type=int, default=20,
+                   help="K_min floor for adaptive-K (default 20).")
+    p.add_argument("--cluster_adaptive_k_max", type=int, default=100,
+                   help="K_max cap for adaptive-K (default 100).")
     p.add_argument("--cluster_max_clusters", type=int, default=100,
                    help="Maximum clusters to output (default: 100).")
     p.add_argument("--cluster_min_output_size", type=int, default=200,
@@ -3103,6 +3142,15 @@ def main():
                 if getattr(args, "cluster_tree_min_num_clusters", 0):
                     extras += [(f"--cluster_tree_min_num_clusters "
                                 f"{int(args.cluster_tree_min_num_clusters)}")]
+                if getattr(args, "cluster_adaptive_k_seqs_per_cluster", 0):
+                    extras += [
+                        (f"--cluster_adaptive_k_seqs_per_cluster "
+                         f"{int(args.cluster_adaptive_k_seqs_per_cluster)}"),
+                        (f"--cluster_adaptive_k_min "
+                         f"{int(args.cluster_adaptive_k_min)}"),
+                        (f"--cluster_adaptive_k_max "
+                         f"{int(args.cluster_adaptive_k_max)}"),
+                    ]
 
                 extras += [
                     f"--cluster_max_clusters {int(args.cluster_max_clusters)}",
