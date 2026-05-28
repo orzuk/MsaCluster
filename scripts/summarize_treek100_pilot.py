@@ -44,27 +44,22 @@ def load_pair(csv_path: Path, pair_id: str) -> pd.DataFrame:
     return df
 
 
-def find_csvs(docs_dir: Path) -> dict[str, Path]:
-    """Return {pair_id: csv_path}. The KaiB run uses the default
-    filename (no pair suffix); others have _<pair>.csv."""
-    out: dict[str, Path] = {}
-    default = docs_dir / "treek100_pilot_tmscores.csv"
-    if default.is_file():
-        # Heuristic: identify by which chain tags appear in the file.
-        try:
-            head = pd.read_csv(default, nrows=5)
-            chains = set(head["chain"].astype(str).tolist())
-            for pid in PAIR_LABELS:
-                p1, p2 = pid.split("_")
-                if p1 in chains or p2 in chains:
-                    out[pid] = default
-                    break
-        except Exception:
-            out["5jytA_2qkeE"] = default  # fall back to KaiB
+def find_csvs(docs_dir: Path) -> list[tuple[str, Path]]:
+    """Return a list of (pair_id, csv_path) covering BOTH the
+    treek100_pilot_tmscores_*.csv files (new K=100 + top-10 pilot)
+    AND the oldmethod_tmscores_*.csv files (old default-K
+    methodology). A pair may appear twice (once per source).
+
+    The `mode` column inside each CSV distinguishes the methods, so we
+    don't need to inject anything — just load and concat.
+    """
+    out: list[tuple[str, Path]] = []
     for f in sorted(docs_dir.glob("treek100_pilot_tmscores_*.csv")):
-        stem = f.stem  # treek100_pilot_tmscores_<pair>
-        pid = stem.replace("treek100_pilot_tmscores_", "")
-        out[pid] = f
+        pid = f.stem.replace("treek100_pilot_tmscores_", "")
+        out.append((pid, f))
+    for f in sorted(docs_dir.glob("oldmethod_tmscores_*.csv")):
+        pid = f.stem.replace("oldmethod_tmscores_", "")
+        out.append((pid, f))
     return out
 
 
@@ -103,11 +98,11 @@ def main():
     if not csvs:
         sys.exit(f"No pilot CSVs found under {docs_dir}")
     print(f"[summary] found {len(csvs)} CSV(s):")
-    for pid, f in csvs.items():
+    for pid, f in csvs:
         print(f"  {PAIR_LABELS.get(pid, '?'):<10s} {pid:<15s} {f.name}")
 
     frames = []
-    for pid, csv in csvs.items():
+    for pid, csv in csvs:
         try:
             frames.append(load_pair(csv, pid))
         except Exception as e:
