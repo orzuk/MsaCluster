@@ -94,38 +94,35 @@ def _fold(model, name: str, sequence: str,
     pdb = _extract_pdb_text(result)
     if pdb:
         return pdb
-    # MolecularComplexResult: structure lives on .complex
+    # MolecularComplexResult: structure lives on .complex (a MolecularComplex).
+    # ESMFold2's MolecularComplex outputs mmCIF natively. The legacy ESM
+    # ProteinComplex API (with PDB methods) is reachable via to_protein_complex().
     cplx = getattr(result, "complex", None)
     if cplx is not None:
         pdb = _extract_pdb_text(cplx)
         if pdb:
             return pdb
-        # Some APIs expose write_pdb(path) — write to a tmpfile then read back.
-        write_attr = None
-        for attr in ("write_pdb", "to_pdb_file", "save_pdb"):
-            v = getattr(cplx, attr, None)
-            if callable(v):
-                write_attr = (attr, v)
-                break
-        if write_attr is not None:
-            import tempfile
-            with tempfile.NamedTemporaryFile(
-                "w+", suffix=".pdb", delete=False
-            ) as tf:
-                tmp_path = tf.name
+        # Convert MolecularComplex -> ProteinComplex (legacy API with PDB methods).
+        to_pc = getattr(cplx, "to_protein_complex", None)
+        if callable(to_pc):
             try:
-                write_attr[1](tmp_path)
-                with open(tmp_path) as fh:
-                    return fh.read()
-            finally:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
-        # Last resort: dump dir() of the complex so we can iterate.
+                pc = to_pc()
+                pdb = _extract_pdb_text(pc)
+                if pdb:
+                    return pdb
+            except Exception as e:
+                print(f"  [warn] to_protein_complex() failed: {e}", flush=True)
+        # Last-resort: emit mmCIF (caller writes .cif instead of .pdb).
+        to_mmcif = getattr(cplx, "to_mmcif", None)
+        if callable(to_mmcif):
+            mmcif = to_mmcif()
+            if isinstance(mmcif, (bytes, bytearray)):
+                mmcif = mmcif.decode("utf-8", errors="replace")
+            if isinstance(mmcif, str) and mmcif.strip():
+                return ("__MMCIF__\n" + mmcif)
         attrs = [a for a in dir(cplx) if not a.startswith("_")]
         raise RuntimeError(
-            f"Could not find PDB extractor on result.complex "
+            f"Could not find PDB or mmCIF extractor on result.complex "
             f"(type={type(cplx).__name__}). Public attrs: {attrs}"
         )
     # Predictions list fallback (kept from earlier API shapes).
@@ -203,7 +200,11 @@ def main():
         for i, fa in enumerate(fastas):
             name = fa.stem  # ShallowMsa_NNN
             out_pdb = out_dir / f"{name}.pdb"
-            if args.skip_existing and out_pdb.is_file() and out_pdb.stat().st_size > 0:
+            out_cif = out_dir / f"{name}.cif"
+            if args.skip_existing and (
+                (out_pdb.is_file() and out_pdb.stat().st_size > 0)
+                or (out_cif.is_file() and out_cif.stat().st_size > 0)
+            ):
                 total_skip += 1
                 continue
             header, seq = _read_representative_from_a3m(fa, method=args.representative_method)
@@ -213,17 +214,22 @@ def main():
                 continue
             t0 = time.time()
             try:
-                pdb_text = _fold(
+                text = _fold(
                     model, name=header or name, sequence=seq,
                     num_loops=args.num_loops,
                     num_sampling_steps=args.num_sampling_steps,
                 )
-                out_pdb.write_text(pdb_text)
+                if text.startswith("__MMCIF__\n"):
+                    out_path = out_cif
+                    out_path.write_text(text[len("__MMCIF__\n"):])
+                else:
+                    out_path = out_pdb
+                    out_path.write_text(text)
                 dt = time.time() - t0
                 total_ok += 1
                 if (i + 1) % 10 == 0 or i == 0:
                     print(f"  [{i+1}/{len(fastas)}] {name} L={len(seq)} "
-                          f"OK in {dt:.1f}s -> {out_pdb.name}", flush=True)
+                          f"OK in {dt:.1f}s -> {out_path.name}", flush=True)
             except Exception as e:
                 total_fail += 1
                 print(f"  [{name}] FAIL: {e}")
