@@ -385,13 +385,15 @@ Updated 2026-05-28. Status legend: ✅ done, 🟡 in progress, ❌ blocked, ◻ 
 - ◻ Full KaiB run (~99 medoids)
 - ◻ All 82 viable pairs
 
-### Task 2: Coarse-from-fine clustering
+### Task 2: Coarse-from-fine clustering — ✅ COMPLETE
 - ✅ Tree-walk agglomeration script (`scripts/build_coarse_from_fine.py`)
 - ✅ Run on all 93 pairs: 92 built, 1 skipped (5c3iF has no fine clusters)
 - ✅ K_target adaptive: caps at 30 for large MSAs, drops to 2 for small;
   edge case "ok_1to1" handled for pairs with K_fine ≤ K_target
-- ◻ Verify nesting: `python3 scripts/check_v2_nesting.py`
-  (prediction: "VERDICT: nesting is perfect across all pairs")
+- ✅ Nesting verified: 82/82 fine-viable pairs perfectly nested
+  (every fine cluster fully contained in one coarse cluster).
+  Per-pair `fine_to_coarse.csv` available in each pair's
+  `output_msa_cluster/` directory.
 
 ### Task 3: Backup of v1 method results
 - ✅ Cluster .a3m files: backed up to `backups/clusters_v1_<date>/`
