@@ -369,7 +369,93 @@ User-confirmed decisions:
 
 ---
 
-## 11. References
+## 11. v2 task tracker
+
+Updated 2026-05-28. Status legend: ✅ done, 🟡 in progress, ❌ blocked, ◻ pending.
+
+### Task 1: ESMFold2 install + smoke test
+- ✅ Fresh venv (`/sci/labs/orzuk/orzuk/venvs/esmfold2-venv`)
+- ✅ `pip install esm transformers torch` — imports OK
+- 🟡 Smoke test on KaiB cluster 0: model loaded + weights downloaded,
+  but crashed on `ModuleNotFoundError: No module named 'mdtraj'`
+  (transitive import chain via `utils.protein_utils`). Fix committed —
+  `utils.cluster_representative` now has an inlined a3m reader and no
+  longer pulls in `protein_utils`.
+- ◻ Re-run smoke test; expect `Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_000.pdb`
+- ◻ Full KaiB run (~99 medoids)
+- ◻ All 82 viable pairs
+
+### Task 2: Coarse-from-fine clustering
+- ✅ Tree-walk agglomeration script (`scripts/build_coarse_from_fine.py`)
+- ✅ Run on all 93 pairs: 92 built, 1 skipped (5c3iF has no fine clusters)
+- ✅ K_target adaptive: caps at 30 for large MSAs, drops to 2 for small;
+  edge case "ok_1to1" handled for pairs with K_fine ≤ K_target
+- ◻ Verify nesting: `python3 scripts/check_v2_nesting.py`
+  (prediction: "VERDICT: nesting is perfect across all pairs")
+
+### Task 3: Backup of v1 method results
+- ✅ Cluster .a3m files: backed up to `backups/clusters_v1_<date>/`
+- 🟡 Method results (`output_AF/`, `output_DDG/`, ...): user started
+  `cp -r`, unclear if finished. Resumable rsync script
+  (`scripts/backup_v1_results.sh`) is ready.
+- ◻ Verify completion: `du -sh backups/results_v1_*/` and
+  re-run `scripts/backup_v1_results.sh` if incomplete
+
+### Task 4: Run 8 methods on new clusters
+Pre-flight per-method (wrapper resolution-routing):
+
+| Method | Resolution | Wrapper ready? |
+|---|---|---|
+| AF2 | fine | ✅ (via `--query_type medoid --af_msa_top_n 10`) |
+| AF3 | fine | ✅ same |
+| ESMFold2 | fine | 🟡 awaiting smoke test fix verification |
+| Boltz-2 | fine | ✅ medoid (was consensus) |
+| DDG | fine | ✅ already samples 10 per cluster |
+| S4PRED | fine | ✅ single-sequence on medoid |
+| CCMpred | coarse | ✅ reads `output_msa_cluster_coarse/` |
+| MSA Transformer | coarse | ✅ same |
+
+Launcher stages still to add: `--stage ddg`, `--stage boltz2`, `--stage s4pred`.
+Currently each is dispatched via the existing `run_foldswitch_pipeline.py`
+modes (e.g., `--run_mode run_ddg`) — wrappers exist but launcher needs
+shortcut stages for batch convenience.
+
+Launch order once smoke tests pass:
+1. ◻ `bash scripts/run_newmethod_all_pairs.sh --stage af`        (AF2+AF3, heavy GPU)
+2. ◻ `bash scripts/run_newmethod_all_pairs.sh --stage esmfold2`  (ESMFold2, ~10 min/pair)
+3. ◻ `bash scripts/run_newmethod_all_pairs.sh --stage ccmpred_coarse`
+4. ◻ `bash scripts/run_newmethod_all_pairs.sh --stage msat_coarse`
+5. ◻ DDG, Boltz-2, S4PRED via their respective pipeline stages (need launcher shortcuts)
+
+### Task 5: Scoring (after methods finish)
+- ✅ AF2/AF3: `scripts/score_treek100_pilot.py` (refactored to use shared util)
+- ✅ ESMFold2: `scripts/score_esmfold2.py` (refactored to use shared util)
+- ◻ Boltz-2: has internal scoring; need wrapper to feed canonical CSV
+- ◻ CCMpred / MSAT: contact-map-based, needs new scorer (different from structure TM-align)
+- ◻ DDG: stability-based, needs scorer
+- ◻ S4PRED: secondary-structure-based, needs scorer
+- ✅ Shared util: `utils/score_against_folds.py` for structure-prediction scoring
+
+### Task 6: Per-method phylo placement
+- ✅ Pilot version: `scripts/phylo_placement_treek100_pilot.py`
+- ◻ Refactor: per-method, at method's own resolution (fine for AF/ESMFold2/etc.,
+  coarse for CCMpred/MSAT), single per-pair p_Fitch
+
+### Task 7: Summary table + figures
+- ✅ Pilot summarizer: `scripts/summarize_treek100_pilot.py`
+- ◻ v2 summarizer: read ALL per-method CSVs, apply per-method BH-FDR,
+  produce method × pair table for the paper
+- ◻ Cross-resolution concordance: use fine_to_coarse.csv to aggregate
+  fine-method scores up to coarse, compare to coarse-method scores
+- ◻ Figure regeneration scripts
+
+### Task 8: Paper update
+- ◻ Replace Figure 2 with v2 methodology results
+- ◻ Update Methods §2.x to describe two-resolution clustering
+- ◻ Update Results §3.x with M_fine=82 per-method significance counts
+- ◻ Update Discussion with the RfaH-context-vs-clade story (from pilot)
+
+## 13. References
 
 - Wayment-Steele et al. 2024. *Predicting multiple conformations via
   sequence clustering and AlphaFold2.* Nature 625, 832-839.

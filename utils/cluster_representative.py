@@ -95,6 +95,39 @@ def representative_from_rows(rows: List[Tuple[str, str]],
                      f"Expected one of: 'medoid', 'consensus', 'first'.")
 
 
+def _read_a3m_match_state(a3m_path: Path) -> list[Tuple[str, str]]:
+    """Lightweight a3m reader: returns [(header_first_token, aligned_seq), ...].
+
+    aligned_seq has insertions (lowercase) stripped, keeping only
+    match-state columns (uppercase + '-'). Inlined here so this module
+    has no dependency on utils.protein_utils (and therefore no mdtraj /
+    biopython hard dep) — important for the ESMFold2 venv which doesn't
+    install those.
+    """
+    out: list[Tuple[str, str]] = []
+    name: Optional[str] = None
+    chunks: list[str] = []
+
+    def _emit():
+        if name is None:
+            return
+        raw = "".join(chunks)
+        match_only = "".join(c for c in raw if c.isupper() or c == "-")
+        out.append((name, match_only))
+
+    with a3m_path.open() as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if line.startswith(">"):
+                _emit()
+                name = line[1:].split()[0]
+                chunks = []
+            else:
+                chunks.append(line)
+        _emit()
+    return out
+
+
 def get_cluster_representative(a3m_path,
                                 method: str = "medoid",
                                 ) -> Tuple[Optional[str], Optional[str]]:
@@ -109,14 +142,12 @@ def get_cluster_representative(a3m_path,
     Raises FileNotFoundError if the file doesn't exist. Returns
     (None, None) if the file is empty or unparseable.
     """
-    from utils.protein_utils import read_msa  # local import to avoid cycle
-
     a3m_path = Path(a3m_path)
     if not a3m_path.is_file():
         raise FileNotFoundError(f"Cluster a3m not found: {a3m_path}")
-    rows = read_msa(str(a3m_path))
+    rows = _read_a3m_match_state(a3m_path)
     if not rows:
         return None, None
-    header = rows[0][0].split()[0]
+    header = rows[0][0]
     seq = representative_from_rows(rows, method=method)
     return header, seq
