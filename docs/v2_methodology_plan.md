@@ -97,8 +97,7 @@ Initial assignment (revisitable based on per-method results):
 |---|---|---|
 | **AF2** (per-cluster, top-10 nearest as MSA) | Fine | Wayment-Steele shallow-MSA regime; pilot-validated |
 | **AF3** | Fine | Same |
-| **ESMFold2** (Biohub, May 2026) | Fine | Single-sequence; uses cluster medoid only |
-| **ESMFold v1** (Meta 2022) | Fine | Single-sequence |
+| **ESMFold2** (Biohub, May 2026) | Fine | Single-sequence; uses cluster medoid only. **Replaces ESMFold v1**: the latest single-sequence predictor is enough; running both versions of the same architecture family adds nothing |
 | **S4PRED** (secondary structure) | Fine | Single-sequence; orthogonal to fold-switching axis |
 | **DDG** (ThermoMPNN-based) | **Fine** | Code already does its own top-10 sampling per cluster (`cluster_sample_n=10`); structure-based scoring, no deep-MSA need |
 | **Boltz-2** | **Fine** | Reads cluster a3m directly; at fine resolution gets ~10–50 seq MSA which IS the shallow-MSA regime |
