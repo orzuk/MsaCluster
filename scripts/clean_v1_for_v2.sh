@@ -82,6 +82,7 @@ for P in $PAIR_LIST; do
         D="$PAIR_DIR/$M"
         if [[ -d "$D" ]]; then
             SZ=$(du -sb "$D" 2>/dev/null | awk '{print $1}')
+            [[ -z "$SZ" ]] && SZ=0
             SZ_HUMAN=$(du -sh "$D" 2>/dev/null | awk '{print $1}')
             if [[ "$DRY_RUN" -eq 1 ]]; then
                 echo "[DRY-RUN] rm -rf $D  (${SZ_HUMAN})"
@@ -90,20 +91,23 @@ for P in $PAIR_LIST; do
                 echo "[clean] deleted $D  (${SZ_HUMAN})"
             fi
             n_dirs_deleted=$((n_dirs_deleted+1))
-            total_size_freed=$((total_size_freed+SZ))
+            # Use awk for the running total -- bash arithmetic comparisons can
+            # misbehave on >2 GB values on some systems; awk uses double-prec
+            # floats so the sum is always faithful up to 2^53 bytes (~8 PB).
+            total_size_freed=$(awk "BEGIN{print $total_size_freed + $SZ}")
         fi
     done
 done
 
-# Convert bytes -> human
-human() {
-    local b=$1
-    if   [[ $b -gt 1073741824 ]]; then awk "BEGIN{printf \"%.1f GB\", $b/1073741824}"
-    elif [[ $b -gt 1048576    ]]; then awk "BEGIN{printf \"%.1f MB\", $b/1048576}"
-    elif [[ $b -gt 1024       ]]; then awk "BEGIN{printf \"%.1f KB\", $b/1024}"
-    else echo "${b} B"; fi
-}
-SIZE_HUMAN=$(human "$total_size_freed")
+# Convert bytes -> human-readable. numfmt is part of coreutils (always present
+# on cluster Linux); awk fallback handles weirder environments.
+SIZE_HUMAN=$(numfmt --to=iec --suffix=B --format='%.1f' "$total_size_freed" 2>/dev/null \
+             || awk -v b="$total_size_freed" 'BEGIN{
+                 if (b>=1073741824) printf "%.1f GB", b/1073741824;
+                 else if (b>=1048576) printf "%.1f MB", b/1048576;
+                 else if (b>=1024)    printf "%.1f KB", b/1024;
+                 else                 printf "%d B", b;
+             }')
 
 echo
 echo "[clean] Pairs visited:     $n_pairs"
