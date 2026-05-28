@@ -58,6 +58,24 @@ def _load_model(device: str):
     return model
 
 
+def _extract_pdb_text(obj) -> Optional[str]:
+    """Try common PDB-extraction APIs on a structure-bearing object.
+    Returns PDB text on success, None otherwise."""
+    for attr in (
+        "to_pdb_string", "pdb_string", "write_pdb_string",
+        "to_pdb", "pdb",
+    ):
+        v = getattr(obj, attr, None)
+        if v is None:
+            continue
+        out = v() if callable(v) else v
+        if isinstance(out, str) and out.strip().startswith(("ATOM", "HEADER", "MODEL", "REMARK")):
+            return out
+        if isinstance(out, (bytes, bytearray)):
+            return out.decode("utf-8", errors="replace")
+    return None
+
+
 def _fold(model, name: str, sequence: str,
           num_loops: int, num_sampling_steps: int) -> str:
     """Run one fold; return PDB text."""
@@ -72,21 +90,50 @@ def _fold(model, name: str, sequence: str,
         num_loops=num_loops,
         num_sampling_steps=num_sampling_steps,
     )
-    # The result object exposes PDB output in one of a few shapes
-    # depending on the package version; try the common ones.
-    for attr in ("to_pdb", "pdb"):
-        v = getattr(result, attr, None)
-        if v is None:
-            continue
-        return v() if callable(v) else v
+    # Try direct extraction from result (older API shapes).
+    pdb = _extract_pdb_text(result)
+    if pdb:
+        return pdb
+    # MolecularComplexResult: structure lives on .complex
+    cplx = getattr(result, "complex", None)
+    if cplx is not None:
+        pdb = _extract_pdb_text(cplx)
+        if pdb:
+            return pdb
+        # Some APIs expose write_pdb(path) — write to a tmpfile then read back.
+        write_attr = None
+        for attr in ("write_pdb", "to_pdb_file", "save_pdb"):
+            v = getattr(cplx, attr, None)
+            if callable(v):
+                write_attr = (attr, v)
+                break
+        if write_attr is not None:
+            import tempfile
+            with tempfile.NamedTemporaryFile(
+                "w+", suffix=".pdb", delete=False
+            ) as tf:
+                tmp_path = tf.name
+            try:
+                write_attr[1](tmp_path)
+                with open(tmp_path) as fh:
+                    return fh.read()
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+        # Last resort: dump dir() of the complex so we can iterate.
+        attrs = [a for a in dir(cplx) if not a.startswith("_")]
+        raise RuntimeError(
+            f"Could not find PDB extractor on result.complex "
+            f"(type={type(cplx).__name__}). Public attrs: {attrs}"
+        )
+    # Predictions list fallback (kept from earlier API shapes).
     preds = getattr(result, "predictions", None)
     if preds:
-        first = preds[0]
-        for attr in ("to_pdb", "pdb"):
-            v = getattr(first, attr, None)
-            if v is None:
-                continue
-            return v() if callable(v) else v
+        pdb = _extract_pdb_text(preds[0])
+        if pdb:
+            return pdb
     raise RuntimeError(
         f"Cannot extract PDB from result of type {type(result).__name__}; "
         f"attributes: {dir(result)[:40]}..."
