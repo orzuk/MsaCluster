@@ -100,18 +100,29 @@ Initial assignment (revisitable based on per-method results):
 | **ESMFold2** (Biohub, May 2026) | Fine | Single-sequence; uses cluster medoid only |
 | **ESMFold v1** (Meta 2022) | Fine | Single-sequence |
 | **S4PRED** (secondary structure) | Fine | Single-sequence; orthogonal to fold-switching axis |
-| **DDG** (folding free energy) | Fine *(tentative)* | Run at fine first; if signal weak and CTD requires depth, may revisit |
+| **DDG** (ThermoMPNN-based) | **Fine** | Code already does its own top-10 sampling per cluster (`cluster_sample_n=10`); structure-based scoring, no deep-MSA need |
+| **Boltz-2** | **Fine** | Reads cluster a3m directly; at fine resolution gets ~10–50 seq MSA which IS the shallow-MSA regime |
 | **CCMpred** (DCA contacts) | Coarse | Requires Neff ≥ ~50 for coevolution |
 | **MSA Transformer** | Coarse | Trained on MSAs ≥ 128 sequences |
-| **Boltz-2** | Coarse | MSA-conditioned folding; depth benefits |
 
-### Note on DDG
+### Audit results for DDG and Boltz-2 (2026-05-28)
 
-DDG (ΔΔG-based ranking) is currently slated for fine resolution
-because its input is the cluster's medoid sequence + a substitution
-scan. If the DDG implementation in the repo actually consumes the
-full cluster MSA for coevolutionary regularization, move to coarse.
-**Audit needed before running.**
+**DDG (`run_DDG.py`):** ThermoMPNN-based per-cluster sequence
+scoring (NOT coevolution-DDG). Code already samples
+`cluster_sample_n=10` sequences per cluster, scores each against
+fold-1 + fold-2 backbones, takes the difference. No deep-MSA
+requirement → **fine resolution.**
+
+**Boltz-2 (`run_Boltz2.py`):** Per-cluster fold prediction (AF3-style).
+Reads `output_msa_cluster/ShallowMsa_*.a3m` and passes the cluster a3m
+to Boltz as the chain's MSA. Whatever depth the cluster has, Boltz
+uses. At fine resolution clusters are 10-50 seqs → effectively
+shallow-MSA mode → **fine resolution.**
+
+Minor consistency note: Boltz-2 currently uses the cluster
+**consensus** sequence, not the medoid. AF2/AF3 use the medoid.
+A one-line change in `run_Boltz2.py:_consensus_from_a3m` would align
+them. Probably worth doing for cross-method consistency.
 
 ---
 
@@ -326,16 +337,21 @@ User-confirmed decisions:
 
 ## 10. Open Questions / TBD
 
-1. **DDG implementation audit:** Does the existing DDG wrapper consume
-   the full cluster MSA, or just the medoid? Decides fine vs coarse.
-2. **Boltz-2 wrapper audit:** Same question; verify what MSA it
-   actually ingests.
-3. **Cross-resolution concordance metric:** Pearson correlation is the
+1. ~~**DDG implementation audit:**~~ Resolved 2026-05-28 — DDG is
+   ThermoMPNN-based, fine resolution.
+2. ~~**Boltz-2 wrapper audit:**~~ Resolved 2026-05-28 — Boltz-2 reads
+   cluster a3m directly, fine resolution. (Minor: change consensus
+   → medoid for cross-method consistency.)
+3. **CCMpred wrapper audit:** Confirm it reads from
+   `output_msa_cluster/` and produces a per-cluster contact map.
+   Need to add `--input_cluster_dir output_msa_cluster_coarse/` flag.
+4. **MSA Transformer wrapper audit:** Same as CCMpred.
+5. **Cross-resolution concordance metric:** Pearson correlation is the
    default; alternatives (Spearman, rank concordance) could be more
    robust.
-4. **What happens if a pair has fine K = 12 but only coarse K = 3?**
+6. **What happens if a pair has fine K = 12 but only coarse K = 3?**
    Pair is fine-eligible but coarse-ineligible. Reported separately.
-5. **AF2_treek100_top10 → AF2_newmethod_top10 rename?** Pilot used
+7. **AF2_treek100_top10 → AF2_newmethod_top10 rename?** Pilot used
    `_treek100_top10` suffix; v2 plan uses `_newmethod_top10`. Either
    keep pilot results under old name (and document the equivalence)
    or re-run pilots under new name. Recommend: keep old name, document.
