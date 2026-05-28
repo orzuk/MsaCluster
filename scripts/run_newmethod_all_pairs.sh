@@ -37,6 +37,10 @@ SEQS_PER_CLUSTER=30
 K_MIN=20
 K_MAX=100
 SUFFIX="newmethod_top10"
+# v2 methodology: top-10 sampling means clusters with >=10 seqs are usable,
+# and Neff requirements relax because AF input is a shallow MSA.
+MIN_OUTPUT_SIZE=10
+MIN_NEFF=5
 
 # ---- parse args -------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
@@ -47,6 +51,8 @@ while [[ $# -gt 0 ]]; do
         --seqs-per-cluster)    SEQS_PER_CLUSTER="$2"; shift 2 ;;
         --k-min)               K_MIN="$2"; shift 2 ;;
         --k-max)               K_MAX="$2"; shift 2 ;;
+        --min-output-size)     MIN_OUTPUT_SIZE="$2"; shift 2 ;;
+        --min-neff)            MIN_NEFF="$2"; shift 2 ;;
         --suffix)              SUFFIX="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,30p' "$0"
@@ -103,8 +109,8 @@ if [[ "$STAGE" == "cluster" ]] || [[ "$STAGE" == "all" ]]; then
         --cluster_adaptive_k_seqs_per_cluster $SEQS_PER_CLUSTER \
         --cluster_adaptive_k_min $K_MIN \
         --cluster_adaptive_k_max $K_MAX \
-        --cluster_min_output_size 30 \
-        --cluster_min_neff 20 \
+        --cluster_min_output_size $MIN_OUTPUT_SIZE \
+        --cluster_min_neff $MIN_NEFF \
         --run_job_mode sbatch"
     run_or_echo "$CMD"
     echo
