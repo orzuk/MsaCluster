@@ -41,6 +41,12 @@ SUFFIX="newmethod_top10"
 # and Neff requirements relax because AF input is a shallow MSA.
 MIN_OUTPUT_SIZE=10
 MIN_NEFF=5
+# Coarse-resolution params (for CCMpred / MSATransformer)
+SEQS_PER_CLUSTER_COARSE=200
+K_MIN_COARSE=10
+K_MAX_COARSE=30
+MIN_OUTPUT_SIZE_COARSE=100
+MIN_NEFF_COARSE=30
 
 # ---- parse args -------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
@@ -98,14 +104,16 @@ run_or_echo() {
     fi
 }
 
-# ---- Stage 1: cluster_msa for all pairs with adaptive K --------------------
-if [[ "$STAGE" == "cluster" ]] || [[ "$STAGE" == "all" ]]; then
+# ---- Stage 1: fine-resolution cluster_msa ----------------------------------
+if [[ "$STAGE" == "cluster" ]] || [[ "$STAGE" == "cluster_fine" ]] \
+   || [[ "$STAGE" == "all" ]]; then
     echo "==================================================================="
-    echo "[v2] STAGE 1: cluster_msa with adaptive K"
+    echo "[v2] STAGE 1a: cluster_msa FINE resolution (K=$K_MIN-$K_MAX)"
     echo "==================================================================="
     CMD="python3 run_foldswitch_pipeline.py \
         --run_mode cluster_msa --foldpair_ids $PAIRS_ARG \
         --cluster_alg tree \
+        --cluster_resolution fine \
         --cluster_adaptive_k_seqs_per_cluster $SEQS_PER_CLUSTER \
         --cluster_adaptive_k_min $K_MIN \
         --cluster_adaptive_k_max $K_MAX \
@@ -113,6 +121,51 @@ if [[ "$STAGE" == "cluster" ]] || [[ "$STAGE" == "all" ]]; then
         --cluster_min_neff $MIN_NEFF \
         --run_job_mode sbatch"
     run_or_echo "$CMD"
+    echo
+fi
+
+# ---- Stage 1b: coarse-resolution cluster_msa -------------------------------
+if [[ "$STAGE" == "cluster_coarse" ]] || [[ "$STAGE" == "cluster_both" ]] \
+   || [[ "$STAGE" == "all" ]]; then
+    echo "==================================================================="
+    echo "[v2] STAGE 1b: cluster_msa COARSE resolution (K=$K_MIN_COARSE-$K_MAX_COARSE)"
+    echo "==================================================================="
+    CMD="python3 run_foldswitch_pipeline.py \
+        --run_mode cluster_msa --foldpair_ids $PAIRS_ARG \
+        --cluster_alg tree \
+        --cluster_resolution coarse \
+        --cluster_adaptive_k_seqs_per_cluster_coarse $SEQS_PER_CLUSTER_COARSE \
+        --cluster_adaptive_k_min_coarse $K_MIN_COARSE \
+        --cluster_adaptive_k_max_coarse $K_MAX_COARSE \
+        --cluster_min_output_size_coarse $MIN_OUTPUT_SIZE_COARSE \
+        --cluster_min_neff_coarse $MIN_NEFF_COARSE \
+        --run_job_mode sbatch"
+    run_or_echo "$CMD"
+    echo
+fi
+
+# ---- Stage 1c: fine->coarse mapping (after both finish) --------------------
+if [[ "$STAGE" == "cluster_mapping" ]] || [[ "$STAGE" == "cluster_both" ]] \
+   || [[ "$STAGE" == "all" ]]; then
+    echo "==================================================================="
+    echo "[v2] STAGE 1c: build fine->coarse mapping per pair"
+    echo "==================================================================="
+    if [[ "$PAIRS_ARG" == "ALL" ]]; then
+        PAIR_LIST=$(ls -d Pipeline/FoldPairs/*/ 2>/dev/null \
+                    | sed -E 's#.*FoldPairs/##; s#/##' \
+                    | grep -Ev '^(_s4pred_work|jobs)$')
+    else
+        PAIR_LIST="$PAIRS_ARG"
+    fi
+    for P in $PAIR_LIST; do
+        FINE="Pipeline/FoldPairs/$P/output_msa_cluster"
+        COARSE="Pipeline/FoldPairs/$P/output_msa_cluster_coarse"
+        if [[ ! -d "$FINE" ]] || [[ ! -d "$COARSE" ]]; then continue; fi
+        CMD="python3 scripts/build_fine_to_coarse_mapping.py \
+            --fine-dir $FINE --coarse-dir $COARSE \
+            --output $FINE/fine_to_coarse.csv"
+        run_or_echo "$CMD"
+    done
     echo
 fi
 

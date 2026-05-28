@@ -1586,41 +1586,57 @@ def task_get_msa(pair_id: str, run_job_mode: str) -> None:
 
 
 def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
+    """Cluster the deep MSA for one pair.
+
+    v2 paper supports TWO resolutions, controlled by --cluster_resolution:
+      - 'fine'   (default): K_adapt(20, 100), min_size=10, min_neff=5.
+                  Used by AF2/AF3/ESMFold2/Boltz-2/DDG/S4PRED. Writes to
+                  output_msa_cluster/.
+      - 'coarse': K_adapt(10, 30), min_size=100, min_neff=30. Used by
+                  CCMpred/MSA-Transformer (need deep MSA depth). Writes to
+                  output_msa_cluster_coarse/.
+      - 'both'  : runs both. After both, writes
+                  output_msa_cluster/fine_to_coarse.csv mapping each
+                  fine cluster to its containing coarse cluster.
+    """
     py  = shlex.quote(sys.executable)
     pid = shlex.quote(pair_id)
 
     alg = args.cluster_alg
+
     # If tree mode and no explicit tree is provided, try a sensible default location
     tree_arg = ""
     if alg == "tree":
         pair_dir = os.path.join("Pipeline", "FoldPairs", pair_id)
-
-        # 1) If user provided a path, use it as-is (convert to pair-relative if it redundantly includes the pair prefix)
         tree_path = args.cluster_tree_path
         if tree_path:
             if not os.path.isabs(tree_path):
-                # If user passed "Pipeline/FoldPairs/<pair_id>/...", strip that prefix because we cd into pair_dir
                 pref = os.path.join("Pipeline", "FoldPairs", pair_id) + os.sep
                 if tree_path.startswith(pref):
                     tree_path = tree_path[len(pref):]
         else:
-            # 2) No path provided: choose a sensible default.
-            # Preferred default: relative to the pair dir (we cd into it before calling run_ClusterMSA.py)
-            tree_path = os.path.join(pair_dir, "output_phytree", "DeepMsa_tree.nwk")
-            # we already `cd` into pair dir; default tree is relative to it
             tree_path = "output_phytree/DeepMsa_tree.nwk"
-
         tree_arg = f"--tree_path {shlex.quote(tree_path)} "
 
-    # Target minimum number of clusters (tree-cut only). When set, gets
-    # passed through to run_ClusterMSA.py as --tree_min_num_clusters K.
-    # Adaptive-K (v2 methodology): if enabled, override the static
-    # cluster_tree_min_num_clusters / cluster_max_clusters with a value
-    # computed from this pair's DeepMsa size.
-    k_target = int(getattr(args, "cluster_tree_min_num_clusters", 0))
-    k_cap = int(args.cluster_max_clusters)
-    spc = int(getattr(args, "cluster_adaptive_k_seqs_per_cluster", 0))
-    if alg == "tree" and spc > 0:
+    # ---------- Per-resolution config ----------
+    # Build a list of (label, outdir, params) tuples for whichever
+    # resolution(s) the user requested.
+    resolution = (getattr(args, "cluster_resolution", "fine") or "fine").lower()
+    if resolution not in ("fine", "coarse", "both"):
+        print(f"[cluster_msa] unknown --cluster_resolution {resolution!r}; "
+              f"defaulting to 'fine'")
+        resolution = "fine"
+
+    def _resolve_k(seqs_per_cluster: int, k_min: int, k_max: int,
+                   static_k_target: int, static_max: int, label: str
+                   ) -> tuple[int, int]:
+        """Return (k_target, k_cap) for one resolution.
+
+        If seqs_per_cluster > 0, computes K_adapt = clip(N_seqs/spc, k_min, k_max)
+        and overrides static values. Otherwise returns the static values.
+        """
+        if alg != "tree" or seqs_per_cluster <= 0:
+            return static_k_target, static_max
         msa_path = os.path.join("Pipeline", "FoldPairs", pair_id,
                                  "output_get_msa", "DeepMsa.a3m")
         try:
@@ -1629,57 +1645,107 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
                 for line in f:
                     if line.startswith(">"):
                         n_seqs += 1
-            k_min = int(getattr(args, "cluster_adaptive_k_min", 20))
-            k_max = int(getattr(args, "cluster_adaptive_k_max", 100))
-            k_adapt = max(k_min, min(k_max, n_seqs // spc))
-            print(f"[adapt-K] pair={pair_id} N_seqs={n_seqs} "
-                  f"-> K_target={k_adapt} (seqs_per_cluster={spc}, "
+            k_adapt = max(k_min, min(k_max, n_seqs // seqs_per_cluster))
+            print(f"[adapt-K {label}] pair={pair_id} N_seqs={n_seqs} "
+                  f"-> K_target={k_adapt} "
+                  f"(seqs_per_cluster={seqs_per_cluster}, "
                   f"K_min={k_min}, K_max={k_max})")
-            k_target = k_adapt
-            k_cap = k_adapt
+            return k_adapt, k_adapt
         except Exception as e:
-            print(f"[adapt-K] WARN: could not read MSA size for {pair_id} "
-                  f"({e}); falling back to static "
-                  f"--cluster_tree_min_num_clusters={k_target}")
+            print(f"[adapt-K {label}] WARN: could not read MSA size for "
+                  f"{pair_id} ({e}); using static K_target={static_k_target}")
+            return static_k_target, static_max
 
-    tree_min_arg = f"--tree_min_num_clusters {k_target} " if k_target else ""
+    def _run_one_resolution(label: str, outdir: str, keyword: str,
+                             k_target: int, k_cap: int,
+                             min_output_size: int, min_neff: int):
+        tree_min_arg = f"--tree_min_num_clusters {k_target} " if k_target else ""
+        cmd = (
+            f"bash -lc 'cd Pipeline/FoldPairs/{pid} && "
+            f"{py} ../../../run_ClusterMSA.py "
+            f"--keyword {shlex.quote(keyword)} "
+            f"--a3m output_get_msa/DeepMsa.a3m "
+            f"-o {shlex.quote(outdir)} "
+            f"--cluster_alg {shlex.quote(alg)} {tree_arg}{tree_min_arg}"
+            f"--max_clusters {k_cap} "
+            f"--min_output_size {min_output_size} "
+            f"--min_neff {min_neff} "
+            f"--neff_id_thresh {float(args.cluster_neff_id_thresh)} "
+            f"--neff_mode approx "
+            f"--neff_use_query_columns 1 "
+            f"--neff_strip_inserts 1 "
+            f"--neff_approx_n_hashes 3 "
+            f"--neff_approx_sig_len 32 "
+            f"--neff_approx_bucket_cap 5000 "
+            f"--neff_approx_subsample_cap 0 "
+            f"--frac_gaps_cutoff {float(args.cluster_frac_gaps_cutoff)} "
+            f"--sample_cap {int(args.cluster_sample_cap)} "
+            f"--sample_seed {int(args.cluster_sample_seed)} "
+            f"--min_cluster_size {int(args.hdbscan_min_cluster_size)} "
+            f"--min_samples {shlex.quote(str(args.hdbscan_min_samples))} "
+            f"--cluster_selection {shlex.quote(args.hdbscan_cluster_selection)} "
+            f"'"
+        )
+        print(f"[cluster_msa:{label}] outdir={outdir} keyword={keyword} "
+              f"K={k_target} min_size={min_output_size} min_neff={min_neff}")
+        _run(cmd, run_job_mode)
 
-    # Output directory under the pair dir (default: output_msa_cluster).
-    # Use --cluster_outdir to write to a parallel directory (e.g.
-    # output_msa_cluster_treek40) so the existing clusters are preserved.
-    outdir = (getattr(args, "cluster_outdir", None)
-              or "output_msa_cluster")
+    # ---------- Fine resolution ----------
+    if resolution in ("fine", "both"):
+        outdir_fine = (getattr(args, "cluster_outdir", None)
+                       or "output_msa_cluster")
+        k_t_fine, k_c_fine = _resolve_k(
+            seqs_per_cluster=int(getattr(args, "cluster_adaptive_k_seqs_per_cluster", 0)),
+            k_min=int(getattr(args, "cluster_adaptive_k_min", 20)),
+            k_max=int(getattr(args, "cluster_adaptive_k_max", 100)),
+            static_k_target=int(getattr(args, "cluster_tree_min_num_clusters", 0)),
+            static_max=int(args.cluster_max_clusters),
+            label="fine",
+        )
+        _run_one_resolution(
+            label="fine", outdir=outdir_fine, keyword="ShallowMsa",
+            k_target=k_t_fine, k_cap=k_c_fine,
+            min_output_size=int(args.cluster_min_output_size),
+            min_neff=int(args.cluster_min_neff),
+        )
 
-    cmd = (
-        f"bash -lc 'cd Pipeline/FoldPairs/{pid} && "
-        f"{py} ../../../run_ClusterMSA.py "
-        f"--keyword ShallowMsa "
-        f"--a3m output_get_msa/DeepMsa.a3m "
-        f"-o {shlex.quote(outdir)} "
-        f"--cluster_alg {shlex.quote(alg)} {tree_arg}{tree_min_arg}"
-        f"--max_clusters {k_cap} "
-        f"--min_output_size {int(args.cluster_min_output_size)} "
-        f"--min_neff {int(args.cluster_min_neff)} "
-        f"--neff_id_thresh {float(args.cluster_neff_id_thresh)} "
-        f"--neff_mode approx "
-        f"--neff_use_query_columns 1 "
-        f"--neff_strip_inserts 1 "
-        f"--neff_approx_n_hashes 3 "
-        f"--neff_approx_sig_len 32 "
-        f"--neff_approx_bucket_cap 5000 "
-        f"--neff_approx_subsample_cap 0 "        
-        f"--frac_gaps_cutoff {float(args.cluster_frac_gaps_cutoff)} "
-        f"--sample_cap {int(args.cluster_sample_cap)} "
-        f"--sample_seed {int(args.cluster_sample_seed)} "
-        f"--min_cluster_size {int(args.hdbscan_min_cluster_size)} "
-        f"--min_samples {shlex.quote(str(args.hdbscan_min_samples))} "
-        f"--cluster_selection {shlex.quote(args.hdbscan_cluster_selection)} "
-        f"'"
-    )
-    _run(cmd, run_job_mode)
+    # ---------- Coarse resolution ----------
+    if resolution in ("coarse", "both"):
+        outdir_coarse = (getattr(args, "cluster_outdir_coarse", None)
+                          or "output_msa_cluster_coarse")
+        k_t_coarse, k_c_coarse = _resolve_k(
+            seqs_per_cluster=int(getattr(args, "cluster_adaptive_k_seqs_per_cluster_coarse", 200)),
+            k_min=int(getattr(args, "cluster_adaptive_k_min_coarse", 10)),
+            k_max=int(getattr(args, "cluster_adaptive_k_max_coarse", 30)),
+            static_k_target=0,
+            static_max=int(getattr(args, "cluster_adaptive_k_max_coarse", 30)),
+            label="coarse",
+        )
+        _run_one_resolution(
+            label="coarse", outdir=outdir_coarse, keyword="CoarseMsa",
+            k_target=k_t_coarse, k_cap=k_c_coarse,
+            min_output_size=int(getattr(args, "cluster_min_output_size_coarse", 100)),
+            min_neff=int(getattr(args, "cluster_min_neff_coarse", 30)),
+        )
+
+    # ---------- Both: also build fine->coarse mapping ----------
+    if resolution == "both":
+        outdir_fine = (getattr(args, "cluster_outdir", None)
+                       or "output_msa_cluster")
+        outdir_coarse = (getattr(args, "cluster_outdir_coarse", None)
+                          or "output_msa_cluster_coarse")
+        mapping_cmd = (
+            f"bash -lc 'cd Pipeline/FoldPairs/{pid} && "
+            f"{py} ../../../scripts/build_fine_to_coarse_mapping.py "
+            f"--fine-dir {shlex.quote(outdir_fine)} "
+            f"--coarse-dir {shlex.quote(outdir_coarse)} "
+            f"--output {shlex.quote(outdir_fine + '/fine_to_coarse.csv')}"
+            f"'"
+        )
+        print(f"[cluster_msa:mapping] building fine->coarse mapping")
+        _run(mapping_cmd, "inline")
 
     print(f"[cache] Finished clustering, updating cache")
-    # After ClusterMsa exists, update basic cache (depth/width/seq-id)
     try:
         _update_basic_cache(pair_id)
     except Exception as e:
@@ -2797,6 +2863,29 @@ def main():
                    help="K_min floor for adaptive-K (default 20).")
     p.add_argument("--cluster_adaptive_k_max", type=int, default=100,
                    help="K_max cap for adaptive-K (default 100).")
+    # --- v2 two-resolution clustering ---
+    p.add_argument("--cluster_resolution", default="fine",
+                   choices=["fine", "coarse", "both"],
+                   help="v2 methodology: 'fine' (default, K=20-100, "
+                        "min_size=10, min_neff=5) for AF/ESMFold2/Boltz/DDG; "
+                        "'coarse' (K=10-30, min_size=100, min_neff=30) for "
+                        "CCMpred/MSAT; 'both' to run both and also produce "
+                        "the fine->coarse mapping CSV.")
+    p.add_argument("--cluster_outdir_coarse", default=None,
+                   help="Output directory for coarse clusters (default: "
+                        "'output_msa_cluster_coarse'). Only used when "
+                        "--cluster_resolution is 'coarse' or 'both'.")
+    p.add_argument("--cluster_adaptive_k_seqs_per_cluster_coarse",
+                   type=int, default=200,
+                   help="Coarse: seqs per cluster target (default 200).")
+    p.add_argument("--cluster_adaptive_k_min_coarse", type=int, default=10,
+                   help="Coarse: K_min floor (default 10).")
+    p.add_argument("--cluster_adaptive_k_max_coarse", type=int, default=30,
+                   help="Coarse: K_max cap (default 30).")
+    p.add_argument("--cluster_min_output_size_coarse", type=int, default=100,
+                   help="Coarse: minimum sequences per cluster (default 100).")
+    p.add_argument("--cluster_min_neff_coarse", type=int, default=30,
+                   help="Coarse: minimum Neff per cluster (default 30).")
     p.add_argument("--cluster_max_clusters", type=int, default=100,
                    help="Maximum clusters to output (default: 100).")
     p.add_argument("--cluster_min_output_size", type=int, default=200,
@@ -3116,6 +3205,26 @@ def main():
                         (f"--cluster_adaptive_k_max "
                          f"{int(args.cluster_adaptive_k_max)}"),
                     ]
+                # v2 two-resolution clustering
+                if getattr(args, "cluster_resolution", "fine") != "fine":
+                    extras += [
+                        f"--cluster_resolution {args.cluster_resolution}",
+                        (f"--cluster_adaptive_k_seqs_per_cluster_coarse "
+                         f"{int(args.cluster_adaptive_k_seqs_per_cluster_coarse)}"),
+                        (f"--cluster_adaptive_k_min_coarse "
+                         f"{int(args.cluster_adaptive_k_min_coarse)}"),
+                        (f"--cluster_adaptive_k_max_coarse "
+                         f"{int(args.cluster_adaptive_k_max_coarse)}"),
+                        (f"--cluster_min_output_size_coarse "
+                         f"{int(args.cluster_min_output_size_coarse)}"),
+                        (f"--cluster_min_neff_coarse "
+                         f"{int(args.cluster_min_neff_coarse)}"),
+                    ]
+                    if getattr(args, "cluster_outdir_coarse", None):
+                        extras += [
+                            f"--cluster_outdir_coarse "
+                            f"{shlex.quote(args.cluster_outdir_coarse)}"
+                        ]
 
                 extras += [
                     f"--cluster_max_clusters {int(args.cluster_max_clusters)}",
