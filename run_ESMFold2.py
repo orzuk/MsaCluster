@@ -50,10 +50,20 @@ def _read_representative_from_a3m(
 def _load_model(device: str):
     """Load Biohub/ESMFold2 from HuggingFace. Wrapped in a function so
     the heavy import doesn't run at module import time (lets --help work
-    without GPU)."""
+    without GPU).
+
+    Uses local_files_only=True if HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE is
+    set OR network is unreachable, so cluster nodes without internet
+    (e.g., catfish) can still load the pre-cached model."""
+    import os
     print(f"[esmfold2] loading biohub/ESMFold2 onto {device}...", flush=True)
     from transformers.models.esmfold2.modeling_esmfold2 import ESMFold2Model
-    model = ESMFold2Model.from_pretrained("biohub/ESMFold2")
+    offline = (os.environ.get("HF_HUB_OFFLINE", "") in ("1", "true", "TRUE")
+               or os.environ.get("TRANSFORMERS_OFFLINE", "") in ("1", "true", "TRUE"))
+    model = ESMFold2Model.from_pretrained(
+        "biohub/ESMFold2",
+        local_files_only=offline,
+    )
     model = model.to(device).eval()
     return model
 
