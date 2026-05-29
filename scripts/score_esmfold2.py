@@ -57,6 +57,11 @@ def score_one_pair(pair_id: str, mode_label: str, output_dir: Path,
                     continue
                 try:
                     s = gemmi.read_structure(str(cif))
+                    # ESMFold2 uses chain names like "A|UniRef100_..." (header).
+                    # Rename to single letters so the PDB write succeeds.
+                    for model in s:
+                        for i, chain in enumerate(model):
+                            chain.name = chr(ord("A") + (i % 26))
                     s.setup_entities()
                     s.write_pdb(str(pdb))
                     n_conv += 1
