@@ -23,7 +23,7 @@
 #   bash scripts/sweep_status.sh --summary             # counts only, no per-pair
 #   bash scripts/sweep_status.sh --incomplete-only     # hide pairs where all 8 are done
 # ============================================================================
-set -euo pipefail
+set -eo pipefail   # NOT -u: empty associative-array dereference would trip it
 
 PAIRS=""
 SUMMARY_ONLY=0
@@ -129,9 +129,9 @@ echo "  Pairs visited:  $n_total"
 echo "  DONE (8/8):     $n_done"
 echo "  Partial:        $n_partial"
 echo "  Empty:          $n_empty"
-echo "  Running jobs:   ${#RUNNING[@]:-0}"
+echo "  Running jobs:   ${#RUNNING[@]}"
 echo
 echo "Per-method completion:"
 for M in AF2 AF3 ESM2 Boltz DDG S4P CCM MSAT; do
-    printf "  %-6s  %d / %d\n" "$M" "${METHOD_TOTAL[$M]:-0}" "$n_total"
+    printf "  %-6s  %d / %d\n" "$M" "${METHOD_TOTAL[$M]}" "$n_total"
 done
