@@ -773,12 +773,12 @@ def main():
 
     # --- 4. Pairwise TM-align across clusters ---
     if run_tmalign_binary is None:
-        print("ERROR: utils/align_utils._run_tmalign_binary not importable. "
+        print("ERROR: utils/align_utils.tmalign_unified not importable. "
               "TM-align driver is required.")
         sys.exit(1)
     if not os.path.isfile(TMALIGN_EXE) or not os.access(TMALIGN_EXE, os.X_OK):
-        print(f"ERROR: TM-align binary not found or not executable: {TMALIGN_EXE}")
-        sys.exit(1)
+        print(f"[mine] TM-align binary not found at {TMALIGN_EXE}; "
+              "tmalign_unified will fall back to tmtools (Python).")
 
     if args.min_ss_switch_fraction > 0.0 and not _HAS_MDTRAJ:
         print("[mine] WARN: --min-ss-switch-fraction > 0 but mdtraj not "
