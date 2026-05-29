@@ -473,14 +473,19 @@ def run_pair_tmalign(member1: str, member2: str, pdb_cache: Path
 def process_cluster(cluster_idx: int, members: List[str],
                     max_chains_per_cluster: int,
                     tm_threshold: float,
+                    min_tm_threshold: float,
                     min_ss_switch_fraction: float,
                     pdb_cache: Path,
                     seed: int) -> List[Dict]:
     """Run pairwise TM-align within one cluster. Returns list of candidate
-    pair dicts (TM <= tm_threshold AND SS-switch fraction >= threshold).
+    pair dicts (min_tm_threshold <= TM <= tm_threshold AND
+    SS-switch fraction >= threshold).
 
     Two-stage filter (Porter 2018 fold-switching criteria):
-      1. TM-score below tm_threshold (topological rearrangement)
+      1. TM-score in [min_tm_threshold, tm_threshold] -- the upper bound
+         ensures topological rearrangement, the lower bound excludes
+         unrelated proteins / degenerate alignments where the proteins
+         are too divergent for the comparison to be meaningful.
       2. Fraction of residues where DSSP secondary structure switches
          between H (helix) and E (strand) is at least
          min_ss_switch_fraction. Set to 0.0 to disable the SS filter
@@ -500,7 +505,7 @@ def process_cluster(cluster_idx: int, members: List[str],
             if r is None:
                 continue
             tm_max = max(r["tm_by_1"] or 0.0, r["tm_by_2"] or 0.0)
-            if tm_max > tm_threshold:
+            if tm_max > tm_threshold or tm_max < min_tm_threshold:
                 continue
             # Compute the SS-switch fraction for surviving TM hits.
             p1, c1 = members[i].split("_", 1)
@@ -604,10 +609,11 @@ def filter_cluster_members_by_metadata(
 def _worker_process_cluster(args_tuple):
     """Wrapper for ProcessPoolExecutor — must be top-level for pickling."""
     (cluster_idx, members, max_per_cluster, tm_threshold,
+     min_tm_threshold,
      min_ss_switch_fraction, pdb_cache_str, seed) = args_tuple
     return process_cluster(
         cluster_idx, members, max_per_cluster,
-        tm_threshold, min_ss_switch_fraction,
+        tm_threshold, min_tm_threshold, min_ss_switch_fraction,
         Path(pdb_cache_str), seed,
     )
 
@@ -628,8 +634,12 @@ def parse_args():
                          ">=2 members (after sorting by size descending). "
                          "Useful for test runs. Default: process all.")
     ap.add_argument("--tm-threshold", type=float, default=0.5,
-                    help="TM-score below this -> pair is candidate fold-"
-                         "switcher. TM uses max(tm_by_1, tm_by_2). Default 0.5.")
+                    help="TM-score upper bound: TM <= this -> pair is candidate "
+                         "fold-switcher. TM uses max(tm_by_1, tm_by_2). Default 0.5.")
+    ap.add_argument("--min-tm-threshold", type=float, default=0.3,
+                    help="TM-score lower bound: TM < this -> pair is REJECTED "
+                         "(unrelated proteins or degenerate alignment). "
+                         "Porter 2018 standard is [0.3, 0.5]. Default 0.3.")
     ap.add_argument("--min-ss-switch-fraction", type=float, default=0.10,
                     help="Porter 2018 criterion: minimum fraction of residues "
                          "where DSSP secondary structure switches between H "
@@ -789,6 +799,7 @@ def main():
 
     work = [
         (i, cl, args.max_chains_per_cluster, args.tm_threshold,
+         args.min_tm_threshold,
          args.min_ss_switch_fraction, str(pdb_cache), args.seed)
         for i, cl in enumerate(filtered_clusters)
     ]

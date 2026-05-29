@@ -32,14 +32,41 @@ def score_one_pair(pair_id: str, mode_label: str, output_dir: Path,
     # ESMFold2 writes .cif (mmCIF) when the result has multi-char chain IDs.
     # TMalign's auto-chain-detection misfires on mmCIF, so convert .cif -> .pdb
     # next to the original (cached; idempotent) and score the .pdb version.
+    # Use gemmi (permissive) if available; fall back to biopython (which
+    # requires _atom_site.occupancy that ESMFold2's minimal CIF lacks).
     cif_files = sorted(preds_dir.glob("ShallowMsa_*.cif"))
     if cif_files:
+        n_conv = 0
+        n_fail = 0
+        backend = None
         try:
-            from Bio.PDB.MMCIFParser import MMCIFParser
-            from Bio.PDB.PDBIO import PDBIO
+            import gemmi
+            backend = "gemmi"
+        except ImportError:
+            try:
+                from Bio.PDB.MMCIFParser import MMCIFParser
+                from Bio.PDB.PDBIO import PDBIO
+                backend = "biopython"
+            except ImportError:
+                print("[score-esmfold2] WARN: neither gemmi nor biopython available; "
+                      "will pass .cif to TMalign (may NaN)")
+        if backend == "gemmi":
+            for cif in cif_files:
+                pdb = cif.with_suffix(".pdb")
+                if pdb.is_file() and pdb.stat().st_size > 0:
+                    continue
+                try:
+                    s = gemmi.read_structure(str(cif))
+                    s.setup_entities()
+                    s.write_pdb(str(pdb))
+                    n_conv += 1
+                except Exception as e:
+                    n_fail += 1
+                    if n_fail <= 3:
+                        print(f"[score-esmfold2] WARN: gemmi conv failed for {cif.name}: {e}")
+        elif backend == "biopython":
             parser = MMCIFParser(QUIET=True)
             io = PDBIO()
-            n_conv = 0
             for cif in cif_files:
                 pdb = cif.with_suffix(".pdb")
                 if pdb.is_file() and pdb.stat().st_size > 0:
@@ -50,11 +77,12 @@ def score_one_pair(pair_id: str, mode_label: str, output_dir: Path,
                     io.save(str(pdb))
                     n_conv += 1
                 except Exception as e:
-                    print(f"[score-esmfold2] WARN: .cif->.pdb failed for {cif.name}: {e}")
-            if n_conv > 0:
-                print(f"[score-esmfold2] {pair_id}: converted {n_conv} .cif -> .pdb")
-        except ImportError:
-            print("[score-esmfold2] WARN: biopython not available; falling back to .cif (may NaN)")
+                    n_fail += 1
+                    if n_fail <= 3:
+                        print(f"[score-esmfold2] WARN: biopython conv failed for {cif.name}: {e}")
+        if n_conv > 0 or n_fail > 0:
+            print(f"[score-esmfold2] {pair_id}: converted {n_conv} .cif -> .pdb via {backend} "
+                  f"({n_fail} failures)")
 
     pred_files = sorted(preds_dir.glob("ShallowMsa_*.pdb"))
     if not pred_files:
