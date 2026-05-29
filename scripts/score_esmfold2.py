@@ -29,7 +29,11 @@ def score_one_pair(pair_id: str, mode_label: str, output_dir: Path,
         print(f"[score-esmfold2] {pair_id}: no {pred_subdir}/ -- skip")
         return
 
-    pred_files = sorted(preds_dir.glob("ShallowMsa_*.pdb"))
+    # ESMFold2 writes .cif (mmCIF) when the result has multi-char chain IDs
+    # (i.e., always for our pipeline), falling back to .pdb otherwise. Accept
+    # both. tmalign reads either format.
+    pred_files = sorted(list(preds_dir.glob("ShallowMsa_*.pdb"))
+                        + list(preds_dir.glob("ShallowMsa_*.cif")))
     if not pred_files:
         print(f"[score-esmfold2] {pair_id}: no PDB outputs in {preds_dir}")
         return
