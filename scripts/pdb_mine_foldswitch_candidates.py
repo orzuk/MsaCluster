@@ -640,6 +640,13 @@ def parse_args():
                     help="TM-score lower bound: TM < this -> pair is REJECTED "
                          "(unrelated proteins or degenerate alignment). "
                          "Porter 2018 standard is [0.3, 0.5]. Default 0.3.")
+    ap.add_argument("--max-candidates-per-cluster", type=int, default=1,
+                    help="Within a sequence-similarity cluster, keep at most "
+                         "this many candidate pairs (the ones with highest "
+                         "max(tm_by_1, tm_by_2), since those are the strongest "
+                         "fold-switch candidates). Default 1, which avoids "
+                         "redundant pairs from one fold-switcher appearing in "
+                         "multiple PDB depositions. Set to 0 to disable.")
     ap.add_argument("--min-ss-switch-fraction", type=float, default=0.10,
                     help="Porter 2018 criterion: minimum fraction of residues "
                          "where DSSP secondary structure switches between H "
@@ -856,9 +863,22 @@ def main():
         lambda r: (f"{r['pdb2']}{r['chain2']}_{r['pdb1']}{r['chain1']}"
                    in existing), axis=1,
     )
+    # Per-cluster dedup: a fold-switcher with N PDB depositions of variants
+    # generates ~N redundant pairs in one cluster. Keep at most
+    # max_candidates_per_cluster per cluster, picking the strongest (highest tm_max,
+    # i.e., closest to passing the fold-similarity floor). Set to 0 to keep all.
+    n_before_dedup = len(df)
+    if args.max_candidates_per_cluster > 0:
+        df = (df.sort_values("tm_max", ascending=False)
+                .groupby("cluster_idx", as_index=False)
+                .head(args.max_candidates_per_cluster)
+                .reset_index(drop=True))
+        if len(df) < n_before_dedup:
+            print(f"[mine] per-cluster dedup: {n_before_dedup} -> {len(df)} "
+                  f"(kept top {args.max_candidates_per_cluster} per cluster)")
     new_pairs = df[~df["is_existing"]].sort_values("tm_max").reset_index(drop=True)
-    print(f"[mine] {len(df)} total pairs with TM <= {args.tm_threshold}, "
-          f"{len(new_pairs)} new (not in existing 93)")
+    print(f"[mine] {len(df)} total pairs with TM <= {args.tm_threshold} "
+          f"(after per-cluster dedup), {len(new_pairs)} new (not in existing 93)")
 
     df.to_csv(output_path, index=False)
     new_pairs.to_csv(output_path.with_suffix(".new_only.csv"), index=False)
