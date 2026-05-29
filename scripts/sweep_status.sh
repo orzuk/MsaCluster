@@ -66,7 +66,8 @@ check_method() {
     case "$method" in
         AF2)    compgen -G "${pdir}/output_AF/AF2/ShallowMsa_*"            > /dev/null 2>&1 ;;
         AF3)    compgen -G "${pdir}/output_AF/AF3/ShallowMsa_*"            > /dev/null 2>&1 ;;
-        ESM2)   ls "${pdir}/output_esmfold2/"*.{pdb,cif} 2>/dev/null | grep -q .  ;;
+        ESM2)   compgen -G "${pdir}/output_esmfold2/*.pdb" > /dev/null 2>&1 \
+                || compgen -G "${pdir}/output_esmfold2/*.cif" > /dev/null 2>&1 ;;
         Boltz)  compgen -G "${pdir}/output_boltz2/ShallowMsa_*"            > /dev/null 2>&1 ;;
         DDG)    [[ -s "${pdir}/Analysis/df_ddg.csv" ]] ;;
         S4P)    [[ -s "${pdir}/Analysis/df_s4pred.csv" ]] ;;
