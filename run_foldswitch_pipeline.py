@@ -2681,11 +2681,15 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         print("\n" + line + "\n" + "=" * len(line))
 
     def _has_cmaps_shallow_local(pid: str) -> bool:
-        """Any cluster npy produced by run_MSATrans.py first pass."""
+        """Any per-cluster CMAP npy produced by run_MSATrans.py.
+        Accepts both ShallowMsa_* (fine-resolution v1 naming) and
+        CoarseMsa_* (coarse-resolution v2 naming)."""
         out = Path(f"Pipeline/FoldPairs/{pid}/output_cmaps/msa_transformer")
-        # Typical files: msa_t_clusters_ShallowMsa_000.npy or .npz
-        return bool(list(out.glob("msa_t_clusters_ShallowMsa_*.npy")) or
-                    list(out.glob("msa_t_clusters_ShallowMsa_*.npz")))
+        for prefix in ("ShallowMsa", "CoarseMsa"):
+            if (list(out.glob(f"msa_t_clusters_{prefix}_*.npy"))
+                    or list(out.glob(f"msa_t_clusters_{prefix}_*.npz"))):
+                return True
+        return False
 
     def _has_cmaps_deep_local(pid: str) -> bool:
         """Any deep npy produced by run_MSATrans.py (either pass / naming)."""
