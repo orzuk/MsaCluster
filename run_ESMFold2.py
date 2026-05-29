@@ -60,9 +60,28 @@ def _load_model(device: str, model_path: str):
     """
     import os
     print(f"[esmfold2] loading {model_path} onto {device}...", flush=True)
-    from transformers.models.esmfold2.modeling_esmfold2 import ESMFold2Model
     offline = (os.environ.get("HF_HUB_OFFLINE", "") in ("1", "true", "TRUE")
                or os.environ.get("TRANSFORMERS_OFFLINE", "") in ("1", "true", "TRUE"))
+
+    # The esm package's load_ccd() calls hf_hub_download() without
+    # local_files_only=True, which triggers a network head-call even when
+    # HF_HUB_OFFLINE=1 is set (raises OfflineModeIsEnabled). Patch the
+    # reference used by esm.models.esmfold2.conformers to inject the kwarg
+    # so the cache lookup actually succeeds on no-internet compute nodes.
+    if offline:
+        try:
+            import esm.models.esmfold2.conformers as _conformers
+            _orig_hf_dl = _conformers.hf_hub_download
+            def _hf_hub_download_local_only(*args, **kwargs):
+                kwargs.setdefault("local_files_only", True)
+                return _orig_hf_dl(*args, **kwargs)
+            _conformers.hf_hub_download = _hf_hub_download_local_only
+            print("[esmfold2] patched esm.conformers.hf_hub_download with "
+                  "local_files_only=True default", flush=True)
+        except Exception as e:
+            print(f"[esmfold2] warn: could not patch conformers: {e}", flush=True)
+
+    from transformers.models.esmfold2.modeling_esmfold2 import ESMFold2Model
     is_local = os.path.isdir(model_path)
     kwargs = {} if is_local else {"local_files_only": offline}
     model = ESMFold2Model.from_pretrained(model_path, **kwargs)
