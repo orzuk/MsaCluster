@@ -2003,15 +2003,19 @@ def task_esmfold2(pair_id: str, args: argparse.Namespace) -> None:
 
     ensure_dir(f"Pipeline/FoldPairs/{pair_id}/output_esmfold2")
 
-    # Point transformers at the shared HF cache. We do NOT set
-    # HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE because ESMFold2 lazily fetches
-    # the ESMC backbone from a separate HF repo at runtime; offline mode
-    # blocks that lookup. Requires a partition with internet access
-    # (--sbatch_partition salmon).
+    # Compute nodes have no internet. Setup:
+    #   - ESMFold2 main model: loaded from local path (--model_path; bypasses HF)
+    #   - ESMC backbone: loaded from local path (set via esmc_id in config.json;
+    #     also bypasses HF)
+    #   - ccd.pkl: small file fetched via hf_hub_download by the esm package
+    #     at runtime. The shared HF cache already has it; setting
+    #     HF_HUB_OFFLINE=1 forces all hf_hub_download calls to use the cache
+    #     without dialing out (equivalent to local_files_only=True).
     hf_cache = getattr(args, "esmfold2_hf_cache",
                        "/sci/labs/orzuk/orzuk/tmp/xdg-cache")
     inner = (f"export XDG_CACHE_HOME={hf_cache} && "
              f"export HF_HOME={hf_cache}/huggingface && "
+             f"export HF_HUB_OFFLINE=1 && "
              f"source {esmfold2_venv}/bin/activate && "
              f"python3 run_ESMFold2.py --foldpair_ids {pair_id} "
              f"--representative_method {rep_method}{skip_flag}")
