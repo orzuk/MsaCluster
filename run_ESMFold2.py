@@ -63,21 +63,29 @@ def _load_model(device: str, model_path: str):
     offline = (os.environ.get("HF_HUB_OFFLINE", "") in ("1", "true", "TRUE")
                or os.environ.get("TRANSFORMERS_OFFLINE", "") in ("1", "true", "TRUE"))
 
-    # The esm package's load_ccd() calls hf_hub_download() without
-    # local_files_only=True, which triggers a network head-call even when
-    # HF_HUB_OFFLINE=1 is set (raises OfflineModeIsEnabled). Patch the
-    # reference used by esm.models.esmfold2.conformers to inject the kwarg
-    # so the cache lookup actually succeeds on no-internet compute nodes.
-    if offline:
+    # The esm package's load_ccd() calls hf_hub_download() to fetch ccd.pkl.
+    # Even with local_files_only=True the cache lookup sometimes fails on
+    # compute nodes (NFS staleness?). Replace the call entirely: if the
+    # request is for ccd.pkl AND we have it locally next to the model,
+    # short-circuit and return the local path. All other downloads fall
+    # back to the original (with local_files_only=True if offline).
+    if offline or os.path.isdir(model_path):
         try:
             import esm.models.esmfold2.conformers as _conformers
             _orig_hf_dl = _conformers.hf_hub_download
+            local_ccd = os.path.join(model_path, "ccd.pkl")
             def _hf_hub_download_local_only(*args, **kwargs):
+                fname = kwargs.get("filename")
+                if fname is None and len(args) >= 2:
+                    fname = args[1]
+                if fname == "ccd.pkl" and os.path.isfile(local_ccd):
+                    return local_ccd
                 kwargs.setdefault("local_files_only", True)
                 return _orig_hf_dl(*args, **kwargs)
             _conformers.hf_hub_download = _hf_hub_download_local_only
-            print("[esmfold2] patched esm.conformers.hf_hub_download with "
-                  "local_files_only=True default", flush=True)
+            print(f"[esmfold2] patched conformers.hf_hub_download: "
+                  f"ccd.pkl -> {local_ccd if os.path.isfile(local_ccd) else 'cache'}",
+                  flush=True)
         except Exception as e:
             print(f"[esmfold2] warn: could not patch conformers: {e}", flush=True)
 
