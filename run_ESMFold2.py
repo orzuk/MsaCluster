@@ -47,23 +47,25 @@ def _read_representative_from_a3m(
     return header, seq or ""
 
 
-def _load_model(device: str):
-    """Load Biohub/ESMFold2 from HuggingFace. Wrapped in a function so
-    the heavy import doesn't run at module import time (lets --help work
-    without GPU).
+def _load_model(device: str, model_path: str):
+    """Load ESMFold2 from a local path. Wrapped in a function so the heavy
+    import doesn't run at module import time (lets --help work without GPU).
 
-    Uses local_files_only=True if HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE is
-    set OR network is unreachable, so cluster nodes without internet
-    (e.g., catfish) can still load the pre-cached model."""
+    `model_path` may be either a HF repo name (e.g., 'biohub/ESMFold2', needs
+    internet on first run) OR a local directory containing config.json,
+    model.safetensors and ccd.pkl (works fully offline on any cluster node).
+    Default is the local mirror on shared NFS; populate it once via:
+        SNAP=$(ls -d <HF_CACHE>/hub/models--biohub--ESMFold2/snapshots/*/ | head -1)
+        cp -rL "$SNAP." /sci/labs/orzuk/orzuk/models/ESMFold2-local/
+    """
     import os
-    print(f"[esmfold2] loading biohub/ESMFold2 onto {device}...", flush=True)
+    print(f"[esmfold2] loading {model_path} onto {device}...", flush=True)
     from transformers.models.esmfold2.modeling_esmfold2 import ESMFold2Model
     offline = (os.environ.get("HF_HUB_OFFLINE", "") in ("1", "true", "TRUE")
                or os.environ.get("TRANSFORMERS_OFFLINE", "") in ("1", "true", "TRUE"))
-    model = ESMFold2Model.from_pretrained(
-        "biohub/ESMFold2",
-        local_files_only=offline,
-    )
+    is_local = os.path.isdir(model_path)
+    kwargs = {} if is_local else {"local_files_only": offline}
+    model = ESMFold2Model.from_pretrained(model_path, **kwargs)
     model = model.to(device).eval()
     return model
 
@@ -183,6 +185,13 @@ def main():
                     choices=["medoid", "consensus", "first"],
                     help="How to pick one sequence per cluster (default: medoid).")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument(
+        "--model_path",
+        default="/sci/labs/orzuk/orzuk/models/ESMFold2-local",
+        help="Local dir with ESMFold2 files (config.json, model.safetensors, "
+             "ccd.pkl) -- recommended; works fully offline. Pass 'biohub/ESMFold2' "
+             "to load from HuggingFace (needs internet on first run).",
+    )
     ap.add_argument("--num_loops", type=int, default=3)
     ap.add_argument("--num_sampling_steps", type=int, default=50)
     ap.add_argument("--skip_existing", action="store_true",
@@ -194,7 +203,7 @@ def main():
     targets = _resolve_input_dirs(args)
     print(f"[esmfold2] {len(targets)} target dir(s)")
 
-    model = _load_model(args.device)
+    model = _load_model(args.device, args.model_path)
 
     total_ok, total_skip, total_fail = 0, 0, 0
     for label, in_dir, out_dir in targets:
