@@ -29,13 +29,40 @@ def score_one_pair(pair_id: str, mode_label: str, output_dir: Path,
         print(f"[score-esmfold2] {pair_id}: no {pred_subdir}/ -- skip")
         return
 
-    # ESMFold2 writes .cif (mmCIF) when the result has multi-char chain IDs
-    # (i.e., always for our pipeline), falling back to .pdb otherwise. Accept
-    # both. tmalign reads either format.
-    pred_files = sorted(list(preds_dir.glob("ShallowMsa_*.pdb"))
-                        + list(preds_dir.glob("ShallowMsa_*.cif")))
+    # ESMFold2 writes .cif (mmCIF) when the result has multi-char chain IDs.
+    # TMalign's auto-chain-detection misfires on mmCIF, so convert .cif -> .pdb
+    # next to the original (cached; idempotent) and score the .pdb version.
+    cif_files = sorted(preds_dir.glob("ShallowMsa_*.cif"))
+    if cif_files:
+        try:
+            from Bio.PDB.MMCIFParser import MMCIFParser
+            from Bio.PDB.PDBIO import PDBIO
+            parser = MMCIFParser(QUIET=True)
+            io = PDBIO()
+            n_conv = 0
+            for cif in cif_files:
+                pdb = cif.with_suffix(".pdb")
+                if pdb.is_file() and pdb.stat().st_size > 0:
+                    continue
+                try:
+                    s = parser.get_structure("s", str(cif))
+                    io.set_structure(s)
+                    io.save(str(pdb))
+                    n_conv += 1
+                except Exception as e:
+                    print(f"[score-esmfold2] WARN: .cif->.pdb failed for {cif.name}: {e}")
+            if n_conv > 0:
+                print(f"[score-esmfold2] {pair_id}: converted {n_conv} .cif -> .pdb")
+        except ImportError:
+            print("[score-esmfold2] WARN: biopython not available; falling back to .cif (may NaN)")
+
+    pred_files = sorted(preds_dir.glob("ShallowMsa_*.pdb"))
     if not pred_files:
-        print(f"[score-esmfold2] {pair_id}: no PDB outputs in {preds_dir}")
+        # Fallback: if .pdb didn't materialize (e.g., biopython missing),
+        # use .cif files directly (will likely produce NaN TM-scores)
+        pred_files = sorted(preds_dir.glob("ShallowMsa_*.cif"))
+    if not pred_files:
+        print(f"[score-esmfold2] {pair_id}: no predictions in {preds_dir}")
         return
     cluster_ids = [p.stem for p in pred_files]
     print(f"[score-esmfold2] {pair_id}: {len(pred_files)} predictions")
