@@ -566,6 +566,14 @@ def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
     if ps:
         cmd += f" --plot_scope {shlex.quote(ps)}"
 
+    # Forward method-specific paths so DDG and S4PRED don't silently skip
+    # inside the per-pair sbatch job (these args have no defaults).
+    for arg_name in ("thermompnn_dir", "s4pred_dir", "esmfold2_venv",
+                     "esmfold2_hf_cache", "boltz2_mode"):
+        val = getattr(args, arg_name, None)
+        if val:
+            cmd += f" --{arg_name} {shlex.quote(str(val))}"
+
     # sbatch resources
     gres = getattr(args, "sbatch_gres", "gpu:1")
     cpus = int(getattr(args, "sbatch_cpus", 8))
