@@ -71,7 +71,9 @@ sys.path.insert(0, str(ROOT))
 
 from config import TMALIGN_EXE
 try:
-    from utils.align_utils import _run_tmalign_binary as run_tmalign_binary
+    # tmalign_unified auto-falls back to tmtools (pure-Python) when the
+    # TMalign C++ binary is missing, so the mining script works on any node.
+    from utils.align_utils import tmalign_unified as run_tmalign_binary
 except ImportError:
     run_tmalign_binary = None  # falls back to inline parsing below
 
