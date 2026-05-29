@@ -28,10 +28,12 @@ set -euo pipefail
 
 DRY_RUN=0
 PAIRS=""
+ANALYSIS_ONLY=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --dry-run) DRY_RUN=1; shift ;;
-        --pairs)   PAIRS="$2"; shift 2 ;;
+        --dry-run)       DRY_RUN=1; shift ;;
+        --pairs)         PAIRS="$2"; shift 2 ;;
+        --analysis-only) ANALYSIS_ONLY=1; shift ;;
         -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
         *) echo "Unknown arg: $1"; exit 1 ;;
     esac
@@ -62,6 +64,19 @@ METHOD_DIRS=(
     output_s4pred
     output_cmaps
 )
+# Per-method aggregator CSVs / artifacts in Analysis/. Several method
+# wrappers self-skip if these exist, so v2 must clear them too.
+ANALYSIS_FILES=(
+    Analysis/df_ddg.csv
+    Analysis/df_s4pred.csv
+    Analysis/df_boltz2.csv
+    Analysis/df_esmfold2.csv
+    Analysis/df_af.csv
+)
+# Per-cluster S4PRED .ss2 files (one per cluster, sit in Analysis/).
+ANALYSIS_GLOBS=(
+    "Analysis/s4pred_*.ss2"
+)
 
 if [[ -n "$PAIRS" ]]; then
     PAIR_LIST="$PAIRS"
@@ -80,6 +95,10 @@ for P in $PAIR_LIST; do
     n_pairs=$((n_pairs+1))
     for M in "${METHOD_DIRS[@]}"; do
         D="$PAIR_DIR/$M"
+        # --analysis-only mode: skip method-dir deletion entirely (only clear
+        # Analysis/df_*.csv below). Use this when v2 outputs are already
+        # present in output_* dirs and only the aggregator CSVs need clearing.
+        [[ "$ANALYSIS_ONLY" -eq 1 ]] && continue
         if [[ -d "$D" ]]; then
             SZ=$(du -sb "$D" 2>/dev/null | awk '{print $1}')
             [[ -z "$SZ" ]] && SZ=0
@@ -96,6 +115,35 @@ for P in $PAIR_LIST; do
             # floats so the sum is always faithful up to 2^53 bytes (~8 PB).
             total_size_freed=$(awk "BEGIN{print $total_size_freed + $SZ}")
         fi
+    done
+    # Per-method aggregator CSVs (the pipeline skips methods if these exist).
+    for F in "${ANALYSIS_FILES[@]}"; do
+        FP="$PAIR_DIR/$F"
+        if [[ -f "$FP" ]]; then
+            SZ=$(stat -c %s "$FP" 2>/dev/null || echo 0)
+            if [[ "$DRY_RUN" -eq 1 ]]; then
+                echo "[DRY-RUN] rm -f $FP  (${SZ} bytes)"
+            else
+                rm -f "$FP"
+                echo "[clean] deleted $FP  (${SZ} bytes)"
+            fi
+            n_dirs_deleted=$((n_dirs_deleted+1))
+            total_size_freed=$(awk "BEGIN{print $total_size_freed + $SZ}")
+        fi
+    done
+    for G in "${ANALYSIS_GLOBS[@]}"; do
+        shopt -s nullglob
+        for FP in $PAIR_DIR/$G; do
+            SZ=$(stat -c %s "$FP" 2>/dev/null || echo 0)
+            if [[ "$DRY_RUN" -eq 1 ]]; then
+                echo "[DRY-RUN] rm -f $FP"
+            else
+                rm -f "$FP"
+            fi
+            n_dirs_deleted=$((n_dirs_deleted+1))
+            total_size_freed=$(awk "BEGIN{print $total_size_freed + $SZ}")
+        done
+        shopt -u nullglob
     done
 done
 

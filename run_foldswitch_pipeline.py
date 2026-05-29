@@ -1995,7 +1995,16 @@ def task_esmfold2(pair_id: str, args: argparse.Namespace) -> None:
 
     ensure_dir(f"Pipeline/FoldPairs/{pair_id}/output_esmfold2")
 
-    inner = (f"source {esmfold2_venv}/bin/activate && "
+    # Point transformers at the pre-cached weights (compute nodes have no
+    # network; cache was populated by scripts/esmfold2_smoke.sh) and force
+    # offline mode so it never tries to dial out.
+    hf_cache = getattr(args, "esmfold2_hf_cache",
+                       "/sci/labs/orzuk/orzuk/tmp/xdg-cache")
+    inner = (f"export XDG_CACHE_HOME={hf_cache} && "
+             f"export HF_HOME={hf_cache}/huggingface && "
+             f"export HF_HUB_OFFLINE=1 && "
+             f"export TRANSFORMERS_OFFLINE=1 && "
+             f"source {esmfold2_venv}/bin/activate && "
              f"python3 run_ESMFold2.py --foldpair_ids {pair_id} "
              f"--representative_method {rep_method}{skip_flag}")
     cmd = f"bash -c {shlex.quote(inner)}"
