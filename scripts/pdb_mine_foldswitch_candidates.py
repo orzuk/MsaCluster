@@ -625,44 +625,48 @@ def _worker_process_cluster(args_tuple):
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--min-seq-identity", type=float, default=0.95,
+    ap.add_argument("--min-seq-identity", type=float, default=0.85,
                     help="Sequence-identity threshold for RCSB clusters. "
                          "Must map to one of {0.30, 0.40, 0.50, 0.70, 0.90, "
-                         "0.95, 1.00}. Default 0.95.")
+                         "0.95, 1.00}. Default 0.85 (Porter recovery 91%%).")
     ap.add_argument("--max-clusters", type=int, default=None,
                     help="If set, process only the first N clusters with "
                          ">=2 members (after sorting by size descending). "
                          "Useful for test runs. Default: process all.")
-    ap.add_argument("--tm-threshold", type=float, default=0.5,
+    ap.add_argument("--tm-threshold", type=float, default=0.99,
                     help="TM-score upper bound: TM <= this -> pair is candidate "
-                         "fold-switcher. TM uses max(tm_by_1, tm_by_2). Default 0.5.")
-    ap.add_argument("--min-tm-threshold", type=float, default=0.3,
+                         "fold-switcher. TM uses max(tm_by_1, tm_by_2). "
+                         "Default 0.99 (Porter recovery 99%%; only excludes "
+                         "exact-duplicate crystal copies).")
+    ap.add_argument("--min-tm-threshold", type=float, default=0.20,
                     help="TM-score lower bound: TM < this -> pair is REJECTED "
                          "(unrelated proteins or degenerate alignment). "
-                         "Porter 2018 standard is [0.3, 0.5]. Default 0.3.")
-    ap.add_argument("--max-candidates-per-cluster", type=int, default=1,
+                         "Default 0.20 (Porter min=0.185).")
+    ap.add_argument("--max-candidates-per-cluster", type=int, default=10,
                     help="Within a sequence-similarity cluster, keep at most "
-                         "this many candidate pairs (the ones with highest "
-                         "max(tm_by_1, tm_by_2), since those are the strongest "
-                         "fold-switch candidates). Default 1, which avoids "
-                         "redundant pairs from one fold-switcher appearing in "
-                         "multiple PDB depositions. Set to 0 to disable.")
-    ap.add_argument("--min-ss-switch-fraction", type=float, default=0.10,
-                    help="Porter 2018 criterion: minimum fraction of residues "
-                         "where DSSP secondary structure switches between H "
-                         "(helix) and E (strand). Filters out domain swaps "
-                         "and hinge motions whose SS is unchanged. Set to "
-                         "0.0 to disable the SS filter (keep only the "
-                         "TM-score test). Default 0.10.")
-    ap.add_argument("--max-resolution", type=float, default=3.0,
+                         "this many candidate pairs (sorted by highest "
+                         "max(tm_by_1, tm_by_2)). Default 10 (keep multiple "
+                         "variants per protein so v2 analysis can study "
+                         "clade-specific patterns within KaiB/RfaH/etc.). "
+                         "Set to 0 to disable.")
+    ap.add_argument("--min-ss-switch-fraction", type=float, default=0.01,
+                    help="Minimum fraction of residues where DSSP secondary "
+                         "structure switches between H (helix) and E (strand). "
+                         "Default 0.01 (very permissive at mining time; "
+                         "filter tighter post-hoc using the ss_switch_fraction "
+                         "column. Porter median=0.041, 75%%=0.119).")
+    ap.add_argument("--max-resolution", type=float, default=4.0,
                     help="Drop PDB entries with resolution worse than this "
-                         "(Angstroms). Default 3.0.")
-    ap.add_argument("--min-length", type=int, default=50,
+                         "(Angstroms). Default 4.0 (Porter recovery 73%%; "
+                         "raising further hits diminishing returns).")
+    ap.add_argument("--min-length", type=int, default=20,
                     help="Drop entries whose max polymer is shorter than "
-                         "this many AA. Default 50.")
-    ap.add_argument("--max-length", type=int, default=500,
+                         "this many AA. Default 20 (covers Aβ-class peptides "
+                         "like 1iytA at 42 aa).")
+    ap.add_argument("--max-length", type=int, default=1000,
                     help="Drop entries whose max polymer is longer than "
-                         "this many AA. Default 500.")
+                         "this many AA. Default 1000 (covers large multimers "
+                         "like 1qlnA at 883 aa).")
     ap.add_argument("--max-chains-per-cluster", type=int, default=20,
                     help="Cap pairwise TM-aligns by sampling up to this many "
                          "chains per cluster (random with --seed). Default 20.")
@@ -676,8 +680,10 @@ def parse_args():
     ap.add_argument("--existing-pairs", default=str(DEFAULT_EXISTING_PAIRS),
                     help="Path to existing fold-switching pair list (for "
                          "deduplication). Default data/foldswitch_PDB_IDs_full.txt.")
-    ap.add_argument("--allow-nmr", action="store_true",
-                    help="Include NMR structures (default: X-ray + cryo-EM only).")
+    ap.add_argument("--allow-nmr", action=argparse.BooleanOptionalAction,
+                    default=True,
+                    help="Include NMR structures. Default True (Porter contains "
+                         "22 NMR-side chains). Use --no-allow-nmr to exclude.")
     ap.add_argument("--seed", type=int, default=42,
                     help="Seed for cluster sub-sampling. Default 42.")
     ap.add_argument("--checkpoint-every", type=int, default=1,
