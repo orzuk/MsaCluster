@@ -103,7 +103,17 @@ python3 scripts/stratified_concordance_by_trigger.py --alpha 0.05 \
 
 echo
 echo "==================================================="
-echo "STEP 6/7: cross-method correlation matrix"
+echo "STEP 6a/7: phylogenetic placement (p_NN1 / Fitch)"
+echo "==================================================="
+# This is the OTHER stringent axis: per-(pair,method) NN1 + Fitch
+# parsimony permutation tests on F1c/F2c labels projected onto the tree.
+# Output: docs/phylo_placement.csv (one row per (pair, method))
+python3 scripts/phylo_placement.py --pairs "$PAIR_LIST_COMMA" 2>&1 | tail -20 \
+    || echo "(continuing)"
+
+echo
+echo "==================================================="
+echo "STEP 6b/7: cross-method correlation matrix"
 echo "==================================================="
 python3 scripts/cross_method_correlation.py 2>&1 | tail -10 || echo "(continuing)"
 
@@ -127,6 +137,7 @@ echo "  docs/fold_diversity_concordance_perm.csv   (per-pair p-values)"
 echo "  docs/fold_diversity_concordance_perm_bh.csv (BH FDR full pool)"
 echo "  docs/stratified_concordance.csv            (BH FDR stratified)"
 echo "  docs/figs/cross_method_correlation.png      (method correlation)"
+echo "  docs/phylo_placement.csv                   (per-(pair,method) p_NN1 + Fitch)"
 echo "  $PAIRS_FILE     (pair list used)"
 [[ "$DO_HTML" -eq 1 ]] && echo "  docs/HTML/figs/*.html                       (per-pair pages)"
 
@@ -138,3 +149,23 @@ echo "--- Full pool ---"
 
 echo "--- Stratified ---"
 [[ -f docs/stratified_concordance.csv ]] && head docs/stratified_concordance.csv
+
+echo
+echo "--- Phylo placement: top hits (best p_NN1 per pair) ---"
+if [[ -f docs/phylo_placement.csv ]]; then
+    python3 -c "
+import pandas as pd
+try:
+    df = pd.read_csv('docs/phylo_placement.csv')
+    # Find best (lowest) p_NN1 per pair across methods
+    pcol = [c for c in df.columns if 'p_NN1' in c or 'p_nn1' in c]
+    if pcol:
+        p = pcol[0]
+        best = df.loc[df.groupby('pair_id')[p].idxmin()][['pair_id', 'method', p]].sort_values(p).head(10)
+        print(best.to_string(index=False))
+    else:
+        print('p_NN1 column not found; columns:', list(df.columns))
+except Exception as e:
+    print(f'failed: {e}')
+"
+fi
