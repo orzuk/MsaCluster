@@ -47,14 +47,42 @@ def main():
 
     # Try to auto-detect the relevant columns
     pair_col = find_col(df, ["pair_id", "pair", "name"])
-    tm_col = find_col(df, ["tm_score_truth_to_truth", "tm_truth", "tm_f1_f2",
-                            "tm_pair", "tm_score_pair", "pdb_tm"])
+    # PAIR_TM (the actual column name in summary_final_res_all_pairs_df.csv)
+    # comes first so we don't accidentally pick AF2Clust_TM1 etc.
+    tm_col = find_col(df, ["pair_tm", "tm_score_truth_to_truth", "tm_truth",
+                            "tm_f1_f2", "tm_pair", "tm_score_pair", "pdb_tm"])
     if tm_col is None:
         # Fallback: any column with "tm" that looks like the pair score
         tm_candidates = [c for c in df.columns if "tm" in c.lower() and "score" in c.lower()]
         if tm_candidates:
             tm_col = tm_candidates[0]
     ss_col = find_col(df, ["ss_switch", "ss_diff", "ss_change", "ss_identity"])
+    # If SS column not in summary, try the detailed CSV
+    if ss_col is None:
+        det_path = Path(args.summary).parent / "detailed_final_res_all_pairs_df.csv"
+        if det_path.is_file():
+            det = pd.read_csv(det_path)
+            det_ss = find_col(det, ["ss_switch", "ss_diff", "ss_change", "ss_identity"])
+            det_pair = find_col(det, ["pair_id", "pair", "name"])
+            if det_ss and det_pair:
+                # If multiple rows per pair, take mean
+                agg = det.groupby(det_pair)[det_ss].mean().reset_index()
+                df = df.merge(agg, left_on=pair_col, right_on=det_pair, how="left")
+                ss_col = det_ss
+                print(f"Merged in SS-switch column '{det_ss}' from {det_path.name}")
+                print()
+    # Also try the existing triggers CSV
+    if ss_col is None:
+        trig_path = Path(args.triggers)
+        if trig_path.is_file():
+            trig = pd.read_csv(trig_path)
+            trig_ss = find_col(trig, ["ss_switch", "ss_diff", "ss_change", "ss_identity"])
+            if trig_ss:
+                trig_pair = find_col(trig, ["pair_id", "pair", "name"])
+                if trig_pair:
+                    df = df.merge(trig[[trig_pair, trig_ss]], left_on=pair_col, right_on=trig_pair, how="left")
+                    ss_col = trig_ss
+                    print(f"Merged in SS-switch column '{trig_ss}' from triggers CSV")
 
     print(f"Auto-detected columns:")
     print(f"  pair_id col:    {pair_col}")
