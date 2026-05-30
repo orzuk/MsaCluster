@@ -101,9 +101,16 @@ from utils.ancestral_utils import build_coarse_tree, _name_internal_nodes  # noq
 print(f"[phylo] imports done in {time.time()-_t0:.1f}s", flush=True)
 
 
-# Methods we score. CCMpred is included if the survey CSV has it; otherwise
-# it's silently skipped per pair.
-SCORED_METHODS: Tuple[str, ...] = ("AF2", "ESM", "MSAT", "DDG", "CCMpred")
+# Methods we score. Methods missing from the survey CSV are silently
+# skipped (n_pairs=0). Add new methods here when fold_diversity_survey.py
+# starts emitting them.
+SCORED_METHODS: Tuple[str, ...] = (
+    "AF2", "AF3", "Boltz2",          # MSA-conditioned structure predictors
+    "ESM",                            # single-sequence ESMFold (v1) or ESMFold2 (v2)
+    "MSAT", "CCMpred",                # contact-map predictors
+    "DDG",                            # Rosetta ΔΔG per cluster
+    "S4PRED",                         # secondary-structure-based fold preference
+)
 
 
 # ---------------------------------------------------------------------------
