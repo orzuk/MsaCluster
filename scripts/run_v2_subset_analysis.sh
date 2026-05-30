@@ -103,17 +103,69 @@ python3 scripts/stratified_concordance_by_trigger.py --alpha 0.05 \
 
 echo
 echo "==================================================="
-echo "STEP 6a/7: phylogenetic placement (p_NN1 / Fitch)"
+echo "STEP 6a/7: sequence-divergence regression correction"
 echo "==================================================="
-# This is the OTHER stringent axis: per-(pair,method) NN1 + Fitch
-# parsimony permutation tests on F1c/F2c labels projected onto the tree.
-# Output: docs/phylo_placement.csv (one row per (pair, method))
-python3 scripts/phylo_placement.py --pairs "$PAIR_LIST_COMMA" 2>&1 | tail -20 \
+# Strips the per-cluster cluster_to_query seq-identity gradient from
+# per-cluster TM-diffs (and ΔΔG). Required before residual-corrected
+# phylo placement — v1's KaiB hit (p_NN1=0.005) was on CORRECTED labels.
+python3 scripts/seq_divergence_correction.py 2>&1 | tail -10 \
     || echo "(continuing)"
 
 echo
 echo "==================================================="
-echo "STEP 6b/7: cross-method correlation matrix"
+echo "STEP 6b/7: phylogenetic placement (p_NN1 / Fitch) — raw + corrected"
+echo "==================================================="
+# Per-(pair,method) NN1 + Fitch parsimony permutation tests on F1c/F2c
+# labels projected onto the cluster-level phylo tree. Output:
+#   docs/phylo_placement.csv (raw) and docs/phylo_placement_corrected.csv
+python3 scripts/phylo_placement.py --pairs "$PAIR_LIST_COMMA" \
+    2>&1 | tail -10 || echo "(continuing)"
+
+# BH within method, across pairs — standard v1 approach
+echo
+echo "--- BH FDR per method on phylo_placement results ---"
+python3 - <<'PY' 2>&1 | tail -40
+import pandas as pd
+from pathlib import Path
+import sys
+
+def bh_within_method(df, p_col, alpha=0.05):
+    """BH within each method's column, across pairs."""
+    results = []
+    for method in df['method'].unique():
+        m = df[df['method'] == method].copy()
+        m = m.dropna(subset=[p_col]).sort_values(p_col).reset_index(drop=True)
+        n = len(m)
+        if n == 0:
+            continue
+        m['bh_thresh'] = (m.index + 1) / n * alpha
+        passing = m[m[p_col] <= m['bh_thresh']]
+        results.append({
+            'method': method,
+            'n_pairs': n,
+            'n_BH_sig': len(passing),
+            'min_raw_p': m[p_col].min(),
+            'passing_pairs': ', '.join(passing['pair_id'].tolist()) if len(passing) else '-',
+        })
+    return pd.DataFrame(results)
+
+for src in ['docs/phylo_placement.csv', 'docs/phylo_placement_corrected.csv']:
+    if not Path(src).is_file():
+        continue
+    df = pd.read_csv(src)
+    pcols = [c for c in df.columns if c.lower().startswith('p_nn') or c.lower().startswith('p_fitch') or c.lower() == 'p_parsimony']
+    print(f"\n=== {src} ===")
+    print(f"columns available: {pcols}")
+    for pcol in pcols:
+        out = bh_within_method(df, pcol, alpha=0.05)
+        print(f"\n  BH per method on {pcol}:")
+        print(out.to_string(index=False))
+PY
+
+
+echo
+echo "==================================================="
+echo "STEP 6c/7: cross-method correlation matrix"
 echo "==================================================="
 python3 scripts/cross_method_correlation.py 2>&1 | tail -10 || echo "(continuing)"
 
