@@ -15,7 +15,7 @@ TRIPLET_COL = "MSA: DEPTH; #RES; #Clusters"
 
 # Single source of truth for the main comparison table
 DEFAULT_PREFERRED_COLS = [
-    "pair_id", "trigger_class", "#RES", "MSA: DEPTH; #RES; #Clusters", "PAIR_TM",
+    "pair_id", "trigger_class", "#RES", "MSA: DEPTH; #RES; #Clusters", "PAIR_TM", "SS_SWITCH%",
     "ΔG1", "ΔG2",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
@@ -29,6 +29,7 @@ DEFAULT_EXPLANATIONS = {
     "#RES": "Number of residues in the longer chain of the pair.",
     "MSA: DEPTH; #RES; #Clusters": "DEPTH = number of sequences in DeepMsa.a3m; #RES = alignment width (columns, including gaps); #Clusters = count of ShallowMsa_* a3m files.",
     "PAIR_TM": "TM-score between the two ground-truth folds (max of the two directions).",
+    "SS_SWITCH%": "Porter-style secondary-structure switch fraction: fraction of aligned residues where DSSP class transitions between H (helix) and E (strand). H<->C and E<->C transitions are NOT counted. Source: docs/ss_switch_per_pair.csv (scripts/compute_ss_switch_for_pairs.py).",
     "ΔG1": "Rosetta full-atom (Ref2015) energy of Fold1 (lower is more stable).",
     "ΔG2": "Rosetta full-atom (Ref2015) energy of Fold2 (lower is more stable).",
     "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
@@ -188,6 +189,23 @@ def gen_html_from_summary_table(
                 df = df.drop(columns=["seq_identity"])
         except Exception as e:
             print(f"[gen_html] WARN: failed to merge trigger_class/seq_identity: {e}")
+
+    # Merge in SS-switch fraction from docs/ss_switch_per_pair.csv
+    # (computed by scripts/compute_ss_switch_for_pairs.py via DSSP).
+    _ss_csv = os.path.join(os.path.dirname(summary_csv), "ss_switch_per_pair.csv")
+    if os.path.isfile(_ss_csv):
+        try:
+            _ss = pd.read_csv(_ss_csv)
+            if "pair_id" in _ss.columns and "ss_switch_fraction" in _ss.columns:
+                _ss = _ss[["pair_id", "ss_switch_fraction"]].drop_duplicates("pair_id")
+                df = df.merge(_ss, on="pair_id", how="left")
+                # Format as percent, e.g. "0.27" -> "27.0%"
+                df["SS_SWITCH%"] = df["ss_switch_fraction"].map(
+                    lambda x: f"{float(x) * 100:.1f}%" if pd.notnull(x) else ""
+                )
+                df = df.drop(columns=["ss_switch_fraction"])
+        except Exception as e:
+            print(f"[gen_html] WARN: failed to merge ss_switch_fraction: {e}")
 
 
     # Now also add RMSD for structure
