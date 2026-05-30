@@ -625,10 +625,11 @@ def _worker_process_cluster(args_tuple):
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--min-seq-identity", type=float, default=0.85,
+    ap.add_argument("--min-seq-identity", type=float, default=0.90,
                     help="Sequence-identity threshold for RCSB clusters. "
                          "Must map to one of {0.30, 0.40, 0.50, 0.70, 0.90, "
-                         "0.95, 1.00}. Default 0.85 (Porter recovery 91%%).")
+                         "0.95, 1.00}. Default 0.90 (RCSB-standard, ~88%% "
+                         "Porter recovery, ~3x less compute than 0.85).")
     ap.add_argument("--max-clusters", type=int, default=None,
                     help="If set, process only the first N clusters with "
                          ">=2 members (after sorting by size descending). "
