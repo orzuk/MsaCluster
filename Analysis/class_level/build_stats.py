@@ -59,19 +59,28 @@ def build_per_pair_per_method_stats(
         if "TMdiff_residual" in corr.columns:
             corr = corr.dropna(subset=["TMdiff_residual"]).copy()
             corr["abs_residual"] = corr["TMdiff_residual"].abs()
+            has_beta = "regression_beta" in corr.columns
+            agg_dict = dict(
+                stddev_residual=("TMdiff_residual", "std"),
+                max_abs_residual=("abs_residual", "max"),
+            )
+            if has_beta:
+                # regression_beta is the same for all clusters within a
+                # pair-method, so first() pulls one row's value.
+                agg_dict["regression_beta"] = ("regression_beta", "first")
             agg_resid = (
                 corr.groupby(["pair_id", "method"])
-                .agg(
-                    stddev_residual=("TMdiff_residual", "std"),
-                    max_abs_residual=("abs_residual", "max"),
-                    # regression_beta is the same for all clusters within a pair-method,
-                    # so first() pulls one row's value.
-                    regression_beta=("regression_beta", "first"),
-                )
+                .agg(**agg_dict)
                 .reset_index()
             )
-            agg_resid["abs_beta"] = agg_resid["regression_beta"].abs()
-            agg_resid = agg_resid.drop(columns=["regression_beta"])
+            if has_beta:
+                agg_resid["abs_beta"] = agg_resid["regression_beta"].abs()
+                agg_resid = agg_resid.drop(columns=["regression_beta"])
+            else:
+                # No regression_beta column -> abs_beta is unavailable.
+                # Downstream tests that need abs_beta will be skipped.
+                print("[build_stats] NOTE: corrected CSV has TMdiff_residual "
+                      "but no regression_beta column; abs_beta tests skipped.")
             out = out.merge(agg_resid, on=["pair_id", "method"], how="left")
 
     if triggers_csv and os.path.isfile(triggers_csv):
