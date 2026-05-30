@@ -41,7 +41,7 @@ import pandas as pd
 REPO = Path(".")
 PIPELINE_DIR = REPO / "Pipeline" / "FoldPairs"
 SURVEY_CSV = REPO / "docs" / "fold_diversity_survey.csv"
-PID_CACHE = REPO / "docs" / "per_cluster_pid_to_query.csv"
+PID_CACHE = REPO / "docs" / "per_cluster_pid_symmetric.csv"   # F1+F2 symmetric
 OUT_SURVEY = REPO / "docs" / "fold_diversity_survey_corrected.csv"
 OUT_CONCORD = REPO / "docs" / "fold_diversity_concordance_corrected.csv"
 
@@ -100,7 +100,105 @@ def gapaware_pid(query: str, seq: str) -> float:
     return nm / nt if nt > 0 else float("nan")
 
 
+# --- F2-chain extraction (symmetric correction) ---------------------------
+
+def _get_chain_seq_from_pdb(pdb_path: Path, chain_id: str) -> str:
+    """Extract amino-acid sequence of a given chain from a PDB file.
+    Returns "" on failure. Used for getting the F2-truth chain sequence
+    so the regression can use both PID-to-F1 and PID-to-F2 as predictors
+    (symmetric correction)."""
+    try:
+        from Bio.PDB import PDBParser, PPBuilder
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure("s", str(pdb_path))
+        ppb = PPBuilder()
+        for chain in structure[0]:
+            if chain.id == chain_id:
+                seq = ""
+                for pp in ppb.build_peptides(chain):
+                    seq += str(pp.get_sequence())
+                return seq
+    except Exception:
+        pass
+    return ""
+
+
+def _get_F2_chain_seq(pair_id: str) -> str:
+    """For pair "<pdb1><chain1>_<pdb2><chain2>", return F2 (second) chain seq."""
+    if "_" not in pair_id:
+        return ""
+    foldA, foldB = pair_id.split("_", 1)
+    # Allow chain IDs of 1 character (most common)
+    if len(foldB) < 5:
+        return ""
+    pdb_id, chain_id = foldB[:4].lower(), foldB[4:]
+    for cand in (PIPELINE_DIR / pair_id / f"{pdb_id}.pdb",
+                 PIPELINE_DIR / pair_id / f"{pdb_id.upper()}.pdb"):
+        if cand.is_file():
+            return _get_chain_seq_from_pdb(cand, chain_id)
+    return ""
+
+
+def _build_F1_F2_column_map(seq_F1_ungap: str, seq_F2_ungap: str
+                            ) -> list[int | None]:
+    """Pairwise-align F1 to F2 ungapped sequences. Returns a list whose
+    i-th entry is the F2 position aligned to F1 position i (or None if F1
+    position i aligns to a gap in F2)."""
+    if not seq_F1_ungap or not seq_F2_ungap:
+        return []
+    try:
+        from Bio import Align
+        aligner = Align.PairwiseAligner()
+        aligner.mode = "global"
+        aligner.match_score = 2
+        aligner.mismatch_score = -1
+        aligner.open_gap_score = -10
+        aligner.extend_gap_score = -1
+        alignment = aligner.align(seq_F1_ungap, seq_F2_ungap)[0]
+        s1, s2 = str(alignment).strip().split("\n")[0], \
+                 str(alignment).strip().split("\n")[2]
+        mapping: list[int | None] = []
+        f1_pos = f2_pos = -1
+        for c1, c2 in zip(s1, s2):
+            if c1 != "-":
+                f1_pos += 1
+            if c2 != "-":
+                f2_pos += 1
+            if c1 != "-":
+                mapping.append(f2_pos if c2 != "-" else None)
+        return mapping
+    except Exception:
+        return []
+
+
+def _pid_to_F2_via_map(cluster_seq: str, query_F1: str,
+                       F2_seq: str, f1_to_f2_map: list) -> float:
+    """PID of cluster_seq to F2 chain via the F1<->F2 column mapping.
+    cluster_seq and query_F1 are column-aligned a3m strings; F2_seq is
+    ungapped."""
+    nm = nt = 0
+    f1_pos = -1
+    for q, s in zip(query_F1, cluster_seq):
+        if q == "-" or q.islower():
+            continue
+        f1_pos += 1
+        if s == "-" or s.islower():
+            continue
+        if f1_pos >= len(f1_to_f2_map):
+            break
+        f2_pos = f1_to_f2_map[f1_pos]
+        if f2_pos is None or f2_pos >= len(F2_seq):
+            continue
+        nt += 1
+        if s.upper() == F2_seq[f2_pos].upper():
+            nm += 1
+    return nm / nt if nt > 0 else float("nan")
+
+
 def compute_pair_pids(pair_id: str) -> list[dict]:
+    """Compute per-cluster mean PID to BOTH F1 chain (= MSA seed) and F2
+    chain (= second truth structure's chain). Symmetric correction needs
+    both as predictors in the regression."""
     pair_dir = PIPELINE_DIR / pair_id
     deep = pair_dir / "output_get_msa" / "DeepMsa.a3m"
     if not deep.exists():
@@ -108,7 +206,11 @@ def compute_pair_pids(pair_id: str) -> list[dict]:
     deep_seqs = load_a3m_seqs(deep)
     if not deep_seqs:
         return []
-    query = deep_seqs[0]
+    query = deep_seqs[0]                     # F1 chain (a3m, with gaps)
+    # F1 ungapped (lowercase = insertions, kept as upper-only for alignment)
+    query_ungap = "".join(c for c in query if c not in "-" and not c.islower())
+    seq_F2 = _get_F2_chain_seq(pair_id)
+    f1_to_f2 = _build_F1_F2_column_map(query_ungap, seq_F2) if seq_F2 else []
     msa_dir = pair_dir / "output_msa_cluster"
     if not msa_dir.exists():
         return []
@@ -121,16 +223,29 @@ def compute_pair_pids(pair_id: str) -> list[dict]:
         seqs = load_a3m_seqs(f)
         if len(seqs) <= 1:
             continue
-        pids = [gapaware_pid(query, s) for s in seqs[1:]]
-        pids = [p for p in pids if not np.isnan(p)]
-        if not pids:
+        # PID to F1 (original behavior): column-wise to query
+        pids_F1 = [gapaware_pid(query, s) for s in seqs[1:]]
+        pids_F1 = [p for p in pids_F1 if not np.isnan(p)]
+        # PID to F2 (new): via F1->F2 column mapping
+        if seq_F2 and f1_to_f2:
+            pids_F2 = [_pid_to_F2_via_map(s, query, seq_F2, f1_to_f2)
+                       for s in seqs[1:]]
+            pids_F2 = [p for p in pids_F2 if not np.isnan(p)]
+        else:
+            pids_F2 = []
+        if not pids_F1:
             continue
         rows.append({
             "pair_id": pair_id,
             "cluster": cid,
-            "n_seqs": len(pids),
-            "mean_pid_to_query": float(np.mean(pids)),
-            "median_pid_to_query": float(np.median(pids)),
+            "n_seqs": len(pids_F1),
+            "mean_pid_to_F1": float(np.mean(pids_F1)),
+            "median_pid_to_F1": float(np.median(pids_F1)),
+            "mean_pid_to_F2": float(np.mean(pids_F2)) if pids_F2 else float("nan"),
+            "median_pid_to_F2": float(np.median(pids_F2)) if pids_F2 else float("nan"),
+            # Legacy alias for compatibility with downstream consumers
+            "mean_pid_to_query": float(np.mean(pids_F1)),
+            "median_pid_to_query": float(np.median(pids_F1)),
         })
     return rows
 
@@ -159,7 +274,12 @@ def build_pid_cache() -> pd.DataFrame:
 
 def apply_regression(survey: pd.DataFrame, pid_df: pd.DataFrame,
                      delta_tm: float, delta_ddg: float) -> pd.DataFrame:
-    """Per (pair, method) regress TMdiff_centered on mean_pid_to_query, classify residual.
+    """Per (pair, method) regress TMdiff_centered on BOTH mean_pid_to_F1 AND
+    mean_pid_to_F2 (symmetric correction). Falls back to single-predictor
+    PID-to-F1 only when F2 chain sequence can't be extracted.
+
+    Model (symmetric):
+        TMdiff_centered_c = alpha + beta1 * pid_to_F1_c + beta2 * pid_to_F2_c + r_c
 
     Note on scales: AF2/ESM/MSAT TMdiff_centered is on TM-score scale [-1, 1];
     DDG TMdiff_centered is actually centered Delta-Delta-G in kcal/mol, typical
@@ -170,33 +290,70 @@ def apply_regression(survey: pd.DataFrame, pid_df: pd.DataFrame,
     survey["cluster_norm"] = survey["cluster"].map(normalize_cluster)
     pid_df = pid_df.copy()
     pid_df["cluster_norm"] = pid_df["cluster"].map(normalize_cluster)
-    merged = survey.merge(
-        pid_df[["pair_id", "cluster_norm", "mean_pid_to_query"]],
-        on=["pair_id", "cluster_norm"], how="left",
-    )
+    # Carry both F1 and F2 PID columns (back-compat: fall back to legacy
+    # "mean_pid_to_query" if new columns aren't present in cache)
+    pid_cols = ["pair_id", "cluster_norm"]
+    for c in ("mean_pid_to_F1", "mean_pid_to_F2", "mean_pid_to_query"):
+        if c in pid_df.columns:
+            pid_cols.append(c)
+    merged = survey.merge(pid_df[pid_cols],
+                          on=["pair_id", "cluster_norm"], how="left")
+    # Unify "PID to F1" column: prefer new column, fall back to legacy
+    if "mean_pid_to_F1" not in merged.columns:
+        merged["mean_pid_to_F1"] = merged.get("mean_pid_to_query", np.nan)
+    if "mean_pid_to_F2" not in merged.columns:
+        merged["mean_pid_to_F2"] = np.nan
     merged["TMdiff_residual"] = np.nan
     merged["pref_corrected"] = "Amb"
-    merged["regression_beta"] = np.nan
+    merged["regression_beta_F1"] = np.nan
+    merged["regression_beta_F2"] = np.nan
     merged["regression_alpha"] = np.nan
+    merged["regression_n_predictors"] = 0
 
-    for (pid, method), sub in merged.groupby(["pair_id", "method"]):
-        sub_valid = sub.dropna(subset=["TMdiff_centered", "mean_pid_to_query"])
+    for (_, method), sub in merged.groupby(["pair_id", "method"]):
+        sub_valid = sub.dropna(subset=["TMdiff_centered", "mean_pid_to_F1"])
         sub_valid = sub_valid[sub_valid["cluster_norm"] != "DeepMsa"]
         if len(sub_valid) < 3:
             merged.loc[sub.index, "TMdiff_residual"] = sub["TMdiff_centered"]
             continue
-        x = sub_valid["mean_pid_to_query"].to_numpy(dtype=float)
+
         y = sub_valid["TMdiff_centered"].to_numpy(dtype=float)
-        if np.std(x) < 1e-9:
-            merged.loc[sub.index, "TMdiff_residual"] = sub["TMdiff_centered"]
-            continue
-        beta, alpha = np.polyfit(x, y, 1)
-        resid = sub["TMdiff_centered"].to_numpy(dtype=float) - (
-            beta * sub["mean_pid_to_query"].to_numpy(dtype=float) + alpha
-        )
-        merged.loc[sub.index, "TMdiff_residual"] = resid
-        merged.loc[sub.index, "regression_beta"] = beta
-        merged.loc[sub.index, "regression_alpha"] = alpha
+        x1 = sub_valid["mean_pid_to_F1"].to_numpy(dtype=float)
+        x2 = sub_valid["mean_pid_to_F2"].to_numpy(dtype=float)
+        has_F2 = not np.isnan(x2).all()
+
+        if has_F2 and np.std(x2) >= 1e-9 and np.std(x1) >= 1e-9:
+            # Symmetric 2-predictor regression via least squares
+            X = np.column_stack([np.ones(len(y)), x1, x2])
+            try:
+                coefs, *_ = np.linalg.lstsq(X, y, rcond=None)
+                alpha, beta1, beta2 = float(coefs[0]), float(coefs[1]), float(coefs[2])
+            except Exception:
+                merged.loc[sub.index, "TMdiff_residual"] = sub["TMdiff_centered"]
+                continue
+            full_x1 = sub["mean_pid_to_F1"].to_numpy(dtype=float)
+            full_x2 = sub["mean_pid_to_F2"].to_numpy(dtype=float)
+            pred = alpha + beta1 * full_x1 + beta2 * full_x2
+            resid = sub["TMdiff_centered"].to_numpy(dtype=float) - pred
+            merged.loc[sub.index, "TMdiff_residual"] = resid
+            merged.loc[sub.index, "regression_alpha"] = alpha
+            merged.loc[sub.index, "regression_beta_F1"] = beta1
+            merged.loc[sub.index, "regression_beta_F2"] = beta2
+            merged.loc[sub.index, "regression_n_predictors"] = 2
+        else:
+            # Fallback: single-predictor F1 only (legacy behavior)
+            if np.std(x1) < 1e-9:
+                merged.loc[sub.index, "TMdiff_residual"] = sub["TMdiff_centered"]
+                continue
+            beta1, alpha = np.polyfit(x1, y, 1)
+            full_x1 = sub["mean_pid_to_F1"].to_numpy(dtype=float)
+            resid = sub["TMdiff_centered"].to_numpy(dtype=float) - (
+                beta1 * full_x1 + alpha
+            )
+            merged.loc[sub.index, "TMdiff_residual"] = resid
+            merged.loc[sub.index, "regression_alpha"] = float(alpha)
+            merged.loc[sub.index, "regression_beta_F1"] = float(beta1)
+            merged.loc[sub.index, "regression_n_predictors"] = 1
 
     def _classify(v, d):
         if pd.isna(v):
