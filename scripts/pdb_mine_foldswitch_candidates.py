@@ -644,11 +644,12 @@ def parse_args():
                          "Default 0.20 (Porter min=0.185).")
     ap.add_argument("--max-candidates-per-cluster", type=int, default=10,
                     help="Within a sequence-similarity cluster, keep at most "
-                         "this many candidate pairs (sorted by highest "
-                         "max(tm_by_1, tm_by_2)). Default 10 (keep multiple "
-                         "variants per protein so v2 analysis can study "
-                         "clade-specific patterns within KaiB/RfaH/etc.). "
-                         "Set to 0 to disable.")
+                         "this many candidate pairs (the MOST DISTINCT, i.e. "
+                         "lowest tm_max within the [min_tm, max_tm] window, "
+                         "since those are the strongest fold-switch signals). "
+                         "Default 10 (keep multiple variants per protein so "
+                         "v2 analysis can study clade-specific patterns "
+                         "within KaiB/RfaH/etc.). Set to 0 to disable.")
     ap.add_argument("--min-ss-switch-fraction", type=float, default=0.01,
                     help="Minimum fraction of residues where DSSP secondary "
                          "structure switches between H (helix) and E (strand). "
@@ -901,11 +902,13 @@ def main():
     )
     # Per-cluster dedup: a fold-switcher with N PDB depositions of variants
     # generates ~N redundant pairs in one cluster. Keep at most
-    # max_candidates_per_cluster per cluster, picking the strongest (highest tm_max,
-    # i.e., closest to passing the fold-similarity floor). Set to 0 to keep all.
+    # max_candidates_per_cluster per cluster, picking the MOST STRUCTURALLY
+    # DISTINCT pairs (lowest tm_max within the [min_tm, max_tm] window) since
+    # those are the most informative fold-switch candidates. Set to 0 to
+    # keep all.
     n_before_dedup = len(df)
     if args.max_candidates_per_cluster > 0:
-        df = (df.sort_values("tm_max", ascending=False)
+        df = (df.sort_values("tm_max", ascending=True)
                 .groupby("cluster_idx", as_index=False)
                 .head(args.max_candidates_per_cluster)
                 .reset_index(drop=True))
