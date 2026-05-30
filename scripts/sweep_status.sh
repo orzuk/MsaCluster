@@ -61,19 +61,61 @@ declare -A METHOD_TOTAL
 for M in AF2 AF3 ESM2 Boltz DDG S4P CCM MSAT; do METHOD_TOTAL["$M"]=0; done
 
 check_method() {
-    # args: pair_dir, method_name -> echoes ✓ or -
+    # args: pair_dir, method_name -> echoes "-" | "X/Y" | "✓"
+    # Display logic:
+    #   done=0          -> "-"
+    #   done=X<Y        -> "X/Y"  (real progress fraction)
+    #   done=Y          -> "✓"    (fully complete)
     local pdir="$1" method="$2"
+    local fine_total coarse_total done expected
+
+    fine_total=$(ls "${pdir}/output_msa_cluster/"ShallowMsa_*.a3m 2>/dev/null | wc -l)
+    coarse_total=$(ls "${pdir}/output_msa_cluster_coarse/"CoarseMsa_*.a3m 2>/dev/null | wc -l)
+
     case "$method" in
-        AF2)    compgen -G "${pdir}/output_AF/AF2/ShallowMsa_*"            > /dev/null 2>&1 ;;
-        AF3)    compgen -G "${pdir}/output_AF/AF3/ShallowMsa_*"            > /dev/null 2>&1 ;;
-        ESM2)   compgen -G "${pdir}/output_esmfold2/*.pdb" > /dev/null 2>&1 \
-                || compgen -G "${pdir}/output_esmfold2/*.cif" > /dev/null 2>&1 ;;
-        Boltz)  compgen -G "${pdir}/output_boltz2/ShallowMsa_*"            > /dev/null 2>&1 ;;
-        DDG)    [[ -s "${pdir}/Analysis/df_ddg.csv" ]] ;;
-        S4P)    [[ -s "${pdir}/Analysis/df_s4pred.csv" ]] ;;
-        CCM)    compgen -G "${pdir}/output_cmaps/ccmpred/"*Coarse*         > /dev/null 2>&1 ;;
-        MSAT)   compgen -G "${pdir}/output_cmaps/msa_transformer/"*Coarse* > /dev/null 2>&1 ;;
+        AF2)
+            expected=$fine_total
+            done=$(ls -d "${pdir}/output_AF/AF2/"ShallowMsa_* 2>/dev/null | wc -l)
+            ;;
+        AF3)
+            expected=$fine_total
+            done=$(ls -d "${pdir}/output_AF/AF3/"ShallowMsa_* 2>/dev/null | wc -l)
+            ;;
+        ESM2)
+            expected=$fine_total
+            done=$(( $(ls "${pdir}/output_esmfold2/"*.pdb 2>/dev/null | wc -l) \
+                   + $(ls "${pdir}/output_esmfold2/"*.cif 2>/dev/null | wc -l) ))
+            ;;
+        Boltz)
+            expected=$fine_total
+            done=$(ls -d "${pdir}/output_boltz2/"ShallowMsa_* 2>/dev/null | wc -l)
+            ;;
+        DDG)
+            expected=1
+            [[ -s "${pdir}/Analysis/df_ddg.csv" ]] && done=1 || done=0
+            ;;
+        S4P)
+            expected=1
+            [[ -s "${pdir}/Analysis/df_s4pred.csv" ]] && done=1 || done=0
+            ;;
+        CCM)
+            expected=$coarse_total
+            done=$(ls "${pdir}/output_cmaps/ccmpred/"*Coarse* 2>/dev/null | wc -l)
+            ;;
+        MSAT)
+            expected=$coarse_total
+            done=$(ls "${pdir}/output_cmaps/msa_transformer/"*Coarse* 2>/dev/null | wc -l)
+            ;;
+        *) echo "-"; return ;;
     esac
+
+    if [[ "$done" -eq 0 ]] || [[ "$expected" -eq 0 ]]; then
+        echo "-"
+    elif [[ "$done" -ge "$expected" ]]; then
+        echo "✓"
+    else
+        echo "${done}/${expected}"
+    fi
 }
 
 ROWS=()
@@ -84,12 +126,11 @@ for P in $PAIR_LIST; do
     row="$P"
     done_count=0
     for M in AF2 AF3 ESM2 Boltz DDG S4P CCM MSAT; do
-        if check_method "$PDIR" "$M"; then
-            row+="\t✓"
+        DISPLAY=$(check_method "$PDIR" "$M")
+        row+="\t$DISPLAY"
+        if [[ "$DISPLAY" == "✓" ]]; then
             done_count=$((done_count+1))
             METHOD_TOTAL["$M"]=$((${METHOD_TOTAL["$M"]}+1))
-        else
-            row+="\t-"
         fi
     done
     jobinfo="-"
