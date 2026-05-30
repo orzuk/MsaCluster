@@ -680,8 +680,15 @@ def parse_args():
                     help="Include NMR structures (default: X-ray + cryo-EM only).")
     ap.add_argument("--seed", type=int, default=42,
                     help="Seed for cluster sub-sampling. Default 42.")
-    ap.add_argument("--checkpoint-every", type=int, default=50,
-                    help="Write partial CSV every N candidates. Default 50.")
+    ap.add_argument("--checkpoint-every", type=int, default=1,
+                    help="Write partial CSV every N candidates. Default 1 "
+                         "(every candidate -- safest for long runs).")
+    ap.add_argument("--shard", default=None,
+                    help="Shard spec 'X/N' (1-indexed): process only every "
+                         "Nth filtered cluster starting at position X-1. "
+                         "E.g., --shard 1/8 processes positions 0,8,16,...; "
+                         "--shard 2/8 processes 1,9,17,.... Output goes to "
+                         "<output>.shard_XofN.csv. Default: process all.")
     ap.add_argument("--resume", action="store_true",
                     help="If set, skip clusters whose chain pairs are already "
                          "in --output (resume an interrupted run).")
@@ -776,10 +783,33 @@ def main():
     print(f"[mine] {len(filtered_clusters)} clusters pass metadata filter",
           flush=True)
 
+    # --- Optional sharding: partition clusters across parallel jobs ---
+    shard_suffix = ""
+    if args.shard:
+        try:
+            shard_x_str, shard_n_str = args.shard.split("/")
+            shard_x, shard_n = int(shard_x_str), int(shard_n_str)
+            if not (1 <= shard_x <= shard_n):
+                raise ValueError("X must be in [1, N]")
+        except Exception as e:
+            raise SystemExit(f"[mine] invalid --shard {args.shard!r}: {e}")
+        shard_x_zero = shard_x - 1
+        original_count = len(filtered_clusters)
+        filtered_clusters = [
+            cl for i, cl in enumerate(filtered_clusters)
+            if i % shard_n == shard_x_zero
+        ]
+        shard_suffix = f".shard_{shard_x}of{shard_n}"
+        print(f"[mine] shard {shard_x}/{shard_n}: "
+              f"{len(filtered_clusters)}/{original_count} clusters")
+
     # --- 3. Optional resume ---
     seen_pair_ids: set[str] = set()
     candidates: List[Dict] = []
     output_path = Path(args.output)
+    if shard_suffix:
+        output_path = output_path.with_name(
+            output_path.stem + shard_suffix + output_path.suffix)
     if args.resume and output_path.exists():
         try:
             prev = pd.read_csv(output_path)
