@@ -2800,34 +2800,27 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
 
     # 7) ESMFold2 (Biohub, May 2026; replaces old ESMFold v1).
     # Single-sequence on each cluster's medoid sequence.
+    # Always invoke: run_ESMFold2.py --skip_existing skips clusters that
+    # already have a .pdb/.cif, so this RESUMES partial runs. A dir-level
+    # "skip if non-empty" gate would strand pairs whose job timed out
+    # mid-sweep (only some cluster medoids predicted).
     _step_hdr(8, "ESMFold2 Predictions")
     try:
-        out_dir = f"Pipeline/FoldPairs/{pair_id}/output_esmfold2"
-        has_outputs = (
-            os.path.isdir(out_dir)
-            and any(fn.endswith((".pdb", ".cif"))
-                    for fn in os.listdir(out_dir))
-        )
         if force_all:
             setattr(args, "force_rerun_esmfold2", "TRUE")
-        if force_all or not has_outputs:
-            print("Running ESMFold2 …")
-            task_esmfold2(pair_id, args)
-        else:
-            print("ESMFold2 outputs exist → skipped")
+        print("Running ESMFold2 (per-cluster auto-skip inside) …")
+        task_esmfold2(pair_id, args)
     except Exception as e:
         print(f"ESMFold2 step skipped: {e}")
 
     # 7b) Boltz-2 per cluster (fine resolution by default).
+    # Always invoke: run_Boltz2.py skips clusters that already have a rank1
+    # PDB, so this RESUMES partial runs. A dir-level "skip if non-empty" gate
+    # would strand pairs whose Boltz job timed out mid-sweep (e.g. 4/100).
     _step_hdr("8b", "Boltz-2 Predictions")
     try:
-        boltz_dir = f"Pipeline/FoldPairs/{pair_id}/output_boltz2"
-        has_boltz = os.path.isdir(boltz_dir) and bool(os.listdir(boltz_dir))
-        if force_all or not has_boltz:
-            print("Running Boltz-2 …")
-            task_boltz2(pair_id, args)
-        else:
-            print("Boltz-2 outputs exist → skipped")
+        print("Running Boltz-2 (per-cluster auto-skip inside) …")
+        task_boltz2(pair_id, args)
     except Exception as e:
         print(f"Boltz-2 step skipped: {e}")
 

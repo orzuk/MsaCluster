@@ -8,10 +8,16 @@
 #   3. Top-10 nearest-by-Hamming sub-sample as AF MSA input
 #
 # Stages (each is a separate sbatch dispatch):
-#   --stage cluster   : cluster_msa for all pairs (CPU, ~1 min/pair)
-#   --stage af        : run_AF (AF2+AF3, both chains) for all pairs (GPU)
-#   --stage esmfold2  : run_ESMFold2 on cluster medoids (GPU, ~10 min/pair)
-#   --stage all       : all three stages in dependency order
+#   --stage cluster        : cluster_msa fine resolution (CPU, ~1 min/pair)
+#   --stage cluster_coarse : coarse-from-fine agglomeration (+ fine_to_coarse.csv)
+#   --stage af             : run_AF (AF2+AF3, medoid+top10) for all pairs (GPU)
+#   --stage esmfold2       : run_ESMFold2 on cluster medoids (GPU, ~10 min/pair)
+#   --stage ddg            : run_ddg (ThermoMPNN) FINE resolution (GPU)
+#   --stage boltz2         : run_boltz2 (apo) FINE resolution (GPU)
+#   --stage s4pred         : run_s4pred FINE resolution (CPU)
+#   --stage ccmpred_coarse : run_cmap_ccmpred COARSE resolution (CPU)
+#   --stage msat_coarse    : run_cmap_msa_transformer COARSE resolution (GPU)
+#   --stage all            : cluster + cluster_coarse + af + esmfold2
 #
 # Each pair's AF outputs land in:
 #   Pipeline/FoldPairs/<pair>/output_AF/AF2_newmethod_top10/
@@ -70,7 +76,7 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown arg: $1"; exit 1 ;;
     esac
 done
-[[ -z "$STAGE" ]] && { echo "Must give --stage cluster|af|esmfold2|all"; exit 1; }
+[[ -z "$STAGE" ]] && { echo "Must give --stage cluster|cluster_coarse|af|esmfold2|ddg|boltz2|s4pred|ccmpred_coarse|msat_coarse|all"; exit 1; }
 
 # ---- paths + slurm ----------------------------------------------------------
 REPO_DIR="/sci/labs/orzuk/orzuk/github/MsaCluster"
@@ -166,6 +172,43 @@ if [[ "$STAGE" == "msat_coarse" ]] || [[ "$STAGE" == "msat" ]]; then
     CMD="python3 run_foldswitch_pipeline.py \
         --run_mode run_cmap_msa_transformer --foldpair_ids $PAIRS_ARG \
         --cluster_resolution coarse \
+        --run_job_mode sbatch"
+    run_or_echo "$CMD"
+    echo
+fi
+
+# ---- DDG at FINE resolution (ThermoMPNN, samples 10/cluster itself) --------
+if [[ "$STAGE" == "ddg" ]]; then
+    echo "==================================================================="
+    echo "[v2] STAGE: DDG (ThermoMPNN) at FINE resolution"
+    echo "==================================================================="
+    CMD="python3 run_foldswitch_pipeline.py \
+        --run_mode run_ddg --foldpair_ids $PAIRS_ARG \
+        --run_job_mode sbatch"
+    run_or_echo "$CMD"
+    echo
+fi
+
+# ---- Boltz-2 at FINE resolution (apo; skip-existing per cluster) -----------
+if [[ "$STAGE" == "boltz2" ]]; then
+    echo "==================================================================="
+    echo "[v2] STAGE: Boltz-2 (apo) at FINE resolution"
+    echo "==================================================================="
+    CMD="python3 run_foldswitch_pipeline.py \
+        --run_mode run_boltz2 --foldpair_ids $PAIRS_ARG \
+        --boltz2_mode apo \
+        --run_job_mode sbatch"
+    run_or_echo "$CMD"
+    echo
+fi
+
+# ---- S4PRED at FINE resolution (single-sequence SS, CPU) -------------------
+if [[ "$STAGE" == "s4pred" ]]; then
+    echo "==================================================================="
+    echo "[v2] STAGE: S4PRED at FINE resolution"
+    echo "==================================================================="
+    CMD="python3 run_foldswitch_pipeline.py \
+        --run_mode run_s4pred --foldpair_ids $PAIRS_ARG \
         --run_job_mode sbatch"
     run_or_echo "$CMD"
     echo
