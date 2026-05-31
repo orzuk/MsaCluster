@@ -519,7 +519,13 @@ def before_after_table(corrected: pd.DataFrame, before_concord: pd.DataFrame,
             n_f2_before = int((ms["pref_centered"] == "F2").sum())
             n_f1_after = int((ms["pref_corrected"] == "F1").sum())
             n_f2_after = int((ms["pref_corrected"] == "F2").sum())
-            beta = ms["regression_beta"].dropna()
+            # Symmetric regression (commit 08d6083) renamed regression_beta
+            # -> regression_beta_F1 / regression_beta_F2. Fall back gracefully.
+            beta_col = next((c for c in ("regression_beta_F1",
+                                         "regression_beta",
+                                         "regression_beta_F2")
+                             if c in ms.columns), None)
+            beta = ms[beta_col].dropna() if beta_col else pd.Series([], dtype=float)
             beta_s = f"{beta.iloc[0]:+.3f}" if len(beta) else "  --  "
             print(f"{p:<18} {m:<6} "
                   f"{n_f1_before:>8d} {n_f2_before:>8d} {n_f1_after:>8d} {n_f2_after:>8d} {beta_s:>8}")
