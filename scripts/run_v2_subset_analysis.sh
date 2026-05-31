@@ -128,8 +128,12 @@ echo "==================================================="
 # Per-(pair,method) NN1 + Fitch parsimony permutation tests on F1c/F2c
 # labels projected onto the cluster-level phylo tree. Output:
 #   docs/phylo_placement.csv (raw) and docs/phylo_placement_corrected.csv
-python3 scripts/phylo_placement.py --pairs "$PAIR_LIST_COMMA" \
-    2>&1 | tail -10 || echo "(continuing)"
+echo "--- raw labels -> docs/phylo_placement.csv ---"
+python3 scripts/phylo_placement.py --pairs "$PAIR_LIST_COMMA" --no-d-statistic \
+    2>&1 | tail -15 || echo "(continuing)"
+echo "--- corrected labels (seq-divergence residuals) -> docs/phylo_placement_corrected.csv ---"
+python3 scripts/phylo_placement.py --pairs "$PAIR_LIST_COMMA" --labels corrected --no-d-statistic \
+    2>&1 | tail -15 || echo "(continuing)"
 
 # BH within method, across pairs — standard v1 approach
 echo
