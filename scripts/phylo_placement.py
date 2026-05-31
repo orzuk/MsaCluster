@@ -1155,8 +1155,9 @@ def main():
         sub = df[(df.method == method) & df.morans_p.notna()].copy()
         if sub.empty:
             continue
-        sub = sub.sort_values("morans_p")
-        print(f"\nTop 10 phylogenetically-structured pairs ({method}, by Moran's p):")
+        # p floors at 1/(n_perm+1); break ties by SIGNED I (clustering first)
+        sub = sub.sort_values(["morans_p", "morans_I"], ascending=[True, False])
+        print(f"\nTop 10 phylogenetically-structured pairs ({method}, by p then signed I):")
         cols = ["pair_id", "morans_n", "morans_I", "morans_p", "morans_p_bh",
                 "n_F1c_leaves", "n_F2c_leaves", "nn_concordance_p"]
         cols = [c for c in cols if c in sub.columns]

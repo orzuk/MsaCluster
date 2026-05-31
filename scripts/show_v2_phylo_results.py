@@ -47,7 +47,10 @@ def morans_summary():
             print(f"  {m:10}{len(s):>7}{int((s.morans_p < 0.05).sum()):>9}"
                   f"{bh:>8}{s.morans_I.median():>8.3f}{ai.quantile(0.9):>8.3f}{ai.max():>8.3f}")
         if tag == "CORRECTED" and "morans_p_bh" in d.columns:
-            sig = d[d.morans_p_bh < 0.05].sort_values("morans_p")
+            # sort by p, breaking the 1/(n_perm+1) floor ties by SIGNED I
+            # (most positive = strongest clade clustering first)
+            sig = d[d.morans_p_bh < 0.05].sort_values(
+                ["morans_p", "morans_I"], ascending=[True, False])
             print(f"\n  Corrected BH<0.05: {len(sig)} (pair, method, I, p, p_bh)")
             for _, r in sig.head(40).iterrows():
                 print(f"    {r.pair_id:14} {r.method:8} I={r.morans_I:6.3f} "
