@@ -36,14 +36,16 @@ def morans_summary():
         if "morans_p" not in d.columns:
             print("  NO morans_p column (stale / pre-Moran's run)")
             continue
-        print(f"  {'method':10}{'tested':>7}{'raw<.05':>9}{'BH<.05':>8}{'medianI':>9}")
+        print(f"  {'method':10}{'tested':>7}{'raw<.05':>9}{'BH<.05':>8}"
+              f"{'medI':>8}{'p90|I|':>8}{'max|I|':>8}")
         for m in sorted(d.method.unique()):
             s = d[(d.method == m) & d.morans_p.notna()]
             if not len(s):
                 continue
             bh = int((s["morans_p_bh"] < 0.05).sum()) if "morans_p_bh" in s.columns else 0
+            ai = s.morans_I.abs()
             print(f"  {m:10}{len(s):>7}{int((s.morans_p < 0.05).sum()):>9}"
-                  f"{bh:>8}{s.morans_I.median():>9.3f}")
+                  f"{bh:>8}{s.morans_I.median():>8.3f}{ai.quantile(0.9):>8.3f}{ai.max():>8.3f}")
         if tag == "CORRECTED" and "morans_p_bh" in d.columns:
             sig = d[d.morans_p_bh < 0.05].sort_values("morans_p")
             print(f"\n  Corrected BH<0.05: {len(sig)} (pair, method, I, p, p_bh)")
