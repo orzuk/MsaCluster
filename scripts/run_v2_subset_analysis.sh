@@ -153,7 +153,7 @@ for src in ['docs/phylo_placement.csv', 'docs/phylo_placement_corrected.csv']:
     if not Path(src).is_file():
         continue
     df = pd.read_csv(src)
-    pcols = [c for c in df.columns if c.lower().startswith('p_nn') or c.lower().startswith('p_fitch') or c.lower() == 'p_parsimony']
+    pcols = [c for c in ('morans_p','nn_concordance_p','parsimony_p','nn3_concordance_p') if c in df.columns]
     print(f"\n=== {src} ===")
     print(f"columns available: {pcols}")
     for pcol in pcols:

@@ -190,6 +190,34 @@ def load_corrected_pref(survey_csv: str) -> Dict[Tuple[str, str, str], str]:
     return out
 
 
+def load_fold_value(survey_csv: str, value_col: str
+                    ) -> Dict[Tuple[str, str, str], Optional[float]]:
+    """Build (pair, method, cluster) -> CONTINUOUS signed fold preference.
+
+    Used by the Moran's-I phylogenetic-signal test (no thresholding). The
+    value is the method's native signed preference; Moran's I is invariant
+    to per-method affine rescaling, so no normalization is needed.
+
+      raw labels       -> value_col = 'TMdiff_centered' (median-centred)
+      corrected labels -> value_col = 'TMdiff_residual' (seq-divergence
+                          regression residual; produced by
+                          scripts/seq_divergence_correction.py)
+    """
+    df = pd.read_csv(survey_csv)
+    if value_col not in df.columns:
+        raise SystemExit(
+            f"Expected continuous column '{value_col}' in {survey_csv}."
+        )
+    cluster_col = "cluster_norm" if "cluster_norm" in df.columns else "cluster"
+    df[cluster_col] = df[cluster_col].astype(str).apply(normalize_cluster)
+    out: Dict[Tuple[str, str, str], Optional[float]] = {}
+    for _, r in df.iterrows():
+        v = pd.to_numeric(r.get(value_col), errors="coerce")
+        key = (str(r["pair_id"]), str(r["method"]), str(r[cluster_col]))
+        out[key] = float(v) if pd.notna(v) else None
+    return out
+
+
 def load_fold_pref(survey_csv: str, delta_tm: float = 0.05,
                    delta_ddg: float = 1.0
                    ) -> Dict[Tuple[str, str, str], str]:
@@ -490,6 +518,99 @@ def permutation_p(tree, leaf_states: Dict[str, str],
 
 
 # ---------------------------------------------------------------------------
+# Continuous phylogenetic signal: Moran's I + permutation null
+# ---------------------------------------------------------------------------
+
+def _patristic_matrix(tree, names: Sequence[str]) -> np.ndarray:
+    """Pairwise patristic (branch-length) distance matrix over ``names``.
+
+    Reuses the same root-depth + LCA logic as ``_cophenetic_neighbours``.
+    Edges with no/zero length count as 1.0 (topological distance fallback).
+    """
+    name_to_node: dict = {}
+    depth: dict = {}
+
+    def _walk(node, d):
+        name_to_node[node.name] = node
+        depth[node.name] = d
+        for c in node.children:
+            cd = c.dist if (c.dist and c.dist > 0) else 1.0
+            _walk(c, d + cd)
+
+    _walk(tree, 0.0)
+    ancestors: Dict[str, List[str]] = {}
+    for nm in names:
+        node = name_to_node.get(nm)
+        chain: List[str] = []
+        while node is not None:
+            chain.append(node.name)
+            node = node.up
+        ancestors[nm] = chain
+
+    n = len(names)
+    D = np.zeros((n, n), dtype=float)
+    for i, a in enumerate(names):
+        a_anc = {nm: k for k, nm in enumerate(ancestors[a])}
+        da = depth.get(a, 0.0)
+        for j in range(i + 1, n):
+            b = names[j]
+            lca = next((nm for nm in ancestors[b] if nm in a_anc), None)
+            if lca is None:
+                d_ab = da + depth.get(b, 0.0)            # disconnected fallback
+            else:
+                d_ab = (da - depth[lca]) + (depth.get(b, 0.0) - depth[lca])
+            D[i, j] = D[j, i] = d_ab
+    return D
+
+
+def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
+                  n_perm: int = 1000, seed: int = 12345,
+                  eps: float = 1e-9) -> dict:
+    """Moran's I phylogenetic autocorrelation of a CONTINUOUS leaf trait,
+    with a one-sided permutation p-value (testing for positive signal =
+    clade-structured fold preference).
+
+    - Weights: row-standardized inverse patristic distance (1/d_ij).
+    - I > 0: phylogenetically nearby clusters have similar preference.
+    - p = (1 + #{I_perm >= I_obs}) / (1 + n_perm); floor 1/(n_perm+1).
+    - Invariant to affine rescaling of the trait (so methods on different
+      scales are directly comparable without normalization).
+    - Returns NaN with a note when n<3 or the trait has zero variance
+      (e.g. CCMpred): a constant trait has no signal to measure.
+    """
+    names = [n for n, v in leaf_values.items()
+             if v is not None and np.isfinite(v)]
+    res = {"morans_I": np.nan, "morans_p": np.nan,
+           "morans_n": len(names), "morans_note": ""}
+    if len(names) < 3:
+        res["morans_note"] = "n<3"
+        return res
+    x = np.asarray([leaf_values[m] for m in names], dtype=float)
+    xc = x - x.mean()
+    den = float(xc @ xc)
+    if den < eps:
+        res["morans_note"] = "zero_variance"
+        return res
+
+    W = 1.0 / (_patristic_matrix(tree, names) + eps)
+    np.fill_diagonal(W, 0.0)
+    rs = W.sum(axis=1, keepdims=True)
+    rs[rs == 0] = 1.0
+    W = W / rs                                   # row-standardized -> S0 = n
+
+    I_obs = float((xc @ (W @ xc)) / den)
+    rng = np.random.default_rng(seed)
+    # Vectorized permutation null: each row is a permutation of xc.
+    P = np.empty((n_perm, len(xc)), dtype=float)
+    for k in range(n_perm):
+        P[k] = rng.permutation(xc)
+    I_perm = np.einsum("ij,ij->i", P @ W, P) / den
+    p = (1 + int((I_perm >= I_obs).sum())) / (n_perm + 1)
+    res.update({"morans_I": round(I_obs, 4), "morans_p": round(float(p), 4)})
+    return res
+
+
+# ---------------------------------------------------------------------------
 # Per-pair, per-method analysis on the COARSE tree
 # ---------------------------------------------------------------------------
 
@@ -497,7 +618,8 @@ def analyze_pair_method(pair_id: str, method: str,
                         tree, tag_to_label: Dict[str, str],
                         cluster_pref: Dict[str, str],
                         n_perm: int, seed: int,
-                        do_d_stat: bool = True
+                        do_d_stat: bool = True,
+                        cluster_value: Optional[Dict[str, Optional[float]]] = None
                         ) -> Optional[dict]:
     """Compute phylo-structure stats for one (pair, method) on the COARSE tree.
 
@@ -536,9 +658,28 @@ def analyze_pair_method(pair_id: str, method: str,
         "nn3_concordance": np.nan,
         "nn3_concordance_p": np.nan,
         "D_statistic": np.nan,
+        "morans_I": np.nan,
+        "morans_p": np.nan,
+        "morans_n": 0,
+        "morans_note": "",
         "notes": "",
     }
 
+    # ---- PRIMARY: continuous Moran's I (no thresholding) ----
+    # Uses the raw/corrected continuous preference per cluster; every cluster
+    # participates (no F1/F2/Amb gate), so coverage is method-independent.
+    if cluster_value is not None:
+        leaf_values: Dict[str, Optional[float]] = {}
+        for tag, label in tag_to_label.items():
+            leaf_values[label] = cluster_value.get(tag)
+        mt = morans_I_test(tree, leaf_values, n_perm=min(n_perm, 1000),
+                           seed=seed + 7)
+        out["morans_I"] = mt["morans_I"]
+        out["morans_p"] = mt["morans_p"]
+        out["morans_n"] = mt["morans_n"]
+        out["morans_note"] = mt["morans_note"]
+
+    # ---- SECONDARY (discrete; thresholded labels, kept for figures + back-compat) ----
     if n_f1 > 0 and n_f2 > 0:
         pscore = _fitch_parsimony_binary(tree, leaf_states)
         out["parsimony_score"] = int(pscore)
@@ -883,10 +1024,14 @@ def main():
     print(f"Loading fold preferences ({args.labels}): {survey_csv}")
     if args.labels == "corrected":
         pref_lookup = load_corrected_pref(survey_csv)
+        value_col = "TMdiff_residual"
     else:
         pref_lookup = load_fold_pref(survey_csv,
                                      delta_tm=args.delta_tm,
                                      delta_ddg=args.delta_ddg)
+        value_col = "TMdiff_centered"
+    # Continuous per-cluster preference for the Moran's-I test (primary stat).
+    value_lookup = load_fold_value(survey_csv, value_col)
     pairs_in_survey = set(k[0] for k in pref_lookup)
     print(f"  {len(pairs_in_survey)} pairs in survey")
 
@@ -929,6 +1074,10 @@ def main():
                 for tag in tag_to_label
             }
             cluster_pref_per_method[method] = cp
+            cv: Dict[str, Optional[float]] = {
+                tag: value_lookup.get((pair_id, method, tag))
+                for tag in tag_to_label
+            }
 
             try:
                 with _per_pair_timeout(per_pair_timeout_s):
@@ -936,6 +1085,7 @@ def main():
                         pair_id, method, tree, tag_to_label, cp,
                         n_perm=args.n_perm, seed=args.seed,
                         do_d_stat=(not args.no_d_statistic),
+                        cluster_value=cv,
                     )
             except TimeoutError:
                 print(f"    {method}: TIMEOUT after {per_pair_timeout_s}s; skipped", flush=True)
@@ -965,23 +1115,39 @@ def main():
         return
 
     # BH FDR across the screen for each p-value column (always-on)
-    for pcol in ("parsimony_p", "nn_concordance_p", "nn3_concordance_p"):
+    for pcol in ("morans_p", "parsimony_p", "nn_concordance_p", "nn3_concordance_p"):
         if pcol in df.columns:
-            df[pcol + "_bh"] = bh_adjust(df[pcol].to_numpy(dtype=float))
+            # BH within each method, across pairs (the per-method screen).
+            df[pcol + "_bh"] = np.nan
+            for _m in df["method"].unique():
+                mask = df["method"] == _m
+                df.loc[mask, pcol + "_bh"] = bh_adjust(
+                    df.loc[mask, pcol].to_numpy(dtype=float))
 
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     df.to_csv(out_csv, index=False)
     print(f"\nWrote {out_csv} ({len(df)} rows; labels={args.labels})")
 
+    # Per-method BH-significant counts on the PRIMARY stat (Moran's I).
+    print("\n=== Moran's I phylogenetic signal: BH-significant pairs per method ===")
     for method in SCORED_METHODS:
-        sub = df[(df.method == method) & df.parsimony_p.notna()].copy()
+        sub = df[(df.method == method) & df.morans_p.notna()].copy()
         if sub.empty:
             continue
-        sub = sub.sort_values("parsimony_p")
-        print(f"\nTop 10 phylogenetically-structured pairs ({method}):")
-        cols = ["pair_id", "n_F1c_leaves", "n_F2c_leaves",
-                "parsimony_score", "parsimony_p",
-                "nn_concordance", "nn_concordance_p", "D_statistic"]
+        nsig = int((sub["morans_p_bh"] < 0.05).sum()) if "morans_p_bh" in sub else 0
+        print(f"  {method:9} tested={len(sub):>3}  "
+              f"raw_p<.05={int((sub.morans_p<0.05).sum()):>3}  BH<.05={nsig:>3}  "
+              f"median_I={sub.morans_I.median():.3f}")
+
+    for method in SCORED_METHODS:
+        sub = df[(df.method == method) & df.morans_p.notna()].copy()
+        if sub.empty:
+            continue
+        sub = sub.sort_values("morans_p")
+        print(f"\nTop 10 phylogenetically-structured pairs ({method}, by Moran's p):")
+        cols = ["pair_id", "morans_n", "morans_I", "morans_p", "morans_p_bh",
+                "n_F1c_leaves", "n_F2c_leaves", "nn_concordance_p"]
+        cols = [c for c in cols if c in sub.columns]
         print(sub[cols].head(10).to_string(index=False))
 
     if fig_mode != "none":
