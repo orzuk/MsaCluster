@@ -432,6 +432,69 @@ def load_esm_diversity(pair_id, delta):
     return rows
 
 
+def load_esmfold2_diversity(pair_id, delta):
+    """Load ESMFold2 per-cluster TM-scores (the v2 single-sequence baseline).
+
+    Reads docs/esmfold2_tmscores_<pair>.csv (written by
+    scripts/score_esmfold2.py): ONE prediction per cluster (the medoid),
+    scored vs both truth folds (columns TM_F1, TM_F2). This REPLACES the old
+    ESMFold-v1 loader (`load_esm_diversity`, which read df_esm.csv). The
+    method label is kept as ``"ESM"`` so the ~8 downstream scripts that
+    hard-code that name keep working, but the data is now ESMFold2.
+
+    Pairs whose ESMFold2 scoring failed (e.g. all-NaN TM) yield no rows -
+    we do NOT silently fall back to stale v1 ESMFold.
+    """
+    csv_path = os.path.join(TABLES_RES, f"esmfold2_tmscores_{pair_id}.csv")
+    if not os.path.isfile(csv_path) or os.path.getsize(csv_path) == 0:
+        return []
+    df = pd.read_csv(csv_path)
+    if df.empty or "TM_F1" not in df.columns or "TM_F2" not in df.columns \
+            or "cluster" not in df.columns:
+        return []
+    df["_tag"] = df["cluster"].apply(_normalize_cluster)
+    df["TM1"] = pd.to_numeric(df["TM_F1"], errors="coerce")
+    df["TM2"] = pd.to_numeric(df["TM_F2"], errors="coerce")
+
+    rows = []
+    for tag, grp in df.groupby("_tag"):
+        g = grp.dropna(subset=["TM1", "TM2"])
+        if g.empty:
+            continue                       # scoring failed for this cluster
+        # One prediction per cluster; if >1 row (e.g. multi-chain truth),
+        # take the best score toward each fold.
+        tm1 = float(g["TM1"].max())
+        tm2 = float(g["TM2"].max())
+        diff = tm1 - tm2
+        n_models = len(g)
+        n_f1 = int((g["TM1"] > g["TM2"]).sum())
+        n_f2 = int((g["TM2"] > g["TM1"]).sum())
+        vote_frac = n_f1 / n_models if n_models else 0.5
+        if diff > delta:
+            pref = "F1"
+        elif diff < -delta:
+            pref = "F2"
+        else:
+            pref = "Amb"
+        rows.append({
+            "pair_id": pair_id,
+            "cluster": tag,
+            "method": "ESM",
+            "TM1_max": round(tm1, 4),
+            "TM2_max": round(tm2, 4),
+            "TM1_mean": round(tm1, 4),
+            "TM2_mean": round(tm2, 4),
+            "TMdiff_max": round(diff, 4),
+            "TMdiff_mean": round(diff, 4),
+            "n_models": n_models,
+            "n_toward_f1": n_f1,
+            "n_toward_f2": n_f2,
+            "vote_frac_f1": round(vote_frac, 3),
+            "pref": pref,
+        })
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # MSAT (contact map) loader
 # ---------------------------------------------------------------------------
@@ -971,8 +1034,8 @@ def main():
             if s:
                 all_summaries.append(s)
 
-        # ESM
-        esm_rows = load_esm_diversity(pair_id, args.delta)
+        # ESM slot = ESMFold2 (v2 single-sequence baseline; replaces ESMFold v1)
+        esm_rows = load_esmfold2_diversity(pair_id, args.delta)
         if esm_rows:
             _apply_centered_classification(esm_rows, args.delta)
             n_esm += 1

@@ -69,6 +69,16 @@ echo "[v2-analysis] Saved pair list to $PAIRS_FILE"
 
 echo
 echo "==================================================="
+echo "STEP 0/7: score ESMFold2 predictions vs folds"
+echo "==================================================="
+# Writes docs/esmfold2_tmscores_<pair>.csv (one medoid prediction/cluster,
+# scored vs both truth folds). The survey's 'ESM' slot now reads these
+# (ESMFold2 = v2 single-sequence baseline; replaces ESMFold v1).
+python3 scripts/score_esmfold2.py --foldpair_ids "$PAIR_LIST_COMMA" \
+    2>&1 | tail -15 || echo "(continuing)"
+
+echo
+echo "==================================================="
 echo "STEP 1/7: fold_diversity_survey (cross-method matrix)"
 echo "==================================================="
 python3 scripts/fold_diversity_survey.py --pairs "$PAIR_LIST_COMMA" || echo "(continuing)"
