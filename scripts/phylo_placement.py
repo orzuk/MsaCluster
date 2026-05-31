@@ -619,7 +619,8 @@ def analyze_pair_method(pair_id: str, method: str,
                         cluster_pref: Dict[str, str],
                         n_perm: int, seed: int,
                         do_d_stat: bool = True,
-                        cluster_value: Optional[Dict[str, Optional[float]]] = None
+                        cluster_value: Optional[Dict[str, Optional[float]]] = None,
+                        do_discrete_perms: bool = False
                         ) -> Optional[dict]:
     """Compute phylo-structure stats for one (pair, method) on the COARSE tree.
 
@@ -679,8 +680,12 @@ def analyze_pair_method(pair_id: str, method: str,
         out["morans_n"] = mt["morans_n"]
         out["morans_note"] = mt["morans_note"]
 
-    # ---- SECONDARY (discrete; thresholded labels, kept for figures + back-compat) ----
-    if n_f1 > 0 and n_f2 > 0:
+    # ---- SECONDARY (discrete; thresholded labels) ----
+    # OFF by default: Moran's I is the primary (and only) phylo test now.
+    # The discrete Fitch/NN permutation tests are slow (1000 tree traversals
+    # per stat per pair-method) and superseded. Code retained; enable with
+    # --discrete-perms only if you want the legacy parsimony/NN/D columns.
+    if do_discrete_perms and n_f1 > 0 and n_f2 > 0:
         pscore = _fitch_parsimony_binary(tree, leaf_states)
         out["parsimony_score"] = int(pscore)
         out["parsimony_p"] = round(
@@ -969,6 +974,12 @@ def main():
     p.add_argument("--delta-ddg", type=float, default=1.0)
     p.add_argument("--no-d-statistic", action="store_true",
                    help="Skip D statistic (slowest stat)")
+    p.add_argument("--discrete-perms", action="store_true",
+                   help="Also run the legacy discrete Fitch/NN permutation "
+                        "tests (parsimony_p, nn_concordance_p, nn3, D). OFF by "
+                        "default - Moran's I is the primary test and these are "
+                        "slow. Discrete F1/F2/Amb label counts are always kept "
+                        "(for figures); only their permutation p-values are gated.")
     # sbatch self-submission (matches run_foldswitch_pipeline.py pattern)
     p.add_argument("--run-job-mode", choices=["local", "sbatch"], default="local",
                    help="local = run inline (default); sbatch = self-submit "
@@ -1086,6 +1097,7 @@ def main():
                         n_perm=args.n_perm, seed=args.seed,
                         do_d_stat=(not args.no_d_statistic),
                         cluster_value=cv,
+                        do_discrete_perms=args.discrete_perms,
                     )
             except TimeoutError:
                 print(f"    {method}: TIMEOUT after {per_pair_timeout_s}s; skipped", flush=True)
