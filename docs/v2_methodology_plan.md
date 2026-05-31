@@ -458,6 +458,66 @@ Launch order once smoke tests pass:
 - ◻ Update Results §3.x with M_fine=82 per-method significance counts
 - ◻ Update Discussion with the RfaH-context-vs-clade story (from pilot)
 
+## 12. Refactor: unify structure scoring on `score_against_folds` (QUEUED)
+
+**Status:** specced 2026-05-31, do AFTER the current Moran's run lands
+(changes `df_af.csv`'s producer → needs a regression guard).
+
+**Problem (three layers, only the bottom unified):**
+- Layer 1 — TM-align primitive: ✅ unified via `utils/align_utils.tmalign_unified()`.
+- Layer 2 — per-method scoring orchestration (enumerate predicted PDBs per
+  cluster → TM-align vs both folds → write `df_<method>.csv`): ❌ duplicated 3×
+  — AF in `Analysis/postprocess_unified.py`+`Analysis/AF_analysis.py`, Boltz in
+  `run_Boltz2.py`, ESMFold2 in `scripts/score_esmfold2.py`
+  (→`utils/score_against_folds.score_predictions_vs_truth`, the cleanest one).
+- Layer 3 — survey reading: ❌ 8 bespoke `load_*_diversity` fns (schema drift:
+  `score_pdb1/2` vs `TMscore_fold1/2` vs `TM_F1/F2`; `cluster` vs `cluster_num`).
+
+**Target design:** one generic driver; method = a string + an enumerator + a df
+name. `score_predictions_vs_truth(pair, pred_paths, cluster_ids, version_label,
+...)` is ALREADY method-agnostic, so:
+
+```python
+SCORE_SPEC = {                       # registry; only enum_* is method-specific
+  "AF2":      (enum_af2,      "df_af.csv",       "AF2"),   # AF2+AF3 share df_af.csv
+  "AF3":      (enum_af3,      "df_af.csv",       "AF3"),   #   via `model` column
+  "ESMFold2": (enum_esmfold2, "df_esmfold2.csv", "ESMFold2"),
+  "Boltz2":   (enum_boltz2,   "df_boltz2.csv",   "Boltz2"),
+  "AlphaFlow":(enum_alphaflow,"df_alphaflow.csv","AlphaFlow"),
+}
+def score_method(pair, method):
+    enum, df_name, label = SCORE_SPEC[method]
+    paths, cluster_ids = enum(pair)            # ONLY irreducible per-method bit
+    df = score_predictions_vs_truth(pair, paths, cluster_ids, version_label=label, ...)
+    df.to_csv(Analysis_dir(pair)/df_name)
+```
+The only per-method code is `enum(pair)` (~10 lines: which PDBs map to which
+cluster; layouts differ — AF per-cluster/chain/rank dirs, ESMFold2 one PDB/cluster,
+Boltz rank PDBs). `score_esmfold2.py` collapses to one registry entry; STEP 0 of
+`run_v2_subset_analysis.sh` disappears (scoring becomes a per-pair postprocess like
+the others, writing `Analysis/df_esmfold2.csv`).
+
+**Scope boundary:** covers the 5 TM-align structure predictors
+(AF2/AF3/ESMFold2/Boltz2/AlphaFlow). DDG / CCMpred / MSAT / S4PRED are NOT
+TM-align (stability ΔΔG / contact-map agreement / SS similarity) — keep their own
+score math, but emit the SAME df schema so the survey loaders also collapse.
+
+**Output schema (canonical `df_<method>.csv`):** `pair_id, cluster, model/label,
+TM_F1, TM_F2, TMdiff` (+ centering done downstream). Survey: replace 8
+`load_*_diversity` with ~2 generic loaders (one for TM-methods reading
+`TM_F1/F2`, one per non-TM family) keyed by method via a column map.
+
+**Regression guard (mandatory):** before swapping in, the new
+`score_against_folds`-based path must reproduce existing `df_af.csv` TM-scores on
+≥2 test pairs (e.g. `2n54B_2hdmA`, `5jytA_2qkeE`) within float tolerance.
+Consumers to re-verify: `Analysis/AF_analysis.py`, `postprocess_unified.py`,
+`utils/protein_plot_utils.py`, `utils/ancestral_utils.py`, the survey.
+
+**Steps:** (1) extract `enum_af2/af3/boltz2/esmfold2` adapters; (2) route AF +
+Boltz postprocess through `score_predictions_vs_truth`; (3) regression-test vs
+old `df_af.csv`; (4) collapse survey loaders; (5) delete STEP 0 / fold ESMFold2
+scoring into the per-pair postprocess. Do on a branch.
+
 ## 13. References
 
 - Wayment-Steele et al. 2024. *Predicting multiple conformations via
