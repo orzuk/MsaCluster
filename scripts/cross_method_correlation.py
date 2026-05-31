@@ -126,6 +126,13 @@ def main() -> None:
     corr, counts = spearman_matrix(wide)
     print("\nSpearman correlation matrix:")
     print(corr.round(2).to_string())
+    # Persist the numbers (not just the PNG) so the matrix is readable/diffable.
+    csv_out = OUT.rsplit(".", 1)[0] + ".csv"
+    n_out = OUT.rsplit(".", 1)[0] + "_n.csv"
+    os.makedirs(os.path.dirname(csv_out), exist_ok=True)
+    corr.round(4).to_csv(csv_out)
+    counts.to_csv(n_out)
+    print(f"[ok] wrote {csv_out} (correlation matrix) and {n_out} (pairwise n)")
     render(corr, counts, OUT)
 
 

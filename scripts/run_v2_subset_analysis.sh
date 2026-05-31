@@ -74,7 +74,10 @@ echo "==================================================="
 # Writes docs/esmfold2_tmscores_<pair>.csv (one medoid prediction/cluster,
 # scored vs both truth folds). The survey's 'ESM' slot now reads these
 # (ESMFold2 = v2 single-sequence baseline; replaces ESMFold v1).
-python3 scripts/score_esmfold2.py --foldpair_ids "$PAIR_LIST_COMMA" \
+# --skip_existing: cache successfully-scored pairs so re-runs are fast
+# (failed/all-NaN CSVs are still re-scored). Force a full re-score by
+# deleting docs/esmfold2_tmscores_*.csv first.
+python3 scripts/score_esmfold2.py --foldpair_ids "$PAIR_LIST_COMMA" --skip_existing \
     2>&1 | tail -15 || echo "(continuing)"
 
 echo

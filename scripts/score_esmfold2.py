@@ -22,9 +22,27 @@ from utils.score_against_folds import score_predictions_vs_truth
 
 
 def score_one_pair(pair_id: str, mode_label: str, output_dir: Path,
-                    pred_subdir: str = "output_esmfold2") -> None:
+                    pred_subdir: str = "output_esmfold2",
+                    skip_existing: bool = False) -> None:
     pair_dir = ROOT / "Pipeline" / "FoldPairs" / pair_id
     preds_dir = pair_dir / pred_subdir
+    out_csv = output_dir / f"esmfold2_tmscores_{pair_id}.csv"
+
+    # Cache: skip only if a prior CSV already has >=1 successfully scored
+    # cluster (non-NaN TM_F1). Failed/all-NaN CSVs (e.g. the "too short"
+    # cases) are re-scored so a later scorer fix is picked up.
+    if skip_existing and out_csv.is_file() and out_csv.stat().st_size > 0:
+        try:
+            import pandas as pd
+            prev = pd.read_csv(out_csv)
+            ok = pd.to_numeric(prev.get("TM_F1"), errors="coerce").notna().sum() \
+                if "TM_F1" in prev.columns else 0
+            if ok > 0:
+                print(f"[score-esmfold2] {pair_id}: cached ({ok} scored clusters) -- skip")
+                return
+        except Exception:
+            pass  # unreadable -> fall through and re-score
+
     if not preds_dir.is_dir():
         print(f"[score-esmfold2] {pair_id}: no {pred_subdir}/ -- skip")
         return
@@ -132,6 +150,10 @@ def main():
     ap.add_argument("--mode_label", default="ESMFold2_newmethod")
     ap.add_argument("--output_dir", default=str(ROOT / "docs"))
     ap.add_argument("--pred_subdir", default="output_esmfold2")
+    ap.add_argument("--skip_existing", action="store_true",
+                    help="Skip pairs that already have a score CSV with >=1 "
+                         "successfully scored cluster (failed/all-NaN CSVs are "
+                         "still re-scored).")
     args = ap.parse_args()
 
     if args.pair:
@@ -149,7 +171,8 @@ def main():
     for pid in pair_list:
         try:
             score_one_pair(pid, args.mode_label, output_dir,
-                            pred_subdir=args.pred_subdir)
+                            pred_subdir=args.pred_subdir,
+                            skip_existing=args.skip_existing)
         except Exception as e:
             print(f"[score-esmfold2] {pid}: ERROR {e}")
 
