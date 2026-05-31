@@ -580,7 +580,7 @@ def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
     """
     names = [n for n, v in leaf_values.items()
              if v is not None and np.isfinite(v)]
-    res = {"morans_I": np.nan, "morans_p": np.nan,
+    res = {"morans_I": np.nan, "morans_p": np.nan, "morans_z": np.nan,
            "morans_n": len(names), "morans_note": ""}
     if len(names) < 3:
         res["morans_note"] = "n<3"
@@ -606,7 +606,13 @@ def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
         P[k] = rng.permutation(xc)
     I_perm = np.einsum("ij,ij->i", P @ W, P) / den
     p = (1 + int((I_perm >= I_obs).sum())) / (n_perm + 1)
-    res.update({"morans_I": round(I_obs, 4), "morans_p": round(float(p), 4)})
+    # Standardized Moran's I: deviation from THIS pair's own permutation null,
+    # in null-SD units. Comparable across pairs of different n (unlike raw I,
+    # whose null E[I]=-1/(n-1) shifts with n) and does not floor like p.
+    mu, sd = float(I_perm.mean()), float(I_perm.std())
+    z = (I_obs - mu) / sd if sd > 1e-12 else float("nan")
+    res.update({"morans_I": round(I_obs, 4), "morans_p": round(float(p), 4),
+                "morans_z": round(z, 3) if np.isfinite(z) else np.nan})
     return res
 
 
@@ -661,6 +667,7 @@ def analyze_pair_method(pair_id: str, method: str,
         "D_statistic": np.nan,
         "morans_I": np.nan,
         "morans_p": np.nan,
+        "morans_z": np.nan,
         "morans_n": 0,
         "morans_note": "",
         "notes": "",
@@ -677,6 +684,7 @@ def analyze_pair_method(pair_id: str, method: str,
                            seed=seed + 7)
         out["morans_I"] = mt["morans_I"]
         out["morans_p"] = mt["morans_p"]
+        out["morans_z"] = mt.get("morans_z", np.nan)
         out["morans_n"] = mt["morans_n"]
         out["morans_note"] = mt["morans_note"]
 
