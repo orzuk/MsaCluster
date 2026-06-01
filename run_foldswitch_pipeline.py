@@ -2413,9 +2413,24 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
     if scope in ["global", "both"]:
         os.makedirs(FIGURE_RES_DIR, exist_ok=True)
         print("[plot] Generating global plots…")
-        # write all global scatter plots (AF2, AF3, ESM2, ESM3, MSA-Trans, etc.)
-        global_pairs_statistics_plots(output_dir=FIGURE_RES_DIR)
+        # ONE entry point: all cross-pair scatters + Moran's heatmaps/correlation.
+        from utils.plot_global import make_all_global_plots
+        make_all_global_plots(output_dir=FIGURE_RES_DIR)
         print("[plot] Global plots written to", FIGURE_RES_DIR)
+        # Build the global HTML page (auto-lists every PNG in FIGURE_RES_DIR) and
+        # publish it next to the per-pair pages, so the single command
+        #   run_foldswitch_pipeline.py --run_mode plot --plot_scope global
+        # regenerates all global plots AND pairs_global_analysis.html.
+        try:
+            from TableResults.gen_html_table import gen_html_for_global_plots
+            out_html = os.path.join("docs", "pairs_global_analysis.html")
+            gen_html_for_global_plots(images_dir=FIGURE_RES_DIR, output_html=out_html)
+            dst = os.path.join(MAIN_DIR, "pairs_global_analysis.html")
+            if os.path.isfile(out_html) and os.path.abspath(out_html) != os.path.abspath(dst):
+                shutil.copy2(out_html, dst)
+            print(f"[plot] wrote global page: {out_html}")
+        except Exception as e:
+            print(f"[plot] WARN building global HTML page: {e}")
         if scope == "global":  # global only
             return
 

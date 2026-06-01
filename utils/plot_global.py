@@ -5,8 +5,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from config import DATA_DIR, FIGURE_RES_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE
+from config import DATA_DIR, FIGURE_RES_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE, TABLES_RES
 from utils.utils import list_protein_pairs, numify
+
+# Canonical method order for all global cross-method plots.
+METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "DDG", "MSAT", "CCMpred", "S4PRED"]
 
 
 def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
@@ -215,3 +218,132 @@ def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
         title="ESM2 (Best Prediction) vs ESM3 (Best Prediction)",
         outfile="compare_ESM2_ESM3_BESTPRED.png"
     )
+
+
+# =====================================================================
+# Phylogenetic-signal (Moran's) global plots — read docs/phylo_placement*.csv
+# =====================================================================
+
+def _load_phylo(labels: str = "corrected"):
+    """Load the Moran's phylo-placement table; return (df, metric) or (None, None).
+
+    metric is the best available effect/signal column: I_norm > z > I.
+    """
+    fn = ("phylo_placement_corrected.csv" if labels == "corrected"
+          else "phylo_placement.csv")
+    path = os.path.join(TABLES_RES, fn)
+    if not (os.path.isfile(path) and os.path.getsize(path) > 0):
+        print(f"[global] no {fn}; skipping Moran's plots.")
+        return None, None
+    d = pd.read_csv(path)
+    for m in ("morans_I_norm", "morans_z", "morans_I"):
+        if m in d.columns and d[m].notna().any():
+            return d, m
+    print(f"[global] {fn} has no morans_* columns (old thresholded file?); "
+          f"re-run phylo_placement. Skipping Moran's plots.")
+    return None, None
+
+
+def _ordered_methods(present):
+    extra = [m for m in present if m not in METHOD_ORDER]
+    return [m for m in METHOD_ORDER if m in present] + sorted(extra)
+
+
+def plot_method_clade_heatmap(output_dir: str, labels: str = "corrected") -> None:
+    """Methods x pairs heatmap of clade-signal strength (effect size / z)."""
+    d, metric = _load_phylo(labels)
+    if d is None:
+        return
+    wide = d.pivot_table(index="pair_id", columns="method", values=metric, aggfunc="first")
+    cols = _ordered_methods(list(wide.columns))
+    wide = wide[cols]
+    # Per-pair winner tally (printed for the "is DDG strongest?" question)
+    win = wide.idxmax(axis=1).value_counts()
+    print(f"[global] strongest method per pair ({metric}): "
+          + ", ".join(f"{m}:{int(win.get(m,0))}" for m in cols))
+    sort_col = "DDG" if "DDG" in cols else cols[0]
+    w = wide.sort_values(sort_col, ascending=False)
+    M = w.to_numpy(dtype=float)
+    vlim = float(np.nanpercentile(np.abs(M), 98)) or 1.0
+    fig, ax = plt.subplots(figsize=(6, max(4, 0.16 * len(w))))
+    im = ax.imshow(M, cmap="RdBu_r", vmin=-vlim, vmax=vlim, aspect="auto")
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols, rotation=45, ha="right")
+    ax.set_yticks(range(len(w))); ax.set_yticklabels(w.index, fontsize=4)
+    ax.set_title(f"Clade signal per method x pair ({metric}, {labels})\nrows sorted by DDG",
+                 fontsize=10)
+    fig.colorbar(im, ax=ax, shrink=0.6, label=metric)
+    fig.tight_layout()
+    out = os.path.join(output_dir, "global_morans_method_x_pair.png")
+    fig.savefig(out, dpi=180); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
+def plot_method_correlation_heatmap(output_dir: str, labels: str = "corrected") -> None:
+    """Method x method Spearman correlation of the clade signal across pairs."""
+    d, metric = _load_phylo(labels)
+    if d is None:
+        return
+    wide = d.pivot_table(index="pair_id", columns="method", values=metric, aggfunc="first")
+    cols = _ordered_methods(list(wide.columns))
+    wide = wide[cols]
+    C = wide.corr(method="spearman")
+    fig, ax = plt.subplots(figsize=(6.2, 5.4))
+    im = ax.imshow(C.to_numpy(), cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols, rotation=45, ha="right")
+    ax.set_yticks(range(len(cols))); ax.set_yticklabels(cols)
+    for i in range(len(cols)):
+        for j in range(len(cols)):
+            v = C.iloc[i, j]
+            if pd.notna(v):
+                ax.text(j, i, f"{v:.2f}", ha="center", va="center", fontsize=6,
+                        color="black" if abs(v) < 0.6 else "white")
+    ax.set_title(f"Method x method correlation of clade signal\n(Spearman of {metric}, {labels})",
+                 fontsize=10)
+    fig.colorbar(im, ax=ax, shrink=0.7, label="Spearman ρ")
+    fig.tight_layout()
+    out = os.path.join(output_dir, "global_method_correlation.png")
+    fig.savefig(out, dpi=180); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
+def plot_morans_effectsize_by_method(output_dir: str, labels: str = "corrected") -> None:
+    """Distribution of per-pair clade effect size per method (boxplot)."""
+    d, metric = _load_phylo(labels)
+    if d is None:
+        return
+    cols = _ordered_methods(list(d["method"].unique()))
+    data = [pd.to_numeric(d.loc[d["method"] == m, metric], errors="coerce").dropna().values
+            for m in cols]
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    ax.boxplot(data, labels=cols, showfliers=True)
+    ax.axhline(0, color="gray", lw=0.8, ls="--")
+    ax.set_ylabel(metric)
+    ax.set_title(f"Clade signal effect size per method across pairs ({metric}, {labels})",
+                 fontsize=10)
+    ax.tick_params(axis="x", rotation=45)
+    fig.tight_layout()
+    out = os.path.join(output_dir, "global_morans_effectsize_by_method.png")
+    fig.savefig(out, dpi=180); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
+def make_all_global_plots(output_dir: str | None = None) -> None:
+    """Single entry point: generate EVERY global plot into output_dir.
+
+    Existing cross-pair scatter/compare plots + the Moran's phylogenetic-signal
+    plots (methods x pairs heatmap, method x method correlation, effect-size
+    distribution). The global HTML page (gen_html_for_global_plots) auto-lists
+    whatever PNGs land in output_dir, so adding a plotter here is all that is
+    needed to surface it on pairs_global_analysis.html.
+    """
+    if output_dir is None:
+        output_dir = FIGURE_RES_DIR
+    os.makedirs(output_dir, exist_ok=True)
+    global_pairs_statistics_plots(output_dir=output_dir)
+    for fn in (plot_method_clade_heatmap,
+               plot_method_correlation_heatmap,
+               plot_morans_effectsize_by_method):
+        try:
+            fn(output_dir)
+        except Exception as e:
+            print(f"[global] WARN {fn.__name__}: {e}")
