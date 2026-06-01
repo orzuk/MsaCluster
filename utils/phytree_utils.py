@@ -869,6 +869,19 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
         for child in node.children:
             x_pos[child] = x_pos[node] + edge_len(child)
 
+    # Cosmetic: cap long terminal branches so the tips don't trail off in long
+    # uninformative horizontal lines (topology + leaf order unchanged).
+    try:
+        _internal_max = max((x_pos[n] for n in x_pos if not n.is_leaf()), default=1.0)
+        _term_cap = 0.08 * _internal_max if _internal_max > 0 else None
+        if _term_cap:
+            for node in root.traverse("preorder"):
+                for child in node.children:
+                    if child.is_leaf():
+                        x_pos[child] = x_pos[node] + min(edge_len(child), _term_cap)
+    except Exception:
+        pass
+
     # compute y with guards
     def compute_y(n):
         if n.is_leaf():
@@ -957,11 +970,22 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
                 pst = internal_node_states.get(node.up.name)
                 if not st or not pst or st == pst:
                     continue
+                # Significance by subtree support: a change is "real" only if the
+                # NEW state is shared by a clade of >= MIN_CLADE descendant leaves.
+                # Single-leaf flips (tip changes that look mid-branch) are dropped.
+                MIN_CLADE = 3
+                clade_leaves = node.get_leaves()
+                support = sum(1 for lf in clade_leaves
+                              if internal_node_states.get(lf.name, st) == st)
+                if len(clade_leaves) < MIN_CLADE or support < MIN_CLADE:
+                    continue
                 yy = y(node)
                 if not np.isfinite(yy):
                     continue
+                # Marker size scales with clade support (visual significance).
+                ms = 6 + min(6, support - MIN_CLADE)
                 ax.plot(x_pos[node], yy, 'o', markerfacecolor=_SC.get(st, "#999999"),
-                        markeredgecolor="black", markersize=7, markeredgewidth=0.8,
+                        markeredgecolor="black", markersize=ms, markeredgewidth=0.9,
                         zorder=6)
         except Exception:
             pass
