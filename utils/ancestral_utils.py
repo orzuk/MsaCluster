@@ -607,8 +607,21 @@ def render_ancestral_tree(tree, node_states: dict, pair_id: str,
             ax.text(x + max_x * 0.03, y, f" {node.name} ({state})",
                     va="center", ha="left", fontsize=9)
         else:
-            ax.scatter(x, y, c=color, s=80, zorder=3, marker="s",
-                       edgecolors="black", linewidths=0.5)
+            # Internal node: keep "clean" UNLESS a gain/loss event occurred on
+            # the branch leading here (reconstructed state differs from parent).
+            # Only the few event nodes get a prominent ringed circle, colored by
+            # the NEW state, labeled "old->new" (XCL1-paper style).
+            parent = node.up
+            pstate = (node_states.get(parent.name, "Amb")
+                      if parent is not None and parent.name else "Amb")
+            if parent is not None and state != pstate:
+                ax.scatter(x, y, c=color, s=150, zorder=4, marker="o",
+                           edgecolors="black", linewidths=1.6)
+                ax.text(x, y + 0.28, f"{pstate}→{state}", ha="center",
+                        va="bottom", fontsize=6, fontweight="bold", zorder=6)
+            else:
+                ax.scatter(x, y, c="#cfcfcf", s=8, zorder=2, marker="o",
+                           edgecolors="none")
 
     # Legend
     legend_handles = [mpatches.Patch(color=c, label=s) for s, c in _STATE_COLORS.items()]
