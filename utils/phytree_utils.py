@@ -919,14 +919,16 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
             else:
                 fill_rgb = _light(border_rgb, alpha=0.35)
             if leaf_labels and node.name in leaf_labels:
-                # Big colored disk with the cluster short label centered inside.
+                # Colored disk with the cluster short label centered inside.
+                # 3x smaller than before (was markersize=24) — at ~100 clusters
+                # the big rings overlapped.
                 ax.plot(xc, yc, 'o',
                         markerfacecolor=fill_rgb,
-                        markeredgecolor=border_rgb, markersize=24,
-                        markeredgewidth=2.4, zorder=5)
+                        markeredgecolor=border_rgb, markersize=8,
+                        markeredgewidth=0.8, zorder=5)
                 ax.text(xc, yc, leaf_labels[node.name],
                         ha="center", va="center",
-                        fontsize=8, fontweight="bold",
+                        fontsize=3, fontweight="bold",
                         color="black", zorder=6)
             else:
                 ax.plot(xc, yc, 'o',

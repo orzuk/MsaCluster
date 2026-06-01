@@ -581,6 +581,8 @@ def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
     names = [n for n, v in leaf_values.items()
              if v is not None and np.isfinite(v)]
     res = {"morans_I": np.nan, "morans_p": np.nan, "morans_z": np.nan,
+           "morans_lambda_max": np.nan, "morans_max_perm": np.nan,
+           "morans_I_norm": np.nan,
            "morans_n": len(names), "morans_note": ""}
     if len(names) < 3:
         res["morans_note"] = "n<3"
@@ -613,6 +615,45 @@ def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
     z = (I_obs - mu) / sd if sd > 1e-12 else float("nan")
     res.update({"morans_I": round(I_obs, 4), "morans_p": round(float(p), 4),
                 "morans_z": round(z, 3) if np.isfinite(z) else np.nan})
+
+    # --- Achievable-max ceiling + normalized effect size ---
+    # Moran's I is bounded by the tree's weight matrix, NOT by 1. Report I as a
+    # fraction of the max achievable for THIS value multiset on THIS tree:
+    #   lambda_max  = eigenvalue ceiling (exact upper bound over centered vectors)
+    #   max_perm    = data-specific achievable max (sort-and-match on the top
+    #                 eigenvector + capped vectorized 2-opt)
+    #   I_norm      = (I_obs - E[I]) / (max_perm - E[I]),  E[I] = -1/(n-1)
+    try:
+        nn = len(xc)
+        M = 0.5 * (W + W.T)                                  # symmetric quadratic form
+        Pc = np.eye(nn) - np.ones((nn, nn)) / nn             # centering projector
+        Mc = Pc @ M @ Pc
+        evals, evecs = np.linalg.eigh(Mc)
+        lam_max = float(evals[-1])
+        v = evecs[:, -1]
+        arr = np.empty(nn)
+        arr[np.argsort(v)] = np.sort(xc)                     # align sorted vals to sorted v
+        for _ in range(60):                                  # capped steepest-ascent 2-opt
+            f = M @ arr
+            DZ = arr[None, :] - arr[:, None]
+            DF = f[:, None] - f[None, :]
+            dN = 2.0 * DZ * DF - 2.0 * (DZ ** 2) * M
+            np.fill_diagonal(dN, -np.inf)
+            a, b = np.unravel_index(int(np.argmax(dN)), dN.shape)
+            if dN[a, b] <= 1e-12:
+                break
+            arr[a], arr[b] = arr[b], arr[a]
+        max_perm_I = float(arr @ (M @ arr)) / den
+        Emean = -1.0 / (nn - 1)
+        denom = max_perm_I - Emean
+        I_norm = (I_obs - Emean) / denom if denom > 1e-9 else float("nan")
+        res.update({
+            "morans_lambda_max": round(lam_max, 4),
+            "morans_max_perm": round(max_perm_I, 4),
+            "morans_I_norm": round(float(I_norm), 4) if np.isfinite(I_norm) else np.nan,
+        })
+    except Exception:
+        pass
     return res
 
 
@@ -668,6 +709,9 @@ def analyze_pair_method(pair_id: str, method: str,
         "morans_I": np.nan,
         "morans_p": np.nan,
         "morans_z": np.nan,
+        "morans_lambda_max": np.nan,
+        "morans_max_perm": np.nan,
+        "morans_I_norm": np.nan,
         "morans_n": 0,
         "morans_note": "",
         "notes": "",
@@ -685,6 +729,9 @@ def analyze_pair_method(pair_id: str, method: str,
         out["morans_I"] = mt["morans_I"]
         out["morans_p"] = mt["morans_p"]
         out["morans_z"] = mt.get("morans_z", np.nan)
+        out["morans_lambda_max"] = mt.get("morans_lambda_max", np.nan)
+        out["morans_max_perm"] = mt.get("morans_max_perm", np.nan)
+        out["morans_I_norm"] = mt.get("morans_I_norm", np.nan)
         out["morans_n"] = mt["morans_n"]
         out["morans_note"] = mt["morans_note"]
 
