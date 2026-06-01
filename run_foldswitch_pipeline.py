@@ -2444,6 +2444,17 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"[ERROR] plot failed for {pA}_{pB}: {e}")
             failed.append(f"{pA}_{pB}")
+
+        # Parsimony ancestral reconstruction (gain/loss of fold preference) —
+        # once per pair, writes <pair>_ancestral_tree.png into output_figs (with
+        # gain/loss event markers on internal nodes) + ancestral_states.csv.
+        try:
+            from utils.ancestral_utils import analyze_pair as _ancestral_analyze
+            _ancestral_analyze(pA + "_" + pB,
+                               delta=float(getattr(args, "delta", 0.05) or 0.05),
+                               n_perm=200)
+        except Exception as e:
+            print(f"[plot] ancestral reconstruction skipped for {pA}_{pB}: {e}")
     if failed:
         print(f"\n[plot] {len(failed)}/{len(pairs)} pairs failed: {failed}")
 
