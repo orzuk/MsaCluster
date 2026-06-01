@@ -109,6 +109,13 @@ def build_coarse_tree(pair_id: str) -> tuple:
     # Prune
     prune_tree_to_leaves(ete_tree, list(reps.values()))
 
+    # Suppress degree-2 "knuckle" nodes left by pruning (single-child internal
+    # nodes are not real branch points; without this the ancestral figure shows
+    # chains of squares on a branch with no bifurcation).
+    for node in list(ete_tree.traverse()):
+        if not node.is_leaf() and not node.is_root() and len(node.children) == 1:
+            node.delete(prevent_nondicotomic=False, preserve_branch_length=True)
+
     # Rename leaves: seq_id -> short label
     tag_to_label = {tag: _cluster_short_label(tag) for tag in reps}
     rep_to_tag = {v: k for k, v in reps.items()}
