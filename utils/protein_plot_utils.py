@@ -480,7 +480,8 @@ def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
 def make_foldswitch_all_plots(
     pdbids, fasta_dir, foldpair_id, pdbchains,
     plot_contacts: bool = True,
-    global_plots: bool = False, plot3dformat: str = 'static'
+    global_plots: bool = False, plot3dformat: str = 'static',
+    null_permutation: bool = False,
 ):
     """
     Create per-pair plots (contact maps, tree heatmaps, etc.)
@@ -711,6 +712,39 @@ def make_foldswitch_all_plots(
 
         print(f"[ok] saved tree heatmap -> {out_root}.png")
         _add_phytree_title(out_root + ".png", foldpair_id)
+
+        # ---- Optional phylo-NULL diagnostic (internal; not for the webpage) ----
+        # Free tip-shuffle: tree FIXED, cluster rows (and consensus tip rings)
+        # randomly reassigned to leaves. This is the visual analogue of the
+        # Moran's permutation null. Compare <pair>_phytree_cluster.png (real)
+        # vs <pair>_phytree_cluster_random.png: if real has longer contiguous
+        # color stretches than random, there is genuine clade structure.
+        if null_permutation:
+            try:
+                _rng = np.random.default_rng(20260601)
+                _perm = _rng.permutation(len(leaf_order))
+                _df_rand = pd.DataFrame(df_by_leaf.to_numpy()[_perm],
+                                        index=leaf_order, columns=df_by_leaf.columns)
+                _lc_rand = ({leaf_order[i]: leaf_colors_dict[leaf_order[_perm[i]]]
+                             for i in range(len(leaf_order))}
+                            if leaf_colors_dict else None)
+                _yl_rand = [ylabels_override[_perm[i]] for i in range(len(ylabels_override))]
+                _out_rand = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster_random")
+                compose_tree_and_heatmap(
+                    ete_tree=ete_tree, df_leaf=_df_rand, col_groups=col_groups,
+                    group_titles=[g + "  [ROWS SHUFFLED = phylo null]" for g in group_titles],
+                    output_file=_out_rand, base_figsize=(22, 12),
+                    x_tick_rotation=90, x_tick_fontsize=9, y_tick_fontsize=9,
+                    nan_rgba=(0.92, 0.92, 0.92, 1.0), ylabels_override=_yl_rand,
+                    leaf_colors=_lc_rand, fold_pref_per_row=None, unified_diverging=True,
+                    extra_top_row=(deep_row if (deep_row is not None and not deep_row.empty) else None),
+                    extra_top_row_label="Deep MSA", label_in_leaf=True,
+                )
+                _add_phytree_title(_out_rand + ".png", foldpair_id + "  (phylo NULL: rows shuffled)")
+                print(f"[ok] saved NULL tree heatmap -> {_out_rand}.png")
+            except Exception as e:
+                print(f"[warn] null-permutation heatmap failed for {foldpair_id}: {e}")
+
         concat_scores = df_cluster_ordered
 
     else:

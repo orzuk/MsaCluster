@@ -2438,7 +2438,8 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
                 pdbchains=pdbchains,
                 plot_contacts=True,
                 global_plots=False,   # global is handled outside this loop
-                plot3dformat=args.plot3dformat  # allow interactive 3D plots
+                plot3dformat=args.plot3dformat,  # allow interactive 3D plots
+                null_permutation=_bool_from_tf(getattr(args, "plot_null_permutation", "FALSE")),
             )
         except Exception as e:
             print(f"[ERROR] plot failed for {pA}_{pB}: {e}")
@@ -3116,6 +3117,10 @@ def main():
                 help="In --run_mode plot: generate pair-specific plots only, global plots only, or both.")
     p.add_argument('--plot3dformat', default='static', choices = ['static', 'interactive', 'both'],
                 help = '3D figure format: PNG (static), HTML (interactive), or both')
+    p.add_argument('--plot_null_permutation', default='FALSE',
+                help='TRUE: also emit <pair>_phytree_cluster_random.png (tree fixed, '
+                     'cluster rows free-shuffled across leaves) as the visual Moran\'s '
+                     'phylo null, for eye-vs-statistic comparison. Internal; not in the webpage.')
 
     # Output html tables and pages
     p.add_argument("--reports", default="none", choices=["none", "tables", "html", "all"],
