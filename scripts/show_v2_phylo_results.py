@@ -36,16 +36,23 @@ def morans_summary():
         if "morans_p" not in d.columns:
             print("  NO morans_p column (stale / pre-Moran's run)")
             continue
+        has_norm = "morans_I_norm" in d.columns
+        extra = f"{'medInorm':>9}{'maxInorm':>9}" if has_norm else ""
         print(f"  {'method':10}{'tested':>7}{'raw<.05':>9}{'BH<.05':>8}"
-              f"{'medI':>8}{'p90|I|':>8}{'max|I|':>8}")
+              f"{'medI':>8}{'p90|I|':>8}{'max|I|':>8}{extra}")
         for m in sorted(d.method.unique()):
             s = d[(d.method == m) & d.morans_p.notna()]
             if not len(s):
                 continue
             bh = int((s["morans_p_bh"] < 0.05).sum()) if "morans_p_bh" in s.columns else 0
             ai = s.morans_I.abs()
-            print(f"  {m:10}{len(s):>7}{int((s.morans_p < 0.05).sum()):>9}"
-                  f"{bh:>8}{s.morans_I.median():>8.3f}{ai.quantile(0.9):>8.3f}{ai.max():>8.3f}")
+            line = (f"  {m:10}{len(s):>7}{int((s.morans_p < 0.05).sum()):>9}"
+                    f"{bh:>8}{s.morans_I.median():>8.3f}{ai.quantile(0.9):>8.3f}{ai.max():>8.3f}")
+            if has_norm:
+                inorm = s["morans_I_norm"].dropna()
+                if len(inorm):
+                    line += f"{inorm.median():>9.3f}{inorm.max():>9.3f}"
+            print(line)
         if tag == "CORRECTED" and "morans_p_bh" in d.columns:
             # sort by p, breaking the 1/(n_perm+1) floor ties by SIGNED I
             # (most positive = strongest clade clustering first)

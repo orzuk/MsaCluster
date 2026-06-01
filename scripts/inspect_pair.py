@@ -49,6 +49,7 @@ def main(pair):
         if not len(d):
             continue
         cols = [c for c in ["method", "morans_n", "morans_I", "morans_z",
+                            "morans_max_perm", "morans_I_norm",
                             "morans_p", "morans_p_bh", "n_F1c_leaves",
                             "n_F2c_leaves"] if c in d.columns]
         print(f"\n=== {label}: Moran's for {pair} ===")
