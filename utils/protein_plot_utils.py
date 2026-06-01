@@ -677,24 +677,47 @@ def make_foldswitch_all_plots(
         # Multi-method consensus call (mean of normalized centered preferences
         # across the 7 methods) rather than AF2-only — avoids visually repeating
         # the AF2 signal on both the tree leaves and the AF2 heatmap column.
-        _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
+        # 4-state palette: F1/F2 single-fold, both = fold-switcher, none = neither,
+        # Amb = legacy ambiguous (3-state fallback).
+        _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+                        "none": "#dddddd", "Amb": "#999999"}
         fold_pref_per_row = None
         leaf_colors_dict = None
         internal_node_states_asr = None
+
+        # Prefer the 4-state F1/F2/both/none call (absolute consensus TM
+        # magnitudes — splits "both folds" from "neither", resolving grey-Amb).
+        # Fall back to the 3-state difference consensus if cluster-tag alignment
+        # with this tree is poor (guards against silent all-"none").
         prefs = _consensus_fold_preference(df_cluster_ordered, threshold=0.10)
-        if prefs:
-            fold_pref_per_row = [prefs.get(t, "Amb") for t in ordered_tags]
+        active_prefs, default_st = prefs, "Amb"
+        try:
+            from utils.ancestral_utils import (load_consensus_cluster_tm,
+                                               assign_fold_preference_4state)
+            _p4 = assign_fold_preference_4state(
+                load_consensus_cluster_tm(foldpair_id), tau=0.5)
+            _ovl = sum(1 for t in ordered_tags if t in _p4)
+            if _ovl >= max(3, 0.5 * len(ordered_tags)):
+                active_prefs, default_st = _p4, "none"
+            else:
+                print(f"[plot] 4-state tag overlap low ({_ovl}/{len(ordered_tags)}); "
+                      f"using 3-state consensus for {foldpair_id}")
+        except Exception as e:
+            print(f"[plot] 4-state prefs unavailable ({e}); using 3-state consensus")
+
+        if active_prefs:
+            fold_pref_per_row = [active_prefs.get(t, default_st) for t in ordered_tags]
             leaf_colors_dict = {}
             for tag, leaf_name in zip(ordered_tags, leaf_order):
-                pref = prefs.get(tag, "Amb")
-                leaf_colors_dict[leaf_name] = _FOLD_COLORS[pref]
+                pref = active_prefs.get(tag, default_st)
+                leaf_colors_dict[leaf_name] = _FOLD_COLORS.get(pref, "#999999")
             # Parsimony ancestral reconstruction of the CONSENSUS state on THIS
             # tree → overlay gain/loss event markers on internal nodes (one
             # combined figure: tree w/ leaf rings + internal events + heatmap).
             try:
                 from utils.ancestral_utils import _name_internal_nodes, run_asr
                 _name_internal_nodes(ete_tree)
-                _ls = {ln: prefs.get(tag, "Amb")
+                _ls = {ln: active_prefs.get(tag, default_st)
                        for tag, ln in zip(ordered_tags, leaf_order)}
                 internal_node_states_asr, _am, _ap = run_asr(
                     ete_tree, _ls,

@@ -239,6 +239,93 @@ def assign_fold_preference(cluster_tms: dict, delta: float = 0.05,
     return prefs
 
 
+def assign_fold_preference_4state(cluster_tms: dict, tau: float = 0.5) -> dict:
+    """4-state fold capability per cluster from absolute (TM1, TM2) magnitudes.
+
+    Unlike :func:`assign_fold_preference` (which uses only the signed *difference*
+    TM1-TM2 and so collapses "both folds" and "neither fold" into Amb), this uses
+    BOTH axes — difference AND magnitude:
+
+        both : TM1 >= tau AND TM2 >= tau   (fold-switching capable)
+        F1   : TM1 >= tau,  TM2 <  tau
+        F2   : TM2 >= tau,  TM1 <  tau
+        none : TM1 <  tau AND TM2 <  tau   (neither fold modeled confidently)
+
+    These map to interpretable lineage transitions: -> both = GAIN of
+    fold-switching, both -> F1/F2 = LOSS, F1 <-> F2 = swap, none <-> * =
+    fold emergence/loss. tau is an absolute TM threshold (default 0.5, the usual
+    "same fold" cutoff).
+    """
+    prefs = {}
+    for tag, (tm1, tm2) in cluster_tms.items():
+        if tm1 is None or tm2 is None or np.isnan(tm1) or np.isnan(tm2):
+            prefs[tag] = "none"
+            continue
+        h1, h2 = float(tm1) >= tau, float(tm2) >= tau
+        if h1 and h2:
+            prefs[tag] = "both"
+        elif h1:
+            prefs[tag] = "F1"
+        elif h2:
+            prefs[tag] = "F2"
+        else:
+            prefs[tag] = "none"
+    return prefs
+
+
+def _load_cluster_tm_by_model(pair_id: str, model: str) -> Optional[dict]:
+    """Per-cluster max (TM1, TM2) for one model from df_af.csv (af2/af3/boltz2)."""
+    csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_af.csv")
+    if not os.path.isfile(csv_path):
+        return None
+    try:
+        df = pd.read_csv(csv_path)
+        if "TMscore_fold1" not in df.columns and "score_pdb1" in df.columns:
+            df = df.rename(columns={"score_pdb1": "TMscore_fold1",
+                                    "score_pdb2": "TMscore_fold2"})
+        if "model" in df.columns:
+            df = df[df["model"].astype(str).str.lower() == model.lower()]
+        if df.empty:
+            return None
+        col = "cluster_num" if "cluster_num" in df.columns else "cluster"
+        df = df.copy()
+        df["_tag"] = df[col].apply(_parse_cluster_tag)
+        df = df.dropna(subset=["_tag"])
+        df["TM1"] = pd.to_numeric(df["TMscore_fold1"], errors="coerce")
+        df["TM2"] = pd.to_numeric(df["TMscore_fold2"], errors="coerce")
+        return {tag: (grp["TM1"].max(), grp["TM2"].max())
+                for tag, grp in df.groupby("_tag")}
+    except Exception:
+        return None
+
+
+def load_consensus_cluster_tm(pair_id: str,
+                              models=("af2", "af3", "esm")) -> dict:
+    """Per-cluster (TM1, TM2) averaged over available TM-based methods.
+
+    The 4-state "both/none" character is only defined for predictors that report
+    a TM-to-each-fold (AF2, AF3, ESMFold2, Boltz2). This averages whichever of
+    them have data for a given cluster, giving a consensus magnitude pair.
+    Falls back to AF2-only if nothing else is present.
+    """
+    sources = []
+    for m in models:
+        d = (_load_esm_cluster_tm(pair_id) if m == "esm"
+             else _load_cluster_tm_by_model(pair_id, m))
+        if d:
+            sources.append(d)
+    if not sources:
+        return load_cluster_af2_tm(pair_id)
+    tags = set().union(*[set(d.keys()) for d in sources])
+    out = {}
+    for tag in tags:
+        t1 = [d[tag][0] for d in sources if tag in d and not np.isnan(d[tag][0])]
+        t2 = [d[tag][1] for d in sources if tag in d and not np.isnan(d[tag][1])]
+        out[tag] = (float(np.mean(t1)) if t1 else float("nan"),
+                    float(np.mean(t2)) if t2 else float("nan"))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 4. Ancestral state reconstruction
 # ---------------------------------------------------------------------------
@@ -257,28 +344,35 @@ def _fitch_bottom_up(tree):
                 node._fitch_set = set.union(*child_sets)
 
 
+# Tie-break order for Fitch top-down. Covers both the 3-state (F1/F2/Amb) and
+# 4-state (F1/F2/both/none) characters; states absent from the data are ignored.
+_FITCH_PREF = ["both", "F1", "F2", "Amb", "none"]
+
+
 def _fitch_top_down(tree):
     """Fitch parsimony: top-down pass. Resolves ambiguities, sets node._state."""
     for node in tree.traverse("preorder"):
         if node.is_leaf():
             continue  # already set
         if node.is_root():
-            # Pick one state from the set (prefer non-Amb)
             s = node._fitch_set
-            for pref in ["F1", "F2", "Amb"]:
+            for pref in _FITCH_PREF:
                 if pref in s:
                     node._state = pref
                     break
+            else:
+                node._state = next(iter(s))
         else:
             parent_state = node.up._state
             if parent_state in node._fitch_set:
                 node._state = parent_state
             else:
-                # Pick one from fitch set
-                for pref in ["F1", "F2", "Amb"]:
+                for pref in _FITCH_PREF:
                     if pref in node._fitch_set:
                         node._state = pref
                         break
+                else:
+                    node._state = next(iter(node._fitch_set))
 
 
 def run_asr(tree, leaf_states: dict, work_dir: str = None) -> dict:
@@ -527,7 +621,20 @@ def run_permutation_test(tree, leaf_states: dict, n_perm: int = 1000,
 # 7. Render ancestral tree figure
 # ---------------------------------------------------------------------------
 
-_STATE_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
+# Fold-state palette. 4-state (abs4): F1 red, F2 blue, both purple (fold-switcher),
+# none light grey. Amb (legacy 3-state "ambiguous") kept as medium grey.
+_STATE_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+                 "none": "#dddddd", "Amb": "#999999"}
+
+# Semantic label for a parent->child transition (gain/loss of fold-switching).
+def _transition_label(pstate: str, state: str) -> str:
+    if state == "both":
+        return "gain"
+    if pstate == "both" and state in ("F1", "F2"):
+        return "loss"
+    if {pstate, state} == {"F1", "F2"}:
+        return "swap"
+    return ""
 
 
 def render_ancestral_tree(tree, node_states: dict, pair_id: str,
@@ -624,7 +731,9 @@ def render_ancestral_tree(tree, node_states: dict, pair_id: str,
             if parent is not None and state != pstate:
                 ax.scatter(x, y, c=color, s=150, zorder=4, marker="o",
                            edgecolors="black", linewidths=1.6)
-                ax.text(x, y + 0.28, f"{pstate}→{state}", ha="center",
+                _sem = _transition_label(pstate, state)
+                _lbl = f"{pstate}→{state}" + (f" ({_sem})" if _sem else "")
+                ax.text(x, y + 0.28, _lbl, ha="center",
                         va="bottom", fontsize=6, fontweight="bold", zorder=6)
             else:
                 ax.scatter(x, y, c="#cfcfcf", s=8, zorder=2, marker="o",
@@ -678,11 +787,18 @@ def _load_esm_cluster_tm(pair_id: str) -> Optional[dict]:
 
 
 def compute_concordance(af2_prefs: dict, other_tms: Optional[dict],
-                        delta: float = 0.05) -> Optional[float]:
-    """Fraction of clusters where AF2 and other method agree on fold preference."""
+                        delta: float = 0.05, classify=None) -> Optional[float]:
+    """Fraction of clusters where AF2 and other method agree on fold preference.
+
+    `classify` is the cluster-TM -> prefs function (defaults to the 3-state
+    `assign_fold_preference`); pass the 4-state classifier to stay consistent
+    with abs4 mode.
+    """
     if other_tms is None:
         return None
-    other_prefs = assign_fold_preference(other_tms, delta)
+    if classify is None:
+        classify = lambda tms: assign_fold_preference(tms, delta)
+    other_prefs = classify(other_tms)
     common = set(af2_prefs.keys()) & set(other_prefs.keys())
     if not common:
         return None
@@ -695,8 +811,15 @@ def compute_concordance(af2_prefs: dict, other_tms: Optional[dict],
 # ---------------------------------------------------------------------------
 
 def analyze_pair(pair_id: str, delta: float = 0.05,
-                 output_dir: str = None, n_perm: int = 1000) -> dict:
+                 output_dir: str = None, n_perm: int = 1000,
+                 state_mode: str = "abs4", tau: float = 0.5) -> dict:
     """Run full ancestral reconstruction pipeline for one pair.
+
+    state_mode:
+      "abs4"  (default) -- 4-state F1/F2/both/none on consensus TM magnitudes
+                           (gain/loss of fold-switching; resolves the grey-Amb
+                           ambiguity by splitting "both folds" from "neither").
+      "diff3"           -- legacy 3-state F1/F2/Amb on the signed AF2 TM diff.
 
     Returns a result dict with summary statistics.
     """
@@ -706,11 +829,18 @@ def analyze_pair(pair_id: str, delta: float = 0.05,
     # 1. Build coarse tree
     tree, tag_to_label, label_to_tag = build_coarse_tree(pair_id)
 
-    # 2. Load AF2 TM-scores
-    cluster_tms = load_cluster_af2_tm(pair_id)
+    # 2. Load TM-scores + choose classifier / default state
+    if state_mode == "abs4":
+        cluster_tms = load_consensus_cluster_tm(pair_id)
+        classify = lambda tms: assign_fold_preference_4state(tms, tau)
+        default_state = "none"
+    else:
+        cluster_tms = load_cluster_af2_tm(pair_id)
+        classify = lambda tms: assign_fold_preference(tms, delta)
+        default_state = "Amb"
 
     # 3. Assign fold preferences
-    af2_prefs = assign_fold_preference(cluster_tms, delta)
+    af2_prefs = classify(cluster_tms)
 
     # Map preferences to tree leaf labels
     leaf_states = {}
@@ -719,10 +849,10 @@ def analyze_pair(pair_id: str, delta: float = 0.05,
         if label:
             leaf_states[label] = pref
 
-    # Also assign "Amb" to any tree leaves without TM data
+    # Default state for any tree leaves without TM data
     for leaf in tree.iter_leaves():
         if leaf.name not in leaf_states:
-            leaf_states[leaf.name] = "Amb"
+            leaf_states[leaf.name] = default_state
 
     n_clusters = len(leaf_states)
     pref_counts = Counter(leaf_states.values())
@@ -746,9 +876,11 @@ def analyze_pair(pair_id: str, delta: float = 0.05,
     root = tree.get_tree_root()
     root_state = node_states.get(root.name, "?")
 
-    # 8. Permutation test (only if there are multiple fold types)
+    # 8. Permutation test (only if >=2 distinct informative states are present)
     p_value = None
-    if pref_counts.get("F1", 0) > 0 and pref_counts.get("F2", 0) > 0:
+    _informative = {s for s in leaf_states.values()
+                    if s not in ("Amb", "none")}
+    if len(_informative) >= 2:
         p_value = run_permutation_test(tree, leaf_states, n_perm=n_perm)
 
     # 9. Render figure
@@ -763,15 +895,18 @@ def analyze_pair(pair_id: str, delta: float = 0.05,
     states_csv = os.path.join(work_dir, "ancestral_states.csv")
     _save_states_csv(tree, node_states, posteriors, states_csv)
 
-    # 11. ESM concordance (post-hoc)
+    # 11. ESM concordance (post-hoc) — use the same classifier as the main pass
     esm_tms = _load_esm_cluster_tm(pair_id)
-    esm_agree = compute_concordance(af2_prefs, esm_tms, delta)
+    esm_agree = compute_concordance(af2_prefs, esm_tms, delta, classify=classify)
 
     return {
         "pair_id": pair_id,
+        "state_mode": state_mode,
         "n_clusters": n_clusters,
         "n_f1": pref_counts.get("F1", 0),
         "n_f2": pref_counts.get("F2", 0),
+        "n_both": pref_counts.get("both", 0),
+        "n_none": pref_counts.get("none", 0),
         "n_amb": pref_counts.get("Amb", 0),
         "n_transitions": n_trans,
         "n_fold_transitions": n_fold_trans,

@@ -961,7 +961,8 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
     # rest stay clean. Same fold colors as the leaf rings. Fully guarded so a
     # failure never breaks the tree-heatmap.
     if internal_node_states:
-        _SC = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
+        _SC = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+               "none": "#dddddd", "Amb": "#999999"}
         try:
             for node in root.traverse("preorder"):
                 if node.is_leaf() or node.is_root() or node.up is None:
