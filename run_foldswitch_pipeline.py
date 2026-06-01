@@ -3382,6 +3382,10 @@ def main():
 
             if args.run_mode == "plot":
                 extras += ["--plot_scope pair"]
+                # propagate the null-permutation flag into each per-pair sbatch
+                # job (otherwise the fan-out drops it and no _random.png is made)
+                if _bool_from_tf(getattr(args, "plot_null_permutation", "FALSE")):
+                    extras += ["--plot_null_permutation TRUE"]
 
             if args.run_mode == "postprocess":
                 if getattr(args, "reports", "none") != "none":
