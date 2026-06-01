@@ -842,7 +842,7 @@ def draw_grouped_heatmap(
 
 
 def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
-                       leaf_labels=None):
+                       leaf_labels=None, internal_node_states=None):
     """Draw L-shaped tree branches aligned to heatmap rows.
 
     Parameters
@@ -943,6 +943,29 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
             except Exception:
                 pass
 
+    # Internal-node gain/loss EVENT markers (parsimony ancestral reconstruction).
+    # Mark only nodes whose reconstructed state differs from the parent's; the
+    # rest stay clean. Same fold colors as the leaf rings. Fully guarded so a
+    # failure never breaks the tree-heatmap.
+    if internal_node_states:
+        _SC = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
+        try:
+            for node in root.traverse("preorder"):
+                if node.is_leaf() or node.is_root() or node.up is None:
+                    continue
+                st = internal_node_states.get(node.name)
+                pst = internal_node_states.get(node.up.name)
+                if not st or not pst or st == pst:
+                    continue
+                yy = y(node)
+                if not np.isfinite(yy):
+                    continue
+                ax.plot(x_pos[node], yy, 'o', markerfacecolor=_SC.get(st, "#999999"),
+                        markeredgecolor="black", markersize=7, markeredgewidth=0.8,
+                        zorder=6)
+        except Exception:
+            pass
+
     n = len(leaf_order)
     ax.set_ylim(n - 0.5, -0.5)
     xmin, xmax = min(x_pos.values()), max(x_pos.values())
@@ -972,6 +995,7 @@ def compose_tree_and_heatmap(
     extra_top_row=None,       # NEW: pd.Series indexed by columns; adds a "baseline" row above the heatmap
     extra_top_row_label="",   # NEW: y-label for that extra row
     label_in_leaf=False,      # NEW: draw cluster short labels INSIDE big hollow rings at tree tips, suppress y-tick labels
+    internal_node_states=None,  # NEW: {node_name: F1/F2/Amb} parsimony recon; marks gain/loss events on internal nodes
 ):
     import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
     from matplotlib.gridspec import GridSpecFromSubplotSpec
@@ -1059,7 +1083,8 @@ def compose_tree_and_heatmap(
         except Exception:
             _leaf_labels = None
     draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index),
-                      leaf_colors=leaf_colors, leaf_labels=_leaf_labels)
+                      leaf_colors=leaf_colors, leaf_labels=_leaf_labels,
+                      internal_node_states=internal_node_states)
 
     # ----- draw the heatmaps -----
     # shared colormap (with NaN color); per-group vmin/vmax

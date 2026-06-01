@@ -680,6 +680,7 @@ def make_foldswitch_all_plots(
         _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
         fold_pref_per_row = None
         leaf_colors_dict = None
+        internal_node_states_asr = None
         prefs = _consensus_fold_preference(df_cluster_ordered, threshold=0.10)
         if prefs:
             fold_pref_per_row = [prefs.get(t, "Amb") for t in ordered_tags]
@@ -687,6 +688,20 @@ def make_foldswitch_all_plots(
             for tag, leaf_name in zip(ordered_tags, leaf_order):
                 pref = prefs.get(tag, "Amb")
                 leaf_colors_dict[leaf_name] = _FOLD_COLORS[pref]
+            # Parsimony ancestral reconstruction of the CONSENSUS state on THIS
+            # tree → overlay gain/loss event markers on internal nodes (one
+            # combined figure: tree w/ leaf rings + internal events + heatmap).
+            try:
+                from utils.ancestral_utils import _name_internal_nodes, run_asr
+                _name_internal_nodes(ete_tree)
+                _ls = {ln: prefs.get(tag, "Amb")
+                       for tag, ln in zip(ordered_tags, leaf_order)}
+                internal_node_states_asr, _am, _ap = run_asr(
+                    ete_tree, _ls,
+                    work_dir=os.path.join(fig_dir_root, "_asr_tmp"))
+            except Exception as e:
+                print(f"[plot] ancestral overlay skipped for {foldpair_id}: {e}")
+                internal_node_states_asr = None
 
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
         print("Making tree heatmap plot with column groups...", col_groups, flush=True)
@@ -701,6 +716,7 @@ def make_foldswitch_all_plots(
             nan_rgba=(0.92, 0.92, 0.92, 1.0),
             ylabels_override=ylabels_override,
             leaf_colors=leaf_colors_dict,
+            internal_node_states=internal_node_states_asr,  # gain/loss event markers
             # Drop the redundant Fold strip: the leaf-tip rings on the tree
             # already encode the F1/F2/Amb call.
             fold_pref_per_row=None,
