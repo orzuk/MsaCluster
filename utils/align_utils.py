@@ -108,16 +108,16 @@ def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
                 except OSError: pass
 
     # Parse the two TM-scores (normalized by 1 and by 2), plus RMSD & aligned length
-    scores = re.findall(r"TM-score\\s*=\\s*([0-9]*\\.?[0-9]+)", out)
+    scores = re.findall(r"TM-score\s*=\s*([0-9]*\.?[0-9]+)", out)
     tm1 = float(scores[0]) if len(scores) >= 1 else None
     tm2 = float(scores[1]) if len(scores) >= 2 else None
-    rmsd_m = re.search(r"RMSD\\s*=\\s*([0-9]*\\.?[0-9]+)", out)
+    rmsd_m = re.search(r"RMSD\s*=\s*([0-9]*\.?[0-9]+)", out)
     rmsd = float(rmsd_m.group(1)) if rmsd_m else None
-    ali_m = re.search(r"Aligned length\\s*=\\s*(\\d+)", out)
+    ali_m = re.search(r"Aligned length\s*=\s*(\d+)", out)
     aligned_length = int(ali_m.group(1)) if ali_m else None
 
     if tm1 is None:
-        raise RuntimeError("Could not parse TM-score from TMalign output:\\n" + out)
+        raise RuntimeError("Could not parse TM-score from TMalign output:\n" + out)
 
     print(f"[TM-align] Using binary: {TMALIGN_EXE}")
     return {
