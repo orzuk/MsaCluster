@@ -77,8 +77,10 @@ echo "==================================================="
 # --skip_existing: cache successfully-scored pairs so re-runs are fast
 # (failed/all-NaN CSVs are still re-scored). Force a full re-score by
 # deleting docs/esmfold2_tmscores_*.csv first.
-python3 scripts/score_esmfold2.py --foldpair_ids "$PAIR_LIST_COMMA" --skip_existing \
-    2>&1 | tail -15 || echo "(continuing)"
+# Stream per-pair progress live (do NOT pipe through tail -- tail buffers and
+# shows nothing until the whole step finishes, which looks like a hang).
+stdbuf -oL -eL python3 scripts/score_esmfold2.py --foldpair_ids "$PAIR_LIST_COMMA" \
+    --skip_existing || echo "(continuing)"
 
 echo
 echo "==================================================="
