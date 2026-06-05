@@ -2946,8 +2946,9 @@ def main():
                             "run_s4pred", "aggregate_s4pred",
                             "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
-    p.add_argument("--foldpair_ids", nargs="+", required=True,
-                   help="List of pair IDs (e.g. 1dzlA_5keqF), or the literal token ALL")
+    p.add_argument("--foldpair_ids", nargs="+", required=False, default=["ALL"],
+                   help="List of pair IDs (e.g. 1dzlA_5keqF), or the literal token ALL "
+                        "(default: ALL)")
     p.add_argument(
         "--trigger_filter", default=None,
         help="If set, restrict --foldpair_ids ALL to pairs whose trigger_class "
@@ -3285,6 +3286,10 @@ def main():
             task_plot(pair_id=None, args=a_global)
         except Exception as e:
             print(f"[plot] WARN global plots failed: {e}")
+        # --plot_scope global means global-only: we're done, do NOT loop over pairs
+        # (otherwise the global block re-runs once per pair).
+        if getattr(args, "plot_scope", "both") == "global":
+            return
 
     print("run_foldswitch_pipeline.py before loopargs run_job_mode:", args.run_job_mode)
 
