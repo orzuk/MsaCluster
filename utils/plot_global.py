@@ -24,20 +24,23 @@ GLOBAL_FIG_DIR = os.path.join(TABLES_RES, "figures", "global")
 GLOBAL_FIGURE_SPEC = [
     {
         "file": "figures/global/global_per_fold_support_panel.png",
-        "title": "Per-fold support, by method",
+        "title": "Per-pair cluster distribution in the fold-1/fold-2 plane",
         "caption":
-            "Each panel is one method; every point is a sequence cluster, plotting "
-            "its support for fold 1 (x) against fold 2 (y) in that method's NATIVE "
-            "metric: TM-score to each reference structure (AF2/AF3/ESMFold2/"
-            "Boltz-2), summed ΔΔG stability in kcal/mol (DDG), secondary-structure "
-            "H/E composition similarity (S4PRED), and contact-map recall "
-            "(MSA-Transformer, CCMpred). A cluster near the diagonal reaches both "
-            "folds (fold-switcher); off-diagonal clusters prefer one fold. The "
-            "visible banding is each method's intrinsic discretization — integer "
-            "contact counts quantize recall, coarse H/E composition quantizes the "
-            "S4PRED similarity, and ΔΔG sums over a shared set of mutated positions "
-            "(so fold-1 and fold-2 stability move together, giving diagonal "
-            "stripes). Contact methods sit at low absolute values, as expected.",
+            "Each panel is one method; each ELLIPSE is one fold-switch pair — a "
+            "1σ 2D-Gaussian fit to that pair's sequence clusters, plotting support "
+            "for fold 1 (x) vs fold 2 (y) in the method's native metric (TM-score "
+            "for AF2/AF3/ESMFold2/Boltz-2; −ΣΔΔG kcal/mol for DDG; SS H/E-composition "
+            "similarity for S4PRED; contact recall for MSA-Transformer/CCMpred). "
+            "The ellipse's ORIENTATION is the key: elongated PERPENDICULAR to the "
+            "y=x diagonal means the pair's clusters split between the two folds — "
+            "the fold-switching signal — whereas elongation ALONG the diagonal is "
+            "shared variation with no fold discrimination, and a small round "
+            "ellipse means low cluster diversity. Ellipses are colored by their "
+            "perpendicular spread (brighter = stronger fold-switch signal), and the "
+            "few highest-signal pairs per method are labelled. Pairs with fewer "
+            "than 5 clusters are omitted (no stable covariance). Note: TM axes are "
+            "comparable across pairs (0–1); for DDG/recall the absolute position is "
+            "pair-specific, so read orientation, not location.",
     },
     {
         "file": "figures/global/global_morans_method_x_pair.png",
@@ -89,16 +92,25 @@ GLOBAL_FIGURE_SPEC = [
 # Per-fold support panel — one scatter per method (fold1 vs fold2)
 # =====================================================================
 
-def plot_per_fold_support_panel(output_dir: str, agg: str = "max") -> None:
-    """2x4 panel: per method, support for fold 1 (x) vs fold 2 (y), per cluster.
+def plot_per_fold_support_panel(output_dir: str, agg: str = "max",
+                                n_sigma: float = 1.0, min_clusters: int = 5,
+                                label_top: int = 3) -> None:
+    """2x4 panel: per method, ONE 1-sigma ellipse per pair in the (fold 1, fold 2)
+    support plane.
 
-    Reads the unified survey (docs/fold_diversity_survey.csv). Every method has a
-    per-fold support pair in the TM1/TM2 slots: for AF2/AF3/ESMFold2/Boltz-2 these
-    are literal TM-scores to each reference fold; for ΔΔG/CCMpred/MSAT/S4PRED they
-    are the unified per-fold proxy (ΔΔG / recall / SS-similarity) mapped onto the
-    same axes. A point near (high, low) prefers fold 1, (high, high) reaches both
-    (fold-switcher), (low, low) neither.
+    Each pair's clusters are summarized by a 2D Gaussian (mean + covariance); the
+    ellipse shows where the pair sits, how diverse its clusters are, and -- via its
+    orientation -- WHICH WAY. Elongation PERPENDICULAR to y=x means the pair's
+    clusters split between the two folds (fold-switching signal); elongation ALONG
+    y=x means shared variation with no fold discrimination; a small round ellipse
+    means low diversity. Ellipses are colored by their perpendicular spread (the
+    fold-switch signal), and the `label_top` pairs with the largest perpendicular
+    spread are annotated per method. Support is each method's native per-fold
+    metric (TM-score / -sum ddG / SS-similarity / contact recall).
     """
+    from matplotlib.patches import Ellipse
+    from matplotlib import cm, colors as mcolors
+
     if not (os.path.isfile(SURVEY_CSV) and os.path.getsize(SURVEY_CSV) > 0):
         print(f"[global] no {SURVEY_CSV}; skipping per-fold support panel.")
         return
@@ -111,40 +123,77 @@ def plot_per_fold_support_panel(output_dir: str, agg: str = "max") -> None:
     methods = order_methods(df["method"].unique())
     ncol = 4
     nrow = int(np.ceil(len(methods) / ncol))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(4 * ncol, 3.7 * nrow))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 4.2 * nrow),
+                             constrained_layout=True)
     axes = np.atleast_1d(axes).ravel()
+    cmap = cm.get_cmap("plasma")
+
+    # unit vector perpendicular to y=x; projection length = fold-1 - fold-2 signal
+    perp = np.array([1.0, -1.0]) / np.sqrt(2.0)
 
     for ax, m in zip(axes, methods):
         s = df[df["method"] == m]
-        x = pd.to_numeric(s[x_col], errors="coerce")
-        y = pd.to_numeric(s[y_col], errors="coerce")
-        good = x.notna() & y.notna()
-        x, y = x[good], y[good]
-        ax.scatter(x, y, s=8, alpha=0.35, edgecolors="none")
-        if len(x):
-            # Robust limits (1-99 pct of both axes together) so a few extreme
-            # outliers -- e.g. DDG's very destabilized clusters -- don't crush
-            # the rest of the cloud; same range on both axes (y=x reference).
-            both = np.concatenate([x.values, y.values])
-            lo = float(np.nanpercentile(both, 1))
-            hi = float(np.nanpercentile(both, 99))
-            pad = 0.04 * (hi - lo or 1.0)
-            ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad],
-                    color="gray", lw=0.8, ls="--", alpha=0.7)
-            ax.set_xlim(lo - pad, hi + pad)
-            ax.set_ylim(lo - pad, hi + pad)
+        # per pair: mean, covariance, perpendicular spread
+        ells = []          # (mx, my, cov, perp_std, pair_id)
+        allx, ally = [], []
+        for pid, g in s.groupby("pair_id"):
+            x = pd.to_numeric(g[x_col], errors="coerce")
+            y = pd.to_numeric(g[y_col], errors="coerce")
+            ok = x.notna() & y.notna()
+            x, y = x[ok].values, y[ok].values
+            if len(x) < min_clusters or (x.std() == 0 and y.std() == 0):
+                continue
+            P = np.column_stack([x, y])
+            cov = np.cov(P, rowvar=False)
+            perp_std = float(np.sqrt(max((perp @ cov @ perp), 0.0)))
+            ells.append((x.mean(), y.mean(), cov, perp_std, pid))
+            allx += list(x); ally += list(y)
+
+        if not ells:
+            ax.set_title(f"{disp(m)}  (no pairs ≥{min_clusters} clusters)", fontsize=9)
+            ax.axis("off"); continue
+
+        pstd = np.array([e[3] for e in ells])
+        norm = mcolors.Normalize(vmin=float(pstd.min()), vmax=float(pstd.max()) or 1.0)
+
+        for mx, my, cov, ps, pid in ells:
+            vals, vecs = np.linalg.eigh(cov)        # ascending
+            vals = np.clip(vals, 0, None)
+            order = vals.argsort()[::-1]
+            vals, vecs = vals[order], vecs[:, order]
+            w, h = 2.0 * n_sigma * np.sqrt(vals)     # full axis lengths
+            ang = np.degrees(np.arctan2(vecs[1, 0], vecs[0, 0]))
+            col = cmap(norm(ps))
+            ax.add_patch(Ellipse((mx, my), max(w, 1e-9), max(h, 1e-9), angle=ang,
+                                  fill=False, edgecolor=col, lw=1.1, alpha=0.8))
+
+        # robust limits from the clusters that contributed
+        both = np.array(allx + ally, dtype=float)
+        lo, hi = float(np.nanpercentile(both, 1)), float(np.nanpercentile(both, 99))
+        pad = 0.06 * (hi - lo or 1.0)
+        ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad],
+                color="gray", lw=0.8, ls="--", alpha=0.7)
+        ax.set_xlim(lo - pad, hi + pad); ax.set_ylim(lo - pad, hi + pad)
+
+        # annotate the few highest-perpendicular-spread (fold-switch-like) pairs
+        for mx, my, cov, ps, pid in sorted(ells, key=lambda e: e[3], reverse=True)[:label_top]:
+            ax.annotate(pid, (mx, my), fontsize=5.5, ha="center", va="center",
+                        color="black")
+
         mm = metric_label(m)
-        ax.set_title(f"{disp(m)}  (n={int(good.sum())})", fontsize=10)
-        ax.set_xlabel(f"{mm} (fold 1)")
-        ax.set_ylabel(f"{mm} (fold 2)")
+        ax.set_title(f"{disp(m)}  ({len(ells)} pairs)", fontsize=10)
+        ax.set_xlabel(f"{mm} (fold 1)"); ax.set_ylabel(f"{mm} (fold 2)")
         ax.grid(True, alpha=0.25)
 
     for ax in axes[len(methods):]:
         ax.axis("off")
 
-    fig.suptitle(f"Per-cluster support for each fold, by method ({agg} over models)",
-                 fontsize=13)
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    sm = cm.ScalarMappable(cmap=cmap, norm=mcolors.Normalize(0, 1))
+    cbar = fig.colorbar(sm, ax=axes.tolist(), shrink=0.5, pad=0.01)
+    cbar.set_label("perpendicular spread → fold-switch signal\n(relative, per method)",
+                   fontsize=9)
+    fig.suptitle(f"Per-pair cluster distribution in the fold-1/fold-2 plane "
+                 f"({int(n_sigma)}σ ellipse per pair, {agg} over models)", fontsize=13)
     out = os.path.join(output_dir, "global_per_fold_support_panel.png")
     fig.savefig(out, dpi=170); plt.close(fig)
     print(f"[plot] wrote {out}")
