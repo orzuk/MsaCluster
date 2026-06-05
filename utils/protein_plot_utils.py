@@ -610,7 +610,8 @@ def make_foldswitch_all_plots(
 
             # Metrics on shared/unique contacts
             shared_unique_contacts, shared_unique_contacts_metrics, contacts_united = \
-                match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap)
+                match_predicted_and_true_contact_maps(match_predicted_cmaps, match_true_cmap,
+                                                      pred_truth_slices=pred_truth_slices)
 
             cluster_node_values = {
                 ctype: (

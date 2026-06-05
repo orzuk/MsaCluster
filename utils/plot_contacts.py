@@ -70,48 +70,50 @@ def compute_seq_distances(MSA_clust):
     return D
 
 
-def _fit_to_size(a, N):
-    """Zero-pad or crop a 2D array to N x N, PRESERVING dtype (so boolean/int
-    contact maps stay usable in bitwise '&' ops). Non-2D input -> zeros(N, N)."""
-    a = np.asarray(a)
-    if a.ndim != 2:
-        return np.zeros((N, N), dtype=(a.dtype if a.size else float))
-    out = np.zeros((N, N), dtype=a.dtype)
-    m, n = min(N, a.shape[0]), min(N, a.shape[1])
-    out[:m, :n] = a[:m, :n]
-    return out
+def _decompose_shared_unique(tA, tB, fold_a, fold_b):
+    """Shared / fold-unique contact decomposition for two EQUAL-SIZED truth cmaps."""
+    n = tA.shape[0]
+    rel = np.add.outer(-np.arange(n), np.arange(n))
+    tbm = {fold_a: rel < 0, fold_b: rel > 0}
+    tmap = {fold_a: tA, fold_b: tB}
+    united = (tA + tB)
+    for f in (fold_a, fold_b):
+        united[np.where(tmap[f] & (united == 1) & tbm[f])] = 0
+    cc = copy.deepcopy(united)
+    united[cc == 1] = 2
+    united[cc == 2] = 1
+    out = {"shared": (united == 1).astype(int)}
+    for f in (fold_a, fold_b):
+        u = ((united == 2) & tbm[f]).astype(int)
+        out[f] = u + u.transpose()
+    return out, united
 
 
-def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
-    """Split contacts into shared/unique and evaluate predictions against each."""
+def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true, pred_truth_slices=None):
+    """Split contacts into shared/unique and evaluate predictions against each.
+
+    Uses the canonical per-pair alignment computed ONCE upstream
+    (align_truth_and_preds_via_msa_first2 / the single pairwise alignment): when
+    `pred_truth_slices` is supplied, each cluster prediction is evaluated against
+    the truth sliced to the SAME aligned columns as that prediction, so sizes
+    always agree - no padding/cropping needed."""
     fold_ids = list(cmap_true.keys())
-    seqlen = cmap_true[fold_ids[0]].shape[0]
-    # Aligned per-cluster predictions can be a few columns off the truth frame
-    # (e.g. 63 vs 65); coerce each to the truth size so the strict evaluator and
-    # the bitwise contact ops below don't choke on a size mismatch.
-    cmap_clusters = {k: _fit_to_size(v, seqlen) for k, v in cmap_clusters.items()}
-    cmap_true = {k: _fit_to_size(v, seqlen) for k, v in cmap_true.items()}
+    fa, fb = fold_ids[0], fold_ids[1]
 
-    relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
-    top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}
+    # Whole-frame decomposition (returned for callers that want the global view).
+    shared_unique_contacts, contacts_united = _decompose_shared_unique(
+        cmap_true[fa], cmap_true[fb], fa, fb)
 
-    contacts_united = (cmap_true[fold_ids[0]] + cmap_true[fold_ids[1]])
-    for fold in fold_ids:
-        contacts_united[np.where(cmap_true[fold] & (contacts_united == 1) & top_bottom_mask[fold])] = 0
-    cc = copy.deepcopy(contacts_united)
-    contacts_united[cc == 1] = 2
-    contacts_united[cc == 2] = 1
-
-    shared_unique_contacts = {"shared": (contacts_united == 1).astype(int), fold_ids[0]: None, fold_ids[1]: None}
-    for fold in fold_ids:
-        shared_unique_contacts[fold] = ((contacts_united == 2) & top_bottom_mask[fold]).astype(int)
-        shared_unique_contacts[fold] = shared_unique_contacts[fold] + shared_unique_contacts[fold].transpose()
-
-    shared_unique_contacts_metrics = {"shared": None, fold_ids[0]: None, fold_ids[1]: None}
-    for ctype in shared_unique_contacts_metrics:
-        shared_unique_contacts_metrics[ctype] = {}
-        for clust in cmap_clusters:
-            shared_unique_contacts_metrics[ctype][clust] = evaluate_prediction(cmap_clusters[clust], shared_unique_contacts[ctype])
+    shared_unique_contacts_metrics = {"shared": {}, fa: {}, fb: {}}
+    for clust in cmap_clusters:
+        pred = cmap_clusters[clust]
+        if pred_truth_slices and clust in pred_truth_slices:
+            sl = pred_truth_slices[clust]
+            su, _ = _decompose_shared_unique(sl[fa], sl[fb], fa, fb)   # matched columns
+        else:
+            su = shared_unique_contacts
+        for ctype in ("shared", fa, fb):
+            shared_unique_contacts_metrics[ctype][clust] = evaluate_prediction(pred, su[ctype])
 
     return shared_unique_contacts, shared_unique_contacts_metrics, contacts_united
 
@@ -276,17 +278,33 @@ def plot_array_contacts_and_predictions(
     best_names = {fold_ids[0]: best[fold_ids[0]][0], fold_ids[1]: best[fold_ids[1]][0]}
     print("Best recall cluster names:", best_names)
 
-    pred_best = (preds[best_names[fold_ids[0]]][0],
-                 preds[best_names[fold_ids[1]]][1])
-
+    # The two folds' best clusters live on DIFFERENT aligned column sets. Slice
+    # both (and their matched truths) to the COMMON columns - from the single
+    # canonical alignment's per-prediction `cols` - so the F1-upper/F2-lower
+    # single-matrix overlay is one consistent frame and never size-mismatches.
+    nameA, nameB = best_names[fold_ids[0]], best_names[fold_ids[1]]
+    predA, predB = preds[nameA][0], preds[nameB][1]
+    slA = pred_truth_slices.get(nameA, {}) if pred_truth_slices else {}
+    slB = pred_truth_slices.get(nameB, {}) if pred_truth_slices else {}
     targets_override_best = None
-    if pred_truth_slices:
-        tA = pred_truth_slices.get(best_names[fold_ids[0]], {})
-        tB = pred_truth_slices.get(best_names[fold_ids[1]], {})
+    if "cols" in slA and "cols" in slB:
+        colsA, colsB = np.asarray(slA["cols"]), np.asarray(slB["cols"])
+        common = np.intersect1d(colsA, colsB)
+        if common.size:
+            posA = np.searchsorted(colsA, common)
+            posB = np.searchsorted(colsB, common)
+            predA = predA[np.ix_(posA, posA)]
+            predB = predB[np.ix_(posB, posB)]
+            targets_override_best = {
+                fold_ids[0]: slA[fold_ids[0]][np.ix_(posA, posA)],
+                fold_ids[1]: slB[fold_ids[1]][np.ix_(posB, posB)],
+            }
+    if targets_override_best is None and (slA or slB):
         targets_override_best = {
-            fold_ids[0]: tA.get(fold_ids[0], contacts[fold_ids[0]]),
-            fold_ids[1]: tB.get(fold_ids[1], contacts[fold_ids[1]]),
+            fold_ids[0]: slA.get(fold_ids[0], contacts[fold_ids[0]]),
+            fold_ids[1]: slB.get(fold_ids[1], contacts[fold_ids[1]]),
         }
+    pred_best = (predA, predB)
 
     xvec = yvec = None
     if foldpair_id:
@@ -484,16 +502,6 @@ def plot_foldswitch_contacts_and_predictions(
 
     seqlen = int(contacts[fold_ids[0]].shape[0])
 
-    # Degenerate / low-recall pairs can give the two folds truth+pred slices of
-    # DIFFERENT sizes, which would crash the F1-upper / F2-lower single-matrix
-    # overlay (e.g. 82x82 vs 42x42). Pad/crop every array to a common N so the
-    # panel renders (mostly empty for such pairs) instead of erroring out.
-    _fit = _fit_to_size   # dtype-preserving pad/crop (module helper)
-    seqlen = max(int(contacts[fold_ids[0]].shape[0]),
-                 int(contacts[fold_ids[1]].shape[0]))
-    contacts[fold_ids[0]] = _fit(contacts[fold_ids[0]], seqlen)
-    contacts[fold_ids[1]] = _fit(contacts[fold_ids[1]], seqlen)
-
     if not isinstance(predictions, tuple):
         predictions = [predictions, predictions]
 
@@ -503,7 +511,6 @@ def plot_foldswitch_contacts_and_predictions(
         if fixed is None:
             fixed = np.zeros((seqlen, seqlen), dtype=float)
         preds_np.append(fixed)
-    preds_np = [_fit(p, seqlen) for p in preds_np]   # match the common N
 
     if ax is None:
         ax = plt.gca()
