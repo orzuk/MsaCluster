@@ -1,0 +1,101 @@
+mode,version,cluster,chain,TM_F1,TM_F2,TMdiff,pred_pdb,error,TMdiff_centered
+ESMFold2_newmethod,ESMFold2,ShallowMsa_000,5jytA,0.7883530873745405,0.511699115769232,0.27665397160530847,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_000.pdb,,-0.02633138841398397
+ESMFold2_newmethod,ESMFold2,ShallowMsa_001,5jytA,0.8205292288172285,0.48328948454239656,0.3372397442748319,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_001.pdb,,0.03425438425553945
+ESMFold2_newmethod,ESMFold2,ShallowMsa_002,5jytA,0.7980812194785045,0.516652165179967,0.2814290542985375,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_002.pdb,,-0.021556305720754954
+ESMFold2_newmethod,ESMFold2,ShallowMsa_003,5jytA,0.7974657362333452,0.4985743132954348,0.2988914229379104,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_003.pdb,,-0.00409393708138206
+ESMFold2_newmethod,ESMFold2,ShallowMsa_004,5jytA,0.8023888701009864,0.4979322762034394,0.304456593897547,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_004.pdb,,0.0014712338782545409
+ESMFold2_newmethod,ESMFold2,ShallowMsa_005,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_005.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_006,5jytA,0.7755228820460731,0.5095386525508054,0.2659842294952677,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_006.pdb,,-0.03700113052402476
+ESMFold2_newmethod,ESMFold2,ShallowMsa_007,5jytA,0.8098318332289379,0.510608352826243,0.299223480402695,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_007.pdb,,-0.0037618796165974633
+ESMFold2_newmethod,ESMFold2,ShallowMsa_008,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_008.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_009,5jytA,0.8046786863123556,0.4961734277621199,0.3085052585502357,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_009.pdb,,0.005519898530943257
+ESMFold2_newmethod,ESMFold2,ShallowMsa_010,5jytA,0.7945747689113104,0.486968415800027,0.3076063531112834,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_010.pdb,,0.004620993091990988
+ESMFold2_newmethod,ESMFold2,ShallowMsa_011,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_011.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_012,5jytA,0.7858026884430417,0.48426775513042997,0.3015349333126117,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_012.pdb,,-0.0014504267066807186
+ESMFold2_newmethod,ESMFold2,ShallowMsa_013,5jytA,0.8091125600665097,0.5005542491435554,0.30855831092295427,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_013.pdb,,0.005572950903661833
+ESMFold2_newmethod,ESMFold2,ShallowMsa_014,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_014.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_015,5jytA,0.7767163568200994,0.4648415817677241,0.3118747750523753,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_015.pdb,,0.008889415033082881
+ESMFold2_newmethod,ESMFold2,ShallowMsa_016,5jytA,0.8341095285074629,0.5139145568541682,0.3201949716532947,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_016.pdb,,0.017209611634002253
+ESMFold2_newmethod,ESMFold2,ShallowMsa_017,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_017.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_018,5jytA,0.8163969962693467,0.49706463626819236,0.31933236000115434,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_018.pdb,,0.0163469999818619
+ESMFold2_newmethod,ESMFold2,ShallowMsa_019,5jytA,0.7667551651315293,0.49064773320707705,0.27610743192445225,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_019.pdb,,-0.026877928094840187
+ESMFold2_newmethod,ESMFold2,ShallowMsa_020,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_020.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_021,5jytA,0.8128719470730549,0.5212939639792221,0.29157798309383276,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_021.pdb,,-0.011407376925459678
+ESMFold2_newmethod,ESMFold2,ShallowMsa_022,5jytA,0.7823002345106252,0.5030776407856353,0.2792225937249899,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_022.pdb,,-0.023762766294302518
+ESMFold2_newmethod,ESMFold2,ShallowMsa_023,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_023.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_024,5jytA,0.7706233031854771,0.49096831321472184,0.2796549899707553,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_024.pdb,,-0.023330370048537163
+ESMFold2_newmethod,ESMFold2,ShallowMsa_025,5jytA,0.7895752075028073,0.5022937160831821,0.2872814914196252,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_025.pdb,,-0.015703868599667214
+ESMFold2_newmethod,ESMFold2,ShallowMsa_026,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_026.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_027,5jytA,0.8125482844583667,0.4735451683880096,0.3390031160703571,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_027.pdb,,0.036017756051064664
+ESMFold2_newmethod,ESMFold2,ShallowMsa_028,5jytA,0.8171026373819501,0.5015651745896333,0.31553746279231676,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_028.pdb,,0.01255210277302432
+ESMFold2_newmethod,ESMFold2,ShallowMsa_029,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_029.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_030,5jytA,0.7968011812473798,0.5805803607102259,0.21622082053715386,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_030.pdb,,-0.08676453948213858
+ESMFold2_newmethod,ESMFold2,ShallowMsa_031,5jytA,0.7526949953490099,0.5389500034736803,0.21374499187532958,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_031.pdb,,-0.08924036814396286
+ESMFold2_newmethod,ESMFold2,ShallowMsa_032,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_032.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_033,5jytA,0.8139169450727208,0.5086762160269306,0.30524072904579025,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_033.pdb,,0.002255369026497811
+ESMFold2_newmethod,ESMFold2,ShallowMsa_034,5jytA,0.7999050885641973,0.5105042815705477,0.28940080699364956,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_034.pdb,,-0.013584553025642876
+ESMFold2_newmethod,ESMFold2,ShallowMsa_035,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_035.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_036,5jytA,0.8042070975295545,0.4953117463880926,0.30889535114146194,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_036.pdb,,0.0059099911221695
+ESMFold2_newmethod,ESMFold2,ShallowMsa_037,5jytA,0.8080126043149227,0.5032211047559272,0.30479149955899554,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_037.pdb,,0.0018061395397031
+ESMFold2_newmethod,ESMFold2,ShallowMsa_038,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_038.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_039,5jytA,0.8122446700995858,0.49797527140934195,0.31426939869024384,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_039.pdb,,0.011284038670951402
+ESMFold2_newmethod,ESMFold2,ShallowMsa_040,5jytA,0.8066718627546119,0.49248802361974053,0.31418383913487136,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_040.pdb,,0.011198479115578919
+ESMFold2_newmethod,ESMFold2,ShallowMsa_041,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_041.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_042,5jytA,0.7843711954027422,0.4961744486803247,0.2881967467224176,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_042.pdb,,-0.014788613296874864
+ESMFold2_newmethod,ESMFold2,ShallowMsa_043,5jytA,0.7970755890785854,0.4900987605156576,0.30697682856292785,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_043.pdb,,0.0039914685436354125
+ESMFold2_newmethod,ESMFold2,ShallowMsa_044,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_044.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_045,5jytA,0.7955614012373422,0.49119908457768646,0.30436231665965574,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_045.pdb,,0.0013769566403633027
+ESMFold2_newmethod,ESMFold2,ShallowMsa_046,5jytA,0.7463164567612981,0.5511173359237188,0.1951991208375793,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_046.pdb,,-0.10778623918171315
+ESMFold2_newmethod,ESMFold2,ShallowMsa_047,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_047.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_048,5jytA,0.7860887798785988,0.4925403304076343,0.29354844947096453,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_048.pdb,,-0.009436910548327904
+ESMFold2_newmethod,ESMFold2,ShallowMsa_049,5jytA,0.8032765199351323,0.5030534455148744,0.30022307442025786,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_049.pdb,,-0.002762285599034575
+ESMFold2_newmethod,ESMFold2,ShallowMsa_050,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_050.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_051,5jytA,0.7676148074654032,0.5034560235938855,0.2641587838715177,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_051.pdb,,-0.03882657614777474
+ESMFold2_newmethod,ESMFold2,ShallowMsa_052,5jytA,0.788865726298517,0.4825865858026858,0.3062791404958312,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_052.pdb,,0.003293780476538777
+ESMFold2_newmethod,ESMFold2,ShallowMsa_053,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_053.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_054,5jytA,0.8072215005644292,0.5036690054401545,0.30355249512427473,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_054.pdb,,0.000567135104982297
+ESMFold2_newmethod,ESMFold2,ShallowMsa_055,5jytA,0.7977971263585706,0.4555773286874649,0.34221979767110566,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_055.pdb,,0.039234437651813225
+ESMFold2_newmethod,ESMFold2,ShallowMsa_056,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_056.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_057,5jytA,0.8177567040969679,0.5175803333898803,0.3001763707070876,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_057.pdb,,-0.002808989312204857
+ESMFold2_newmethod,ESMFold2,ShallowMsa_058,5jytA,0.781443690483813,0.5164491995922024,0.26499449089161065,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_058.pdb,,-0.03799086912768179
+ESMFold2_newmethod,ESMFold2,ShallowMsa_059,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_059.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_060,5jytA,0.7978489667623423,0.5023225283567991,0.29552643840554316,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_060.pdb,,-0.007458921613749281
+ESMFold2_newmethod,ESMFold2,ShallowMsa_061,5jytA,0.7819455612380916,0.5003281422706128,0.2816174189674787,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_061.pdb,,-0.02136794105181372
+ESMFold2_newmethod,ESMFold2,ShallowMsa_062,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_062.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_063,5jytA,0.8064884638518666,0.44899038374530204,0.35749808010656453,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_063.pdb,,0.05451272008727209
+ESMFold2_newmethod,ESMFold2,ShallowMsa_064,5jytA,0.8239726639979237,0.5540965013605622,0.26987616263736147,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_064.pdb,,-0.033109197381930966
+ESMFold2_newmethod,ESMFold2,ShallowMsa_065,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_065.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_066,5jytA,0.8255979261831289,0.5051403536998004,0.3204575724833285,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_066.pdb,,0.017472212464036074
+ESMFold2_newmethod,ESMFold2,ShallowMsa_067,5jytA,0.7897435476083144,0.498428012280121,0.29131553532819343,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_067.pdb,,-0.011669824691099007
+ESMFold2_newmethod,ESMFold2,ShallowMsa_068,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_068.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_069,5jytA,0.8044612246130732,0.4938456724392443,0.3106155521738289,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_069.pdb,,0.007630192154536475
+ESMFold2_newmethod,ESMFold2,ShallowMsa_070,5jytA,0.7212497513953282,0.6417871347049663,0.07946261669036192,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_070.pdb,,-0.22352274332893052
+ESMFold2_newmethod,ESMFold2,ShallowMsa_071,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_071.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_072,5jytA,0.7807691869513884,0.600332131515935,0.1804370554354534,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_072.pdb,,-0.12254830458383903
+ESMFold2_newmethod,ESMFold2,ShallowMsa_073,5jytA,0.832218648714572,0.49876105860097736,0.3334575901135946,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_073.pdb,,0.030472230094302166
+ESMFold2_newmethod,ESMFold2,ShallowMsa_074,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_074.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_075,5jytA,0.8118396762801993,0.5094214513658891,0.30241822491431014,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_075.pdb,,-0.000567135104982297
+ESMFold2_newmethod,ESMFold2,ShallowMsa_076,5jytA,0.8105827215779761,0.4608938758647701,0.34968884571320596,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_076.pdb,,0.04670348569391353
+ESMFold2_newmethod,ESMFold2,ShallowMsa_077,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_077.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_078,5jytA,0.7901573633094595,0.49389336470328027,0.29626399860617925,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_078.pdb,,-0.006721361413113192
+ESMFold2_newmethod,ESMFold2,ShallowMsa_079,5jytA,0.8095176039823095,0.4884728878538642,0.3210447161284453,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_079.pdb,,0.01805935610915288
+ESMFold2_newmethod,ESMFold2,ShallowMsa_080,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_080.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_081,5jytA,0.8391014834585351,0.5303767621958398,0.30872472126269523,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_081.pdb,,0.005739361243402796
+ESMFold2_newmethod,ESMFold2,ShallowMsa_082,5jytA,0.7949282310029688,0.49114008499792106,0.3037881460050478,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_082.pdb,,0.0008027859857553388
+ESMFold2_newmethod,ESMFold2,ShallowMsa_083,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_083.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_084,5jytA,0.8196755152707689,0.4644771148806713,0.3551984003900976,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_084.pdb,,0.05221304037080515
+ESMFold2_newmethod,ESMFold2,ShallowMsa_085,5jytA,0.8179273214915238,0.505289223264632,0.3126380982268918,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_085.pdb,,0.009652738207599376
+ESMFold2_newmethod,ESMFold2,ShallowMsa_086,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_086.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_087,5jytA,0.798428518276299,0.5330550531005922,0.2653734651757068,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_087.pdb,,-0.037611894843585625
+ESMFold2_newmethod,ESMFold2,ShallowMsa_088,5jytA,0.784817507581468,0.4969778166086977,0.28783969097277023,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_088.pdb,,-0.015145669046522203
+ESMFold2_newmethod,ESMFold2,ShallowMsa_089,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_089.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_090,5jytA,0.7767938916548393,0.4576032156754677,0.31919067597937156,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_090.pdb,,0.016205315960079125
+ESMFold2_newmethod,ESMFold2,ShallowMsa_091,5jytA,0.8389836850812391,0.5177878078819391,0.3211958771993,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_091.pdb,,0.018210517180007546
+ESMFold2_newmethod,ESMFold2,ShallowMsa_092,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_092.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_093,5jytA,0.7700500305107109,0.48552753500388657,0.2845224955068243,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_093.pdb,,-0.018462864512468147
+ESMFold2_newmethod,ESMFold2,ShallowMsa_094,5jytA,0.8049694918844694,0.4615012935924104,0.34346819829205905,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_094.pdb,,0.04048283827276661
+ESMFold2_newmethod,ESMFold2,ShallowMsa_095,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_095.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_096,5jytA,0.8396104191145733,0.48144859502280574,0.3581618240917676,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_096.pdb,,0.05517646407247517
+ESMFold2_newmethod,ESMFold2,ShallowMsa_097,5jytA,0.7940555081352615,0.5504295763120035,0.24362593182325798,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_097.pdb,,-0.05935942819603446
+ESMFold2_newmethod,ESMFold2,ShallowMsa_098,5jytA,,,,/sci/labs/orzuk/orzuk/github/MsaCluster/Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_098.pdb,[Errno 32] Broken pipe,
+ESMFold2_newmethod,ESMFold2,ShallowMsa_099,5jytA,0.7411264369474266,0.48047803365021924,0.2606484032972074,Pipeline/FoldPairs/5jytA_2qkeE/output_esmfold2/ShallowMsa_099.pdb,,-0.04233695672208504

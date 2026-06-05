@@ -1,0 +1,525 @@
+nohup: ignoring input
+[v2-analysis] Auto-detected 40 DONE pairs
+[v2-analysis] Saved pair list to docs/v2_subset_pairs.v2_40.txt
+
+===================================================
+STEP 1/7: fold_diversity_survey (cross-method matrix)
+===================================================
+CONFIG FOLD-SWITCH PIEPLINE WITH USER: orzuk  ENVIRONMENT: Linux
+Scanning 40 pairs for fold diversity...
+Delta threshold (TM): 0.05
+Delta threshold (DDG, kcal/mol): 1.0
+MSAT metric:     t_recall
+
+Saved per-cluster detail: /sci/labs/orzuk/orzuk/github/MsaCluster/docs/fold_diversity_survey.csv (9167 rows)
+Saved pair-level summary: /sci/labs/orzuk/orzuk/github/MsaCluster/docs/fold_diversity_summary.csv (277 rows)
+Saved cross-method concordance: /sci/labs/orzuk/orzuk/github/MsaCluster/docs/fold_diversity_concordance.csv (40 rows)
+
+======================================================================
+FOLD DIVERSITY SURVEY RESULTS
+======================================================================
+Pairs with AF2 data:     40
+Pairs with AF3 data:     40
+Pairs with ESM data:     40
+Pairs with MSAT data:    40
+Pairs with CCMpred data: 40
+Pairs with DDG data:     40
+Pairs with Boltz2 data:  37
+
+--- AF2 (40 pairs) ---
+  RAW (absolute):       diverse pairs = 14/40 (35%)
+  CENTERED (relative):  diverse pairs = 24/40 (60%)
+  Raw clusters:      F1=411 F2=595 Amb=1037 (2043 total)
+  Raw fractions:     F1=20.1% F2=29.1% Amb=50.8%
+  Centered fractions: F1=14.0% F2=13.2% Amb=72.8%
+  TMdiff spread:  mean=0.0597  median=0.0492  max=0.1651
+  TMdiff range:   mean=0.2601  median=0.2693  max=0.6528
+
+  Per-pair breakdown (RAW | CENTERED):
+  pair                 clusters |  F1  F2  Am  div | F1c F2c Amc divc |   spread    range
+  1dzlA_5keqF                49 |   1   0  48   no |   0   0  49   no |   0.0155   0.0800
+  1eboE_5fhcJ                44 |  43   0   1   no |   4  15  25  YES |   0.1261   0.6257 *new*
+  1fzpD_2frhA                90 |   1  80   9  YES |  21   2  67  YES |   0.0818   0.4976 ***
+  1iytA_2naoF                12 |   5   1   6  YES |   4   1   7  YES |   0.0819   0.2678 ***
+  1jfkA_2nxqB               100 |   0   3  97   no |   0   3  97   no |   0.0281   0.2737
+  1mnmD_1mnmC               100 |   0   0 100   no |   0   0 100   no |   0.0143   0.0748
+  1nrjB_2gedB               100 |  31  11  58  YES |  23  18  59  YES |   0.0746   0.4050 ***
+  1qb3A_3qy2A               100 |   0  97   3   no |   3   1  96  YES |   0.0226   0.1525 *new*
+  1rk4B_1k0nA               100 |  10  10  80  YES |   3  13  84  YES |   0.0506   0.2401 ***
+  1svfC_4wsgC                 4 |   4   0   0   no |   1   1   2  YES |   0.1222   0.3254 *new*
+  1wp8C_5ejbC                15 |  14   0   1   no |   6   4   5  YES |   0.1525   0.5852 *new*
+  1xezA_3o44A                 7 |   1   1   5  YES |   1   0   6   no |   0.0389   0.1202 ***
+  2grmB_2axzA                 2 |   0   0   2   no |   0   0   2   no |   0.0097   0.0194
+  2kb8A_6vw2A                20 |  20   0   0   no |   8   6   6  YES |   0.1183   0.3708 *new*
+  2kkwA_2n0aD                32 |  30   0   2   no |   8   3  21  YES |   0.0577   0.2709 *new*
+  2lelA_2k0qA                20 |   5  11   4  YES |   8   7   5  YES |   0.0997   0.2717 ***
+  2lv1A_6lniA                26 |  18   1   7  YES |  10   9   7  YES |   0.1234   0.3828 ***
+  2mwfA_2nntA               100 | 100   0   0   no |  23   7  70  YES |   0.0523   0.3064 *new*
+  2n54B_2hdmA               100 |   2  90   8  YES |  31  30  39  YES |   0.1205   0.5288 ***
+  2namA_1uxmK               100 |   0 100   0   no |  39  34  27  YES |   0.1235   0.6528 *new*
+  2p3vD_2p3vA               100 |   0   0 100   no |   0   0 100   no |   0.0167   0.0622
+  2pbkB_3njqA                16 |   0   3  13   no |   1   0  15   no |   0.0253   0.1026
+  2wcdX_4phqA                10 |   2   5   3  YES |   2   3   5  YES |   0.1651   0.5642 ***
+  2z9oB_1repC               100 |   6  16  78  YES |   8  11  81  YES |   0.0468   0.3491 ***
+  3j7vG_3j7wB                63 |   1   0  62   no |   0   0  63   no |   0.0157   0.0719
+  3kdsG_2ce7C               100 |   7  15  78  YES |   7  12  81  YES |   0.0514   0.4092 ***
+  3l9qB_4rr2D                99 |  63  10  26  YES |  33  30  36  YES |   0.1214   0.5160 ***
+  3lqcA_1xntA                87 |   3  25  59  YES |   8  17  62  YES |   0.0478   0.2255 ***
+  3m7pA_3ejhA               100 |   0  99   1   no |  19  22  59  YES |   0.0845   0.4966 *new*
+  3meeA_4b3oB               100 |   5  15  80  YES |   6   9  85  YES |   0.0340   0.1600 ***
+  3mkoA_5ineA                14 |  13   0   1   no |   4   5   5  YES |   0.0835   0.2821 *new*
+  3ztjE_5hmgA                47 |   0   1  46   no |   0   1  46   no |   0.0147   0.0935
+  3zxgB_5ec5P                 5 |   2   0   3   no |   2   0   3   no |   0.0324   0.0765
+  4g0dZ_4fu4C                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  4ow6B_4ae0A                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4rmbB_4rmbA                 2 |   0   0   2   no |   0   0   2   no |   0.0032   0.0064
+  4tsyD_3zwgN                34 |   0   1  33   no |   0   1  33   no |   0.0178   0.1003
+  4yhdG_7ahlE                15 |   2   0  13   no |   0   0  15   no |   0.0183   0.0808
+  5i2sA_5i2mA                 6 |   0   0   6   no |   0   0   6   no |   0.0183   0.0514
+  5jytA_2qkeE                22 |  21   0   1   no |   3   4  15  YES |   0.0787   0.3024 *new*
+
+--- ESM (40 pairs) ---
+  RAW (absolute):       diverse pairs = 0/40 (0%)
+  CENTERED (relative):  diverse pairs = 10/40 (25%)
+  Raw clusters:      F1=103 F2=142 Amb=89 (334 total)
+  Raw fractions:     F1=30.8% F2=42.5% Amb=26.6%
+  Centered fractions: F1=11.7% F2=12.0% Amb=76.3%
+  TMdiff spread:  mean=0.0288  median=0.0125  max=0.1371
+  TMdiff range:   mean=0.0934  median=0.0513  max=0.4069
+
+  Per-pair breakdown (RAW | CENTERED):
+  pair                 clusters |  F1  F2  Am  div | F1c F2c Amc divc |   spread    range
+  1dzlA_5keqF                 6 |   0   0   6   no |   0   0   6   no |   0.0079   0.0218
+  1eboE_5fhcJ                 2 |   2   0   0   no |   1   1   0  YES |   0.1233   0.2466 *new*
+  1fzpD_2frhA                 8 |   0   7   1   no |   2   2   4  YES |   0.0590   0.1801 *new*
+  1iytA_2naoF                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  1jfkA_2nxqB                21 |   0  20   1   no |   7   5   9  YES |   0.0921   0.3119 *new*
+  1mnmD_1mnmC                20 |   0   0  20   no |   0   0  20   no |   0.0165   0.0776
+  1nrjB_2gedB                18 |  15   0   3   no |   1   4  13  YES |   0.0984   0.3178 *new*
+  1qb3A_3qy2A                20 |   0  19   1   no |   0   0  20   no |   0.0137   0.0582
+  1rk4B_1k0nA                16 |   0  15   1   no |   2   0  14   no |   0.0300   0.1056
+  1svfC_4wsgC                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  1wp8C_5ejbC                 1 |   1   0   0   no |   0   0   1   no |   0.0000   0.0000
+  1xezA_3o44A                 1 |   0   0   1   no |   0   1   0   no |   0.0000   0.0000
+  2grmB_2axzA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2kb8A_6vw2A                 2 |   2   0   0   no |   0   0   2   no |   0.0268   0.0536
+  2kkwA_2n0aD                 3 |   3   0   0   no |   0   0   3   no |   0.0109   0.0246
+  2lelA_2k0qA                 1 |   0   1   0   no |   0   1   0   no |   0.0000   0.0000
+  2lv1A_6lniA                 3 |   3   0   0   no |   0   1   2   no |   0.0309   0.0703
+  2mwfA_2nntA                21 |  21   0   0   no |   0   1  20   no |   0.0249   0.1081
+  2n54B_2hdmA                21 |   0  21   0   no |   0   0  21   no |   0.0189   0.0707
+  2namA_1uxmK                21 |   0  21   0   no |   3   4  14  YES |   0.0463   0.1612 *new*
+  2p3vD_2p3vA                19 |   0   0  19   no |   0   0  19   no |   0.0113   0.0489
+  2pbkB_3njqA                 1 |   0   0   1   no |   0   1   0   no |   0.0000   0.0000
+  2wcdX_4phqA                 1 |   0   1   0   no |   0   1   0   no |   0.0000   0.0000
+  2z9oB_1repC                16 |   0  15   1   no |   3   1  12  YES |   0.0685   0.3094 *new*
+  3j7vG_3j7wB                 6 |   0   0   6   no |   0   1   5   no |   0.0290   0.0956
+  3kdsG_2ce7C                19 |   8   0  11   no |   6   8   5  YES |   0.1148   0.4069 *new*
+  3l9qB_4rr2D                14 |  14   0   0   no |   2   2  10  YES |   0.0403   0.1398 *new*
+  3lqcA_1xntA                16 |   0  14   2   no |   2   0  14   no |   0.0441   0.1431
+  3m7pA_3ejhA                 7 |   0   7   0   no |   3   3   1  YES |   0.1371   0.3707 *new*
+  3meeA_4b3oB                10 |   5   0   5   no |   1   2   7  YES |   0.0838   0.3231 *new*
+  3mkoA_5ineA                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  3ztjE_5hmgA                 6 |   0   0   6   no |   0   0   6   no |   0.0015   0.0035
+  3zxgB_5ec5P                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  4g0dZ_4fu4C                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  4ow6B_4ae0A                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4rmbB_4rmbA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4tsyD_3zwgN                 1 |   0   1   0   no |   0   1   0   no |   0.0000   0.0000
+  4yhdG_7ahlE                 2 |   2   0   0   no |   0   0   2   no |   0.0040   0.0079
+  5i2sA_5i2mA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  5jytA_2qkeE                22 |  22   0   0   no |   1   0  21   no |   0.0190   0.0772
+
+--- MSAT (40 pairs) ---
+  RAW (absolute):       diverse pairs = 2/40 (5%)
+  CENTERED (relative):  diverse pairs = 3/40 (8%)
+  Raw clusters:      F1=20 F2=43 Amb=247 (310 total)
+  Raw fractions:     F1=6.5% F2=13.9% Amb=79.7%
+  Centered fractions: F1=5.8% F2=11.0% Amb=83.2%
+  TMdiff spread:  mean=0.0211  median=0.0003  max=0.1423
+  TMdiff range:   mean=0.0675  median=0.0014  max=0.4807
+
+  Per-pair breakdown (RAW | CENTERED):
+  pair                 clusters |  F1  F2  Am  div | F1c F2c Amc divc |   spread    range
+  1dzlA_5keqF                 5 |   0   0   5   no |   0   0   5   no |   0.0000   0.0000
+  1eboE_5fhcJ                 2 |   0   0   2   no |   0   0   2   no |   0.0000   0.0000
+  1fzpD_2frhA                 8 |   0   2   6   no |   0   2   6   no |   0.0590   0.1667
+  1iytA_2naoF                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  1jfkA_2nxqB                21 |   2  17   2  YES |   4   5  12  YES |   0.1313   0.4807 ***
+  1mnmD_1mnmC                20 |   0   0  20   no |   0   0  20   no |   0.0135   0.0549
+  1nrjB_2gedB                18 |   0   0  18   no |   0   0  18   no |   0.0056   0.0208
+  1qb3A_3qy2A                20 |   0   0  20   no |   0   0  20   no |   0.0006   0.0028
+  1rk4B_1k0nA                16 |   0   0  16   no |   0   0  16   no |   0.0045   0.0207
+  1svfC_4wsgC                 1 |   0   1   0   no |   0   1   0   no |   0.0000   0.0000
+  1wp8C_5ejbC                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  1xezA_3o44A                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2grmB_2axzA                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  2kb8A_6vw2A                 2 |   0   0   2   no |   0   0   2   no |   0.0000   0.0000
+  2kkwA_2n0aD                 3 |   0   0   3   no |   0   0   3   no |   0.0000   0.0000
+  2lelA_2k0qA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2lv1A_6lniA                 3 |   0   1   2   no |   0   1   2   no |   0.0964   0.2088
+  2mwfA_2nntA                21 |   0   7  14   no |   0   7  14   no |   0.0335   0.0937
+  2n54B_2hdmA                21 |   0   6  15   no |   0   6  15   no |   0.0940   0.3009
+  2namA_1uxmK                21 |   2   9  10  YES |   4   9   8  YES |   0.1423   0.4722 ***
+  2p3vD_2p3vA                19 |   0   0  19   no |   0   0  19   no |   0.0076   0.0269
+  2pbkB_3njqA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2wcdX_4phqA                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  2z9oB_1repC                16 |   0   0  16   no |   0   0  16   no |   0.0069   0.0231
+  3j7vG_3j7wB                 5 |   0   0   5   no |   0   0   5   no |   0.0066   0.0177
+  3kdsG_2ce7C                19 |   8   0  11   no |   4   2  13  YES |   0.0966   0.3775 *new*
+  3l9qB_4rr2D                 2 |   0   0   2   no |   0   0   2   no |   0.0262   0.0524
+  3lqcA_1xntA                11 |   0   0  11   no |   0   0  11   no |   0.0073   0.0328
+  3m7pA_3ejhA                 3 |   2   0   1   no |   0   1   2   no |   0.0326   0.0785
+  3meeA_4b3oB                10 |   0   0  10   no |   0   0  10   no |   0.0111   0.0293
+  3mkoA_5ineA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  3ztjE_5hmgA                 5 |   0   0   5   no |   0   0   5   no |   0.0000   0.0000
+  3zxgB_5ec5P                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4g0dZ_4fu4C                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4ow6B_4ae0A                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4rmbB_4rmbA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4tsyD_3zwgN                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4yhdG_7ahlE                 2 |   0   0   2   no |   0   0   2   no |   0.0071   0.0142
+  5i2sA_5i2mA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  5jytA_2qkeE                22 |   3   0  19   no |   3   0  19   no |   0.0607   0.2238
+
+--- CCMpred (40 pairs) ---
+  RAW (absolute):       diverse pairs = 0/40 (0%)
+  CENTERED (relative):  diverse pairs = 0/40 (0%)
+  Raw clusters:      F1=15 F2=4 Amb=316 (335 total)
+  Raw fractions:     F1=4.5% F2=1.2% Amb=94.3%
+  Centered fractions: F1=1.8% F2=1.2% Amb=97.0%
+  TMdiff spread:  mean=0.0034  median=0.0000  max=0.0456
+  TMdiff range:   mean=0.0159  median=0.0000  max=0.2105
+
+  Per-pair breakdown (RAW | CENTERED):
+  pair                 clusters |  F1  F2  Am  div | F1c F2c Amc divc |   spread    range
+  1dzlA_5keqF                 5 |   0   0   5   no |   0   0   5   no |   0.0000   0.0000
+  1eboE_5fhcJ                 2 |   0   0   2   no |   0   0   2   no |   0.0000   0.0000
+  1fzpD_2frhA                 8 |   0   0   8   no |   0   0   8   no |   0.0000   0.0000
+  1iytA_2naoF                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  1jfkA_2nxqB                21 |   0   1  20   no |   0   1  20   no |   0.0227   0.1079
+  1mnmD_1mnmC                20 |   0   0  20   no |   0   0  20   no |   0.0003   0.0008
+  1nrjB_2gedB                18 |   0   0  18   no |   0   0  18   no |   0.0000   0.0000
+  1qb3A_3qy2A                20 |   0   0  20   no |   0   0  20   no |   0.0000   0.0000
+  1rk4B_1k0nA                16 |   0   0  16   no |   0   0  16   no |   0.0000   0.0000
+  1svfC_4wsgC                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  1wp8C_5ejbC                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  1xezA_3o44A                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2grmB_2axzA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2kb8A_6vw2A                 2 |   0   0   2   no |   0   0   2   no |   0.0000   0.0000
+  2kkwA_2n0aD                 3 |   0   0   3   no |   0   0   3   no |   0.0000   0.0000
+  2lelA_2k0qA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2lv1A_6lniA                 3 |   0   0   3   no |   0   0   3   no |   0.0000   0.0000
+  2mwfA_2nntA                21 |  14   0   7   no |   5   0  16   no |   0.0456   0.2105
+  2n54B_2hdmA                21 |   0   0  21   no |   0   0  21   no |   0.0037   0.0127
+  2namA_1uxmK                21 |   0   1  20   no |   0   1  20   no |   0.0260   0.1312
+  2p3vD_2p3vA                19 |   0   0  19   no |   0   0  19   no |   0.0001   0.0005
+  2pbkB_3njqA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2wcdX_4phqA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  2z9oB_1repC                16 |   0   0  16   no |   0   0  16   no |   0.0000   0.0000
+  3j7vG_3j7wB                 5 |   0   0   5   no |   0   0   5   no |   0.0000   0.0000
+  3kdsG_2ce7C                19 |   0   2  17   no |   0   2  17   no |   0.0271   0.1056
+  3l9qB_4rr2D                14 |   0   0  14   no |   0   0  14   no |   0.0000   0.0000
+  3lqcA_1xntA                11 |   0   0  11   no |   0   0  11   no |   0.0000   0.0000
+  3m7pA_3ejhA                 7 |   0   0   7   no |   0   0   7   no |   0.0000   0.0000
+  3meeA_4b3oB                10 |   0   0  10   no |   0   0  10   no |   0.0000   0.0000
+  3mkoA_5ineA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  3ztjE_5hmgA                 5 |   0   0   5   no |   0   0   5   no |   0.0000   0.0000
+  3zxgB_5ec5P                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4g0dZ_4fu4C                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4ow6B_4ae0A                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4rmbB_4rmbA                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4tsyD_3zwgN                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4yhdG_7ahlE                 2 |   0   0   2   no |   0   0   2   no |   0.0000   0.0000
+  5i2sA_5i2mA                 2 |   0   0   2   no |   0   0   2   no |   0.0000   0.0000
+  5jytA_2qkeE                30 |   1   0  29   no |   1   0  29   no |   0.0117   0.0650
+
+--- DDG (40 pairs) ---
+  RAW (absolute):       diverse pairs = 11/40 (28%)
+  CENTERED (relative):  diverse pairs = 35/40 (88%)
+  Raw clusters:      F1=1026 F2=805 Amb=290 (2121 total)
+  Raw fractions:     F1=48.4% F2=38.0% Amb=13.7%
+  Centered fractions: F1=33.2% F2=34.5% Amb=32.3%
+  TMdiff spread:  mean=6.3300  median=2.9443  max=41.1474
+  TMdiff range:   mean=23.7242  median=13.7801  max=106.3589
+
+  Per-pair breakdown (RAW | CENTERED):
+  pair                 clusters |  F1  F2  Am  div | F1c F2c Amc divc |   spread    range
+  1dzlA_5keqF                49 |   0  49   0   no |  21  21   7  YES |   5.2027  31.1672 *new*
+  1eboE_5fhcJ                44 |   1  38   5  YES |  20  17   7  YES |   2.9315  11.2695 ***
+  1fzpD_2frhA                90 |  89   0   1   no |  32  30  28  YES |   2.5596  16.6941 *new*
+  1iytA_2naoF                12 |   0   0  12   no |   0   0  12   no |   0.2571   0.9196
+  1jfkA_2nxqB               100 |   5  73  22  YES |  38  40  22  YES |   2.7696  11.3894 ***
+  1mnmD_1mnmC               100 |   0 100   0   no |   8  13  79  YES |   0.8488   4.1678 *new*
+  1nrjB_2gedB               100 |   0 100   0   no |  40  43  17  YES |   4.5821  19.5588 *new*
+  1qb3A_3qy2A               100 |  88   1  11  YES |  27  21  52  YES |   1.6567  10.0567 ***
+  1rk4B_1k0nA               100 |  63  10  27  YES |  27  28  45  YES |   2.3535  14.5835 ***
+  1svfC_4wsgC                 4 |   4   0   0   no |   2   2   0  YES |  41.1474 104.9386 *new*
+  1wp8C_5ejbC                15 |  15   0   0   no |   7   7   1  YES |  29.4639 106.3589 *new*
+  1xezA_3o44A                 7 |   0   6   1   no |   3   2   2  YES |  12.5433  35.7150 *new*
+  2grmB_2axzA                 2 |   1   1   0  YES |   1   1   0  YES |   1.9476   3.8952 ***
+  2kb8A_6vw2A                20 |  10   0  10   no |   3   0  17   no |   0.6475   2.1926
+  2kkwA_2n0aD                32 |  25   3   4  YES |   6   9  17  YES |   1.8786   7.4326 ***
+  2lelA_2k0qA                20 |  20   0   0   no |   4   6  10  YES |   1.5370   6.1640 *new*
+  2lv1A_6lniA                26 |   0  26   0   no |  11  10   5  YES |   4.3548  16.3681 *new*
+  2mwfA_2nntA               100 |   0  10  90   no |   1   3  96  YES |   0.5561   3.0117 *new*
+  2n54B_2hdmA               100 |  69   1  30  YES |  31  16  53  YES |   1.5305   7.0576 ***
+  2namA_1uxmK               100 | 100   0   0   no |  46  47   7  YES |   7.0853  31.0560 *new*
+  2p3vD_2p3vA               100 |  12  39  49  YES |  20  31  49  YES |   1.5435   7.3107 ***
+  2pbkB_3njqA                16 |   8   7   1  YES |   7   7   2  YES |   7.3501  25.6839 ***
+  2wcdX_4phqA                10 |  10   0   0   no |   5   5   0  YES |   5.9008  17.1281 *new*
+  2z9oB_1repC               100 | 100   0   0   no |  39  41  20  YES |   3.4614  22.3145 *new*
+  3j7vG_3j7wB                63 |  63   0   0   no |  22  22  19  YES |   2.8315  14.0821 *new*
+  3kdsG_2ce7C               100 | 100   0   0   no |  38  43  19  YES |   2.9571  14.1141 *new*
+  3l9qB_4rr2D                99 |  99   0   0   no |  40  48  11  YES |  13.1475  58.1406 *new*
+  3lqcA_1xntA                87 |   0  87   0   no |  34  38  15  YES |   4.9768  22.7044 *new*
+  3m7pA_3ejhA               100 |   0 100   0   no |  49  46   5  YES |  15.3243  83.4211 *new*
+  3meeA_4b3oB               100 |   0  96   4   no |  48  46   6  YES |  15.1499  59.3047 *new*
+  3mkoA_5ineA                14 |  14   0   0   no |   5   6   3  YES |  31.1677 100.1424 *new*
+  3ztjE_5hmgA                47 |  46   0   1   no |  14  18  15  YES |   6.7762  24.6659 *new*
+  3zxgB_5ec5P                 5 |   3   1   1  YES |   1   2   2  YES |   2.7701   7.6758 ***
+  4g0dZ_4fu4C                 1 |   0   0   1   no |   0   0   1   no |   0.0000   0.0000
+  4ow6B_4ae0A                 1 |   1   0   0   no |   1   0   0   no |   0.0000   0.0000
+  4rmbB_4rmbA                 2 |   0   2   0   no |   0   0   2   no |   0.5095   1.0190
+  4tsyD_3zwgN                34 |  33   0   1   no |  10  15   9  YES |   3.6036  13.4782 *new*
+  4yhdG_7ahlE                15 |   0  15   0   no |   5   3   7  YES |   3.1982  12.8174 *new*
+  5i2sA_5i2mA                 6 |   0   6   0   no |   3   3   0  YES |   3.8603  10.5536 *new*
+  5jytA_2qkeE               100 |  47  34  19  YES |  36  41  23  YES |   2.8169  10.4139 ***
+
+======================================================================
+CROSS-METHOD COMPARISON
+======================================================================
+
+  pair                           AF2           ESM          MSAT       CCMpred           DDG
+  1dzlA_5keqF            1F1/0F2/48A    0F1/0F2/6A    0F1/0F2/5A    0F1/0F2/5A   0F1/49F2/0A
+  1eboE_5fhcJ            43F1/0F2/1A    2F1/0F2/0A    0F1/0F2/2A    0F1/0F2/2A   1F1/38F2/5A
+  1fzpD_2frhA            1F1/80F2/9A    0F1/7F2/1A    0F1/2F2/6A    0F1/0F2/8A   89F1/0F2/1A
+  1iytA_2naoF             5F1/1F2/6A    1F1/0F2/0A    0F1/0F2/1A    0F1/0F2/1A   0F1/0F2/12A
+  1jfkA_2nxqB            0F1/3F2/97A   0F1/20F2/1A   2F1/17F2/2A   0F1/1F2/20A  5F1/73F2/22A
+  1mnmD_1mnmC           0F1/0F2/100A   0F1/0F2/20A   0F1/0F2/20A   0F1/0F2/20A  0F1/100F2/0A
+  1nrjB_2gedB           31F1/11F2/58A   15F1/0F2/3A   0F1/0F2/18A   0F1/0F2/18A  0F1/100F2/0A
+  1qb3A_3qy2A            0F1/97F2/3A   0F1/19F2/1A   0F1/0F2/20A   0F1/0F2/20A  88F1/1F2/11A
+  1rk4B_1k0nA           10F1/10F2/80A   0F1/15F2/1A   0F1/0F2/16A   0F1/0F2/16A  63F1/10F2/27A
+  1svfC_4wsgC             4F1/0F2/0A    1F1/0F2/0A    0F1/1F2/0A    0F1/0F2/1A    4F1/0F2/0A
+  1wp8C_5ejbC            14F1/0F2/1A    1F1/0F2/0A    1F1/0F2/0A    0F1/0F2/1A   15F1/0F2/0A
+  1xezA_3o44A             1F1/1F2/5A    0F1/0F2/1A    0F1/0F2/1A    0F1/0F2/1A    0F1/6F2/1A
+  2grmB_2axzA             0F1/0F2/2A    0F1/0F2/1A    1F1/0F2/0A    0F1/0F2/1A    1F1/1F2/0A
+  2kb8A_6vw2A            20F1/0F2/0A    2F1/0F2/0A    0F1/0F2/2A    0F1/0F2/2A  10F1/0F2/10A
+  2kkwA_2n0aD            30F1/0F2/2A    3F1/0F2/0A    0F1/0F2/3A    0F1/0F2/3A   25F1/3F2/4A
+  2lelA_2k0qA            5F1/11F2/4A    0F1/1F2/0A    0F1/0F2/1A    0F1/0F2/1A   20F1/0F2/0A
+  2lv1A_6lniA            18F1/1F2/7A    3F1/0F2/0A    0F1/1F2/2A    0F1/0F2/3A   0F1/26F2/0A
+  2mwfA_2nntA           100F1/0F2/0A   21F1/0F2/0A   0F1/7F2/14A   14F1/0F2/7A  0F1/10F2/90A
+  2n54B_2hdmA            2F1/90F2/8A   0F1/21F2/0A   0F1/6F2/15A   0F1/0F2/21A  69F1/1F2/30A
+  2namA_1uxmK           0F1/100F2/0A   0F1/21F2/0A   2F1/9F2/10A   0F1/1F2/20A  100F1/0F2/0A
+  2p3vD_2p3vA           0F1/0F2/100A   0F1/0F2/19A   0F1/0F2/19A   0F1/0F2/19A  12F1/39F2/49A
+  2pbkB_3njqA            0F1/3F2/13A    0F1/0F2/1A    0F1/0F2/1A    0F1/0F2/1A    8F1/7F2/1A
+  2wcdX_4phqA             2F1/5F2/3A    0F1/1F2/0A    1F1/0F2/0A    0F1/0F2/1A   10F1/0F2/0A
+  2z9oB_1repC           6F1/16F2/78A   0F1/15F2/1A   0F1/0F2/16A   0F1/0F2/16A  100F1/0F2/0A
+  3j7vG_3j7wB            1F1/0F2/62A    0F1/0F2/6A    0F1/0F2/5A    0F1/0F2/5A   63F1/0F2/0A
+  3kdsG_2ce7C           7F1/15F2/78A   8F1/0F2/11A   8F1/0F2/11A   0F1/2F2/17A  100F1/0F2/0A
+  3l9qB_4rr2D           63F1/10F2/26A   14F1/0F2/0A    0F1/0F2/2A   0F1/0F2/14A   99F1/0F2/0A
+  3lqcA_1xntA           3F1/25F2/59A   0F1/14F2/2A   0F1/0F2/11A   0F1/0F2/11A   0F1/87F2/0A
+  3m7pA_3ejhA            0F1/99F2/1A    0F1/7F2/0A    2F1/0F2/1A    0F1/0F2/7A  0F1/100F2/0A
+  3meeA_4b3oB           5F1/15F2/80A    5F1/0F2/5A   0F1/0F2/10A   0F1/0F2/10A   0F1/96F2/4A
+  3mkoA_5ineA            13F1/0F2/1A    1F1/0F2/0A    0F1/0F2/1A    0F1/0F2/1A   14F1/0F2/0A
+  3ztjE_5hmgA            0F1/1F2/46A    0F1/0F2/6A    0F1/0F2/5A    0F1/0F2/5A   46F1/0F2/1A
+  3zxgB_5ec5P             2F1/0F2/3A    1F1/0F2/0A    0F1/0F2/1A    0F1/0F2/1A    3F1/1F2/1A
+  4g0dZ_4fu4C             1F1/0F2/0A    1F1/0F2/0A    0F1/0F2/1A    0F1/0F2/1A    0F1/0F2/1A
+  4ow6B_4ae0A             0F1/0F2/1A    0F1/0F2/1A    0F1/0F2/1A    0F1/0F2/1A    1F1/0F2/0A
+  4rmbB_4rmbA             0F1/0F2/2A    0F1/0F2/1A    0F1/0F2/1A    0F1/0F2/1A    0F1/2F2/0A
+  4tsyD_3zwgN            0F1/1F2/33A    0F1/1F2/0A    0F1/0F2/1A    0F1/0F2/1A   33F1/0F2/1A
+  4yhdG_7ahlE            2F1/0F2/13A    2F1/0F2/0A    0F1/0F2/2A    0F1/0F2/2A   0F1/15F2/0A
+  5i2sA_5i2mA             0F1/0F2/6A    0F1/0F2/1A    0F1/0F2/1A    0F1/0F2/2A    0F1/6F2/0A
+  5jytA_2qkeE            21F1/0F2/1A   22F1/0F2/0A   3F1/0F2/19A   1F1/0F2/29A  47F1/34F2/19A
+
+======================================================================
+CROSS-METHOD CONCORDANCE — per-cluster TMdiff_centered sign agreement
+======================================================================
+Independent of diversity-call thresholds: even if no single method
+crosses its own delta, sign-agreement across orthogonal methods
+(different training sets / inductive biases) is hard to dismiss
+as method-specific bias. ~50% = chance; >70% = significant.
+
+  (15 pairs excluded with mean_n_clusters < 10 — too few clusters for reliable concordance)
+  Top 25 pairs by mean cross-method concordance (mean_n_clusters >= 10):
+  pair                mean   A~E   A~M   A~D   E~M   E~D   M~D  best_pair (pct, n)
+  1eboE_5fhcJ         0.77  1.00   --   0.77   --   0.50   --   AF2~ESM (1.00, n=27)
+  2lv1A_6lniA         0.62  0.50  1.00  0.54  0.00  1.00  0.50  AF2~MSAT (1.00, n=11)
+  2n54B_2hdmA         0.61  0.50  0.53  0.50  0.61  0.40  0.53  AF3~CCMpred (1.00, n=37)
+  3ztjE_5hmgA         0.61  1.00   --   0.49   --   0.67   --   AF2~ESM (1.00, n=29)
+  3lqcA_1xntA         0.58  0.44  0.83  0.42  0.50  0.44  0.50  AF2~MSAT (0.83, n=40)
+  2mwfA_2nntA         0.57  0.50  0.50  0.54  0.40  0.60  0.70  AF2~AF3 (0.84, n=39)
+  1dzlA_5keqF         0.56  0.50   --   0.54   --   0.17   --   ESM~Boltz2 (0.83, n=29)
+  2kkwA_2n0aD         0.56  0.50   --   0.50   --   0.50   --   ESM~Boltz2 (1.00, n=20)
+  1nrjB_2gedB         0.55  0.61  0.55  0.62  0.64  0.44  0.36  ESM~Boltz2 (0.72, n=48)
+  1qb3A_3qy2A         0.55  0.50  0.43  0.50  0.43  0.75  0.57  ESM~DDG (0.75, n=47)
+  2namA_1uxmK         0.55  0.25  0.40  0.58  0.63  0.40  0.65  AF2~AF3 (0.78, n=42)
+  3l9qB_4rr2D         0.54  0.71  0.50  0.45  0.00  0.57  0.50  AF3~MSAT (1.00, n=43)
+  2kb8A_6vw2A         0.52  0.50   --   0.20   --   1.00   --   ESM~DDG (1.00, n=12)
+  3kdsG_2ce7C         0.52  0.50  0.67  0.52  0.53  0.50  0.39  AF2~CCMpred (0.71, n=37)
+  1mnmD_1mnmC         0.51  0.55  0.33  0.46  0.42  0.65  0.50  AF2~CCMpred (1.00, n=28)
+  1rk4B_1k0nA         0.51  0.25  0.75  0.44  0.38  0.38  0.50  AF2~MSAT (0.75, n=46)
+  4tsyD_3zwgN         0.51  1.00  0.00  0.59  0.00  0.00  1.00  AF2~ESM (1.00, n=14)
+  2p3vD_2p3vA         0.50  0.67  0.44  0.52  0.56  0.44  0.44  AF2~AF3 (0.74, n=30)
+  5jytA_2qkeE         0.50  0.36  0.46  0.55  0.55  0.46  0.55  DDG~Boltz2 (0.82, n=27)
+  3meeA_4b3oB         0.50  0.40  0.60  0.44  0.20  0.60  0.40  AF3~MSAT (0.70, n=45)
+  1jfkA_2nxqB         0.49  0.45  0.55  0.38  0.32  0.65  0.35  AF3~DDG (0.66, n=39)
+  3m7pA_3ejhA         0.48  0.67  0.00  0.48  0.50  0.17  1.00  MSAT~DDG (1.00, n=42)
+  2z9oB_1repC         0.45  0.56  0.31  0.42  0.38  0.25  0.62  AF3~MSAT (0.62, n=40)
+  1fzpD_2frhA         0.40  0.50  0.00  0.56  0.67  0.12  0.33  AF2~AF3 (0.68, n=30)
+  3j7vG_3j7wB         0.40  0.67  0.25  0.47  0.50  0.17  0.50  AF2~ESM (0.67, n=27)
+
+  Pairs with mean concordance > 0.65: 1 / 25 (4%) — strong cross-method signal.
+  See docs/fold_diversity_concordance.csv for the full table.
+
+======================================================================
+CONCLUSION
+======================================================================
+Three complementary signals per pair:
+  1. Diversity counts (raw / centered): does any method cross its threshold?
+  2. Spread/range of TMdiff: how much do clusters vary in fold preference?
+  3. Cross-method concordance: do orthogonal methods agree per-cluster on
+     direction, even if no single method crosses its threshold?
+
+Strongest fold-switching candidates satisfy 2+ of these signals.
+Cross-method concordance is least sensitive to method-specific
+training bias and threshold choice.
+
+
+===================================================
+STEP 2/7: aggregate S4PRED into survey
+===================================================
+[warn] 3ztjE_5hmgA: DSSP failed for at least one fold
+[warn] 3zxgB_5ec5P: DSSP failed for at least one fold
+[warn] 4g0dZ_4fu4C: DSSP failed for at least one fold
+[warn] 4ow6B_4ae0A: DSSP failed for at least one fold
+[warn] 4rmbB_4rmbA: DSSP failed for at least one fold
+[warn] 4tsyD_3zwgN: DSSP failed for at least one fold
+[warn] 4yhdG_7ahlE: DSSP failed for at least one fold
+[warn] 5i2sA_5i2mA: DSSP failed for at least one fold
+[warn] 5jytA_2qkeE: DSSP failed for at least one fold
+[error] no rows generated
+(continuing)
+
+===================================================
+STEP 3/7: permutation null for concordance p-values
+===================================================
+  3lqcA_1xntA              87  0.52  0.3610  YES  1.0000
+  3kdsG_2ce7C             100  0.52  0.3700  YES  1.0000
+  2p3vD_2p3vA             100  0.51  0.4020  YES  1.0000
+  2namA_1uxmK             100  0.50  0.4550  YES  1.0000
+  2wcdX_4phqA              10  0.43  0.4790  YES  1.0000
+
+Expected fold-switching pairs (sanity check):
+  2n54B_2hdmA            mean=0.61  p_mean=0.0840
+  2namA_1uxmK            mean=0.50  p_mean=0.4550
+
+
+===================================================
+STEP 4/7: BH FDR (full pool)
+===================================================
+=== Pairs passing BH FDR <= 0.05 ===
+  (none)
+
+=== Candidate pairs (whether or not they pass BH) ===
+pair_id               raw_p     BH_p  n_clu  obs_mean
+  2n54B_2hdmA          0.0840   0.8400    100     0.606
+  2namA_1uxmK          0.4550   1.0000    100     0.500
+  1zk9A_3jv6A: NOT in perm CSV
+  3kdsG_2ce7C          0.3700   1.0000    100     0.515
+  4qhhA_4qhfA: NOT in perm CSV
+
+===================================================
+STEP 5/7: BH FDR (stratified by trigger class)
+===================================================
+
+=== Chakravarty 2023 prediction test (pre-specified) ===
+  Triggered pool (ligand+oligomerization+protein_binding+mutation):
+    n=71  BH-sig=0  hit_rate=0.0%
+  Equilibrium pool (equilibrium_or_unknown):
+    n=14  BH-sig=0  hit_rate=0.0%
+  Fisher's exact test:
+    odds ratio (triggered / equilibrium): nan
+    p (two-sided):                         1.0000
+    p (one-sided, triggered > equilibrium): 1.0000
+
+===================================================
+STEP 6a/7: sequence-divergence regression correction
+===================================================
+    before_after_table(corrected, before_concord, after_concord, pairs)
+  File "/sci/labs/orzuk/orzuk/github/MsaCluster/scripts/seq_divergence_correction.py", line 522, in before_after_table
+    beta = ms["regression_beta"].dropna()
+           ~~^^^^^^^^^^^^^^^^^^^
+  File "/sci/labs/orzuk/orzuk/software/miniforge3/lib/python3.12/site-packages/pandas/core/frame.py", line 4378, in __getitem__
+    indexer = self.columns.get_loc(key)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/sci/labs/orzuk/orzuk/software/miniforge3/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 3648, in get_loc
+    raise KeyError(key) from err
+KeyError: 'regression_beta'
+(continuing)
+
+===================================================
+STEP 6b/7: phylogenetic placement (p_NN1 / Fitch) — raw + corrected
+===================================================
+[phylo] importing modules...
+CONFIG FOLD-SWITCH PIEPLINE WITH USER: orzuk  ENVIRONMENT: Linux
+Traceback (most recent call last):
+  File "/sci/labs/orzuk/orzuk/github/MsaCluster/scripts/phylo_placement.py", line 100, in <module>
+    from utils.ancestral_utils import build_coarse_tree, _name_internal_nodes  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/sci/labs/orzuk/orzuk/github/MsaCluster/utils/ancestral_utils.py", line 22, in <module>
+    from Bio import Phylo
+ModuleNotFoundError: No module named 'Bio'
+(continuing)
+
+--- BH FDR per method on phylo_placement results ---
+
+=== docs/phylo_placement.csv ===
+columns available: []
+
+=== docs/phylo_placement_corrected.csv ===
+columns available: []
+
+===================================================
+STEP 6c/7: cross-method correlation matrix
+===================================================
+Spearman correlation matrix:
+          AF2   AF3   ESM  Boltz2   DDG  MSAT  CCMpred
+AF2      1.00  0.44  0.00    0.18  0.02 -0.02     0.11
+AF3      0.44  1.00  0.00    0.22  0.04  0.06     0.09
+ESM      0.00  0.00  1.00    0.06 -0.07  0.04    -0.01
+Boltz2   0.18  0.22  0.06    1.00  0.14  0.02     0.02
+DDG      0.02  0.04 -0.07    0.14  1.00 -0.02    -0.07
+MSAT    -0.02  0.06  0.04    0.02 -0.02  1.00    -0.07
+CCMpred  0.11  0.09 -0.01    0.02 -0.07 -0.07     1.00
+[ok] wrote docs/figs/cross_method_correlation.png
+[v2-analysis] Skipping HTML step (--no-html)
+
+===================================================
+DONE. Headline files:
+===================================================
+  docs/fold_diversity_survey.csv             (per-cluster matrix, all methods)
+  docs/fold_diversity_concordance_perm.csv   (per-pair p-values)
+  docs/fold_diversity_concordance_perm_bh.csv (BH FDR full pool)
+  docs/stratified_concordance.csv            (BH FDR stratified)
+  docs/figs/cross_method_correlation.png      (method correlation)
+  docs/phylo_placement.csv                   (per-(pair,method) p_NN1 + Fitch)
+  docs/v2_subset_pairs.v2_40.txt     (pair list used)
+
+Quick view of BH results:
+--- Full pool ---
+pair_id,n_clusters,n_methods_present,n_perm,observed_mean_concordance,perm_mean_concordance_p,observed_has_both_folds_centered,perm_has_both_folds_centered_p,observed_AF2_ESM,observed_AF2_ESM_n,perm_AF2_ESM_p,observed_AF2_MSAT,observed_AF2_MSAT_n,perm_AF2_MSAT_p,observed_AF2_CCMpred,observed_AF2_CCMpred_n,perm_AF2_CCMpred_p,observed_AF2_DDG,observed_AF2_DDG_n,perm_AF2_DDG_p,observed_ESM_MSAT,observed_ESM_MSAT_n,perm_ESM_MSAT_p,observed_ESM_CCMpred,observed_ESM_CCMpred_n,perm_ESM_CCMpred_p,observed_ESM_DDG,observed_ESM_DDG_n,perm_ESM_DDG_p,observed_MSAT_CCMpred,observed_MSAT_CCMpred_n,perm_MSAT_CCMpred_p,observed_MSAT_DDG,observed_MSAT_DDG_n,perm_MSAT_DDG_p,observed_CCMpred_DDG,observed_CCMpred_DDG_n,perm_CCMpred_DDG_p,p_bh
+3ztjE_5hmgA,47,7,1000,0.7185,0.014,True,1.0,1.0,6,0.014,,0,,,0,,0.4889,45,0.599,,0,,,0,,0.6667,6,0.337,,0,,,0,,,0,,0.56
+2lelA_2k0qA,20,7,1000,0.57,0.033,True,1.0,1.0,1,0.517,1.0,1,0.517,0.0,1,1.0,0.7,20,0.092,1.0,1,1.0,0.0,1,1.0,1.0,1,0.504,0.0,1,1.0,1.0,1,0.504,0.0,1,1.0,0.66
+1eboE_5fhcJ,44,7,1000,0.7576,0.062,True,1.0,1.0,2,0.249,,0,,,0,,0.7727,44,0.0,,0,,,0,,0.5,2,0.745,,0,,,0,,,0,,0.8266666666666667
+2n54B_2hdmA,100,7,1000,0.6064,0.084,True,1.0,0.5,20,0.613,0.5263,19,0.491,0.5,2,0.758,0.5,100,0.555,0.6111,18,0.227,1.0,2,0.269,0.4,20,0.859,1.0,2,0.283,0.5263,19,0.476,0.5,2,0.751,0.8400000000000001
+--- Stratified ---
+trigger_class,n_pairs,n_BH_sig_at_alpha,hit_rate,hits,alpha
+equilibrium_or_unknown,14,0,0.0,,0.05
+ligand,25,0,0.0,,0.05
+mutation,13,1,0.077,2n54B_2hdmA,0.05
+oligomerization,17,0,0.0,,0.05
+protein_binding,16,1,0.062,1zk9A_3jv6A,0.05
+
+--- Phylo placement: top hits (best p_NN1 per pair) ---
+p_NN1 column not found; columns: ['pair_id', 'method', 'n_leaves', 'n_F1c_leaves', 'n_F2c_leaves', 'n_Amc_leaves', 'parsimony_score', 'parsimony_p', 'nn_concordance', 'nn_concordance_p', 'nn3_concordance', 'nn3_concordance_p', 'D_statistic', 'notes', 'n_clusters']
