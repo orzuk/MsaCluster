@@ -2,60 +2,51 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>Global Comparison Plots</title>
+<title>Global Analysis — Fold-Switch Evolution</title>
 <style>
   :root { color-scheme: dark; }
   body {
-    background:#121212; color:#E0E0E0; font-family:'Segoe UI',Tahoma,Verdana,sans-serif; margin:20px;
+    background:#121212; color:#E0E0E0;
+    font-family:'Segoe UI',Tahoma,Verdana,sans-serif;
+    margin:0; padding:28px 20px; line-height:1.5;
   }
-  h2 { margin: 0 0 12px; }
+  h1 { margin:0 0 6px; font-size:1.6rem; }
+  .intro { max-width:60rem; opacity:.8; margin:0 0 28px; }
+  section.fig { max-width:60rem; margin:0 0 40px; }
+  section.fig h2 { margin:0 0 6px; font-size:1.2rem; color:#9ecbff; }
+  .caption { margin:0 0 12px; opacity:.85; }
+  section.fig img { max-width:100%; border:1px solid #333; border-radius:4px; background:#fff; }
 </style>
 </head>
 <body>
-<h2>Global Comparison Plots</h2>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">compare_AF2_AF3_BESTCLUST.png</figcaption>
-  <img loading="lazy" src="figures/global/compare_AF2_AF3_BESTCLUST.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">compare_AF2_AF3_DEEP.png</figcaption>
-  <img loading="lazy" src="figures/global/compare_AF2_AF3_DEEP.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">compare_ESM2_ESM3_BESTPRED.png</figcaption>
-  <img loading="lazy" src="figures/global/compare_ESM2_ESM3_BESTPRED.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">fold_pair_scatter_plot_AF2.png</figcaption>
-  <img loading="lazy" src="figures/global/fold_pair_scatter_plot_AF2.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">fold_pair_scatter_plot_AF3.png</figcaption>
-  <img loading="lazy" src="figures/global/fold_pair_scatter_plot_AF3.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">fold_pair_scatter_plot_ESM2.png</figcaption>
-  <img loading="lazy" src="figures/global/fold_pair_scatter_plot_ESM2.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">fold_pair_scatter_plot_ESM3.png</figcaption>
-  <img loading="lazy" src="figures/global/fold_pair_scatter_plot_ESM3.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">fold_pair_scatter_plot_MSA_TRANS.png</figcaption>
-  <img loading="lazy" src="figures/global/fold_pair_scatter_plot_MSA_TRANS.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">global_method_correlation.png</figcaption>
-  <img loading="lazy" src="figures/global/global_method_correlation.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">global_morans_effectsize_by_method.png</figcaption>
-  <img loading="lazy" src="figures/global/global_morans_effectsize_by_method.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
-<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">global_morans_method_x_pair.png</figcaption>
-  <img loading="lazy" src="figures/global/global_morans_method_x_pair.png" style="max-width:100%;border:1px solid #333;"/>
-</figure>
+<h1>Global Analysis — Fold-Switch Evolution</h1>
+<p class="intro">Cross-pair summary of the 8-method fold-switch analysis
+(AF2, AF3, ESMFold2, Boltz-2, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
+fold-switching pair set. Each figure is described above it.</p>
+<section class="fig">
+  <h2>Per-fold support, by method</h2>
+  <p class="caption">Each panel is one method. For every sequence cluster we plot its predicted support for fold 1 (x) against fold 2 (y). For AF2, AF3, ESMFold2 and Boltz-2 the axes are TM-scores to each reference structure; for ΔΔG, MSA-Transformer, CCMpred and S4PRED they are the unified per-fold proxy (stability / contact recall / secondary-structure similarity) mapped onto a common scale. A cluster near the diagonal reaches both folds (fold-switcher); off-diagonal clusters prefer one fold. Spread along both axes means the method is resolving fold-specific signal.</p>
+  <img loading="lazy" src="figures/global/global_per_fold_support_panel.png" alt="Per-fold support, by method"/>
+</section>
+<section class="fig">
+  <h2>Phylogenetic clade signal — method × pair</h2>
+  <p class="caption">Sequence-divergence-corrected clade signal (Moran&#x27;s I_norm) for every method (columns) and fold-switch pair (rows). Red = clusters that prefer the same fold are phylogenetically grouped (clade-structured); blue = anti-structured; white ≈ none. Rows are sorted by the mean signal across all methods, so the most clade-structured pairs sit at the top. Signal is weak overall — few cells exceed I_norm ≈ 0.2.</p>
+  <img loading="lazy" src="figures/global/global_morans_method_x_pair.png" alt="Phylogenetic clade signal — method × pair"/>
+</section>
+<section class="fig">
+  <h2>Method × method agreement on clade signal</h2>
+  <p class="caption">Spearman correlation between methods of their per-pair clade signal. High values mean two methods light up on the same pairs. Only the structure predictors (AF2/AF3/Boltz-2/ESMFold2) correlate appreciably; ΔΔG, MSA-Transformer, CCMpred and S4PRED are largely orthogonal, i.e. they contribute independent evidence.</p>
+  <img loading="lazy" src="figures/global/global_method_correlation.png" alt="Method × method agreement on clade signal"/>
+</section>
+<section class="fig">
+  <h2>Clade-signal effect size, per method</h2>
+  <p class="caption">Distribution across pairs of the clade-signal effect size (Moran&#x27;s I_norm) for each method. Boxes near zero indicate little systematic clade structure; ΔΔG shows the widest positive tail. Because n ≈ 100 clusters makes the permutation test overpowered, we rank methods by effect size here rather than by significance counts.</p>
+  <img loading="lazy" src="figures/global/global_morans_effectsize_by_method.png" alt="Clade-signal effect size, per method"/>
+</section>
+<section class="fig">
+  <h2>Cross-method correlation of raw fold preference</h2>
+  <p class="caption">Spearman correlation of the raw per-cluster fold preference (centered TM difference), pooled across all clusters and pairs — a signal-level companion to the clade-signal correlation above. AF2 and AF3 share training bias (highest correlation); every other method pair is near zero, confirming the methods supply largely independent evidence (most orthogonal: S4PRED).</p>
+  <img loading="lazy" src="figs/cross_method_correlation.png" alt="Cross-method correlation of raw fold preference"/>
+</section>
 </body>
 </html>

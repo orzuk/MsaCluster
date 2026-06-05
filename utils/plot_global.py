@@ -1,223 +1,138 @@
-"""Cross-pair global statistics scatter plots."""
+"""Cross-pair global statistics plots (per-fold support panel + Moran's plots)."""
 
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from config import DATA_DIR, FIGURE_RES_DIR, DETAILED_RESULTS_TABLE, SUMMARY_RESULTS_TABLE, TABLES_RES
-from utils.utils import list_protein_pairs, numify
+from config import FIGURE_RES_DIR, TABLES_RES
+from utils.method_labels import METHOD_ORDER, disp, order_methods
 
-# Canonical method order for all global cross-method plots.
-METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "DDG", "MSAT", "CCMpred", "S4PRED"]
+SURVEY_CSV = os.path.join(TABLES_RES, "fold_diversity_survey.csv")
+
+# ---------------------------------------------------------------------
+# Ordered + captioned spec for the global analysis HTML page. ONE place
+# defines which global figures appear, in what order, and the explanatory
+# text shown before each (Rmarkdown-style). Paths are relative to docs/.
+# ---------------------------------------------------------------------
+GLOBAL_FIGURE_SPEC = [
+    {
+        "file": "figures/global/global_per_fold_support_panel.png",
+        "title": "Per-fold support, by method",
+        "caption":
+            "Each panel is one method. For every sequence cluster we plot its "
+            "predicted support for fold 1 (x) against fold 2 (y). For AF2, AF3, "
+            "ESMFold2 and Boltz-2 the axes are TM-scores to each reference "
+            "structure; for ΔΔG, MSA-Transformer, CCMpred and S4PRED they are the "
+            "unified per-fold proxy (stability / contact recall / secondary-"
+            "structure similarity) mapped onto a common scale. A cluster near the "
+            "diagonal reaches both folds (fold-switcher); off-diagonal clusters "
+            "prefer one fold. Spread along both axes means the method is resolving "
+            "fold-specific signal.",
+    },
+    {
+        "file": "figures/global/global_morans_method_x_pair.png",
+        "title": "Phylogenetic clade signal — method × pair",
+        "caption":
+            "Sequence-divergence-corrected clade signal (Moran's I_norm) for every "
+            "method (columns) and fold-switch pair (rows). Red = clusters that "
+            "prefer the same fold are phylogenetically grouped (clade-structured); "
+            "blue = anti-structured; white ≈ none. Rows are sorted by the mean "
+            "signal across all methods, so the most clade-structured pairs sit at "
+            "the top. Signal is weak overall — few cells exceed I_norm ≈ 0.2.",
+    },
+    {
+        "file": "figures/global/global_method_correlation.png",
+        "title": "Method × method agreement on clade signal",
+        "caption":
+            "Spearman correlation between methods of their per-pair clade signal. "
+            "High values mean two methods light up on the same pairs. Only the "
+            "structure predictors (AF2/AF3/Boltz-2/ESMFold2) correlate "
+            "appreciably; ΔΔG, MSA-Transformer, CCMpred and S4PRED are largely "
+            "orthogonal, i.e. they contribute independent evidence.",
+    },
+    {
+        "file": "figures/global/global_morans_effectsize_by_method.png",
+        "title": "Clade-signal effect size, per method",
+        "caption":
+            "Distribution across pairs of the clade-signal effect size (Moran's "
+            "I_norm) for each method. Boxes near zero indicate little systematic "
+            "clade structure; ΔΔG shows the widest positive tail. Because n ≈ 100 "
+            "clusters makes the permutation test overpowered, we rank methods by "
+            "effect size here rather than by significance counts.",
+    },
+    {
+        "file": "figs/cross_method_correlation.png",
+        "title": "Cross-method correlation of raw fold preference",
+        "caption":
+            "Spearman correlation of the raw per-cluster fold preference "
+            "(centered TM difference), pooled across all clusters and pairs — a "
+            "signal-level companion to the clade-signal correlation above. AF2 and "
+            "AF3 share training bias (highest correlation); every other method pair "
+            "is near zero, confirming the methods supply largely independent "
+            "evidence (most orthogonal: S4PRED).",
+    },
+]
 
 
-def global_pairs_statistics_plots(output_dir: str | None = None) -> None:
+# =====================================================================
+# Per-fold support panel — one scatter per method (fold1 vs fold2)
+# =====================================================================
+
+def plot_per_fold_support_panel(output_dir: str, agg: str = "max") -> None:
+    """2x4 panel: per method, support for fold 1 (x) vs fold 2 (y), per cluster.
+
+    Reads the unified survey (docs/fold_diversity_survey.csv). Every method has a
+    per-fold support pair in the TM1/TM2 slots: for AF2/AF3/ESMFold2/Boltz-2 these
+    are literal TM-scores to each reference fold; for ΔΔG/CCMpred/MSAT/S4PRED they
+    are the unified per-fold proxy (ΔΔG / recall / SS-similarity) mapped onto the
+    same axes. A point near (high, low) prefers fold 1, (high, high) reaches both
+    (fold-switcher), (low, low) neither.
     """
-    Build ALL global scatter plots from the unified CSV(s) and save them under output_dir.
-    """
-    if output_dir is None:
-        output_dir = FIGURE_RES_DIR
-    os.makedirs(output_dir, exist_ok=True)
-
-    # -------- AF/ESM from unified detailed table --------
-    if (not os.path.isfile(DETAILED_RESULTS_TABLE)) or os.path.getsize(DETAILED_RESULTS_TABLE) == 0:
-        print(f"[warn] No detailed CSV at {DETAILED_RESULTS_TABLE}. Run postprocess first.")
-        df_det = pd.DataFrame(columns=["fold_pair","model","TMscore_fold1","TMscore_fold2"])
-    else:
-        df_det = pd.read_csv(DETAILED_RESULTS_TABLE)
-
-    if "TMscore_fold1" not in df_det.columns and "score_pdb1" in df_det.columns:
-        df_det = df_det.rename(columns={"score_pdb1": "TMscore_fold1", "score_pdb2": "TMscore_fold2"})
-    if "fold_pair" not in df_det.columns:
-        if "pair_id" in df_det.columns:
-            df_det = df_det.rename(columns={"pair_id": "fold_pair"})
-        else:
-            df_det["fold_pair"] = "UNK"
-
-    if "model" not in df_det.columns:
-        df_det["model"] = ""
-    df_det["model"] = df_det["model"].astype(str).str.upper()
-
-    def _save_tm_scatter(sub_df: pd.DataFrame, model_tag: str, out_path: str) -> None:
-        if sub_df.empty:
-            print(f"[info] No rows for {model_tag} in {DETAILED_RESULTS_TABLE}")
-            return
-
-        g = sub_df.groupby("fold_pair", as_index=False).agg(
-            mean_TM1=("TMscore_fold1","mean"),
-            mean_TM2=("TMscore_fold2","mean"),
-            max_TM1 =("TMscore_fold1","max"),
-            max_TM2 =("TMscore_fold2","max"),
-        )
-
-        plt.figure(figsize=(8,7))
-        first = True
-        for _, r in g.iterrows():
-            plt.scatter(r["mean_TM1"], r["mean_TM2"], marker="+", label="Mean" if first else "")
-            plt.scatter(r["max_TM1"],  r["max_TM2"],  marker="*", label="Max"  if first else "")
-            plt.plot([r["mean_TM1"], r["max_TM1"]], [r["mean_TM2"], r["max_TM2"]],
-                     linestyle="--", color="gray", alpha=0.5)
-            plt.text(r["max_TM1"], r["max_TM2"], r["fold_pair"], fontsize=7, ha="right")
-            first = False
-
-        plt.xlabel("TMscore fold1")
-        plt.ylabel("TMscore fold2")
-        plt.title(f"Per-pair TM (mean vs max): {model_tag}")
-        plt.legend(loc="upper left")
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(out_path, dpi=160)
-        plt.close()
-        print(f"[plot] wrote {out_path}")
-
-    for tag in ["AF2", "AF3", "ESM2", "ESM3"]:
-        _save_tm_scatter(
-            df_det[df_det["model"] == tag],
-            model_tag=tag,
-            out_path=os.path.join(output_dir, f"fold_pair_scatter_plot_{tag}.png"),
-        )
-
-    # -------- MSA-Transformer (recall) from per-pair df_cmap.csv --------
-    pairs = list_protein_pairs(parsed=False)
-    rows = []
-    for pid in pairs:
-        p_csv = os.path.join(DATA_DIR, pid, "Analysis", "df_cmap.csv")
-        if not (os.path.isfile(p_csv) and os.path.getsize(p_csv) > 0):
-            continue
-        try:
-            d = pd.read_csv(p_csv)
-        except Exception:
-            continue
-
-        c1 = "t1_recall" if "t1_recall" in d.columns else None
-        c2 = "t2_recall" if "t2_recall" in d.columns else None
-        if not c1 or not c2:
-            continue
-
-        rows.append({
-            "fold_pair": pid,
-            "max_R1": pd.to_numeric(d[c1], errors="coerce").max(),
-            "max_R2": pd.to_numeric(d[c2], errors="coerce").max(),
-        })
-
-    if rows:
-        df_msat = pd.DataFrame(rows)
-        out = os.path.join(output_dir, "fold_pair_scatter_plot_MSA_TRANS.png")
-        plt.figure(figsize=(8,7))
-        first = True
-        for _, r in df_msat.iterrows():
-            plt.scatter(r["max_R1"], r["max_R2"], marker="*", label="Max" if first else "")
-            plt.text(r["max_R1"], r["max_R2"], r["fold_pair"], fontsize=7, ha="right")
-            first = False
-        plt.xlabel("MSA-Transformer Recall (fold1)")
-        plt.ylabel("MSA-Transformer Recall (fold2)")
-        plt.title("Per-pair max recall: MSA-Transformer")
-        plt.legend(loc="upper left")
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(out, dpi=160)
-        plt.close()
-        print(f"[plot] wrote {out}")
-    else:
-        print("[info] No df_cmap.csv files found; skipping MSA-Transformer plot.")
-
-    # === Cross-method pairwise comparisons ===
-    if (not os.path.isfile(SUMMARY_RESULTS_TABLE)) or os.path.getsize(SUMMARY_RESULTS_TABLE) == 0:
-        print(f"[warn] No summary CSV at {SUMMARY_RESULTS_TABLE}. Skipping cross-method plots.")
+    if not (os.path.isfile(SURVEY_CSV) and os.path.getsize(SURVEY_CSV) > 0):
+        print(f"[global] no {SURVEY_CSV}; skipping per-fold support panel.")
+        return
+    df = pd.read_csv(SURVEY_CSV)
+    x_col, y_col = f"TM1_{agg}", f"TM2_{agg}"
+    if x_col not in df.columns or y_col not in df.columns:
+        print(f"[global] survey lacks {x_col}/{y_col}; skipping per-fold panel.")
         return
 
-    df_sum = pd.read_csv(SUMMARY_RESULTS_TABLE)
+    methods = order_methods(df["method"].unique())
+    ncol = 4
+    nrow = int(np.ceil(len(methods) / ncol))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(4 * ncol, 3.7 * nrow))
+    axes = np.atleast_1d(axes).ravel()
 
-    cols_deep = dict(
-        AF2_TM1="AF2Deep_TM1", AF2_TM2="AF2Deep_TM2",
-        AF3_TM1="AF3Deep_TM1", AF3_TM2="AF3Deep_TM2",
-    )
-    cols_bestcl = dict(
-        AF2_TM1="AF2Clust_TM1", AF2_TM2="AF2Clust_TM2",
-        AF3_TM1="AF3Clust_TM1", AF3_TM2="AF3Clust_TM2",
-    )
-    cols_esm = dict(
-        ESM2_TM1="ESM2_TM1", ESM2_TM2="ESM2_TM2",
-        ESM3_TM1="ESM3_TM1", ESM3_TM2="ESM3_TM2",
-    )
+    for ax, m in zip(axes, methods):
+        s = df[df["method"] == m]
+        x = pd.to_numeric(s[x_col], errors="coerce")
+        y = pd.to_numeric(s[y_col], errors="coerce")
+        good = x.notna() & y.notna()
+        x, y = x[good], y[good]
+        ax.scatter(x, y, s=8, alpha=0.35, edgecolors="none")
+        if len(x):
+            lo = float(min(x.min(), y.min()))
+            hi = float(max(x.max(), y.max()))
+            pad = 0.04 * (hi - lo or 1.0)
+            ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad],
+                    color="gray", lw=0.8, ls="--", alpha=0.7)
+            ax.set_xlim(lo - pad, hi + pad)
+            ax.set_ylim(lo - pad, hi + pad)
+        ax.set_title(f"{disp(m)}  (n={int(good.sum())})", fontsize=10)
+        ax.set_xlabel("support fold 1")
+        ax.set_ylabel("support fold 2")
+        ax.grid(True, alpha=0.25)
 
-    def _split_pair_id(pid: str):
-        s = str(pid)
-        return tuple(s.split("_", 1)) if "_" in s else (s, "fold2")
+    for ax in axes[len(methods):]:
+        ax.axis("off")
 
-    def _plot_xy_pairs(
-        df: pd.DataFrame,
-        x1_col: str, x2_col: str,
-        y1_col: str, y2_col: str,
-        title: str,
-        outfile: str
-    ):
-        sub = df.copy()
-        for c in [x1_col, x2_col, y1_col, y2_col]:
-            if c not in sub.columns:
-                print(f"[skip] Missing column {c} for {title}")
-                return
-            sub[c] = sub[c].map(numify)
-        sub = sub.dropna(subset=[x1_col, x2_col, y1_col, y2_col])
-        if sub.empty:
-            print(f"[info] No rows for plot: {title}")
-            return
-
-        plt.figure(figsize=(6.4, 6.0))
-        plt.plot([0,1],[0,1], 'k-', linewidth=1, alpha=0.8)
-
-        for _, r in sub.iterrows():
-            pid = r.get("pair_id") or r.get("fold_pair") or "pair"
-            f1, f2 = _split_pair_id(pid)
-
-            x1, y1 = r[x1_col], r[y1_col]
-            x2, y2 = r[x2_col], r[y2_col]
-
-            plt.plot([x1, x2], [y1, y2], linestyle='--', linewidth=0.8, alpha=0.5)
-            plt.scatter(x1, y1, s=22, marker='o')
-            plt.scatter(x2, y2, s=22, marker='o')
-
-            try:
-                plt.text(x1, y1, f1, fontsize=6, ha='right', va='bottom', alpha=0.9)
-                plt.text(x2, y2, f2, fontsize=6, ha='left', va='top', alpha=0.9)
-            except Exception:
-                pass
-
-        plt.xlim(0, 1); plt.ylim(0, 1)
-        plt.xlabel("X method TM-score")
-        plt.ylabel("Y method TM-score")
-        plt.title(title)
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        out_path = os.path.join(output_dir, outfile)
-        plt.savefig(out_path, dpi=180)
-        plt.close()
-        print(f"[plot] wrote {out_path}")
-
-    _plot_xy_pairs(
-        df_sum,
-        x1_col=cols_deep["AF2_TM1"], x2_col=cols_deep["AF2_TM2"],
-        y1_col=cols_deep["AF3_TM1"], y2_col=cols_deep["AF3_TM2"],
-        title="AF2 (Deep) vs AF3 (Deep) — TM-scores (per fold, pairs linked)",
-        outfile="compare_AF2_AF3_DEEP.png"
-    )
-
-    _plot_xy_pairs(
-        df_sum,
-        x1_col=cols_bestcl["AF2_TM1"], x2_col=cols_bestcl["AF2_TM2"],
-        y1_col=cols_bestcl["AF3_TM1"], y2_col=cols_bestcl["AF3_TM2"],
-        title="AF2 (Best Shallow Cluster) vs AF3 (Best Shallow Cluster)",
-        outfile="compare_AF2_AF3_BESTCLUST.png"
-    )
-
-    _plot_xy_pairs(
-        df_sum,
-        x1_col=cols_esm["ESM2_TM1"], x2_col=cols_esm["ESM2_TM2"],
-        y1_col=cols_esm["ESM3_TM1"], y2_col=cols_esm["ESM3_TM2"],
-        title="ESM2 (Best Prediction) vs ESM3 (Best Prediction)",
-        outfile="compare_ESM2_ESM3_BESTPRED.png"
-    )
+    fig.suptitle(f"Per-cluster support for each fold, by method ({agg} over models)",
+                 fontsize=13)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    out = os.path.join(output_dir, "global_per_fold_support_panel.png")
+    fig.savefig(out, dpi=170); plt.close(fig)
+    print(f"[plot] wrote {out}")
 
 
 # =====================================================================
@@ -244,32 +159,34 @@ def _load_phylo(labels: str = "corrected"):
     return None, None
 
 
-def _ordered_methods(present):
-    extra = [m for m in present if m not in METHOD_ORDER]
-    return [m for m in METHOD_ORDER if m in present] + sorted(extra)
-
-
 def plot_method_clade_heatmap(output_dir: str, labels: str = "corrected") -> None:
-    """Methods x pairs heatmap of clade-signal strength (effect size / z)."""
+    """Methods x pairs heatmap of clade-signal strength (effect size / z).
+
+    Rows (pairs) are sorted by the MEAN signal across methods (descending), so the
+    most clade-structured pairs rise to the top independent of any single method.
+    """
     d, metric = _load_phylo(labels)
     if d is None:
         return
     wide = d.pivot_table(index="pair_id", columns="method", values=metric, aggfunc="first")
-    cols = _ordered_methods(list(wide.columns))
+    cols = order_methods(list(wide.columns))
     wide = wide[cols]
     # Per-pair winner tally (printed for the "is DDG strongest?" question)
     win = wide.idxmax(axis=1).value_counts()
     print(f"[global] strongest method per pair ({metric}): "
           + ", ".join(f"{m}:{int(win.get(m,0))}" for m in cols))
-    sort_col = "DDG" if "DDG" in cols else cols[0]
-    w = wide.sort_values(sort_col, ascending=False)
+    # Method-agnostic ordering: mean signal across methods, strongest at top.
+    w = wide.assign(_mean=wide.mean(axis=1, skipna=True)).sort_values(
+        "_mean", ascending=False).drop(columns="_mean")
     M = w.to_numpy(dtype=float)
     vlim = float(np.nanpercentile(np.abs(M), 98)) or 1.0
     fig, ax = plt.subplots(figsize=(6, max(4, 0.16 * len(w))))
     im = ax.imshow(M, cmap="RdBu_r", vmin=-vlim, vmax=vlim, aspect="auto")
-    ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols, rotation=45, ha="right")
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels([disp(c) for c in cols],
+                                                        rotation=45, ha="right")
     ax.set_yticks(range(len(w))); ax.set_yticklabels(w.index, fontsize=4)
-    ax.set_title(f"Clade signal per method x pair ({metric}, {labels})\nrows sorted by DDG",
+    ax.set_title(f"Clade signal per method x pair ({metric}, {labels})\n"
+                 f"rows = pairs, sorted by mean signal across methods",
                  fontsize=10)
     fig.colorbar(im, ax=ax, shrink=0.6, label=metric)
     fig.tight_layout()
@@ -284,13 +201,14 @@ def plot_method_correlation_heatmap(output_dir: str, labels: str = "corrected") 
     if d is None:
         return
     wide = d.pivot_table(index="pair_id", columns="method", values=metric, aggfunc="first")
-    cols = _ordered_methods(list(wide.columns))
+    cols = order_methods(list(wide.columns))
     wide = wide[cols]
+    labs = [disp(c) for c in cols]
     C = wide.corr(method="spearman")
     fig, ax = plt.subplots(figsize=(6.2, 5.4))
     im = ax.imshow(C.to_numpy(), cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
-    ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols, rotation=45, ha="right")
-    ax.set_yticks(range(len(cols))); ax.set_yticklabels(cols)
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels(labs, rotation=45, ha="right")
+    ax.set_yticks(range(len(cols))); ax.set_yticklabels(labs)
     for i in range(len(cols)):
         for j in range(len(cols)):
             v = C.iloc[i, j]
@@ -311,11 +229,11 @@ def plot_morans_effectsize_by_method(output_dir: str, labels: str = "corrected")
     d, metric = _load_phylo(labels)
     if d is None:
         return
-    cols = _ordered_methods(list(d["method"].unique()))
+    cols = order_methods(list(d["method"].unique()))
     data = [pd.to_numeric(d.loc[d["method"] == m, metric], errors="coerce").dropna().values
             for m in cols]
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.boxplot(data, labels=cols, showfliers=True)
+    ax.boxplot(data, labels=[disp(c) for c in cols], showfliers=True)
     ax.axhline(0, color="gray", lw=0.8, ls="--")
     ax.set_ylabel(metric)
     ax.set_title(f"Clade signal effect size per method across pairs ({metric}, {labels})",
@@ -327,20 +245,83 @@ def plot_morans_effectsize_by_method(output_dir: str, labels: str = "corrected")
     print(f"[plot] wrote {out}")
 
 
+def write_global_html(output_html: str = os.path.join("docs", "pairs_global_analysis.html"),
+                      title: str = "Global Analysis — Fold-Switch Evolution") -> str:
+    """Render the global analysis page from GLOBAL_FIGURE_SPEC (ordered + captioned).
+
+    Image paths in the spec are relative to the page's own directory; spec entries
+    whose file is missing are skipped. Pure stdlib + the spec, so it imports
+    without the heavy pipeline dependencies.
+    """
+    import html as _html
+
+    out_dir = os.path.abspath(os.path.dirname(output_html))
+    os.makedirs(out_dir, exist_ok=True)
+
+    sections = []
+    for spec in GLOBAL_FIGURE_SPEC:
+        rel = spec["file"]
+        if not os.path.isfile(os.path.join(out_dir, rel)):
+            print(f"[html] skip (missing): {rel}")
+            continue
+        sections.append(
+            '<section class="fig">\n'
+            f'  <h2>{_html.escape(spec["title"])}</h2>\n'
+            f'  <p class="caption">{_html.escape(spec["caption"])}</p>\n'
+            f'  <img loading="lazy" src="{_html.escape(rel)}" '
+            f'alt="{_html.escape(spec["title"])}"/>\n'
+            '</section>')
+
+    body = ("\n".join(sections) if sections
+            else "<p>No figures available — run the global plots first.</p>")
+
+    html_doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>{_html.escape(title)}</title>
+<style>
+  :root {{ color-scheme: dark; }}
+  body {{
+    background:#121212; color:#E0E0E0;
+    font-family:'Segoe UI',Tahoma,Verdana,sans-serif;
+    margin:0; padding:28px 20px; line-height:1.5;
+  }}
+  h1 {{ margin:0 0 6px; font-size:1.6rem; }}
+  .intro {{ max-width:60rem; opacity:.8; margin:0 0 28px; }}
+  section.fig {{ max-width:60rem; margin:0 0 40px; }}
+  section.fig h2 {{ margin:0 0 6px; font-size:1.2rem; color:#9ecbff; }}
+  .caption {{ margin:0 0 12px; opacity:.85; }}
+  section.fig img {{ max-width:100%; border:1px solid #333; border-radius:4px; background:#fff; }}
+</style>
+</head>
+<body>
+<h1>{_html.escape(title)}</h1>
+<p class="intro">Cross-pair summary of the 8-method fold-switch analysis
+(AF2, AF3, ESMFold2, Boltz-2, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
+fold-switching pair set. Each figure is described above it.</p>
+{body}
+</body>
+</html>"""
+    with open(output_html, "w", encoding="utf-8") as f:
+        f.write(html_doc)
+    print(f"[html] wrote: {output_html}")
+    return output_html
+
+
 def make_all_global_plots(output_dir: str | None = None) -> None:
     """Single entry point: generate EVERY global plot into output_dir.
 
-    Existing cross-pair scatter/compare plots + the Moran's phylogenetic-signal
-    plots (methods x pairs heatmap, method x method correlation, effect-size
-    distribution). The global HTML page (gen_html_for_global_plots) auto-lists
-    whatever PNGs land in output_dir, so adding a plotter here is all that is
-    needed to surface it on pairs_global_analysis.html.
+    Per-fold support panel (one scatter per method) + the Moran's phylogenetic-
+    signal plots (methods x pairs heatmap, method x method correlation, effect-size
+    distribution). The global HTML page (gen_html_for_global_plots) renders these
+    in a fixed, captioned order.
     """
     if output_dir is None:
         output_dir = FIGURE_RES_DIR
     os.makedirs(output_dir, exist_ok=True)
-    global_pairs_statistics_plots(output_dir=output_dir)
-    for fn in (plot_method_clade_heatmap,
+    for fn in (plot_per_fold_support_panel,
+               plot_method_clade_heatmap,
                plot_method_correlation_heatmap,
                plot_morans_effectsize_by_method):
         try:

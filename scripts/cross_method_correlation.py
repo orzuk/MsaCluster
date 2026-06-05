@@ -29,10 +29,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.method_labels import METHOD_ORDER, disp  # noqa: E402
+
 DOCS = "docs"
 OUT = os.path.join(DOCS, "figs", "cross_method_correlation.png")
-METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "DDG", "MSAT", "CCMpred", "S4PRED"]
-DISPLAY = {"DDG": r"$\Delta\Delta G$"}
 
 
 def load_long() -> pd.DataFrame:
@@ -81,7 +82,7 @@ def spearman_matrix(wide: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def render(corr: pd.DataFrame, counts: pd.DataFrame, out_path: str) -> None:
     cols = list(corr.columns)
-    labels = [DISPLAY.get(c, c) for c in cols]
+    labels = [disp(c) for c in cols]
     M = corr.to_numpy(dtype=float)
 
     fig, ax = plt.subplots(figsize=(7.0, 6.0))

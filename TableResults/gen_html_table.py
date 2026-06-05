@@ -642,74 +642,20 @@ function sortTable(colIdx) {{
 
 
 def gen_html_for_global_plots(
-    images_dir: str,
+    images_dir: str = None,
     output_html: str = os.path.join("docs", "pairs_global_analysis.html"),
-    title: str = "Global Comparison Plots"
+    title: str = "Global Analysis — Fold-Switch Evolution"
 ) -> str:
-    import os, html
+    """Render the global analysis page from the ordered, captioned figure spec.
 
-    # Resolve absolute dir (for safe listing no matter CWD)
-    images_dir_abs = os.path.abspath(images_dir)
-    if not os.path.isdir(images_dir_abs):
-        raise FileNotFoundError(f"Images dir not found: {images_dir_abs}")
-
-    files = sorted([
-        f for f in os.listdir(images_dir_abs)
-        if f.lower().endswith((".png",".jpg",".jpeg",".webp",".svg"))
-    ])
-
-    # Ensure output dir exists and compute a RELATIVE path for <img src=...>
-    out_dir = os.path.abspath(os.path.dirname(output_html))
-    os.makedirs(out_dir, exist_ok=True)
-
-    # Copy figures to output figs dir
-    os.makedirs(FIGURE_PUBLISH_DIR, exist_ok=True)
-    src_files = [f for f in os.listdir(images_dir_abs) if f.lower().endswith(('.png','.jpg','.jpeg','.webp','.svg'))]
-    published = []
-    for f in sorted(src_files):
-        src = os.path.join(images_dir_abs, f)
-        dst = os.path.join(FIGURE_PUBLISH_DIR, f)
-        if PUBLISH_FIGURES:
-            shutil.copy2(src, dst)
-        if os.path.isfile(dst):  # only link files present in publish dir
-            published.append(f)
-
-    rel_prefix = os.path.relpath(os.path.abspath(FIGURE_PUBLISH_DIR), start=out_dir)
-
-
-    if not files:
-        rows = "<p>No figures were found in the images directory.</p>"
-    else:
-        rows = "\n".join(
-            f'''<figure style="margin:18px 0;">
-  <figcaption style="margin:4px 0 8px;font-family:Segoe UI;opacity:.85">{html.escape(f)}</figcaption>
-  <img loading="lazy" src="{html.escape(os.path.join(rel_prefix, f))}" style="max-width:100%;border:1px solid #333;"/>
-</figure>'''
-            for f in files
-        )
-
-    html_doc = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<title>{html.escape(title)}</title>
-<style>
-  :root {{ color-scheme: dark; }}
-  body {{
-    background:#121212; color:#E0E0E0; font-family:'Segoe UI',Tahoma,Verdana,sans-serif; margin:20px;
-  }}
-  h2 {{ margin: 0 0 12px; }}
-</style>
-</head>
-<body>
-<h2>{html.escape(title)}</h2>
-{rows}
-</body>
-</html>"""
-    with open(output_html, "w", encoding="utf-8") as f:
-        f.write(html_doc)
-    print(f"[html] wrote: {output_html}")
-    return output_html
+    The spec (utils.plot_global.GLOBAL_FIGURE_SPEC) is the single place that
+    defines which global figures appear, in what order, and the explanatory
+    paragraph shown before each. `images_dir` is accepted for backward
+    compatibility but ignored — image paths come from the spec (relative to the
+    page's own directory). Spec entries whose file is missing are skipped.
+    """
+    from utils.plot_global import write_global_html
+    return write_global_html(output_html=output_html, title=title)
 
 
 if __name__ == "__main__":
