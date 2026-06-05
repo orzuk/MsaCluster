@@ -1213,10 +1213,13 @@ def compose_tree_and_heatmap(
             ax.set_yticks([])
             ax.set_yticklabels([])
 
-        # x-ticks for that group's columns; pretty-print known method names.
-        _METHOD_DISPLAY = {"DDG": r"$\Delta\Delta G$"}
+        # x-ticks for that group's columns; pretty-print via the central labels.
+        try:
+            from utils.method_labels import disp as _disp
+        except Exception:
+            _disp = lambda x: x
         ax.set_xticks(np.arange(len(gcols)))
-        ax.set_xticklabels([_METHOD_DISPLAY.get(c, c) for c in gcols],
+        ax.set_xticklabels([_disp(c) for c in gcols],
                            rotation=x_tick_rotation, ha="right",
                            fontsize=x_tick_fontsize)
         ax.tick_params(axis="x", pad=6)

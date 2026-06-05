@@ -559,7 +559,11 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
             for c in df.columns:
                 try: df[c] = df[c].astype(float).round(2)
                 except Exception: pass
-            thead = "<tr>" + "".join(f"<th>{html.escape(str(c))}</th>" for c in df.columns) + "</tr>"
+            try:
+                from utils.method_labels import disp as _disp
+            except Exception:
+                _disp = lambda x: x
+            thead = "<tr>" + "".join(f"<th>{html.escape(_disp(str(c)))}</th>" for c in df.columns) + "</tr>"
             rows = []
             for _, r in df.iterrows():
                 tds = []

@@ -284,8 +284,9 @@ def _cluster_metrics_to_leaf_df(df_cluster, ete_tree, ete_leaves_cluster_ids,
     return df_leaf
 
 
-_UNIFIED_METHOD_ORDER = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG",
-                          "Boltz2", "S4PRED"]
+# Single source of truth for method order (sparse/noisy contact methods last),
+# shared with the global plots so the per-pair heatmap matches them.
+from utils.method_labels import METHOD_ORDER as _UNIFIED_METHOD_ORDER  # noqa: E402
 
 
 def _consensus_fold_preference(df_centered: pd.DataFrame,

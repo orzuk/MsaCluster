@@ -286,25 +286,21 @@ def _build_script(uid: str,
   async function addStructure(plugin, pdbText, colorInt) {
     var data = await plugin.builders.data.rawData({ data: pdbText });
     var traj = await plugin.builders.structure.parseTrajectory(data, "pdb");
-    var model = await plugin.builders.structure.createModel(traj);
-    var structure = await plugin.builders.structure.createStructure(model);
-
-    var compTypes = ["polymer", "ligand", "branched", "ion", "lipid"];
-    var added = false;
-    for (var i = 0; i < compTypes.length; i++) {
-      var component = await plugin.builders.structure.tryCreateComponentStatic(
-        structure, compTypes[i]
-      );
-      if (!component) { continue; }
-      var reprType = (compTypes[i] === "polymer") ? "cartoon" : "ball-and-stick";
-      await plugin.builders.structure.representation.addRepresentation(component, {
-        type: reprType,
-        color: "uniform",
-        colorParams: { value: colorInt }
-      });
-      added = true;
-    }
-    return added ? structure : structure;
+    // applyPreset builds model + structure + components + representations AND
+    // computes secondary structure, so cartoon renders real helices/strands
+    // (the manual createStructure/addRepresentation chain skipped SS -> a dot
+    // cloud). Use a uniform colour so the two folds are visually distinct.
+    await plugin.builders.structure.hierarchy.applyPreset(traj, "default", {
+      structure: { name: "model", params: {} },
+      representationPreset: "polymer-cartoon",
+      representationPresetParams: {
+        theme: {
+          globalName: "uniform",
+          globalColorParams: { value: colorInt }
+        }
+      }
+    });
+    return true;
   }
 
   function tuneCanvas(plugin) {
