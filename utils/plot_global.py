@@ -601,3 +601,12 @@ def make_all_global_plots(output_dir: str | None = None) -> None:
             fn(output_dir)
         except Exception as e:
             print(f"[global] WARN {fn.__name__}: {e}")
+
+
+def global_pairs_statistics_plots(output_dir=None):
+    """Backward-compatible alias. The old per-pair scatter entry point is
+    superseded by make_all_global_plots (per-fold ellipse panel + Moran's +
+    concordance / correction / trigger plots). Kept so existing importers
+    (utils.protein_plot_utils, run_foldswitch_pipeline) keep working; always
+    writes to the git-tracked GLOBAL_FIG_DIR regardless of the passed dir."""
+    return make_all_global_plots(output_dir=GLOBAL_FIG_DIR)
