@@ -200,105 +200,68 @@ class PageBuilder:
         return f"""
 <style>
   :root {{ color-scheme: dark; }}
-   text-align: center;
   body {{
     background:#121212; color:#E0E0E0;
     font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin:20px;
-    line-height:1.45;
+    margin:0; padding:28px 20px; line-height:1.5;
   }}
 
-  h1 {{ margin: 0 0 4px; }}
-  h2 {{ margin: 18px 0 10px; }}
+  /* ONE centered container, matching the global analysis page width. */
+  .container {{ max-width:1100px; margin:0 auto; }}
 
-  /* Figure container and caption (caption on TOP, bigger, with extra spacing) */
-  .figure-block {{ margin: 24px 0 40px 0; }}
-  h2.figcap {{
-    margin: 0 0 10px 0;
-    font-size: 1.8em;            /* ~2x your old size */
-    font-weight: 600;
+  h1 {{ margin:0 0 6px; font-size:1.6rem; }}
+  .sub {{ color:#B0BEC5; margin-bottom:6px; }}
+
+  /* Figure sections, styled like section.fig on the global page. */
+  section.fig {{ margin:0 0 40px; }}
+  section.fig h2 {{ margin:0 0 6px; font-size:1.2rem; color:#9ecbff; }}
+  p.explain {{ margin:0 0 12px; opacity:.85; }}
+  section.fig img {{
+    max-width:100%; height:auto; display:block;
+    border:1px solid #333; border-radius:4px; background:#fff;
   }}
 
-  .sub {{ color:#B0BEC5; margin-bottom:10px; }}
+  /* Two-up panels (static images) within a section. */
+  .two-up {{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:start; }}
+  .two-up figure {{ margin:0; }}
+  .two-up img {{ max-width:100%; height:auto; }}
 
-  /* Two-up panels (static images): keep your old behavior */
-  .two-up {{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:start; }}
-  .two-up figure, .two-up .imgbox {{
-    height:{MAX_TWOCOL_HEIGHT}px;
-    display:flex; align-items:center; justify-content:center;
-    overflow:hidden; background:transparent; margin:0;
-  }}
-  .two-up img {{
-    max-height:{MAX_TWOCOL_HEIGHT}px; width:auto; height:auto;
-    object-fit:contain; display:block; border:1px solid #333;
-  }}
-
-  /* Interactive 3D rows: two viewers side-by-side, each ~30% page width, centered */
+  /* Interactive viewers. */
   .iframerow {{
-    display:grid;
-    grid-template-columns: repeat(2, minmax(280px, 36vw));
-    gap: 8px;
-    justify-content: center;      /* center the two columns */
-    align-items: start;
-    margin: 10px auto 32px auto;  /* center the whole row */
-    width: 100%;
-    max-width: 100%;
+    display:grid; grid-template-columns: repeat(2, 1fr);
+    gap:12px; align-items:start; margin:0 0 12px;
   }}
-  .iframerow .iframebox {{
-    width: 36vw;                  /* ~30% of page */
-    max-width: 720px;
-    height: 620px;
-    border:1px solid #333; background:#fff;
-    margin: 0 auto;
-  }}
-  .iframerow iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
-
-.overlay-lbl{{
-  position:absolute; top:6px; left:8px; 
-  background: rgba(0,0,0,0.55); color:#fff; 
-  padding: 4px 8px; border-radius:6px; font-size:14px; font-weight:600;
-}}
-
-  /* Single interactive viewer fallback (still narrow & centered) */
   .iframebox {{
-    width: 36vw;                  /* ~30% of page */
-    max-width: 720px;
-    height: 620px;
-    border:1px solid #333; background:#fff;
-    margin: 0 auto;
+    position:relative; width:100%; height:560px;
+    border:1px solid #333; background:#fff; border-radius:4px;
   }}
-  iframe.viewer {{ width: 100%; height: 100%; border: 0; }}
-
-  /* Tree: 40% larger than before & centered; width auto */
-  .tree figure, .tree .imgbox {{
-    max-height:{int(MAX_TREE_HEIGHT*1.8)}px;
-    display:flex; align-items:center; justify-content:center;
-    overflow:hidden; margin: 0 auto 16px auto;
-  }}
-  .tree img {{
-    max-height:{int(MAX_TREE_HEIGHT*1.8)}px; width:auto; height:auto;
-    border:1px solid #333; display:block;
+  iframe.viewer {{ width:100%; height:100%; border:0; }}
+  .overlay-lbl {{
+    position:absolute; top:6px; left:8px;
+    background:rgba(0,0,0,0.55); color:#fff;
+    padding:4px 8px; border-radius:6px; font-size:14px; font-weight:600;
   }}
 
-  figure {{ margin: 0 0 12px 0; }}
-  figcaption {{ text-align:center; font-style:italic; color:#9aa5ad; margin-top:6px; }}
-  img {{ max-width:100%; height:auto; display:block; border:1px solid #333; }}
-
-  .warn {{ color:#ff6f6f; }}
+  .warn {{ color:#ff6f6f; margin:8px 0; }}
   .callout-missing {{ color:#ff8080; font-weight:700; font-size:1.05em; margin:10px 0; }}
 
-  /* Table: ~40% larger text and centered container */
-  .table-wrap {{ max-width: 1200px; margin: 10px auto 22px auto; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 1.33em; }}
-  th, td {{ border: 1px solid #333; padding: 8px 10px; text-align: left; white-space: normal; }}
-  th {{ background:#b71c1c; color:#fff; position: sticky; top: 0; }}
-  tr:nth-child(even) {{ background: #2b2b2b; }}
-  tr:hover {{ background: #3a3a3a; }}
+  /* Cluster metrics table. */
+  .table-wrap {{ margin:10px 0 22px; overflow-x:auto; }}
+  table {{ width:100%; border-collapse:collapse; font-size:0.95em; }}
+  th, td {{ border:1px solid #333; padding:6px 8px; text-align:left; white-space:normal; }}
+  th {{ background:#b71c1c; color:#fff; }}
+  tr:nth-child(even) {{ background:#2b2b2b; }}
+  tr:hover {{ background:#3a3a3a; }}
 
-  /* Grid of per-cluster thumbnails */
+  /* Grid of per-cluster thumbnails. */
   .thumb-grid {{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }}
   .thumb-grid figure {{ margin:0; }}
-  .thumb-grid img {{ width:100%; height:auto; border:1px solid #333; }}
+  .thumb-grid img {{ max-width:100%; height:auto; border:1px solid #333; border-radius:4px; }}
+
+  /* "More figures" collapsible. */
+  details.more {{ margin:0 0 40px; border:1px solid #333; border-radius:4px; padding:8px 14px; }}
+  details.more > summary {{ cursor:pointer; color:#9ecbff; font-size:1.1rem; font-weight:600; }}
+  details.more[open] > summary {{ margin-bottom:14px; }}
 </style>
 """
 
@@ -313,19 +276,25 @@ class PageBuilder:
         title = html.escape(name) if name else html.escape(pair_id)
         org_html = (f'<div class="sub">{html.escape(organism)}</div>' if organism else "")
         return f"""
+<div class="container">
 <h1>{title}</h1>
 <div class="sub">Fold-switch pair <b>{html.escape(pair_id)}</b> — <b>{html.escape(a)}</b> vs <b>{html.escape(b)}</b></div>
 {org_html}
 """
 
-    def fig_html(self, img_src: str, caption: str, extra_class: str = "") -> str:
+    def _explain_html(self, explanation: str) -> str:
+        return f'<p class="explain">{html.escape(explanation)}</p>' if explanation else ""
+
+    def fig_html(self, img_src: str, caption: str, extra_class: str = "",
+                 explanation: str = "") -> str:
         self.fig_idx += 1
         cap = f"Figure {self.fig_idx}: {html.escape(caption)}"
-        cls = f' class="figure-block {extra_class}"' if extra_class else ' class="figure-block"'
-        return f'''<div{cls}>
-    <h2 class="figcap">{cap}</h2>
-    <figure class="imgbox"><img src="{img_src}"/></figure>
-    </div>'''
+        cls = f'fig {extra_class}'.strip()
+        return f'''<section class="{cls}">
+    <h2>{cap}</h2>
+    {self._explain_html(explanation)}
+    <figure><img src="{img_src}"/></figure>
+    </section>'''
 
     def missing_html(self, label: str) -> str:
         return f"""<div class="warn">[missing] {html.escape(label)}</div>"""
@@ -342,15 +311,17 @@ class PageBuilder:
         return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <title>{html.escape(self.title)}</title>{self.css()}</head><body>
 {''.join(self.parts)}
+</div>
 </body></html>"""
 
-    def fig_iframe(self, iframe_src: str, caption: str) -> str:
+    def fig_iframe(self, iframe_src: str, caption: str, explanation: str = "") -> str:
         self.fig_idx += 1
         cap = f"Figure {self.fig_idx}: {html.escape(caption)}"
-        return f'''<div class="figure-block">
-    <h2 class="figcap">{cap}</h2>
+        return f'''<section class="fig">
+    <h2>{cap}</h2>
+    {self._explain_html(explanation)}
     <div class="iframebox"><iframe class="viewer" src="{iframe_src}"></iframe></div>
-    </div>'''
+    </section>'''
 
     def fig_iframe_pair(left_html_datauri: str, right_html_datauri: str, caption: str,
                         left_overlay: str | None = None, right_overlay: str | None = None) -> str:
@@ -377,14 +348,15 @@ def _iframe_src_from_patterns(fig_dir: Path, patterns: list[str], mode: str, pub
 
 
 def _iframe_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], caption: str,
-                          mode: str, publish_dir_for_pair: Path, html_out_dir: Path):
+                          mode: str, publish_dir_for_pair: Path, html_out_dir: Path,
+                          explanation: str = ""):
     p = _find_first(fig_dir, patterns)
     if not p or not p.is_file():
         pb.push(pb.missing_html(caption)); return
     src = _to_html_src(p, mode, publish_dir_for_pair, html_out_dir)
     if src is None:
         pb.push(pb.missing_html(f"{caption} (unreadable: {p.name})")); return
-    pb.push(pb.fig_iframe(src, caption))
+    pb.push(pb.fig_iframe(src, caption, explanation=explanation))
 
 
 
@@ -404,7 +376,7 @@ def _to_img_src(png_path: Path, mode: str, publish_dir_for_pair: Path, html_out_
 
 def _figure_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], caption: str,
                           mode: str, publish_dir_for_pair: Path, html_out_dir: Path,
-                          extra_class: str = ""):
+                          extra_class: str = "", explanation: str = ""):
     import glob
     png_path = None
     for pat in patterns:
@@ -417,12 +389,13 @@ def _figure_from_patterns(pb: PageBuilder, fig_dir: Path, patterns: list[str], c
     src = _to_img_src(png_path, mode, publish_dir_for_pair, html_out_dir)
     if src is None:
         pb.push(pb.missing_html(f"{caption} (unreadable: {png_path.name})")); return
-    pb.push(pb.fig_html(src, caption, extra_class=extra_class))
+    pb.push(pb.fig_html(src, caption, extra_class=extra_class, explanation=explanation))
 
 
 def _two_figures(pb: PageBuilder, fig_dir: Path, left_patterns: list[str], left_caption: str,
                  right_patterns: list[str], right_caption: str, fallback_right: list[str] | None,
-                 fallback_left: list[str] | None, mode: str, publish_dir_for_pair: Path, html_out_dir: Path):
+                 fallback_left: list[str] | None, mode: str, publish_dir_for_pair: Path, html_out_dir: Path,
+                 explanation: str = ""):
     import glob
     def find_one(pats):
         for pat in (pats or []):
@@ -436,24 +409,33 @@ def _two_figures(pb: PageBuilder, fig_dir: Path, left_patterns: list[str], left_
     if lp is None and rp is None:
         pb.push(pb.missing_html(left_caption + " / " + right_caption)); return
 
-    left_html = pb.missing_html(left_caption)
-    right_html = pb.missing_html(right_caption)
-    if lp is not None:
-        lsrc = _to_img_src(lp, mode, publish_dir_for_pair, html_out_dir)
-        if lsrc: left_html = pb.fig_html(lsrc, left_caption)
-    if rp is not None:
-        rsrc = _to_img_src(rp, mode, publish_dir_for_pair, html_out_dir)
-        if rsrc: right_html = pb.fig_html(rsrc, right_caption)
+    def panel(p, cap):
+        if p is None:
+            return pb.missing_html(cap)
+        src = _to_img_src(p, mode, publish_dir_for_pair, html_out_dir)
+        if not src:
+            return pb.missing_html(f"{cap} (unreadable: {p.name})")
+        return (f'<figure><img src="{src}"/>'
+                f'<figcaption>{html.escape(cap)}</figcaption></figure>')
 
-    pb.push(pb.two_up_html(left_html, right_html))
+    pb.fig_idx += 1
+    cap = f"Figure {pb.fig_idx}: {html.escape(left_caption)} / {html.escape(right_caption)}"
+    pb.push(
+        '<section class="fig">'
+        f'<h2>{cap}</h2>'
+        f'{pb._explain_html(explanation)}'
+        f'{pb.two_up_html(panel(lp, left_caption), panel(rp, right_caption))}'
+        '</section>')
 
 
 def _thumb_grid(pb: PageBuilder, fig_dir: Path, patterns: list[str], mode: str,
-                publish_dir_for_pair: Path, html_out_dir: Path, title: str):
+                publish_dir_for_pair: Path, html_out_dir: Path, title: str,
+                explanation: str = ""):
     thumbs = _find_all(fig_dir, patterns)
     if not thumbs:
         return False
-    pb.push(f"<h2>{html.escape(title)}</h2>")
+    pb.push(f'<section class="fig"><h2>{html.escape(title)}</h2>'
+            f'{pb._explain_html(explanation)}')
     items = []
     for p in thumbs:
         name = p.name.lower()
@@ -465,8 +447,9 @@ def _thumb_grid(pb: PageBuilder, fig_dir: Path, patterns: list[str], mode: str,
             continue
         items.append(f'<figure><img src="{src}" alt="{html.escape(p.name)}"></figure>')
     if not items:
+        pb.push('</section>')
         return False
-    pb.push(f'<div class="thumb-grid">{"".join(items)}</div>')
+    pb.push(f'<div class="thumb-grid">{"".join(items)}</div></section>')
     return True
 
 
@@ -480,74 +463,62 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     pb = PageBuilder(title=f"Analysis of {pair_id}")
     pb.push(pb.header(pair_id))
 
-    # ===== ORDER 1: 3D STRUCTURES FIRST =====
-    # Two-structures (un-aligned) and aligned
-    # Skip static true-true PNGs if interactive exists
-    if _find_first(fig_dir, ["*two_structures.html", "*true*vs*true*.html", "*two*structures*aligned*.html"]):
-        pass  # don't push the static ones
-    else:
-        # (keep existing code that pushes the static PNGs)
-        _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures"], "Two structures (Fold1 & Fold2)",
-                              mode, publish_dir_for_pair, output_dir)
-        _figure_from_patterns(pb, fig_dir, STRUCT_PATTERNS["two_structures_aligned"], "Two structures aligned",
-                              mode, publish_dir_for_pair, output_dir)
-
-    # Fold1/Fold2 vs best models (AF2/AF3/ESM2/ESM3)
-    for tag, nice in [
-        ("fold1_vs_best_AF2", "Fold1 vs best AF2"),
-        ("fold2_vs_best_AF2", "Fold2 vs best AF2"),
-        ("fold1_vs_best_AF3", "Fold1 vs best AF3"),
-        ("fold2_vs_best_AF3", "Fold2 vs best AF3"),
-        ("fold1_vs_best_ESM2", "Fold1 vs best ESM2"),
-        ("fold2_vs_best_ESM2", "Fold2 vs best ESM2"),
-        ("fold1_vs_best_ESM3", "Fold1 vs best ESM3"),
-        ("fold2_vs_best_ESM3", "Fold2 vs best ESM3"),
-    ]:
-        p = _find_first(fig_dir, STRUCT_PATTERNS[tag])
-        # Skip static if interactive version exists
-        html_tag = f"{tag}_html"
-        if html_tag in HTML_STRUCT_PATTERNS:
-            interp = _find_first(fig_dir, HTML_STRUCT_PATTERNS[html_tag])
-            if interp and interp.is_file():
-                continue
-        if p and p.is_file():
-            src = _to_img_src(p, mode, publish_dir_for_pair, output_dir)
-            if src: pb.push(pb.fig_html(src, nice))
-        else:
-            # Bold callout for missing items (as requested)
-            pb.push(pb.callout_missing(f"Missing: {nice}"))
-
-    # 3D INTERACTIVE VIEWERS (rows: AF2 | AF3 | ESM2 | ESM3; cols: Fold1 | Fold2)
     a, b = _pair_tokens(pair_id)
 
-    # Always show two-true interactive(s) first; skip static duplicates if present
-    # (We'll still list aligned interactive explicitly below.)
-    _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS.get("two_structures_html",
-                                                                    ["*two_structures.html", "*true*vs*true*.html"]),
-                              f"{a} vs. {b} (unaligned) — interactive", mode, publish_dir_for_pair, output_dir)
-    _iframe_from_patterns(pb, fig_dir, HTML_STRUCT_PATTERNS["two_structures_aligned_html"],
-                              f"{a} vs. {b} (aligned) — interactive", mode, publish_dir_for_pair, output_dir)
+    # Explanatory captions, mirroring the Rmarkdown/global-page style.
+    EXPL_TREE = (
+        "The pair's MSA as a phylogenetic tree, one leaf per sequence cluster. "
+        "Leaf rings show each cluster's predicted fold preference; the heatmap "
+        "gives all 8 methods (AF2/AF3/ESMFold2/Boltz-2/ΔΔG/S4PRED/"
+        "MSA-Transformer/CCMpred) × clusters; internal-node markers flag "
+        "parsimony-inferred gain/loss/swap of fold-switching. The core question: "
+        "do different clades predict different folds?")
+    EXPL_BEST_CMAP = (
+        "Predicted contact maps (MSA-Transformer) for the clusters best matching "
+        "each fold, over the true contacts of fold 1 (upper triangle) and fold 2 "
+        "(lower). Divergent contacts between clusters are the contact-level "
+        "signature of fold-switching.")
+    EXPL_TABLE = "Per-cluster metrics underlying the figures above."
 
-    def _push_pair_row(tag_l: str, tag_r: str, model_name: str):
-        srcL = _iframe_src_from_patterns(fig_dir, HTML_STRUCT_PATTERNS[tag_l], mode, publish_dir_for_pair, output_dir)
-        srcR = _iframe_src_from_patterns(fig_dir, HTML_STRUCT_PATTERNS[tag_r], mode, publish_dir_for_pair, output_dir)
-        if srcL or srcR:
-            capL = f"{a} vs. best {model_name} prediction"
-            capR = f"{b} vs. best {model_name} prediction"
-            if srcL and srcR:
-                pb.push(pb.fig_iframe_pair(srcL, capL, srcR, capR))
-            elif srcL:
-                pb.push(pb.fig_iframe(srcL, capL))
-            else:
-                pb.push(pb.fig_iframe(srcR, capR))
+    # ===== 1: TREE + HEATMAP (headline figure, contains ancestral reconstruction) =====
+    _figure_from_patterns(pb, fig_dir,
+                          [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
+                          "Phylogenetic tree with per-cluster fold-preference heatmap.",
+                          mode, publish_dir_for_pair, output_dir, explanation=EXPL_TREE)
 
-    _push_pair_row("fold1_vs_best_AF2_html", "fold2_vs_best_AF2_html", "AF2")
-    _push_pair_row("fold1_vs_best_AF3_html", "fold2_vs_best_AF3_html", "AF3")
-    _push_pair_row("fold1_vs_best_ESM2_html", "fold2_vs_best_ESM2_html", "ESM2")
-    _push_pair_row("fold1_vs_best_ESM3_html", "fold2_vs_best_ESM3_html", "ESM3")
+    # ===== 2: STRUCTURES (delegated to render_structure_viewers, supplied by another agent) =====
+    try:
+        from utils.structure_viewer import render_structure_viewers
+        pb.push(render_structure_viewers(pair_id, fig_dir, output_dir, mode))
+    except Exception as e:
+        pb.push(f'<div class="warn">structure viewer unavailable: {html.escape(str(e))}</div>')
 
-    # ===== ORDER 2: CMAPS (Deep vs Best side-by-side, then ALL) =====
-    _two_figures(pb, fig_dir,
+    # ===== 3: BEST-CLUSTER CONTACT MAPS =====
+    _figure_from_patterns(pb, fig_dir,
+                          [f"{pair_id}_best_clusters_cmap.png", "*best*clusters*cmap*.png", "*best*cmaps*.png"],
+                          "Best-cluster predicted contact maps over the two true folds.",
+                          mode, publish_dir_for_pair, output_dir, explanation=EXPL_BEST_CMAP)
+
+    # ===== 4: PER-RESIDUE ΔΔG (supplied by another agent) =====
+    try:
+        from utils.plot_per_residue_ddg import per_residue_ddg_fig
+        _p = per_residue_ddg_fig(pair_id)
+        if _p:
+            _src = _to_img_src(Path(_p), mode, publish_dir_for_pair, output_dir)
+            if _src:
+                pb.push(pb.fig_html(
+                    _src, "Per-residue ΔΔG fold-preference contribution",
+                    explanation=("ThermoMPNN per-residue contribution to the energetic "
+                                 "fold preference: positive (red) = residues whose identity "
+                                 "favors fold 1, negative (blue) = favor fold 2. Highlights "
+                                 "which positions drive the fold choice.")))
+    except Exception as e:
+        pass
+
+    # ===== 5: SECONDARY FIGURES (collapsed) =====
+    more = PageBuilder(title="more")
+    more.fig_idx = pb.fig_idx
+    _two_figures(more, fig_dir,
                  left_patterns=[f"{pair_id}_deep_cmap.png", f"{pair_id}_deep_clusters_cmap.png",
                                 "*deep*_cmap*.png", "*deep*clusters*cmap*.png", "*Deep*cmaps*.png"],
                  left_caption="Deep-MSA contact map panel",
@@ -556,31 +527,28 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
                  fallback_left=[f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
                  fallback_right=[f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
                  mode=mode, publish_dir_for_pair=publish_dir_for_pair, html_out_dir=output_dir)
-
-    # All clusters mosaic if present
-    _figure_from_patterns(pb, fig_dir,
+    _figure_from_patterns(more, fig_dir,
                           [f"{pair_id}_all_clusters_cmap.png", "*all*clusters*cmap*.png"],
                           "All clusters contact-map mosaic (small multiples).",
                           mode, publish_dir_for_pair, output_dir)
-
-    # Grid of per-cluster tiles (if saved as many small images)
-    _thumb_grid(pb, fig_dir, CLUSTER_TILE_PATTERNS, mode, publish_dir_for_pair, output_dir,
+    _thumb_grid(more, fig_dir, CLUSTER_TILE_PATTERNS, mode, publish_dir_for_pair, output_dir,
                 title="Per-cluster contact maps")
-
-    # ===== ORDER 4: ΔΔG aligned heatmap (new) =====
-    _figure_from_patterns(pb, fig_dir,
-                          [f"{pair_id}_ddg_aligned.png", "*ddg*aligned*.png", "*delta*G*aligned*.png"],
-                          "Aligned per-residue ΔΔG (seq alignment overlay).",
+    _figure_from_patterns(more, fig_dir,
+                          [f"{pair_id}_phytree_cluster_random.png", "*phytree*cluster*random*.png",
+                           "*phytree*random*.png"],
+                          "Phylo null: tree with shuffled cluster fold labels.",
                           mode, publish_dir_for_pair, output_dir)
+    # Drop standalone "[missing]" placeholders so absent secondary figures don't
+    # clutter the collapsible; keep parts that contain a real figure/image.
+    kept = [p for p in more.parts
+            if not (p.lstrip().startswith('<div class="warn">[missing]') and "<img" not in p)]
+    pb.fig_idx = more.fig_idx
+    more_body = "".join(kept)
+    if "<img" in more_body:
+        pb.push('<details class="more"><summary>More figures</summary>'
+                f'{more_body}</details>')
 
-    # ===== ORDER 5: TREE (unchanged block) =====
-    _figure_from_patterns(pb, fig_dir,
-                          [f"{pair_id}_phytree_cluster.png", "*phytree*cluster*.png", "*tree*heatmap*.png"],
-                          "Phylogenetic tree with per-cluster heatmap.",
-                          mode, publish_dir_for_pair, output_dir, extra_class="tree")
-
-
-    # ===== ORDER 6: TABLE (narrow container) =====
+    # ===== 6: CLUSTER METRICS TABLE =====
     if build_pair_cluster_table:
         try:
             df = build_pair_cluster_table(pair_id)
@@ -600,7 +568,9 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
                     s = "-" if v is None or (isinstance(v, float) and (v != v)) else str(v)
                     tds.append(f"<td>{html.escape(s)}</td>")
                 rows.append("<tr>" + "".join(tds) + "</tr>")
-            pb.push(f'<div class="table-wrap"><h2>Cluster metrics table</h2><table>{thead}{"".join(rows)}</table></div>')
+            pb.push('<section class="fig"><h2>Cluster metrics table</h2>'
+                    f'{pb._explain_html(EXPL_TABLE)}'
+                    f'<div class="table-wrap"><table>{thead}{"".join(rows)}</table></div></section>')
         else:
             pb.push('<div class="warn">No per-pair cluster table available.</div>')
     else:

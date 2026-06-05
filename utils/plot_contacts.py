@@ -328,8 +328,11 @@ def plot_contacts_and_predictions(
     predictions = predictions.copy()
     predictions[invalid_mask] = float("-inf")
 
-    topl_val = np.sort(predictions.reshape(-1))[-seqlen]
-    pred_contacts = predictions >= topl_val
+    # Sparse top-L predicted contacts at |i-j| >= 6 (see select_topl_contacts:
+    # the old ``predictions >= sort()[-L]`` rule produced a dense lattice on
+    # constant/saturated score maps).
+    pred_contacts = select_topl_contacts(predictions, num_contacts=seqlen, min_sep=6)
+    contacts = np.asarray(contacts, dtype=bool)
     true_positives = contacts & pred_contacts & ~bottom_mask
     false_positives = ~contacts & pred_contacts & ~bottom_mask
     other_contacts = contacts & ~pred_contacts & ~bottom_mask
@@ -358,6 +361,61 @@ def plot_contacts_and_predictions(
     save_flag = False
     if save_flag:
         plt.savefig('%s.pdf' % title, bbox_inches='tight')
+
+
+def select_topl_contacts(score_map, num_contacts=None, min_sep=6, topk_factor=1.0):
+    """Select a SPARSE set of predicted contacts from a continuous score matrix.
+
+    Standard contact-map evaluation convention: keep only the highest-scoring
+    off-diagonal residue pairs at sequence separation |i-j| >= ``min_sep``, taking
+    the top ``L * topk_factor`` of them (L = sequence length), and return a
+    symmetric boolean contact mask.
+
+    This replaces the previous ``predictions >= sort(...)[-L]`` rule, which on a
+    constant / all-zero / saturated matrix would select EVERY off-diagonal cell
+    (the dense red "False Positive" lattice bug): with ``>=`` and many tied
+    values the threshold is met everywhere. Here we instead rank the upper
+    triangle and pick a fixed-size top-K set, so the result is always sparse.
+
+    Parameters
+    ----------
+    score_map : (L, L) array of continuous prediction scores (higher = more likely).
+    num_contacts : explicit number of contacts to keep; if None, uses round(L * topk_factor).
+    min_sep : minimum sequence separation |i-j| for a pair to be eligible (default 6).
+    topk_factor : multiplier on L when ``num_contacts`` is None (1.0 -> top-L, 0.5 -> top-L/2).
+
+    Returns
+    -------
+    (L, L) boolean array, symmetric, True at selected predicted contacts.
+    """
+    score_map = np.asarray(score_map, dtype=float)
+    L = score_map.shape[0]
+    pred = np.zeros((L, L), dtype=bool)
+    if L <= min_sep:
+        return pred
+
+    # Upper-triangle indices at the required minimum separation.
+    iu, ju = np.triu_indices(L, k=min_sep)
+    scores = score_map[iu, ju]
+
+    # Only finite, non-degenerate scores are eligible (drops -inf / NaN cells).
+    finite = np.isfinite(scores)
+    if not np.any(finite):
+        return pred
+    iu, ju, scores = iu[finite], ju[finite], scores[finite]
+
+    if num_contacts is None:
+        num_contacts = int(round(L * topk_factor))
+    num_contacts = int(max(0, min(num_contacts, scores.size)))
+    if num_contacts == 0:
+        return pred
+
+    # Top-`num_contacts` highest scores (partition is O(n); ties resolved arbitrarily
+    # but the SET stays size-num_contacts, so the map remains sparse).
+    top_idx = np.argpartition(scores, -num_contacts)[-num_contacts:]
+    pred[iu[top_idx], ju[top_idx]] = True
+    pred |= pred.T  # symmetrize: contact maps are undirected
+    return pred
 
 
 def plot_foldswitch_contacts_and_predictions(
@@ -429,8 +487,10 @@ def plot_foldswitch_contacts_and_predictions(
     }
 
     display_sep_min = 6
+    # ``predictions_copy`` keeps the continuous scores (near-diagonal masked to
+    # -inf) for the precision metrics; ``pred_contacts`` is the SPARSE discrete
+    # top-L contact set that actually gets plotted as colored dots.
     predictions_copy = [p.copy() for p in preds_np]
-    topl_val = [0.0, 0.0]
     pred_contacts = [None, None]
 
     for p in range(2):
@@ -442,12 +502,9 @@ def plot_foldswitch_contacts_and_predictions(
         idx = np.arange(Lp)
         invalid_mask_p = (np.abs(idx[:, None] - idx[None, :]) < display_sep_min)
         predictions_copy[p][invalid_mask_p] = float("-inf")
-        flat = predictions_copy[p].ravel()
-        if np.all(~np.isfinite(flat)):
-            topl_val[p] = np.inf
-        else:
-            topl_val[p] = np.sort(flat)[-Lp]
-        pred_contacts[p] = (predictions_copy[p] >= topl_val[p])
+        # Top-L predicted contacts at |i-j| >= display_sep_min (sparse, symmetric).
+        pred_contacts[p] = select_topl_contacts(
+            predictions_copy[p], num_contacts=Lp, min_sep=display_sep_min)
 
     _, _, contacts_united = match_predicted_and_true_contact_maps({str(title): predictions_copy[0]}, contacts)
 
