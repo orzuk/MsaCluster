@@ -1,0 +1,16 @@
+mode,version,cluster,chain,TM_F1,TM_F2,TMdiff,pred_pdb,error,TMdiff_centered
+ESMFold2_newmethod,ESMFold2,ShallowMsa_000,4yhdG,0.8702463457333313,0.7760159739300886,0.09423037180324267,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_000.pdb,,0.0
+ESMFold2_newmethod,ESMFold2,ShallowMsa_001,4yhdG,0.68568337980063,0.6808312515327757,0.004852128267854305,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_001.pdb,,-0.08937824353538837
+ESMFold2_newmethod,ESMFold2,ShallowMsa_002,4yhdG,0.40753055431946694,0.4323530528967375,-0.024822498577270535,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_002.pdb,,-0.11905287038051321
+ESMFold2_newmethod,ESMFold2,ShallowMsa_003,4yhdG,0.9135383467852181,0.8179610712090158,0.09557727557620221,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_003.pdb,,0.0013469037729595401
+ESMFold2_newmethod,ESMFold2,ShallowMsa_004,4yhdG,0.8508138221862834,0.8027846011320525,0.04802922105423091,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_004.pdb,,-0.046201150749011766
+ESMFold2_newmethod,ESMFold2,ShallowMsa_005,4yhdG,0.8904058099412865,0.8110966567797796,0.07930915316150688,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_005.pdb,,-0.01492121864173579
+ESMFold2_newmethod,ESMFold2,ShallowMsa_006,4yhdG,0.8883433847289012,0.7828537151871717,0.10548966954172945,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_006.pdb,,0.011259297738486773
+ESMFold2_newmethod,ESMFold2,ShallowMsa_007,4yhdG,0.9351042289411609,0.804653505802066,0.1304507231390949,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_007.pdb,,0.03622035133585222
+ESMFold2_newmethod,ESMFold2,ShallowMsa_008,4yhdG,0.9195491897614089,0.7825693057231939,0.13697988403821493,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_008.pdb,,0.04274951223497225
+ESMFold2_newmethod,ESMFold2,ShallowMsa_009,4yhdG,0.9144228360226974,0.7852752063177934,0.129147629704904,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_009.pdb,,0.034917257901661336
+ESMFold2_newmethod,ESMFold2,ShallowMsa_010,4yhdG,0.9134613192196949,0.8138610887809187,0.0996002304387762,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_010.pdb,,0.00536985863553352
+ESMFold2_newmethod,ESMFold2,ShallowMsa_011,4yhdG,0.9581515849796088,0.7877792392695564,0.17037234571005244,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_011.pdb,,0.07614197390680977
+ESMFold2_newmethod,ESMFold2,ShallowMsa_012,4yhdG,0.8896803081576227,0.8059486581093783,0.08373165004824434,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_012.pdb,,-0.01049872175499833
+ESMFold2_newmethod,ESMFold2,ShallowMsa_013,4yhdG,0.8906980243972232,0.7965044060897017,0.09419361830752149,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_013.pdb,,-3.67534957211868e-05
+ESMFold2_newmethod,ESMFold2,ShallowMsa_014,4yhdG,0.48989750998407183,0.4574073607647612,0.03249014921931065,Pipeline/FoldPairs/4yhdG_7ahlE/output_esmfold2/ShallowMsa_014.pdb,,-0.061740222583932025

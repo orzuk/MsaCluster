@@ -1,0 +1,11 @@
+mode,version,cluster,chain,TM_F1,TM_F2,TMdiff,pred_pdb,error,TMdiff_centered
+ESMFold2_newmethod,ESMFold2,ShallowMsa_000,2wcdX,0.45078130865707394,0.49022689902301614,-0.039445590365942196,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_000.pdb,,0.06734880142145558
+ESMFold2_newmethod,ESMFold2,ShallowMsa_001,2wcdX,0.6025993687261267,0.5705563875426529,0.03204298118347382,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_001.pdb,,0.1388373729708716
+ESMFold2_newmethod,ESMFold2,ShallowMsa_002,2wcdX,0.6335235442231512,0.787455203505098,-0.15393165928194685,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_002.pdb,,-0.04713726749454908
+ESMFold2_newmethod,ESMFold2,ShallowMsa_003,2wcdX,0.5850158699674214,0.8265458073848686,-0.24152993741744722,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_003.pdb,,-0.13473554563004944
+ESMFold2_newmethod,ESMFold2,ShallowMsa_004,2wcdX,0.42756328908110824,0.5331003707575321,-0.1055370816764239,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_004.pdb,,0.0012573101109738805
+ESMFold2_newmethod,ESMFold2,ShallowMsa_005,2wcdX,0.634694707271874,0.5602721232648573,0.07442258400701673,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_005.pdb,,0.1812169757944145
+ESMFold2_newmethod,ESMFold2,ShallowMsa_006,2wcdX,0.5826028181937849,0.5187339973884103,0.0638688208053746,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_006.pdb,,0.17066321259277237
+ESMFold2_newmethod,ESMFold2,ShallowMsa_007,2wcdX,0.5827074994667383,0.8001867085286343,-0.217479209061896,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_007.pdb,,-0.11068481727449822
+ESMFold2_newmethod,ESMFold2,ShallowMsa_008,2wcdX,0.5486913986119782,0.6567431005103499,-0.10805170189837165,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_008.pdb,,-0.0012573101109738805
+ESMFold2_newmethod,ESMFold2,ShallowMsa_009,2wcdX,0.5029433289690546,0.9197516588449094,-0.4168083298758548,Pipeline/FoldPairs/2wcdX_4phqA/output_esmfold2/ShallowMsa_009.pdb,,-0.310013938088457

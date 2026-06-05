@@ -1,0 +1,2 @@
+mode,version,cluster,chain,TM_F1,TM_F2,TMdiff,pred_pdb,error,TMdiff_centered
+ESMFold2_newmethod,ESMFold2,ShallowMsa_000,7kdtB,0.4531940183622747,0.283288257048795,0.16990576131347968,Pipeline/FoldPairs/7kdtB_6z4uA/output_esmfold2/ShallowMsa_000.pdb,,0.0
