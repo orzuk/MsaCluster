@@ -6,7 +6,9 @@ import argparse
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 from config import *
-from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
+# NOTE: build_unified_tables_from_cluster_dfs is imported lazily inside
+# _ensure_unified_csvs() so that the lightweight HTML/table builders here can be
+# imported and run without pulling in torch (only needed to REBUILD the CSVs).
 
 # --- add near the top (after imports / _ensure_unified_csvs) ---
 NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
@@ -15,7 +17,8 @@ TRIPLET_COL = "MSA: DEPTH; #RES; #Clusters"
 
 # Single source of truth for the main comparison table
 DEFAULT_PREFERRED_COLS = [
-    "pair_id", "trigger_class", "#RES", "MSA: DEPTH; #RES; #Clusters", "PAIR_TM", "SS_SWITCH%",
+    "pair_id", "NAME", "ORGANISM", "trigger_class", "#RES", "MSA: DEPTH; #RES; #Clusters",
+    "SEQ_ID%", "PAIR_TM", "SS_SWITCH%",
     "ΔG1", "ΔG2",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
@@ -24,6 +27,8 @@ DEFAULT_PREFERRED_COLS = [
 ]
 
 DEFAULT_EXPLANATIONS = {
+    "NAME": "Protein name(s) of the fold-switch pair (short common alias where known, e.g. XCL1, otherwise the RCSB molecule description). Source: docs/pair_protein_names.csv (scripts/fetch_pair_protein_names.py).",
+    "ORGANISM": "Source organism(s) of the two PDB chains. Source: docs/pair_protein_names.csv.",
     "trigger_class": "Auto-classified fold-switching trigger from PDB metadata: ligand / oligomerization / protein_binding / mutation / equilibrium_or_unknown. Source: docs/triggers_from_pdb.csv (scripts/classify_triggers_from_pdb.py).",
     "SEQ_ID%": "Pairwise sequence identity between the two PDB chains of the pair, computed as best-matching chain-pair local-alignment identity (score over the local alignment divided by the length of the shorter sequence). Robust to terminal truncations. The 'mutation' trigger class is defined as SEQ_ID% < 95%. Source: docs/triggers_from_pdb.csv (scripts/classify_triggers_from_pdb.py).",
     "#RES": "Number of residues in the longer chain of the pair.",
@@ -55,8 +60,10 @@ DEFAULT_EXPLANATIONS = {
 def _ensure_unified_csvs(force_rerun: bool = False):
     need = force_rerun or (not os.path.exists(SUMMARY_RESULTS_TABLE)) or (not os.path.exists(DETAILED_RESULTS_TABLE))
     if need:
-        # local import to avoid cycles when this module is imported elsewhere
+        # local import to avoid cycles AND to keep torch out of the import path
+        # for the (torch-free) HTML/table builders below.
         try:
+            from Analysis.postprocess_unified import build_unified_tables_from_cluster_dfs
             build_unified_tables_from_cluster_dfs(write_out=True)
             print("[gen_html] ensured unified CSVs (summary + detailed).")
         except Exception as e:
@@ -269,6 +276,18 @@ def gen_html_from_summary_table(
         df = df.rename(columns={pair_col: "pair_id"})
         pair_col = "pair_id"
 
+    # Merge human-readable protein NAME + ORGANISM from the canonical table
+    # docs/pair_protein_names.csv (scripts/fetch_pair_protein_names.py).
+    _names_csv = os.path.join(os.path.dirname(summary_csv), "pair_protein_names.csv")
+    if os.path.isfile(_names_csv):
+        try:
+            _nm = pd.read_csv(_names_csv)[["pair_id", "display_name", "organism"]]
+            _nm = _nm.drop_duplicates("pair_id").rename(
+                columns={"display_name": "NAME", "organism": "ORGANISM"})
+            df = df.merge(_nm, on="pair_id", how="left")
+        except Exception as e:
+            print(f"[gen_html] WARN: failed to merge protein names: {e}")
+
     # --- Build display column order: pair_id first, then preferred order (excluding pair_id), then the rest ---
     cols_all = list(df.columns)
     # Remove any duplicate/alias of pair id from the pool
@@ -287,9 +306,12 @@ def gen_html_from_summary_table(
 
     df = df[ordered]
 
-    # Round numeric columns to 3 decimals for display
+    # Round numeric columns to 3 decimals for display. Skip pre-formatted
+    # percent columns (already 1-decimal, e.g. SEQ_ID%, SS_SWITCH%) and text
+    # columns (NAME, ORGANISM) so they are not re-rounded to 3 decimals.
+    _no_round = {"pair_id", "NAME", "ORGANISM", "trigger_class", "SEQ_ID%", "SS_SWITCH%"}
     for c in df.columns:
-        if c == "pair_id": continue
+        if c in _no_round: continue
         s = pd.to_numeric(df[c].apply(numeric_part), errors="coerce")
         if s.notna().any():
             # replace display values with rounded (preserve cluster-id parentheses in AF2Clust_TM*)

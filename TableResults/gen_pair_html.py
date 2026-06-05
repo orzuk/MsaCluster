@@ -304,9 +304,18 @@ class PageBuilder:
 
     def header(self, pair_id: str) -> str:
         a, b = _pair_tokens(pair_id)
+        # Human-readable protein name + organism from the canonical table.
+        try:
+            from utils.pair_labels import pair_display, pair_organism
+            name, organism = pair_display(pair_id), pair_organism(pair_id)
+        except Exception:
+            name, organism = "", ""
+        title = html.escape(name) if name else html.escape(pair_id)
+        org_html = (f'<div class="sub">{html.escape(organism)}</div>' if organism else "")
         return f"""
-<h1>Analysis of pair {html.escape(pair_id)}</h1>
-<div class="sub"><b>{html.escape(a)}</b> vs <b>{html.escape(b)}</b></div>
+<h1>{title}</h1>
+<div class="sub">Fold-switch pair <b>{html.escape(pair_id)}</b> — <b>{html.escape(a)}</b> vs <b>{html.escape(b)}</b></div>
+{org_html}
 """
 
     def fig_html(self, img_src: str, caption: str, extra_class: str = "") -> str:
