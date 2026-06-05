@@ -1,0 +1,94 @@
+pair_id,pdbid1,chain1,name1,organism1,pdbid2,chain2,name2,organism2,display_name
+1dzlA_5keqF,1dzl,A,LATE MAJOR CAPSID PROTEIN L1,Human papillomavirus 16,5keq,F,Major capsid protein L1,Human papillomavirus 16,LATE MAJOR CAPSID PROTEIN L1 / Major capsid protein L1
+1eboE_5fhcJ,1ebo,E,EBOLA VIRUS ENVELOPE PROTEIN CHIMERA CONSISTING OF A FRAGMENT OF GCN4 ZIPPER CLONED N-TERMINAL TO A FRAGMENT OF GP2,Orthoebolavirus sp.,5fhc,J,Envelope glycoprotein,"Ebola virus - Mayinga, Zaire, 1976",EBOLA VIRUS ENVELOPE PROTEIN CHIMERA CONSISTING OF A FRAGMENT OF GCN4 ZIPPER CLONED N-TERMINAL TO A FRAGMENT OF GP2 / Envelope glycoprotein
+1fzpD_2frhA,1fzp,D,,,2frh,A,Staphylococcal accessory regulator A,Staphylococcus aureus,Staphylococcal accessory regulator A
+1iytA_2naoF,1iyt,A,Alzheimer's disease amyloid,,2nao,F,Beta-amyloid protein 42,Homo sapiens,Alzheimer's disease amyloid / Beta-amyloid protein 42
+1jfkA_2nxqB,1jfk,A,CALCIUM-BINDING PROTEIN,Entamoeba histolytica,2nxq,B,Calcium-binding protein,Entamoeba histolytica HM-1:IMSS,CALCIUM-BINDING PROTEIN
+1rk4B_1k0nA,1rk4,B,CHLORIDE INTRACELLULAR CHANNEL PROTEIN 1,Homo sapiens,1k0n,A,CHLORIDE INTRACELLULAR CHANNEL PROTEIN 1,Homo sapiens,CHLORIDE INTRACELLULAR CHANNEL PROTEIN 1
+1kctA_3t1pA,1kct,A,ALPHA1-ANTITRYPSIN,Homo sapiens,3t1p,A,Alpha-1-antitrypsin,Homo sapiens,ALPHA1-ANTITRYPSIN / Alpha-1-antitrypsin
+1miqB_1qs8B,1miq,B,plasmepsin,Plasmodium vivax,1qs8,B,PLASMEPSIN,Plasmodium vivax,plasmepsin
+1mnmD_1mnmC,1mnm,D,PROTEIN (MAT ALPHA-2 TRANSCRIPTIONAL REPRESSOR),Saccharomyces cerevisiae,1mnm,C,PROTEIN (MAT ALPHA-2 TRANSCRIPTIONAL REPRESSOR),Saccharomyces cerevisiae,PROTEIN (MAT ALPHA-2 TRANSCRIPTIONAL REPRESSOR)
+1nocA_1qomB,1noc,A,INDUCIBLE NITRIC OXIDE SYNTHASE,Mus musculus,1qom,B,NITRIC OXIDE SYNTHASE,Mus musculus,INDUCIBLE NITRIC OXIDE SYNTHASE / NITRIC OXIDE SYNTHASE
+1nqjB_1nqdA,1nqj,B,class 1 collagenase,Hathewaya histolytica,1nqd,A,class 1 collagenase,Hathewaya histolytica,class 1 collagenase
+1nrjB_2gedB,1nrj,B,Signal recognition particle receptor beta subunit,Saccharomyces cerevisiae,2ged,B,Signal recognition particle receptor beta subunit,Saccharomyces cerevisiae,Signal recognition particle receptor beta subunit
+1qb3A_3qy2A,1qb3,A,CYCLIN-DEPENDENT KINASES REGULATORY SUBUNIT,Saccharomyces cerevisiae,3qy2,A,Cyclin-dependent kinases regulatory subunit,Saccharomyces cerevisiae,CYCLIN-DEPENDENT KINASES REGULATORY SUBUNIT
+1qlnA_1h38D,1qln,A,BACTERIOPHAGE T7 RNA POLYMERASE,Escherichia phage T7,1h38,D,DNA-DIRECTED RNA POLYMERASE,Escherichia phage T7,BACTERIOPHAGE T7 RNA POLYMERASE / DNA-DIRECTED RNA POLYMERASE
+2z9oB_1repC,2z9o,B,Replication initiation protein,Escherichia coli K-12,1rep,C,PROTEIN (REPLICATION INITIATION PROTEIN),Escherichia coli,Replication initiation protein / PROTEIN (REPLICATION INITIATION PROTEIN)
+1svfC_4wsgC,1svf,C,PROTEIN (FUSION GLYCOPROTEIN),Simian virus 5 (strain W3),4wsg,C,Fusion glycoprotein F0,Mammalian orthorubulavirus 5,PROTEIN (FUSION GLYCOPROTEIN) / Fusion glycoprotein F0
+2namA_1uxmK,2nam,A,Superoxide dismutase [Cu-Zn],Homo sapiens,1uxm,K,SUPEROXIDE DISMUTASE [CU-ZN],Homo sapiens,Superoxide dismutase [Cu-Zn]
+1wp8C_5ejbC,1wp8,C,"Fusion glycoprotein F0,Fusion glycoprotein F0",Henipavirus hendraense,5ejb,C,Fusion glycoprotein F0,Henipavirus hendraense,"Fusion glycoprotein F0,Fusion glycoprotein F0 / Fusion glycoprotein F0"
+1x0gD_1x0gA,1x0g,D,IscA,Thermosynechococcus vestitus BP-1,1x0g,A,IscA,Thermosynechococcus vestitus BP-1,IscA
+1xjuB_1xjtA,1xju,B,Lysozyme,Punavirus P1,1xjt,A,Lysozyme,Punavirus P1,Lysozyme
+3lqcA_1xntA,3lqc,A,DNA repair protein XRCC1,Homo sapiens,1xnt,A,PROTEIN (DNA-REPAIR PROTEIN XRCC1),Homo sapiens,DNA repair protein XRCC1 / PROTEIN (DNA-REPAIR PROTEIN XRCC1)
+3l5nB_2a73B,3l5n,B,Complement C3,Homo sapiens,2a73,B,Complement C3,Homo sapiens,Complement C3
+2bzyB_2lqwA,2bzy,B,CRK-LIKE PROTEIN,Homo sapiens,2lqw,A,Crk-like protein,Homo sapiens,CRK-LIKE PROTEIN
+2c1vB_2c1uC,2c1v,B,DI-HAEM CYTOCHROME C PEROXIDASE,Paracoccus pantotrophus,2c1u,C,DI-HAEM CYTOCHROME C PEROXIDASE,Paracoccus pantotrophus,DI-HAEM CYTOCHROME C PEROXIDASE
+2grmB_2axzA,2grm,B,PrgX,Enterococcus faecalis,2axz,A,PrgX,Enterococcus faecalis,PrgX
+2h44A_1rkpA,2h44,A,"cGMP-specific 3',5'-cyclic phosphodiesterase",Homo sapiens,1rkp,A,"cGMP-specific 3',5'-cyclic phosphodiesterase",Homo sapiens,"cGMP-specific 3',5'-cyclic phosphodiesterase"
+2n54B_2hdmA,2n54,B,Lymphotactin,Homo sapiens,2hdm,A,Lymphotactin,Homo sapiens,Lymphotactin
+2jmrA_4j3oF,2jmr,A,fimF,Escherichia coli,4j3o,F,Protein FimF,Escherichia coli K-12,fimF / Protein FimF
+2k42A_1ceeB,2k42,A,Wiskott-Aldrich syndrome protein,Homo sapiens,1cee,B,WISKOTT-ALDRICH SYNDROME PROTEIN WASP,Homo sapiens,Wiskott-Aldrich syndrome protein / WISKOTT-ALDRICH SYNDROME PROTEIN WASP
+2kb8A_6vw2A,2kb8,A,Islet amyloid polypeptide,Homo sapiens,6vw2,A,Islet amyloid polypeptide (SUMO-tagged),Saccharomyces cerevisiae S288C,Islet amyloid polypeptide / Islet amyloid polypeptide (SUMO-tagged)
+2kkwA_2n0aD,2kkw,A,Alpha-synuclein,Homo sapiens,2n0a,D,Alpha-synuclein,Homo sapiens,Alpha-synuclein
+3r9jC_2kxoA,3r9j,C,Cell division topological specificity factor,Escherichia coli K-12,2kxo,A,Cell division topological specificity factor,Neisseria gonorrhoeae,Cell division topological specificity factor
+2lelA_2k0qA,2lel,A,Copper resistance protein K,Cupriavidus metallidurans CH34,2k0q,A,Putative uncharacterized protein copK,Cupriavidus metallidurans,Copper resistance protein K / Putative uncharacterized protein copK
+2lepA_4hddA,2lep,A,Rhomboid protease glpG 1,Escherichia coli,4hdd,A,Rhomboid protease GlpG,Escherichia coli,Rhomboid protease glpG 1 / Rhomboid protease GlpG
+2lv1A_6lniA,2lv1,A,Major prion protein,Homo sapiens,6lni,A,Major prion protein,Homo sapiens,Major prion protein
+2mwfA_2nntA,2mwf,A,Transcription elongation regulator 1,Homo sapiens,2nnt,A,Transcription elongation regulator 1,Homo sapiens,Transcription elongation regulator 1
+6c6sD_2ougC,6c6s,D,Transcription antitermination protein RfaH,Escherichia coli K-12,2oug,C,Transcriptional activator rfaH,Escherichia coli,Transcription antitermination protein RfaH / Transcriptional activator rfaH
+2p3vD_2p3vA,2p3v,D,Inositol-1-monophosphatase,Thermotoga maritima MSB8,2p3v,A,Inositol-1-monophosphatase,Thermotoga maritima MSB8,Inositol-1-monophosphatase
+2pbkB_3njqA,2pbk,B,KSHV protease,Human gammaherpesvirus 8,3njq,A,ORF 17,Human herpesvirus 8 type M,KSHV protease / ORF 17
+2qqjA_4qdsA,2qqj,A,Neuropilin-2,Homo sapiens,4qds,A,Neuropilin-2,Homo sapiens,Neuropilin-2
+2vfxL_3gmhL,2vfx,L,MITOTIC SPINDLE ASSEMBLY CHECKPOINT PROTEIN MAD2A,Homo sapiens,3gmh,L,Mitotic spindle assembly checkpoint protein MAD2A,Homo sapiens,MITOTIC SPINDLE ASSEMBLY CHECKPOINT PROTEIN MAD2A
+3m7pA_3ejhA,3m7p,A,FN1 protein,Homo sapiens,3ejh,A,Fibronectin,Homo sapiens,FN1 protein / Fibronectin
+3g0hA_3ewsB,3g0h,A,ATP-dependent RNA helicase DDX19B,Homo sapiens,3ews,B,ATP-dependent RNA helicase DDX19B,Homo sapiens,ATP-dependent RNA helicase DDX19B
+3hdfA_3hdeA,3hdf,A,Lysozyme,Enterobacteria phage P21,3hde,A,Lysozyme,Enterobacteria phage P21,Lysozyme
+5et5A_3ifaA,5et5,A,"Fructose-1,6-bisphosphatase isozyme 2",Homo sapiens,3ifa,A,"Fructose-1,6-bisphosphatase isozyme 2",Homo sapiens,"Fructose-1,6-bisphosphatase isozyme 2"
+3j7vG_3j7wB,3j7v,G,Major capsid protein 10A,Escherichia phage T7,3j7w,B,Major capsid protein 10A,Escherichia phage T7,Major capsid protein 10A
+1xtgB_3j97M,1xtg,B,Synaptosomal-associated protein 25,Homo sapiens,3j97,M,Synaptosomal-associated protein 25,Rattus norvegicus,Synaptosomal-associated protein 25
+1zk9A_3jv6A,1zk9,A,Transcription factor RelB,Mus musculus,3jv6,A,Transcription factor RelB,Mus musculus,Transcription factor RelB
+3kdsG_2ce7C,3kds,G,Cell division protein FtsH,Thermotoga maritima,2ce7,C,CELL DIVISION PROTEIN FTSH,Thermotoga maritima,Cell division protein FtsH
+5c3iF_3kuyA,5c3i,F,Histone H3.1,Homo sapiens,3kuy,A,Histone H3.2,Xenopus laevis,Histone H3.1 / Histone H3.2
+3l9qB_4rr2D,3l9q,B,DNA primase large subunit,Homo sapiens,4rr2,D,DNA primase large subunit,Homo sapiens,DNA primase large subunit
+3lowA_3m1bF,3low,A,Beta-2-microglobulin,Homo sapiens,3m1b,F,Beta-2-microglobulin,Homo sapiens,Beta-2-microglobulin
+3meeA_4b3oB,3mee,A,p66 Reverse transcriptase,HIV-1 M:B_HXB2R,4b3o,B,P51 RT,Human immunodeficiency virus 1,p66 Reverse transcriptase / P51 RT
+1xezA_3o44A,1xez,A,hemolysin,Vibrio cholerae,3o44,A,Hemolysin,Vibrio cholerae 12129(1),hemolysin
+3t5oA_4a5wB,3t5o,A,Complement component C6,Homo sapiens,4a5w,B,COMPLEMENT COMPONENT C6,Homo sapiens,Complement component C6
+5lj3M_3tp2A,5lj3,M,CWC2,Saccharomyces cerevisiae,3tp2,A,Pre-mRNA-splicing factor CWC2,Saccharomyces cerevisiae,CWC2 / Pre-mRNA-splicing factor CWC2
+3v0tA_3uyiA,3v0t,A,Perakine Reductase,Rauvolfia serpentina,3uyi,A,Perakine reductase,Rauvolfia serpentina,Perakine Reductase
+4tsyD_3zwgN,4tsy,D,Fragaceatoxin C,Actinia fragacea,3zwg,N,FRAGACEATOXIN C,Actinia fragacea,Fragaceatoxin C
+3zxgB_5ec5P,3zxg,B,LYSENIN,Eisenia fetida,5ec5,P,Lysenin,Eisenia fetida,LYSENIN
+4aalA_4aanA,4aal,A,CYTOCHROME C551 PEROXIDASE,Geobacter sulfurreducens PCA,4aan,A,CYTOCHROME C551 PEROXIDASE,Geobacter sulfurreducens PCA,CYTOCHROME C551 PEROXIDASE
+4dxrA_4dxtA,4dxr,A,SUN domain-containing protein 2,Homo sapiens,4dxt,A,SUN domain-containing protein 2,Homo sapiens,SUN domain-containing protein 2
+4g0dZ_4fu4C,4g0d,Z,"Collagenase 3, pro-domain peptide",Homo sapiens,4fu4,C,"Collagenase 3, pro-domain peptide",Homo sapiens,"Collagenase 3, pro-domain peptide"
+4gqcB_4gqcC,4gqc,B,Thiol peroxidase,Aeropyrum pernix K1,4gqc,C,Thiol peroxidase,Aeropyrum pernix K1,Thiol peroxidase
+4h2aA_3j9cA,4h2a,A,Protective antigen,Bacillus anthracis,3j9c,A,Protective antigen PA-63,Bacillus anthracis,Protective antigen / Protective antigen PA-63
+4cmqB_4zt0C,4cmq,B,CRISPR-ASSOCIATED ENDONUCLEASE CAS9/CSN1,Streptococcus pyogenes serotype M1,4zt0,C,CRISPR-associated endonuclease Cas9,Streptococcus pyogenes,CRISPR-ASSOCIATED ENDONUCLEASE CAS9/CSN1 / CRISPR-associated endonuclease Cas9
+5hk5H_4jphB,5hk5,H,Gremlin-2,Mus musculus,4jph,B,Gremlin-2,Mus musculus,Gremlin-2
+4n9wA_4nc9C,4n9w,A,GDP-mannose-dependent alpha-(1-2)-phosphatidylinositol mannosyltransferase,Mycolicibacterium smegmatis MC2 155,4nc9,C,GDP-mannose-dependent alpha-(1-2)-phosphatidylinositol mannosyltransferase,Mycolicibacterium smegmatis MC2 155,GDP-mannose-dependent alpha-(1-2)-phosphatidylinositol mannosyltransferase
+4o01D_4o0pA,4o01,D,Bacteriophytochrome,Deinococcus radiodurans R1 = ATCC 13939 = DSM 20539,4o0p,A,Bacteriophytochrome,Deinococcus radiodurans R1 = ATCC 13939 = DSM 20539,Bacteriophytochrome
+4ow6B_4ae0A,4ow6,B,Diphtheria toxin,Corynebacterium diphtheriae C7 (beta),4ae0,A,DIPHTHERIA TOXIN,Corynebacterium diphtheriae,Diphtheria toxin
+2wcdX_4phqA,2wcd,X,"HEMOLYSIN E, CHROMOSOMAL",Escherichia coli K-12,4phq,A,"Hemolysin E, chromosomal",Escherichia coli K-12,"HEMOLYSIN E, CHROMOSOMAL"
+4pyjA_4pyiA,4pyj,A,Catechol O-methyltransferase,Homo sapiens,4pyi,A,Catechol O-methyltransferase,Homo sapiens,Catechol O-methyltransferase
+4qhhA_4qhfA,4qhh,A,Uncharacterized protein MJ1213,Methanocaldococcus jannaschii DSM 2661,4qhf,A,Uncharacterized protein MJ1213,Methanocaldococcus jannaschii DSM 2661,Uncharacterized protein MJ1213
+4rmbB_4rmbA,4rmb,B,Serine rich repeat protein-1 (Srr-1),Streptococcus agalactiae NEM316,4rmb,A,Serine rich repeat protein-1 (Srr-1),Streptococcus agalactiae NEM316,Serine rich repeat protein-1 (Srr-1)
+4rwqB_4rwnA,4rwq,B,2'-5'-oligoadenylate synthase 1,Sus scrofa,4rwn,A,2'-5'-oligoadenylate synthase 1,Sus scrofa,2'-5'-oligoadenylate synthase 1
+4q79F_4uv2D,4q79,F,CsgG,Escherichia coli Xuzhou21,4uv2,D,CURLI PRODUCTION TRANSPORT COMPONENT CSGG,Escherichia coli str. K-12 substr. MC4100,CsgG / CURLI PRODUCTION TRANSPORT COMPONENT CSGG
+4xwsD_4y0mJ,4xws,D,OxyR,Pseudomonas aeruginosa PAO1,4y0m,J,OxyR,Pseudomonas aeruginosa PAO1,OxyR
+4ydqB_4twaA,4ydq,B,Proline--tRNA ligase,Plasmodium falciparum 3D7,4twa,A,Proline--tRNA ligase,Plasmodium falciparum 3D7,Proline--tRNA ligase
+4yhdG_7ahlE,4yhd,G,Alpha-hemolysin,Staphylococcus aureus,7ahl,E,ALPHA-HEMOLYSIN,Staphylococcus aureus,Alpha-hemolysin
+4zrbH_4zrbC,4zrb,H,Hypothetical Thioesterase Protein SP_1851,Streptococcus pneumoniae TIGR4,4zrb,C,Hypothetical Thioesterase Protein SP_1851,Streptococcus pneumoniae TIGR4,Hypothetical Thioesterase Protein SP_1851
+3mkoA_5ineA,3mko,A,Glycoprotein C,Mammarenavirus choriomeningitidis,5ine,A,Pre-glycoprotein polyprotein GP complex,Mammarenavirus choriomeningitidis,Glycoprotein C / Pre-glycoprotein polyprotein GP complex
+5ly6B_5aoeB,5ly6,B,Pneumolysin,Streptococcus pneumoniae D39,5aoe,B,PNEUMOLYSIN,Streptococcus pneumoniae,Pneumolysin
+5bmyA_5b3zA,5bmy,A,"Peptidyl-prolyl cis-trans isomerase NIMA-interacting 1,Maltose-binding periplasmic protein",Homo sapiens,5b3z,A,"Peptidyl-prolyl cis-trans isomerase NIMA-interacting 1,Maltose-binding periplasmic protein",Homo sapiens,"Peptidyl-prolyl cis-trans isomerase NIMA-interacting 1,Maltose-binding periplasmic protein"
+5c1vB_5c1vA,5c1v,B,Serine/threonine-protein phosphatase 2B catalytic subunit alpha isoform,Homo sapiens,5c1v,A,Serine/threonine-protein phosphatase 2B catalytic subunit alpha isoform,Homo sapiens,Serine/threonine-protein phosphatase 2B catalytic subunit alpha isoform
+3ztjE_5hmgA,3ztj,E,HEMAGGLUTININ HA1 CHAIN,Influenza A virus (A/Aichi/2/1968(H3N2)),5hmg,A,Hemagglutinin HA1 chain,Influenza A virus (A/Aichi/2/1968(H3N2)),HEMAGGLUTININ HA1 CHAIN
+5f5rB_5f3kA,5f5r,B,"Heat shock protein 75 kDa, mitochondrial",Homo sapiens,5f3k,A,"Heat shock protein 75 kDa, mitochondrial",Homo sapiens,"Heat shock protein 75 kDa, mitochondrial"
+2uy7D_5fluE,2uy7,D,PAP FIMBRIAL MAJOR PILIN PROTEIN,Escherichia coli,5flu,E,PAP FIMBRIAL MAJOR PILIN PROTEIN,Escherichia coli,PAP FIMBRIAL MAJOR PILIN PROTEIN
+5i2sA_5i2mA,5i2s,A,Glycoprotein G,Vesicular stomatitis Indiana virus strain Mudd-Summers,5i2m,A,Glycoprotein G,Vesicular stomatitis Indiana virus strain Mudd-Summers,Glycoprotein G
+5jytA_2qkeE,5jyt,A,Circadian clock protein KaiB,Thermosynechococcus vestitus BP-1,2qke,E,Circadian clock protein kaiB,Synechococcus elongatus,Circadian clock protein KaiB
+5jztG_5jzhA,5jzt,G,Aerolysin,Aeromonas hydrophila,5jzh,A,Aerolysin,Aeromonas hydrophila,Aerolysin
+5l35G_5l35D,5l35,G,Gene 5 protein,Lederbergvirus Sf6,5l35,D,Gene 5 protein,Lederbergvirus Sf6,Gene 5 protein
+5wrgC_1wyyB,5wrg,C,Spike glycoprotein,Severe acute respiratory syndrome-related coronavirus,1wyy,B,E2 Glycoprotein,Severe acute respiratory syndrome-related coronavirus,Spike glycoprotein / E2 Glycoprotein
+5tpnA_1g2cF,5tpn,A,"Fusion glycoprotein F0,Fibritin",Human respiratory syncytial virus A2,1g2c,F,FUSION PROTEIN (F),Human respiratory syncytial virus strain RSS-2,"Fusion glycoprotein F0,Fibritin / FUSION PROTEIN (F)"
+7kdtB_6z4uA,7kdt,B,ORF9b protein,Severe acute respiratory syndrome coronavirus 2,6z4u,A,Protein 9b,Severe acute respiratory syndrome coronavirus 2,ORF9b protein / Protein 9b

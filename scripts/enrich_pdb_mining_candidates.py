@@ -49,6 +49,7 @@ QUERY_TMPL = """
     struct { title }
     polymer_entities {
       rcsb_polymer_entity_container_identifiers { auth_asym_ids }
+      rcsb_polymer_entity { pdbx_description }
       entity_poly { pdbx_seq_one_letter_code_can }
       rcsb_entity_source_organism { ncbi_scientific_name }
     }
@@ -112,6 +113,29 @@ def chain_info(entry, chain_id):
             organism = orgs[0].get("ncbi_scientific_name") if orgs else None
             return seq, organism
     return None, None
+
+
+def chain_name(entry, chain_id):
+    """Given an entry payload and an auth chain ID, return (molecule_name, organism).
+
+    Falls back to the first polymer entity if the chain is not matched, then to
+    the entry's struct.title, so a display string is always available.
+    """
+    if not entry:
+        return None, None
+    ents = entry.get("polymer_entities") or []
+    for pe in ents:
+        cid = pe.get("rcsb_polymer_entity_container_identifiers") or {}
+        if chain_id in (cid.get("auth_asym_ids") or []):
+            name = (pe.get("rcsb_polymer_entity") or {}).get("pdbx_description")
+            orgs = pe.get("rcsb_entity_source_organism") or []
+            organism = orgs[0].get("ncbi_scientific_name") if orgs else None
+            return name, organism
+    if ents:  # chain not matched -> first entity as a fallback
+        name = (ents[0].get("rcsb_polymer_entity") or {}).get("pdbx_description")
+        orgs = ents[0].get("rcsb_entity_source_organism") or []
+        return name, (orgs[0].get("ncbi_scientific_name") if orgs else None)
+    return (entry.get("struct") or {}).get("title"), None
 
 
 def entry_basic(entry):
