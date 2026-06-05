@@ -29,6 +29,21 @@ fold-switching pair set. Each figure is described above it.</p>
   <img loading="lazy" src="figures/global/global_per_fold_support_panel.png" alt="Per-pair cluster distribution in the fold-1/fold-2 plane"/>
 </section>
 <section class="fig">
+  <h2>Concordance axis — cross-method agreement per pair</h2>
+  <p class="caption">The second analysis axis (the one that yields hits): for each pair, how strongly do the orthogonal methods AGREE on a per-cluster fold preference. x = mean cross-method concordance (sequence-divergence corrected); y = −log10 permutation p. Pairs passing full-pool BH are ringed; the four experimentally validated fold-switchers are starred. KaiB is strongly concordant; XCL1 and RelB are the within-class (stratified-BH) recoveries — see the trigger-class figure below.</p>
+  <img loading="lazy" src="figures/global/global_concordance_volcano.png" alt="Concordance axis — cross-method agreement per pair"/>
+</section>
+<section class="fig">
+  <h2>Three roles of the sequence-divergence correction</h2>
+  <p class="caption">Per pair, significance before (x) vs after (y) correcting for cluster-to-query sequence divergence. Relative to the p=0.05 lines: top-right = significant both ways (PRESERVE — a true signal survives, e.g. XCL1), bottom-right = significant only before (FILTER — a divergence-driven false positive removed, e.g. SOD1), top-left = significant only after (REVEAL — a real signal unmasked by the correction, e.g. RelB). These three canonical cases anchor the correction&#x27;s behaviour.</p>
+  <img loading="lazy" src="figures/global/global_raw_vs_corrected.png" alt="Three roles of the sequence-divergence correction"/>
+</section>
+<section class="fig">
+  <h2>Concordance signal by fold-switch trigger class</h2>
+  <p class="caption">Corrected concordance distribution within each biological trigger class (ligand / oligomerization / protein-binding / equilibrium / mutation), the basis for the stratified (within-class) BH test. Validated positives are starred in their classes — XCL1 in mutation, RelB in protein-binding, SOD1 in oligomerization — showing how stratifying by trigger recovers hits that the full-pool test misses.</p>
+  <img loading="lazy" src="figures/global/global_trigger_stratification.png" alt="Concordance signal by fold-switch trigger class"/>
+</section>
+<section class="fig">
   <h2>Phylogenetic clade signal — method × pair</h2>
   <p class="caption">Sequence-divergence-corrected clade signal (Moran&#x27;s I_norm) for every method (columns) and fold-switch pair (rows). Red = clusters that prefer the same fold are phylogenetically grouped (clade-structured); blue = anti-structured; white ≈ none. Rows are sorted by the median signal across methods (robust to the sparse, noisy contact-based methods), so the most clade-structured pairs sit at the top. Signal is weak overall — few cells exceed I_norm ≈ 0.2.</p>
   <img loading="lazy" src="figures/global/global_morans_method_x_pair.png" alt="Phylogenetic clade signal — method × pair"/>

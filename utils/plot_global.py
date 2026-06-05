@@ -16,6 +16,14 @@ SURVEY_CSV = os.path.join(TABLES_RES, "fold_diversity_survey.csv")
 # Paths in GLOBAL_FIGURE_SPEC are relative to docs/ and point at figures/global/.
 GLOBAL_FIG_DIR = os.path.join(TABLES_RES, "figures", "global")
 
+# Experimentally validated fold-switchers, for highlighting on global plots.
+KNOWN_POSITIVES = {
+    "2n54B_2hdmA": "XCL1",
+    "1zk9A_3jv6A": "RelB",
+    "2namA_1uxmK": "SOD1",
+    "5jytA_2qkeE": "KaiB",
+}
+
 # ---------------------------------------------------------------------
 # Ordered + captioned spec for the global analysis HTML page. ONE place
 # defines which global figures appear, in what order, and the explanatory
@@ -41,6 +49,42 @@ GLOBAL_FIGURE_SPEC = [
             "than 5 clusters are omitted (no stable covariance). Note: TM axes are "
             "comparable across pairs (0–1); for DDG/recall the absolute position is "
             "pair-specific, so read orientation, not location.",
+    },
+    {
+        "file": "figures/global/global_concordance_volcano.png",
+        "title": "Concordance axis — cross-method agreement per pair",
+        "caption":
+            "The second analysis axis (the one that yields hits): for each pair, "
+            "how strongly do the orthogonal methods AGREE on a per-cluster fold "
+            "preference. x = mean cross-method concordance (sequence-divergence "
+            "corrected); y = −log10 permutation p. Pairs passing full-pool BH are "
+            "ringed; the four experimentally validated fold-switchers are starred. "
+            "KaiB is strongly concordant; XCL1 and RelB are the within-class "
+            "(stratified-BH) recoveries — see the trigger-class figure below.",
+    },
+    {
+        "file": "figures/global/global_raw_vs_corrected.png",
+        "title": "Three roles of the sequence-divergence correction",
+        "caption":
+            "Per pair, significance before (x) vs after (y) correcting for "
+            "cluster-to-query sequence divergence. Relative to the p=0.05 lines: "
+            "top-right = significant both ways (PRESERVE — a true signal survives, "
+            "e.g. XCL1), bottom-right = significant only before (FILTER — a "
+            "divergence-driven false positive removed, e.g. SOD1), top-left = "
+            "significant only after (REVEAL — a real signal unmasked by the "
+            "correction, e.g. RelB). These three canonical cases anchor the "
+            "correction's behaviour.",
+    },
+    {
+        "file": "figures/global/global_trigger_stratification.png",
+        "title": "Concordance signal by fold-switch trigger class",
+        "caption":
+            "Corrected concordance distribution within each biological trigger "
+            "class (ligand / oligomerization / protein-binding / equilibrium / "
+            "mutation), the basis for the stratified (within-class) BH test. "
+            "Validated positives are starred in their classes — XCL1 in mutation, "
+            "RelB in protein-binding, SOD1 in oligomerization — showing how "
+            "stratifying by trigger recovers hits that the full-pool test misses.",
     },
     {
         "file": "figures/global/global_morans_method_x_pair.png",
@@ -321,6 +365,156 @@ def plot_morans_effectsize_by_method(output_dir: str, labels: str = "corrected")
     print(f"[plot] wrote {out}")
 
 
+def _neglog10p(p, n_perm=1000):
+    """-log10(p) with a permutation-resolution floor (p can be 0 at 1/(n_perm+1))."""
+    floor = 1.0 / (n_perm + 1)
+    return -np.log10(np.clip(pd.to_numeric(p, errors="coerce"), floor, 1.0))
+
+
+def plot_concordance_volcano(output_dir: str) -> None:
+    """Volcano of the cross-method concordance axis (the test that yields hits).
+
+    x = per-pair mean cross-method concordance (sequence-divergence corrected);
+    y = -log10 permutation p. Full-pool BH-significant pairs are ringed; the four
+    experimentally validated fold-switchers are labelled.
+    """
+    f = os.path.join(TABLES_RES, "fold_diversity_concordance_corrected_perm_bh.csv")
+    if not os.path.isfile(f):
+        print(f"[global] no {f}; skipping concordance volcano."); return
+    d = pd.read_csv(f)
+    x = pd.to_numeric(d["observed_mean_concordance_corrected"], errors="coerce")
+    y = _neglog10p(d["perm_mean_concordance_p"])
+    bh = pd.to_numeric(d.get("p_bh", pd.Series([np.nan] * len(d))), errors="coerce")
+    sig = bh < 0.05
+
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+    ax.scatter(x[~sig], y[~sig], s=18, c="#7a7a7a", alpha=0.6, edgecolors="none",
+               label="n.s. (full-pool BH)")
+    ax.scatter(x[sig], y[sig], s=46, facecolors="none", edgecolors="#d62728",
+               linewidths=1.6, label="BH-significant (full pool)")
+    ax.axhline(_neglog10p(pd.Series([0.05]))[0], color="gray", ls="--", lw=0.8)
+    ax.text(ax.get_xlim()[0], _neglog10p(pd.Series([0.05]))[0], " p=0.05",
+            fontsize=7, va="bottom", color="gray")
+    for pid, name in KNOWN_POSITIVES.items():
+        r = d[d["pair_id"] == pid]
+        if not len(r):
+            continue
+        xi = float(pd.to_numeric(r["observed_mean_concordance_corrected"].iloc[0]))
+        yi = float(_neglog10p(r["perm_mean_concordance_p"]).iloc[0])
+        ax.scatter([xi], [yi], s=70, marker="*", color="#1f77b4", zorder=5)
+        ax.annotate(name, (xi, yi), fontsize=8, fontweight="bold",
+                    xytext=(4, 4), textcoords="offset points")
+    ax.set_xlabel("mean cross-method concordance (corrected)")
+    ax.set_ylabel("-log10  permutation p")
+    ax.set_title("Concordance axis: cross-method agreement per pair", fontsize=11)
+    ax.legend(fontsize=8, loc="lower left"); ax.grid(True, alpha=0.25)
+    fig.tight_layout()
+    out = os.path.join(output_dir, "global_concordance_volcano.png")
+    fig.savefig(out, dpi=180); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
+def plot_raw_vs_corrected(output_dir: str) -> None:
+    """The three roles of the sequence-divergence correction.
+
+    Per pair: -log10 p before (x) vs after (y) the correction. Quadrants vs the
+    p=0.05 lines: top-right = significant both (PRESERVE), bottom-right =
+    significant only raw (FILTER, false positive removed), top-left = significant
+    only corrected (REVEAL, false negative unmasked). XCL1/SOD1/RelB are the
+    canonical preserve/filter/reveal cases.
+    """
+    fr = os.path.join(TABLES_RES, "fold_diversity_concordance_perm_bh.csv")
+    fc = os.path.join(TABLES_RES, "fold_diversity_concordance_corrected_perm_bh.csv")
+    if not (os.path.isfile(fr) and os.path.isfile(fc)):
+        print("[global] missing concordance perm_bh CSV(s); skipping raw-vs-corrected.")
+        return
+    raw = pd.read_csv(fr)[["pair_id", "perm_mean_concordance_p"]].rename(
+        columns={"perm_mean_concordance_p": "p_raw"})
+    cor = pd.read_csv(fc)[["pair_id", "perm_mean_concordance_p"]].rename(
+        columns={"perm_mean_concordance_p": "p_cor"})
+    m = raw.merge(cor, on="pair_id")
+    x = _neglog10p(m["p_raw"]); y = _neglog10p(m["p_cor"])
+    thr = _neglog10p(pd.Series([0.05]))[0]
+
+    fig, ax = plt.subplots(figsize=(6.8, 6.4))
+    ax.scatter(x, y, s=18, c="#7a7a7a", alpha=0.55, edgecolors="none")
+    lim = max(float(np.nanmax(x)), float(np.nanmax(y))) * 1.08
+    ax.plot([0, lim], [0, lim], color="gray", lw=0.8, ls=":")
+    ax.axvline(thr, color="gray", lw=0.8, ls="--")
+    ax.axhline(thr, color="gray", lw=0.8, ls="--")
+    ax.text(thr, lim, " p=0.05 raw", rotation=90, va="top", fontsize=7, color="gray")
+    ax.text(lim, thr, "p=0.05 corrected ", ha="right", va="bottom", fontsize=7, color="gray")
+    roles = {"2n54B_2hdmA": "XCL1 (preserve)", "2namA_1uxmK": "SOD1 (filter)",
+             "1zk9A_3jv6A": "RelB (reveal)"}
+    for pid, lab in roles.items():
+        r = m[m["pair_id"] == pid]
+        if not len(r):
+            continue
+        xi = float(_neglog10p(r["p_raw"]).iloc[0]); yi = float(_neglog10p(r["p_cor"]).iloc[0])
+        ax.scatter([xi], [yi], s=70, marker="*", color="#d62728", zorder=5)
+        ax.annotate(lab, (xi, yi), fontsize=8, fontweight="bold",
+                    xytext=(4, 4), textcoords="offset points")
+    ax.set_xlim(0, lim); ax.set_ylim(0, lim)
+    ax.set_xlabel("-log10 p  (raw)")
+    ax.set_ylabel("-log10 p  (sequence-divergence corrected)")
+    ax.set_title("Three roles of the correction: preserve / filter / reveal", fontsize=11)
+    ax.grid(True, alpha=0.25)
+    fig.tight_layout()
+    out = os.path.join(output_dir, "global_raw_vs_corrected.png")
+    fig.savefig(out, dpi=180); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
+def plot_trigger_stratification(output_dir: str) -> None:
+    """Per-pair concordance signal grouped by fold-switch trigger class.
+
+    Shows the corrected concordance distribution within each trigger class
+    (the stratified-BH axis), with the validated positives labelled in their
+    classes (XCL1 → mutation, RelB → protein_binding, SOD1 → oligomerization).
+    """
+    fc = os.path.join(TABLES_RES, "fold_diversity_concordance_corrected_perm_bh.csv")
+    ft = os.path.join(TABLES_RES, "triggers_from_pdb.csv")
+    if not (os.path.isfile(fc) and os.path.isfile(ft)):
+        print("[global] missing concordance or triggers CSV; skipping trigger plot.")
+        return
+    d = pd.read_csv(fc)[["pair_id", "observed_mean_concordance_corrected"]]
+    t = pd.read_csv(ft)[["pair_id", "trigger_class"]]
+    m = d.merge(t, on="pair_id").dropna(subset=["trigger_class"])
+    m["val"] = pd.to_numeric(m["observed_mean_concordance_corrected"], errors="coerce")
+    m = m.dropna(subset=["val"])
+    order = (m.groupby("trigger_class")["val"].median().sort_values(ascending=False).index.tolist())
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    data = [m.loc[m["trigger_class"] == c, "val"].values for c in order]
+    ax.boxplot(data, labels=[f"{c}\n(n={len(v)})" for c, v in zip(order, data)],
+               showfliers=False)
+    rng = np.random.RandomState(0)
+    for i, c in enumerate(order, start=1):
+        vals = m.loc[m["trigger_class"] == c, "val"].values
+        ax.scatter(np.full(len(vals), i) + rng.uniform(-0.12, 0.12, len(vals)),
+                   vals, s=12, c="#7a7a7a", alpha=0.5, edgecolors="none", zorder=2)
+    for pid, name in KNOWN_POSITIVES.items():
+        r = m[m["pair_id"] == pid]
+        if not len(r):
+            continue
+        c = r["trigger_class"].iloc[0]
+        if c not in order:
+            continue
+        xi = order.index(c) + 1
+        yi = float(r["val"].iloc[0])
+        ax.scatter([xi], [yi], s=70, marker="*", color="#d62728", zorder=5)
+        ax.annotate(name, (xi, yi), fontsize=8, fontweight="bold",
+                    xytext=(5, 0), textcoords="offset points")
+    ax.set_ylabel("mean cross-method concordance (corrected)")
+    ax.set_title("Concordance signal by fold-switch trigger class", fontsize=11)
+    ax.tick_params(axis="x", labelsize=8)
+    ax.grid(True, axis="y", alpha=0.25)
+    fig.tight_layout()
+    out = os.path.join(output_dir, "global_trigger_stratification.png")
+    fig.savefig(out, dpi=180); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
 def write_global_html(output_html: str = os.path.join("docs", "pairs_global_analysis.html"),
                       title: str = "Global Analysis — Fold-Switch Evolution") -> str:
     """Render the global analysis page from GLOBAL_FIGURE_SPEC (ordered + captioned).
@@ -397,6 +591,9 @@ def make_all_global_plots(output_dir: str | None = None) -> None:
         output_dir = GLOBAL_FIG_DIR
     os.makedirs(output_dir, exist_ok=True)
     for fn in (plot_per_fold_support_panel,
+               plot_concordance_volcano,
+               plot_raw_vs_corrected,
+               plot_trigger_stratification,
                plot_method_clade_heatmap,
                plot_method_correlation_heatmap,
                plot_morans_effectsize_by_method):
