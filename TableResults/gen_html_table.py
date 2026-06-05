@@ -55,8 +55,28 @@ DEFAULT_EXPLANATIONS = {
 
 
 # === NEW: ensure unified CSVs exist (or rebuild on demand) ===
+def _summary_looks_malformed() -> bool:
+    """True if the on-disk summary CSV is not the wide per-pair comparison table.
+    Guards against a stale/partial summary (e.g. a single-pair per-cluster file
+    left by `postprocess --pairs <one>`): such a file has a 'cluster' column,
+    lacks 'PAIR_TM', or covers very few pairs. In any of those cases we must
+    rebuild rather than render a broken one-pair table."""
+    try:
+        if not os.path.exists(SUMMARY_RESULTS_TABLE):
+            return True
+        head = pd.read_csv(SUMMARY_RESULTS_TABLE, nrows=5)
+        cols = set(head.columns)
+        if "cluster" in cols or "PAIR_TM" not in cols:
+            return True
+        n_pairs = pd.read_csv(SUMMARY_RESULTS_TABLE, usecols=[0]).iloc[:, 0].nunique()
+        return n_pairs < 50
+    except Exception:
+        return True
+
+
 def _ensure_unified_csvs(force_rerun: bool = False):
-    need = force_rerun or (not os.path.exists(SUMMARY_RESULTS_TABLE)) or (not os.path.exists(DETAILED_RESULTS_TABLE))
+    need = (force_rerun or (not os.path.exists(SUMMARY_RESULTS_TABLE))
+            or (not os.path.exists(DETAILED_RESULTS_TABLE)) or _summary_looks_malformed())
     if need:
         # local import to avoid cycles AND to keep torch out of the import path
         # for the (torch-free) HTML/table builders below.
