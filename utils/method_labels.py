@@ -11,7 +11,10 @@ Usage:
 """
 
 # Canonical left-to-right / top-to-bottom order for every cross-method plot.
-METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "DDG", "MSAT", "CCMpred", "S4PRED"]
+# Ordered roughly strongest/most-informative -> weakest: the structure
+# predictors first, then DDG and S4PRED, then the sparse, noisy contact-based
+# methods (MSA-Transformer, CCMpred) last.
+METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "DDG", "S4PRED", "MSAT", "CCMpred"]
 
 # KEY -> human display string. Unicode (Δ = U+0394) renders in both matplotlib
 # (DejaVu Sans) and HTML, so a single string serves every output target.

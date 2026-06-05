@@ -630,23 +630,50 @@ def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
         Mc = Pc @ M @ Pc
         evals, evecs = np.linalg.eigh(Mc)
         lam_max = float(evals[-1])
-        v = evecs[:, -1]
-        arr = np.empty(nn)
-        arr[np.argsort(v)] = np.sort(xc)                     # align sorted vals to sorted v
-        for _ in range(60):                                  # capped steepest-ascent 2-opt
-            f = M @ arr
-            DZ = arr[None, :] - arr[:, None]
-            DF = f[:, None] - f[None, :]
-            dN = 2.0 * DZ * DF - 2.0 * (DZ ** 2) * M
-            np.fill_diagonal(dN, -np.inf)
-            a, b = np.unravel_index(int(np.argmax(dN)), dN.shape)
-            if dN[a, b] <= 1e-12:
-                break
-            arr[a], arr[b] = arr[b], arr[a]
-        max_perm_I = float(arr @ (M @ arr)) / den
+
+        def _two_opt(seed, maximize):
+            """Capped steepest-ascent/-descent 2-opt on the quadratic form
+            arr @ M @ arr; returns the optimized Moran's-I value."""
+            arr = np.array(seed, dtype=float)
+            for _ in range(60):
+                f = M @ arr
+                DZ = arr[None, :] - arr[:, None]
+                DF = f[:, None] - f[None, :]
+                dN = 2.0 * DZ * DF - 2.0 * (DZ ** 2) * M    # delta of form on swap (a,b)
+                if maximize:
+                    np.fill_diagonal(dN, -np.inf)
+                    a, b = np.unravel_index(int(np.argmax(dN)), dN.shape)
+                    if dN[a, b] <= 1e-12:
+                        break
+                else:
+                    np.fill_diagonal(dN, np.inf)
+                    a, b = np.unravel_index(int(np.argmin(dN)), dN.shape)
+                    if dN[a, b] >= -1e-12:
+                        break
+                arr[a], arr[b] = arr[b], arr[a]
+            return float(arr @ (M @ arr)) / den
+
+        # Seed the search from BOTH the spectral guess (top/bottom eigenvector)
+        # AND the actual data arrangement. Ascending from the data is guaranteed
+        # to reach I >= I_obs (and descending <= I_obs), so the data-seeded run
+        # alone makes max_perm >= I_obs >= min_perm by construction -- no clamp,
+        # no |I_norm|>1 on tiny/degenerate pairs (few clusters: MSAT/CCMpred).
+        seed_top = np.empty(nn); seed_top[np.argsort(evecs[:, -1])] = np.sort(xc)
+        seed_bot = np.empty(nn); seed_bot[np.argsort(evecs[:, 0])]  = np.sort(xc)
+        max_perm_I = max(_two_opt(seed_top, True),  _two_opt(xc, True))
+        min_perm_I = min(_two_opt(seed_bot, False), _two_opt(xc, False))
+
+        # Normalize by the achievable range on the side I_obs falls -- positive
+        # signal against the reachable max, negative against the reachable min --
+        # so I_norm is a true fraction of achievable clade signal in [-1, 1].
         Emean = -1.0 / (nn - 1)
-        denom = max_perm_I - Emean
+        if I_obs >= Emean:
+            denom = max_perm_I - Emean
+        else:
+            denom = Emean - min_perm_I
         I_norm = (I_obs - Emean) / denom if denom > 1e-9 else float("nan")
+        if np.isfinite(I_norm):
+            I_norm = float(np.clip(I_norm, -1.0, 1.0))   # belt-and-suspenders
         res.update({
             "morans_lambda_max": round(lam_max, 4),
             "morans_max_perm": round(max_perm_I, 4),

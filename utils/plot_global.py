@@ -43,9 +43,10 @@ GLOBAL_FIGURE_SPEC = [
             "Sequence-divergence-corrected clade signal (Moran's I_norm) for every "
             "method (columns) and fold-switch pair (rows). Red = clusters that "
             "prefer the same fold are phylogenetically grouped (clade-structured); "
-            "blue = anti-structured; white ≈ none. Rows are sorted by the mean "
-            "signal across all methods, so the most clade-structured pairs sit at "
-            "the top. Signal is weak overall — few cells exceed I_norm ≈ 0.2.",
+            "blue = anti-structured; white ≈ none. Rows are sorted by the median "
+            "signal across methods (robust to the sparse, noisy contact-based "
+            "methods), so the most clade-structured pairs sit at the top. Signal "
+            "is weak overall — few cells exceed I_norm ≈ 0.2.",
     },
     {
         "file": "figures/global/global_method_correlation.png",
@@ -157,6 +158,13 @@ def _load_phylo(labels: str = "corrected"):
         print(f"[global] no {fn}; skipping Moran's plots.")
         return None, None
     d = pd.read_csv(path)
+    # I_norm is a fraction of achievable clade signal and is bounded to [-1, 1].
+    # Older CSVs (pre ceiling-clamp fix in phylo_placement.py) can carry a few
+    # |I_norm|>1 values from the heuristic max_perm underestimating the true
+    # ceiling on tiny/sparse pairs (MSAT/CCMpred). Clip defensively so figures
+    # never show impossible values; harmless once the source CSV is regenerated.
+    if "morans_I_norm" in d.columns:
+        d["morans_I_norm"] = pd.to_numeric(d["morans_I_norm"], errors="coerce").clip(-1.0, 1.0)
     for m in ("morans_I_norm", "morans_z", "morans_I"):
         if m in d.columns and d[m].notna().any():
             return d, m
@@ -165,11 +173,14 @@ def _load_phylo(labels: str = "corrected"):
     return None, None
 
 
-def plot_method_clade_heatmap(output_dir: str, labels: str = "corrected") -> None:
+def plot_method_clade_heatmap(output_dir: str, labels: str = "corrected",
+                              row_sort: str = "median") -> None:
     """Methods x pairs heatmap of clade-signal strength (effect size / z).
 
-    Rows (pairs) are sorted by the MEAN signal across methods (descending), so the
-    most clade-structured pairs rise to the top independent of any single method.
+    Rows (pairs) are sorted by a method-agnostic summary of the signal across
+    methods (descending), so the most clade-structured pairs rise to the top.
+    `row_sort` = "median" (default, robust to a couple of noisy methods like
+    MSA-Transformer/CCMpred), "mean", or "max".
     """
     d, metric = _load_phylo(labels)
     if d is None:
@@ -181,9 +192,11 @@ def plot_method_clade_heatmap(output_dir: str, labels: str = "corrected") -> Non
     win = wide.idxmax(axis=1).value_counts()
     print(f"[global] strongest method per pair ({metric}): "
           + ", ".join(f"{m}:{int(win.get(m,0))}" for m in cols))
-    # Method-agnostic ordering: mean signal across methods, strongest at top.
-    w = wide.assign(_mean=wide.mean(axis=1, skipna=True)).sort_values(
-        "_mean", ascending=False).drop(columns="_mean")
+    # Method-agnostic ordering: median (robust) / mean / max across methods.
+    agg_fn = {"median": wide.median, "mean": wide.mean, "max": wide.max}.get(
+        row_sort, wide.median)
+    w = wide.assign(_key=agg_fn(axis=1, skipna=True)).sort_values(
+        "_key", ascending=False).drop(columns="_key")
     M = w.to_numpy(dtype=float)
     vlim = float(np.nanpercentile(np.abs(M), 98)) or 1.0
     fig, ax = plt.subplots(figsize=(6, max(4, 0.16 * len(w))))
@@ -192,7 +205,7 @@ def plot_method_clade_heatmap(output_dir: str, labels: str = "corrected") -> Non
                                                         rotation=45, ha="right")
     ax.set_yticks(range(len(w))); ax.set_yticklabels(w.index, fontsize=4)
     ax.set_title(f"Clade signal per method x pair ({metric}, {labels})\n"
-                 f"rows = pairs, sorted by mean signal across methods",
+                 f"rows = pairs, sorted by {row_sort} signal across methods",
                  fontsize=10)
     fig.colorbar(im, ax=ax, shrink=0.6, label=metric)
     fig.tight_layout()
