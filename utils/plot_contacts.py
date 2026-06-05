@@ -70,10 +70,27 @@ def compute_seq_distances(MSA_clust):
     return D
 
 
+def _fit_to_size(a, N):
+    """Zero-pad or crop a 2D array to N x N, PRESERVING dtype (so boolean/int
+    contact maps stay usable in bitwise '&' ops). Non-2D input -> zeros(N, N)."""
+    a = np.asarray(a)
+    if a.ndim != 2:
+        return np.zeros((N, N), dtype=(a.dtype if a.size else float))
+    out = np.zeros((N, N), dtype=a.dtype)
+    m, n = min(N, a.shape[0]), min(N, a.shape[1])
+    out[:m, :n] = a[:m, :n]
+    return out
+
+
 def match_predicted_and_true_contact_maps(cmap_clusters, cmap_true):
     """Split contacts into shared/unique and evaluate predictions against each."""
     fold_ids = list(cmap_true.keys())
     seqlen = cmap_true[fold_ids[0]].shape[0]
+    # Aligned per-cluster predictions can be a few columns off the truth frame
+    # (e.g. 63 vs 65); coerce each to the truth size so the strict evaluator and
+    # the bitwise contact ops below don't choke on a size mismatch.
+    cmap_clusters = {k: _fit_to_size(v, seqlen) for k, v in cmap_clusters.items()}
+    cmap_true = {k: _fit_to_size(v, seqlen) for k, v in cmap_true.items()}
 
     relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
     top_bottom_mask = {fold_ids[0]: relative_distance < 0, fold_ids[1]: relative_distance > 0}
@@ -471,14 +488,7 @@ def plot_foldswitch_contacts_and_predictions(
     # DIFFERENT sizes, which would crash the F1-upper / F2-lower single-matrix
     # overlay (e.g. 82x82 vs 42x42). Pad/crop every array to a common N so the
     # panel renders (mostly empty for such pairs) instead of erroring out.
-    def _fit(a, N):
-        a = np.asarray(a, dtype=float)
-        if a.ndim != 2:
-            return np.zeros((N, N), dtype=float)
-        out = np.zeros((N, N), dtype=float)
-        m, n = min(N, a.shape[0]), min(N, a.shape[1])
-        out[:m, :n] = a[:m, :n]
-        return out
+    _fit = _fit_to_size   # dtype-preserving pad/crop (module helper)
     seqlen = max(int(contacts[fold_ids[0]].shape[0]),
                  int(contacts[fold_ids[1]].shape[0]))
     contacts[fold_ids[0]] = _fit(contacts[fold_ids[0]], seqlen)
