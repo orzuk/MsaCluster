@@ -30,9 +30,28 @@ METHOD_DISPLAY = {
 }
 
 
+# KEY -> the NATIVE per-fold metric each method reports (what the TM1/TM2 slots
+# of the unified survey actually hold). Used for per-method axis labels.
+METHOD_METRIC = {
+    "AF2":     "TM-score",
+    "AF3":     "TM-score",
+    "ESM":     "TM-score",
+    "Boltz2":  "TM-score",
+    "DDG":     "−ΣΔΔG",        # kcal/mol, higher = more stable on that fold
+    "S4PRED":  "SSS",          # secondary-structure (H/E) composition similarity
+    "MSAT":    "recall",       # contact-map recall
+    "CCMpred": "recall",
+}
+
+
 def disp(method: str) -> str:
     """Display label for a method key (falls back to the key itself)."""
     return METHOD_DISPLAY.get(method, method)
+
+
+def metric_label(method: str) -> str:
+    """Native per-fold metric name for a method (for axis labels)."""
+    return METHOD_METRIC.get(method, "support")
 
 
 def order_methods(present):

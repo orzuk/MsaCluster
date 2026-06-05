@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from config import TABLES_RES
-from utils.method_labels import METHOD_ORDER, disp, order_methods
+from utils.method_labels import METHOD_ORDER, disp, order_methods, metric_label
 
 SURVEY_CSV = os.path.join(TABLES_RES, "fold_diversity_survey.csv")
 
@@ -26,15 +26,18 @@ GLOBAL_FIGURE_SPEC = [
         "file": "figures/global/global_per_fold_support_panel.png",
         "title": "Per-fold support, by method",
         "caption":
-            "Each panel is one method. For every sequence cluster we plot its "
-            "predicted support for fold 1 (x) against fold 2 (y). For AF2, AF3, "
-            "ESMFold2 and Boltz-2 the axes are TM-scores to each reference "
-            "structure; for ΔΔG, MSA-Transformer, CCMpred and S4PRED they are the "
-            "unified per-fold proxy (stability / contact recall / secondary-"
-            "structure similarity) mapped onto a common scale. A cluster near the "
-            "diagonal reaches both folds (fold-switcher); off-diagonal clusters "
-            "prefer one fold. Spread along both axes means the method is resolving "
-            "fold-specific signal.",
+            "Each panel is one method; every point is a sequence cluster, plotting "
+            "its support for fold 1 (x) against fold 2 (y) in that method's NATIVE "
+            "metric: TM-score to each reference structure (AF2/AF3/ESMFold2/"
+            "Boltz-2), summed ΔΔG stability in kcal/mol (DDG), secondary-structure "
+            "H/E composition similarity (S4PRED), and contact-map recall "
+            "(MSA-Transformer, CCMpred). A cluster near the diagonal reaches both "
+            "folds (fold-switcher); off-diagonal clusters prefer one fold. The "
+            "visible banding is each method's intrinsic discretization — integer "
+            "contact counts quantize recall, coarse H/E composition quantizes the "
+            "S4PRED similarity, and ΔΔG sums over a shared set of mutated positions "
+            "(so fold-1 and fold-2 stability move together, giving diagonal "
+            "stripes). Contact methods sit at low absolute values, as expected.",
     },
     {
         "file": "figures/global/global_morans_method_x_pair.png",
@@ -119,16 +122,21 @@ def plot_per_fold_support_panel(output_dir: str, agg: str = "max") -> None:
         x, y = x[good], y[good]
         ax.scatter(x, y, s=8, alpha=0.35, edgecolors="none")
         if len(x):
-            lo = float(min(x.min(), y.min()))
-            hi = float(max(x.max(), y.max()))
+            # Robust limits (1-99 pct of both axes together) so a few extreme
+            # outliers -- e.g. DDG's very destabilized clusters -- don't crush
+            # the rest of the cloud; same range on both axes (y=x reference).
+            both = np.concatenate([x.values, y.values])
+            lo = float(np.nanpercentile(both, 1))
+            hi = float(np.nanpercentile(both, 99))
             pad = 0.04 * (hi - lo or 1.0)
             ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad],
                     color="gray", lw=0.8, ls="--", alpha=0.7)
             ax.set_xlim(lo - pad, hi + pad)
             ax.set_ylim(lo - pad, hi + pad)
+        mm = metric_label(m)
         ax.set_title(f"{disp(m)}  (n={int(good.sum())})", fontsize=10)
-        ax.set_xlabel("support fold 1")
-        ax.set_ylabel("support fold 2")
+        ax.set_xlabel(f"{mm} (fold 1)")
+        ax.set_ylabel(f"{mm} (fold 2)")
         ax.grid(True, alpha=0.25)
 
     for ax in axes[len(methods):]:
