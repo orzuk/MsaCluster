@@ -2411,20 +2411,23 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
 
     # === 1) GLOBAL-ONLY: run ONCE and RETURN ===
     if scope in ["global", "both"]:
-        os.makedirs(FIGURE_RES_DIR, exist_ok=True)
+        # Write to the git-TRACKED docs/figures/global so a plain
+        # `git add docs/ && commit && push` from the cluster updates the
+        # GitHub-Pages global page (NOT the gitignored Pipeline/Results/Figures).
+        from utils.plot_global import make_all_global_plots, GLOBAL_FIG_DIR
+        os.makedirs(GLOBAL_FIG_DIR, exist_ok=True)
         print("[plot] Generating global plots…")
-        # ONE entry point: all cross-pair scatters + Moran's heatmaps/correlation.
-        from utils.plot_global import make_all_global_plots
-        make_all_global_plots(output_dir=FIGURE_RES_DIR)
-        print("[plot] Global plots written to", FIGURE_RES_DIR)
-        # Build the global HTML page (auto-lists every PNG in FIGURE_RES_DIR) and
-        # publish it next to the per-pair pages, so the single command
+        # ONE entry point: per-fold support panel + Moran's heatmaps/correlation.
+        make_all_global_plots(output_dir=GLOBAL_FIG_DIR)
+        print("[plot] Global plots written to", GLOBAL_FIG_DIR)
+        # Build the global HTML page from the ordered, captioned spec, so the
+        # single command
         #   run_foldswitch_pipeline.py --run_mode plot --plot_scope global
         # regenerates all global plots AND pairs_global_analysis.html.
         try:
             from TableResults.gen_html_table import gen_html_for_global_plots
             out_html = os.path.join("docs", "pairs_global_analysis.html")
-            gen_html_for_global_plots(images_dir=FIGURE_RES_DIR, output_html=out_html)
+            gen_html_for_global_plots(output_html=out_html)
             dst = os.path.join(MAIN_DIR, "pairs_global_analysis.html")
             if os.path.isfile(out_html) and os.path.abspath(out_html) != os.path.abspath(dst):
                 shutil.copy2(out_html, dst)
@@ -2636,7 +2639,6 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
 
         try:
             gen_html_for_global_plots(
-                images_dir=FIGURE_RES_DIR,
                 output_html=os.path.join("docs", "pairs_global_analysis.html"))
             src = os.path.join("docs", "pairs_global_analysis.html")
             dst = os.path.join(MAIN_DIR, "pairs_global_analysis.html")

@@ -5,10 +5,16 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from config import FIGURE_RES_DIR, TABLES_RES
+from config import TABLES_RES
 from utils.method_labels import METHOD_ORDER, disp, order_methods
 
 SURVEY_CSV = os.path.join(TABLES_RES, "fold_diversity_survey.csv")
+
+# Git-TRACKED output dir for the global figures (TABLES_RES is docs/). Writing
+# here -- not the gitignored Pipeline/Results/Figures -- means a plain
+# `git add docs/ && commit && push` updates the GitHub-Pages global page.
+# Paths in GLOBAL_FIGURE_SPEC are relative to docs/ and point at figures/global/.
+GLOBAL_FIG_DIR = os.path.join(TABLES_RES, "figures", "global")
 
 # ---------------------------------------------------------------------
 # Ordered + captioned spec for the global analysis HTML page. ONE place
@@ -318,7 +324,7 @@ def make_all_global_plots(output_dir: str | None = None) -> None:
     in a fixed, captioned order.
     """
     if output_dir is None:
-        output_dir = FIGURE_RES_DIR
+        output_dir = GLOBAL_FIG_DIR
     os.makedirs(output_dir, exist_ok=True)
     for fn in (plot_per_fold_support_panel,
                plot_method_clade_heatmap,
