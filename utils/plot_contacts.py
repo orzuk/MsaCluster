@@ -467,6 +467,23 @@ def plot_foldswitch_contacts_and_predictions(
 
     seqlen = int(contacts[fold_ids[0]].shape[0])
 
+    # Degenerate / low-recall pairs can give the two folds truth+pred slices of
+    # DIFFERENT sizes, which would crash the F1-upper / F2-lower single-matrix
+    # overlay (e.g. 82x82 vs 42x42). Pad/crop every array to a common N so the
+    # panel renders (mostly empty for such pairs) instead of erroring out.
+    def _fit(a, N):
+        a = np.asarray(a, dtype=float)
+        if a.ndim != 2:
+            return np.zeros((N, N), dtype=float)
+        out = np.zeros((N, N), dtype=float)
+        m, n = min(N, a.shape[0]), min(N, a.shape[1])
+        out[:m, :n] = a[:m, :n]
+        return out
+    seqlen = max(int(contacts[fold_ids[0]].shape[0]),
+                 int(contacts[fold_ids[1]].shape[0]))
+    contacts[fold_ids[0]] = _fit(contacts[fold_ids[0]], seqlen)
+    contacts[fold_ids[1]] = _fit(contacts[fold_ids[1]], seqlen)
+
     if not isinstance(predictions, tuple):
         predictions = [predictions, predictions]
 
@@ -476,6 +493,7 @@ def plot_foldswitch_contacts_and_predictions(
         if fixed is None:
             fixed = np.zeros((seqlen, seqlen), dtype=float)
         preds_np.append(fixed)
+    preds_np = [_fit(p, seqlen) for p in preds_np]   # match the common N
 
     if ax is None:
         ax = plt.gca()

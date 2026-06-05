@@ -851,44 +851,37 @@ def make_foldswitch_all_plots(
 
     num_seqs_msa_vec = len(seqs)
 
-    # ---- ΔΔG aligned profile image ----
-    try:
-        _render_ddg_aligned_image(foldpair_id, pdbids, pdbchains, fig_dir_root)
-    except Exception as e:
-        print(f"[ΔΔG] skipped for {foldpair_id}: {e}")
-
-
-    # ---------- 3D PANELS ----------
-    make_interactive = plot3dformat in ('interactive', 'both')
-    try:
-        _render_true_structures(
-            pair_dir=os.path.join('Pipeline', 'FoldPairs', foldpair_id),
-            pdb1=f"{pdbids[0]}.pdb",
-            pdb2=f"{pdbids[1]}.pdb",
-            out_dir=fig_dir_root,
-            out_prefix=foldpair_id,
-            make_interactive=make_interactive
-        )
-    except Exception as e:
-        print(f"[3D] true-true render failed: {e}")
-
-    # AF2 / AF3
-    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF', ver='2',
-                                        make_interactive=make_interactive)
-    _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root, family='AF', ver='3',
-                                        make_interactive=make_interactive)
-
-    # ESM2
-    try:
-        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='2', make_interactive=make_interactive)
-    except Exception as e:
-        print(f"[3D] ESM2 overlays failed: {e}")
-
-    # ESM3
-    try:
-        _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root, model_ver='3', make_interactive=make_interactive)
-    except Exception as e:
-        print(f"[3D] ESM3 overlays failed: {e}")
+    # ---- Legacy static figures removed (replaced on the per-pair pages) ----
+    # The old per-residue Rosetta ΔΔG image, the PyMOL two-structure renders, and
+    # the AF2/AF3/ESM2/ESM3 "vs best" 3D overlays are no longer shown: structures
+    # now use interactive Mol* viewers (utils.structure_viewer) and the per-residue
+    # ΔΔG figure is the ThermoMPNN one built at page time (utils.plot_per_residue_ddg).
+    # Generating them here only produced PyMOL-not-installed / missing-PDB noise and
+    # unused outputs, so they are skipped. (Set _RENDER_LEGACY_3D=True to restore.)
+    _RENDER_LEGACY_3D = False
+    if _RENDER_LEGACY_3D:
+        make_interactive = plot3dformat in ('interactive', 'both')
+        try:
+            _render_ddg_aligned_image(foldpair_id, pdbids, pdbchains, fig_dir_root)
+        except Exception as e:
+            print(f"[ΔΔG] skipped for {foldpair_id}: {e}")
+        try:
+            _render_true_structures(
+                pair_dir=os.path.join('Pipeline', 'FoldPairs', foldpair_id),
+                pdb1=f"{pdbids[0]}.pdb", pdb2=f"{pdbids[1]}.pdb",
+                out_dir=fig_dir_root, out_prefix=foldpair_id,
+                make_interactive=make_interactive)
+        except Exception as e:
+            print(f"[3D] true-true render failed: {e}")
+        for fam, ver in (('AF', '2'), ('AF', '3')):
+            _render_true_vs_best_models_generic(foldpair_id, pdbids, pdbchains, fig_dir_root,
+                                                family=fam, ver=ver, make_interactive=make_interactive)
+        for mv in ('2', '3'):
+            try:
+                _render_true_vs_best_esm(foldpair_id, pdbids, pdbchains, fig_dir_root,
+                                         model_ver=mv, make_interactive=make_interactive)
+            except Exception as e:
+                print(f"[3D] ESM{mv} overlays failed: {e}")
 
     if global_plots:
         print("Make global plots!")
