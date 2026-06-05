@@ -18,8 +18,7 @@ TRIPLET_COL = "MSA: DEPTH; #RES; #Clusters"
 # Single source of truth for the main comparison table
 DEFAULT_PREFERRED_COLS = [
     "pair_id", "NAME", "ORGANISM", "trigger_class", "#RES", "MSA: DEPTH; #RES; #Clusters",
-    "SEQ_ID%", "PAIR_TM", "SS_SWITCH%",
-    "ΔG1", "ΔG2",
+    "SEQ_ID%", "PAIR_TM", "SS_SWITCH%", "DDG_bias",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
     "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
@@ -35,8 +34,7 @@ DEFAULT_EXPLANATIONS = {
     "MSA: DEPTH; #RES; #Clusters": "DEPTH = number of sequences in DeepMsa.a3m; #RES = alignment width (columns, including gaps); #Clusters = count of ShallowMsa_* a3m files.",
     "PAIR_TM": "TM-score between the two ground-truth folds (max of the two directions).",
     "SS_SWITCH%": "Porter-style secondary-structure switch fraction: fraction of aligned residues where DSSP class transitions between H (helix) and E (strand). H<->C and E<->C transitions are NOT counted. Source: docs/ss_switch_per_pair.csv (scripts/compute_ss_switch_for_pairs.py).",
-    "ΔG1": "Rosetta full-atom (Ref2015) energy of Fold1 (lower is more stable).",
-    "ΔG2": "Rosetta full-atom (Ref2015) energy of Fold2 (lower is more stable).",
+    "DDG_bias": "ThermoMPNN conformation-biasing energetic fold preference: per-pair mean over MSA clusters of ΣΔΔG(impose cluster sequence on Fold2) − ΣΔΔG(on Fold1), in kcal/mol. >0 = the family's sequences are energetically more compatible with Fold1, <0 = Fold2. Relative measure (each fold referenced to its own native), summed over positions. The fold-switching signal is the cluster-to-cluster SPREAD of this quantity (analyzed separately), not the mean. Source: df_ddg.csv (run_DDG.py). Replaces the earlier raw-Rosetta ΔG1/ΔG2 (unrelaxed whole-assembly REU, not meaningful).",
     "AF2Clust_TM1": "Best TM-score to Fold1 among AF2 predictions built from any shallow cluster (number in parentheses is the cluster id).",
     "AF2Clust_TM2": "Best TM-score to Fold2 among AF2 predictions from shallow clusters.",
     "AF2Deep_TM1":  "Best TM-score to Fold1 among AF2 predictions built from the DeepMsa alignment.",
@@ -275,6 +273,12 @@ def gen_html_from_summary_table(
         pair_col = df.columns[0]
         df = df.rename(columns={pair_col: "pair_id"})
         pair_col = "pair_id"
+
+    # Energetic fold preference: surface DDG_Bias_mean as "DDG_bias" and drop
+    # the broken raw-Rosetta ΔG1/ΔG2 columns (unrelaxed whole-assembly REU).
+    if "DDG_Bias_mean" in df.columns and "DDG_bias" not in df.columns:
+        df = df.rename(columns={"DDG_Bias_mean": "DDG_bias"})
+    df = df.drop(columns=[c for c in ("ΔG1", "ΔG2") if c in df.columns])
 
     # Merge human-readable protein NAME + ORGANISM from the canonical table
     # docs/pair_protein_names.csv (scripts/fetch_pair_protein_names.py).
