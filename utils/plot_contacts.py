@@ -29,20 +29,27 @@ from glob import glob
 # Restored from scripts/MSA_Clust.py (deleted in dead-code removal)
 # ---------------------------------------------------------------------------
 def compute_cmap_distances(cmaps, cmap_main=None):
-    """Avg squared distance of cluster cmaps from centroid."""
-    if cmap_main is None:
-        cmap_main = []
-    D = 0
-    n_maps = len(cmaps)
-    keys_list = list(cmaps.keys())
-    if len(cmap_main) == 0:
-        cmap_main = cmaps[keys_list[0]]
-        for i in range(1, n_maps):
-            cmap_main += cmaps[keys_list[i]]
-        cmap_main = cmap_main / n_maps
-    for cur_cmap in cmaps.keys():
-        D += sum(cmaps[cur_cmap] - cmap_main) ** 2
-    return D / n_maps
+    """Avg squared distance of cluster cmaps from their centroid.
+
+    Aligned cluster cmaps can have slightly different sizes (a few columns), so
+    restrict to the MODAL shape - the centroid is only defined over equal-sized
+    maps - rather than padding to a common frame."""
+    items = {k: np.asarray(v, dtype=float) for k, v in (cmaps or {}).items()}
+    items = {k: v for k, v in items.items() if v.ndim == 2}
+    if not items:
+        return 0.0
+    if cmap_main is None or np.size(cmap_main) == 0:
+        from collections import Counter
+        modal = Counter(v.shape for v in items.values()).most_common(1)[0][0]
+        items = {k: v for k, v in items.items() if v.shape == modal}
+        stack = np.stack(list(items.values()))
+        cmap_main = stack.mean(axis=0)
+    else:
+        cmap_main = np.asarray(cmap_main, dtype=float)
+        items = {k: v for k, v in items.items() if v.shape == cmap_main.shape}
+    if not items:
+        return 0.0
+    return float(np.mean([np.sum((v - cmap_main) ** 2) for v in items.values()]))
 
 
 def compute_seq_distances(MSA_clust):
@@ -283,7 +290,7 @@ def plot_array_contacts_and_predictions(
     # canonical alignment's per-prediction `cols` - so the F1-upper/F2-lower
     # single-matrix overlay is one consistent frame and never size-mismatches.
     nameA, nameB = best_names[fold_ids[0]], best_names[fold_ids[1]]
-    predA, predB = preds[nameA][0], preds[nameB][1]
+    predA, predB = preds[nameA], preds[nameB]   # whole 2D cmaps (not a row!)
     slA = pred_truth_slices.get(nameA, {}) if pred_truth_slices else {}
     slB = pred_truth_slices.get(nameB, {}) if pred_truth_slices else {}
     targets_override_best = None
