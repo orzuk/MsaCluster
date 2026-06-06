@@ -870,37 +870,33 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
         for child in node.children:
             x_pos[child] = x_pos[node] + edge_len(child)
 
-    # Aligned-tip (ultrametric) layout that doesn't waste space on long terminal
-    # branches. The tree is UPGMA/ultrametric, so all tips share a right edge.
-    # But if the deepest internal split (the rightmost parent-of-leaves) sits far
-    # to the left of that edge, every leaf trails a long uninformative branch and
-    # the actual splits get crammed into a sliver on the left. Fix: find the gap
-    # d = (tip_x - rightmost_internal_x) and pull all tips left to
-    # rightmost_internal_x + alpha*d (alpha=0.5), keeping tips aligned. This
-    # focuses the horizontal axis on where the topology actually branches.
+    # Focus the horizontal axis on the splits, not the long terminal branches.
+    # The tree is UPGMA/ultrametric (all tips at the same root-distance), but a
+    # ladder topology with a late-splitting node near the tips pins the tip line
+    # to the right edge, so a linear leftward shift can't compress the early
+    # leaves' long terminals without breaking that late node. Instead apply a
+    # monotonic POWER transform x -> (x/tip_x)**GAMMA * tip_x (GAMMA<1, sqrt by
+    # default): tip alignment + topology order are preserved (tips map to tip_x),
+    # but the crowded near-root split region is EXPANDED and the long terminal
+    # region COMPRESSED. GAMMA=1 recovers the exact ultrametric distances.
+    _GAMMA = 0.5
     try:
-        _ALPHA = 0.5
         _leaf_nodes = [n for n in root.traverse() if n.is_leaf()]
         _int_nodes = [n for n in root.traverse() if not n.is_leaf()]
         _leaf_xs = [x_pos[n] for n in _leaf_nodes]
-        if _leaf_xs and _int_nodes:
+        if _leaf_xs:
             _tip_x = max(_leaf_xs)
-            _rightmost_int = max(_int_nodes, key=lambda n: x_pos[n])
-            _int_max = x_pos[_rightmost_int]
-            _gap = _tip_x - _int_max
-            _new_tip = _int_max + _ALPHA * _gap if _gap > 0 else _tip_x
-            # --- diagnostics (so we can verify the rightmost split is found right) ---
-            _ix = sorted(x_pos[n] for n in _int_nodes)
-            _n_leaf_desc = len(_rightmost_int.get_leaves())
-            print(f"[tree-spacing] tip_x={_tip_x:.4f}  rightmost_internal_x={_int_max:.4f}"
-                  f"  gap={_gap:.4f}  -> new_tip={_new_tip:.4f} (shift leaves left by {_tip_x-_new_tip:.4f})")
-            print(f"[tree-spacing] rightmost internal node='{_rightmost_int.name}' "
-                  f"has {_n_leaf_desc} leaf-descendants (2 => it's a near-tip cherry, "
-                  f"which is why the gap is small on a ladder tree)")
-            print(f"[tree-spacing] internal-node x distribution: "
-                  f"min={_ix[0]:.4f} median={_ix[len(_ix)//2]:.4f} max={_ix[-1]:.4f} (n={len(_ix)})")
-            for n in _leaf_nodes:
-                x_pos[n] = _new_tip
+            _ix = sorted(x_pos[n] for n in _int_nodes) if _int_nodes else [0.0]
+            print(f"[tree-spacing] tip_x={_tip_x:.4f}  internal-node x: "
+                  f"min={_ix[0]:.4f} median={_ix[len(_ix)//2]:.4f} max={_ix[-1]:.4f} "
+                  f"(n={len(_ix)}); applying power transform GAMMA={_GAMMA} "
+                  f"(median split moves to "
+                  f"{(_ix[len(_ix)//2]/_tip_x)**_GAMMA*_tip_x:.4f})")
+            if _tip_x > 0:
+                for n in list(x_pos.keys()):
+                    xv = x_pos[n]
+                    if xv is not None and xv == xv and xv > 0:
+                        x_pos[n] = (xv / _tip_x) ** _GAMMA * _tip_x
     except Exception as _e:
         print(f"[tree-spacing] skipped ({_e})")
 
