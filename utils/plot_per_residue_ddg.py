@@ -404,26 +404,58 @@ def _default_out_path(pair_id: str) -> str:
 
 
 def _chain_pdb_path(pair_id: str, tag: str):
-    """Pipeline/FoldPairs/<pair>/chain_pdb_files/<tag>.pdb (or None)."""
-    base = _data_dir()
-    if not base or not tag:
+    """Locate a fold's truth structure file, reusing the robust finder the 3D
+    viewer uses (handles the chain_pdb_files naming variants). None if absent."""
+    if not tag:
         return None
-    p = os.path.join(base, pair_id, "chain_pdb_files", f"{tag}.pdb")
-    return p if os.path.isfile(p) else None
+    try:
+        from utils.structure_viewer import _find_pdb_for_tag
+        return _find_pdb_for_tag(pair_id, tag)
+    except Exception:
+        base = _data_dir()
+        if not base:
+            return None
+        p = os.path.join(base, pair_id, "chain_pdb_files", f"{tag}.pdb")
+        return p if os.path.isfile(p) else None
 
 
-def _dssp_ss_seq(pdb_path):
-    """(ss, seq) for a single-chain PDB via mdtraj DSSP (Q3 H/E/C). None on fail."""
+def _dssp_ss_seq(pdb_path, chain=None):
+    """(ss, seq) for a fold via mdtraj DSSP (Q3 H/E/C). Robust to mmCIF content
+    in a .pdb-named file (converts to a temp PDB via Biopython first). Returns
+    (None, None) on any failure - the figure then just shows the bars."""
+    if not pdb_path or not os.path.isfile(pdb_path):
+        return None, None
+    tmp = None
     try:
         import mdtraj as md
-        t = md.load(pdb_path)
-        ss = "".join(md.compute_dssp(t, simplified=True)[0])     # 'H'/'E'/'C'/'NA'
+        load_path = pdb_path
+        head = ""
+        try:
+            with open(pdb_path, "r", errors="replace") as fh:
+                head = fh.read(3000)
+        except Exception:
+            pass
+        # mdtraj can't parse mmCIF-content .pdb files; convert to real PDB.
+        if "_atom_site." in head or head.lstrip().startswith("data_"):
+            import tempfile
+            from Bio.PDB import MMCIFParser, PDBIO
+            s = MMCIFParser(QUIET=True).get_structure("x", pdb_path)
+            tmp = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False).name
+            io = PDBIO(); io.set_structure(s); io.save(tmp)
+            load_path = tmp
+        t = md.load(load_path)
+        ss = "".join(md.compute_dssp(t, simplified=True)[0]).replace("NA", "C")
         seq = t.topology.to_fasta()[0]
-        ss = ss.replace("NA", "C")
         if len(ss) and len(seq) and abs(len(ss) - len(seq)) <= 2:
             return ss, seq
+        print(f"[ddg-ss] SS/seq length mismatch for {pdb_path} "
+              f"(ss={len(ss)}, seq={len(seq)}) - likely multi-chain; skipping")
     except Exception as e:
         print(f"[ddg-ss] DSSP failed for {pdb_path}: {e}")
+    finally:
+        if tmp:
+            try: os.remove(tmp)
+            except Exception: pass
     return None, None
 
 
