@@ -638,7 +638,7 @@ def plot_foldswitch_contacts_and_predictions(
         xn = np.clip(x_vector / scale, -1.0, 1.0)
         yn = np.clip(y_vector / scale, -1.0, 1.0)
         norm = plt.Normalize(vmin=-1.0, vmax=1.0)
-        strip_cmap = "coolwarm"
+        strip_cmap = "coolwarm_r"  # blue = favours F1 (pdb1), red = favours F2
         ax_xvec.imshow(xn[np.newaxis, :], aspect="auto", cmap=strip_cmap, norm=norm)
         ax_xvec.axis("off")
         ax_yvec.imshow(yn[:, np.newaxis], aspect="auto", cmap=strip_cmap, norm=norm)

@@ -681,7 +681,7 @@ def make_foldswitch_all_plots(
         # the AF2 signal on both the tree leaves and the AF2 heatmap column.
         # 4-state palette: F1/F2 single-fold, both = fold-switcher, none = neither,
         # Amb = legacy ambiguous (3-state fallback).
-        _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+        _FOLD_COLORS = {"F1": "#1f77b4", "F2": "#d62728", "both": "#9467bd",
                         "none": "#dddddd", "Amb": "#999999"}
         fold_pref_per_row = None
         leaf_colors_dict = None
@@ -749,6 +749,7 @@ def make_foldswitch_all_plots(
             extra_top_row=deep_row if (deep_row is not None and not deep_row.empty) else None,
             extra_top_row_label="Deep MSA",
             label_in_leaf=True,
+            fold_labels=(pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]),
         )
 
         print(f"[ok] saved tree heatmap -> {out_root}.png")
@@ -780,6 +781,7 @@ def make_foldswitch_all_plots(
                     leaf_colors=_lc_rand, fold_pref_per_row=None, unified_diverging=True,
                     extra_top_row=(deep_row if (deep_row is not None and not deep_row.empty) else None),
                     extra_top_row_label="Deep MSA", label_in_leaf=True,
+                    fold_labels=(pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]),
                 )
                 _add_phytree_title(_out_rand + ".png", foldpair_id + "  (phylo NULL: rows shuffled)")
                 print(f"[ok] saved NULL tree heatmap -> {_out_rand}.png")

@@ -443,8 +443,9 @@ def _build_script(uid: str,
 # Public entry point
 # --------------------------------------------------------------------------- #
 
-def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str) -> str:
-    """Return an HTML string with interactive Mol* viewers for ``pair_id``.
+def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
+                             fig_start=None):
+    """Return ``(html, n_figs)`` with interactive Mol* viewers for ``pair_id``.
 
     Parameters
     ----------
@@ -455,6 +456,15 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str) -> st
         embed PDB text directly, so these are not strictly required, but
         ``mode`` is honoured loosely (the output is identical and self-contained
         for both "inline" and "copy" modes).
+    fig_start : int | None
+        If given, the two viewer sections are labelled "Figure {fig_start}: ..."
+        (aligned overlay) and "Figure {fig_start+1}: ..." (side by side) so they
+        slot into the page's running figure numbering.
+
+    Returns
+    -------
+    (html, n_figs) : the HTML block and how many figure numbers it consumed
+    (2 when structures render, 0 on the all-missing warning path).
 
     Notes
     -----
@@ -462,6 +472,10 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str) -> st
     The Mol* bundle/CSS are referenced relatively (``assets/molstar.js``) and
     are expected to live in ``docs/HTML/assets/``.
     """
+    def _fig_label(offset, text):
+        if fig_start is None:
+            return text
+        return f"Figure {int(fig_start) + offset}: {text}"
     try:
         tag1, tag2 = _split_pair(pair_id)
         uid = _safe_dom_id(pair_id) or "pair"
@@ -471,8 +485,8 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str) -> st
         pdb2_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag2))
 
         if pdb1_text is None and pdb2_text is None:
-            return _warn_div(
-                "structure not found for both folds of %s" % (pair_id,))
+            return (_warn_div(
+                "structure not found for both folds of %s" % (pair_id,)), 0)
 
         # Unique DOM ids per pair / viewer to avoid collisions on multi-viewer
         # pages.
@@ -505,7 +519,8 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str) -> st
         # Section 1: superposed overlay
         parts.append(
             '<div style="font-size:0.95em;font-weight:600;margin:4px 2px 6px;">'
-            'Superposed (both folds in one view)</div>'
+            + _html.escape(_fig_label(0, "Aligned overlay (both folds superposed)"))
+            + "</div>"
         )
         parts.append(_legend(tag1 or "fold 1", tag2 or "fold 2"))
         if pdb1_text is None:
@@ -520,7 +535,8 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str) -> st
         # Section 2: side-by-side
         parts.append(
             '<div style="font-size:0.95em;font-weight:600;margin:18px 2px 6px;">'
-            'Side by side</div>'
+            + _html.escape(_fig_label(1, "The two folds, side by side"))
+            + "</div>"
         )
         parts.append(
             '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
@@ -548,10 +564,11 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str) -> st
             pdb1_text, pdb2_text,
         ))
 
-        return "\n".join(parts)
+        # Two figure slots consumed (aligned overlay + side-by-side).
+        return ("\n".join(parts), 2)
 
     except Exception as e:  # absolute last-resort guard - never raise
         try:
-            return _warn_div("structure viewer error: %s" % (e,))
+            return (_warn_div("structure viewer error: %s" % (e,)), 0)
         except Exception:
-            return '<div class="warn">structure not found</div>'
+            return ('<div class="warn">structure not found</div>', 0)

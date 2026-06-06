@@ -842,7 +842,8 @@ def draw_grouped_heatmap(
 
 
 def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
-                       leaf_labels=None, internal_node_states=None):
+                       leaf_labels=None, internal_node_states=None,
+                       fold_labels=None):
     """Draw L-shaped tree branches aligned to heatmap rows.
 
     Parameters
@@ -869,18 +870,26 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
         for child in node.children:
             x_pos[child] = x_pos[node] + edge_len(child)
 
-    # Align all leaf tips to a common right edge: the tree is UPGMA/ultrametric,
-    # so an aligned-tip layout is the honest one and pairs cleanly with the
-    # adjacent heatmap rows (no ragged gap). Internal nodes keep their
-    # distance-based x; only the terminal branches extend to the tip line.
+    # Aligned-tip (ultrametric) layout that doesn't waste space on long terminal
+    # branches. The tree is UPGMA/ultrametric, so all tips share a right edge.
+    # But if the deepest internal split (the rightmost parent-of-leaves) sits far
+    # to the left of that edge, every leaf trails a long uninformative branch and
+    # the actual splits get crammed into a sliver on the left. Fix: find the gap
+    # d = (tip_x - rightmost_internal_x) and pull all tips left to
+    # rightmost_internal_x + alpha*d (alpha=0.5), keeping tips aligned. This
+    # focuses the horizontal axis on where the topology actually branches.
     try:
-        _leaf_xs = [x_pos[n] for n in root.traverse()
-                    if n.is_leaf() and np.isfinite(x_pos.get(n, np.nan))]
+        _ALPHA = 0.5
+        _leaf_xs = [x_pos[n] for n in root.traverse() if n.is_leaf()]
+        _int_xs = [x_pos[n] for n in root.traverse() if not n.is_leaf()]
         if _leaf_xs:
             _tip_x = max(_leaf_xs)
+            _int_max = max(_int_xs) if _int_xs else _tip_x
+            _gap = _tip_x - _int_max
+            _new_tip = _int_max + _ALPHA * _gap if _gap > 0 else _tip_x
             for n in root.traverse():
                 if n.is_leaf():
-                    x_pos[n] = _tip_x
+                    x_pos[n] = _new_tip
     except Exception:
         pass
 
@@ -904,7 +913,7 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
     # node) is coloured by that node's lineage state, so contiguous clades read
     # as solid colour blocks and a colour change marks a gain/loss event
     # (Just et al. 2022, Fig. 4c style). Nodes without a call render neutral grey.
-    _SC = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+    _SC = {"F1": "#1f77b4", "F2": "#d62728", "both": "#9467bd",
            "none": "#dddddd", "Amb": "#999999"}
     _NEUTRAL = "#cccccc"
     def node_color(nd):
@@ -984,7 +993,7 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
     # rest stay clean. Same fold colors as the leaf rings. Fully guarded so a
     # failure never breaks the tree-heatmap.
     if internal_node_states:
-        _SC = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+        _SC = {"F1": "#1f77b4", "F2": "#d62728", "both": "#9467bd",
                "none": "#dddddd", "Amb": "#999999"}
         try:
             for node in root.traverse("preorder"):
@@ -1020,6 +1029,26 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
     ax.set_xlim(xmin - 0.05 * (xmax - xmin + 1e-9), xmax + 0.02)
     ax.axis("off")
 
+    # Caption / colour legend, bottom-left under the tree. Branch & leaf colours
+    # encode the per-cluster fold call; fold_labels=(pdb1, pdb2) names which fold
+    # is which so the reader doesn't have to guess F1/F2.
+    try:
+        import matplotlib.patches as mpatches
+        f1lab, f2lab = (fold_labels if (fold_labels and len(fold_labels) == 2)
+                        else ("F1", "F2"))
+        _items = [
+            mpatches.Patch(color="#1f77b4", label=f"F1  {f1lab}"),
+            mpatches.Patch(color="#d62728", label=f"F2  {f2lab}"),
+            mpatches.Patch(color="#9467bd", label="both folds"),
+            mpatches.Patch(color="#cccccc", label="none / low-support"),
+        ]
+        ax.legend(handles=_items, loc="lower left",
+                  bbox_to_anchor=(0.0, 0.0), fontsize=7, frameon=False,
+                  title="branch / leaf colour", title_fontsize=7,
+                  borderaxespad=0.0, handlelength=1.1, labelspacing=0.3)
+    except Exception:
+        pass
+
 
 
 def compose_tree_and_heatmap(
@@ -1044,6 +1073,7 @@ def compose_tree_and_heatmap(
     extra_top_row_label="",   # NEW: y-label for that extra row
     label_in_leaf=False,      # NEW: draw cluster short labels INSIDE big hollow rings at tree tips, suppress y-tick labels
     internal_node_states=None,  # NEW: {node_name: F1/F2/Amb} parsimony recon; marks gain/loss events on internal nodes
+    fold_labels=None,           # NEW: (pdb1, pdb2) names for the tree colour legend
 ):
     import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
     from matplotlib.gridspec import GridSpecFromSubplotSpec
@@ -1132,12 +1162,15 @@ def compose_tree_and_heatmap(
             _leaf_labels = None
     draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index),
                       leaf_colors=leaf_colors, leaf_labels=_leaf_labels,
-                      internal_node_states=internal_node_states)
+                      internal_node_states=internal_node_states,
+                      fold_labels=fold_labels)
 
     # ----- draw the heatmaps -----
     # shared colormap (with NaN color); per-group vmin/vmax
     if unified_diverging:
-        cmap = mpl.cm.RdBu_r.copy()
+        # RdBu (not _r): positive preference (F1) -> blue, negative (F2) -> red,
+        # matching the unified fold-colour convention (F1/pdb1 blue, F2/pdb2 red).
+        cmap = mpl.cm.RdBu.copy()
     else:
         cmap = mpl.cm.viridis.copy()
     cmap.set_bad(nan_rgba)
@@ -1279,7 +1312,7 @@ def compose_tree_and_heatmap(
                 spine.set_color("#444")
 
     # ----- fold-preference color strip (narrow column after last heatmap group) -----
-    _FOLD_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "Amb": "#999999"}
+    _FOLD_COLORS = {"F1": "#1f77b4", "F2": "#d62728", "Amb": "#999999"}
     if fold_pref_per_row is not None and len(fold_pref_per_row) == df_plot.shape[0]:
         import matplotlib.colors as mcolors
         bb = ax_heat_region.get_position()

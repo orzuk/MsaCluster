@@ -623,7 +623,7 @@ def run_permutation_test(tree, leaf_states: dict, n_perm: int = 1000,
 
 # Fold-state palette. 4-state (abs4): F1 red, F2 blue, both purple (fold-switcher),
 # none light grey. Amb (legacy 3-state "ambiguous") kept as medium grey.
-_STATE_COLORS = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+_STATE_COLORS = {"F1": "#1f77b4", "F2": "#d62728", "both": "#9467bd",
                  "none": "#dddddd", "Amb": "#999999"}
 
 # Semantic label for a parent->child transition (gain/loss of fold-switching).

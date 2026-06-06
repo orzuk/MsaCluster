@@ -489,10 +489,13 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
                           "Phylogenetic tree with per-cluster fold-preference heatmap.",
                           mode, publish_dir_for_pair, output_dir, explanation=EXPL_TREE)
 
-    # ===== 2: STRUCTURES (delegated to render_structure_viewers, supplied by another agent) =====
+    # ===== 2: STRUCTURES (interactive Mol* viewers; numbered into the figure run) =====
     try:
         from utils.structure_viewer import render_structure_viewers
-        pb.push(render_structure_viewers(pair_id, fig_dir, output_dir, mode))
+        _struct_html, _n_struct = render_structure_viewers(
+            pair_id, fig_dir, output_dir, mode, fig_start=pb.fig_idx + 1)
+        pb.push(_struct_html)
+        pb.fig_idx += _n_struct
     except Exception as e:
         pb.push(f'<div class="warn">structure viewer unavailable: {html.escape(str(e))}</div>')
 
