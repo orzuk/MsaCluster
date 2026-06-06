@@ -408,7 +408,7 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
 
     For each aligned position, plots the mean over the pair's cluster homolog
     sequences of (contrib_F2 - contrib_F1) -- the per-position contribution to
-    the conformation-bias score. Positive (red) favors fold 1; negative (blue)
+    the conformation-bias score. Positive (blue) favors fold 1; negative (red)
     favors fold 2.
 
     Parameters
