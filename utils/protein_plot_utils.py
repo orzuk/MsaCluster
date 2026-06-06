@@ -685,14 +685,18 @@ def make_foldswitch_all_plots(
                         "none": "#dddddd", "Amb": "#999999"}
         fold_pref_per_row = None
         leaf_colors_dict = None
-        internal_node_states_asr = None
+        internal_node_states_asr = None   # RELATIVE states -> branch colour
+        event_node_states = None          # ABSOLUTE 4-state -> gain/loss markers
 
-        # Prefer the 4-state F1/F2/both/none call (absolute consensus TM
-        # magnitudes — splits "both folds" from "neither", resolving grey-Amb).
-        # Fall back to the 3-state difference consensus if cluster-tag alignment
-        # with this tree is poor (guards against silent all-"none").
-        prefs = _consensus_fold_preference(df_cluster_ordered, threshold=0.10)
-        active_prefs, default_st = prefs, "Amb"
+        # RELATIVE consensus (sign of the per-method centered preference) drives
+        # the leaf + branch COLOUR, so the tree visually agrees with the adjacent
+        # heatmap (blue = leans fold1, red = leans fold2, gray = ambiguous).
+        rel_prefs = _consensus_fold_preference(df_cluster_ordered, threshold=0.10)
+
+        # ABSOLUTE 4-state call (both/none, tau=0.5 TM) is used ONLY for the
+        # gain/loss event markers (gain of fold-switching = "both"); it is the
+        # same kind of absolute signal as the Deep-MSA baseline strip.
+        abs_prefs = None
         try:
             from utils.ancestral_utils import (load_consensus_cluster_tm,
                                                assign_fold_preference_4state)
@@ -700,33 +704,39 @@ def make_foldswitch_all_plots(
                 load_consensus_cluster_tm(foldpair_id), tau=0.5)
             _ovl = sum(1 for t in ordered_tags if t in _p4)
             if _ovl >= max(3, 0.5 * len(ordered_tags)):
-                active_prefs, default_st = _p4, "none"
+                abs_prefs = _p4
             else:
                 print(f"[plot] 4-state tag overlap low ({_ovl}/{len(ordered_tags)}); "
-                      f"using 3-state consensus for {foldpair_id}")
+                      f"no absolute event markers for {foldpair_id}")
         except Exception as e:
-            print(f"[plot] 4-state prefs unavailable ({e}); using 3-state consensus")
+            print(f"[plot] 4-state prefs unavailable ({e}); no absolute event markers")
 
-        if active_prefs:
-            fold_pref_per_row = [active_prefs.get(t, default_st) for t in ordered_tags]
+        if rel_prefs:
+            fold_pref_per_row = [rel_prefs.get(t, "Amb") for t in ordered_tags]
             leaf_colors_dict = {}
             for tag, leaf_name in zip(ordered_tags, leaf_order):
-                pref = active_prefs.get(tag, default_st)
-                leaf_colors_dict[leaf_name] = _FOLD_COLORS.get(pref, "#999999")
-            # Parsimony ancestral reconstruction of the CONSENSUS state on THIS
-            # tree → overlay gain/loss event markers on internal nodes (one
-            # combined figure: tree w/ leaf rings + internal events + heatmap).
+                leaf_colors_dict[leaf_name] = _FOLD_COLORS.get(
+                    rel_prefs.get(tag, "Amb"), "#999999")
             try:
                 from utils.ancestral_utils import _name_internal_nodes, run_asr
                 _name_internal_nodes(ete_tree)
-                _ls = {ln: active_prefs.get(tag, default_st)
-                       for tag, ln in zip(ordered_tags, leaf_order)}
+                # RELATIVE parsimony -> internal branch colour (matches heatmap)
+                _ls_rel = {ln: rel_prefs.get(tag, "Amb")
+                           for tag, ln in zip(ordered_tags, leaf_order)}
                 internal_node_states_asr, _am, _ap = run_asr(
-                    ete_tree, _ls,
+                    ete_tree, _ls_rel,
                     work_dir=os.path.join(fig_dir_root, "_asr_tmp"))
+                # ABSOLUTE 4-state parsimony -> gain/loss event markers only
+                if abs_prefs:
+                    _ls_abs = {ln: abs_prefs.get(tag, "none")
+                               for tag, ln in zip(ordered_tags, leaf_order)}
+                    event_node_states, _, _ = run_asr(
+                        ete_tree, _ls_abs,
+                        work_dir=os.path.join(fig_dir_root, "_asr_tmp_abs"))
             except Exception as e:
                 print(f"[plot] ancestral overlay skipped for {foldpair_id}: {e}")
                 internal_node_states_asr = None
+                event_node_states = None
 
         out_root = os.path.join(fig_dir_root, f"{foldpair_id}_phytree_cluster")
         print("Making tree heatmap plot with column groups...", col_groups, flush=True)
@@ -741,7 +751,8 @@ def make_foldswitch_all_plots(
             nan_rgba=(0.92, 0.92, 0.92, 1.0),
             ylabels_override=ylabels_override,
             leaf_colors=leaf_colors_dict,
-            internal_node_states=internal_node_states_asr,  # gain/loss event markers
+            internal_node_states=internal_node_states_asr,  # RELATIVE -> branch colour
+            event_node_states=event_node_states,            # ABSOLUTE -> gain/loss markers
             # Drop the redundant Fold strip: the leaf-tip rings on the tree
             # already encode the F1/F2/Amb call.
             fold_pref_per_row=None,
