@@ -451,7 +451,9 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
         n = len(delta)
         positions = np.arange(1, n + 1)
         vals = np.nan_to_num(delta, nan=0.0)
-        colors = np.where(vals >= 0, "#c0392b", "#2c6fbb")  # red fold1 / blue fold2
+        # Unified convention: fold1/pdb1 = blue, fold2/pdb2 = red (matches the
+        # tree, heatmap, contact-map ΔΔG strip and 3D viewers).
+        colors = np.where(vals >= 0, "#2c6fbb", "#c0392b")  # blue fold1 / red fold2
 
         fig, ax = plt.subplots(figsize=(max(8.0, min(22.0, 0.06 * n + 6.0)), 4.2))
         ax.bar(positions, vals, color=list(colors), width=1.0, linewidth=0)
@@ -474,8 +476,8 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
         f1_label = f"favors fold 1 ({tagA})" if tagA else "favors fold 1"
         f2_label = f"favors fold 2 ({tagB})" if tagB else "favors fold 2"
         handles = [
-            plt.Rectangle((0, 0), 1, 1, color="#c0392b"),
             plt.Rectangle((0, 0), 1, 1, color="#2c6fbb"),
+            plt.Rectangle((0, 0), 1, 1, color="#c0392b"),
         ]
         ax.legend(handles, [f1_label, f2_label], loc="best", fontsize=8, frameon=False)
 
