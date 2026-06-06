@@ -2938,14 +2938,18 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     if getattr(args, "reports", "none") in ("html", "all"):
         try:
             print("Generating per-pair HTML …")
-            env = _jupyter_env_for_scratch()  # use scratch env
+            # Use the SAME generator as the deployed docs/HTML pages
+            # (TableResults/gen_pair_html.py) so per-pair jobs pick up the
+            # current figures (SS cartoons, 3D superposition, etc.). Was
+            # Analysis/NotebookGen/generate_notebooks.py, a separate nbconvert
+            # path that never ran the updated per_residue_ddg_fig.
             cmd = (
-                f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py "
-                f"{shlex.quote(pair_id)} --kernel python3"
+                f"{shlex.quote(sys.executable)} TableResults/gen_pair_html.py "
+                f"--pairs {shlex.quote(pair_id)} --mode inline"
             )
-            rc = subprocess.run(cmd, shell=True, check=False, env=env).returncode
+            rc = subprocess.run(cmd, shell=True, check=False).returncode
             if rc != 0:
-                print(f"[html] nbconvert failed (rc={rc}) — will be retried later.")
+                print(f"[html] gen_pair_html failed (rc={rc}) for {pair_id}.")
         except Exception as e:
             print(f"HTML step skipped: {e}")
     else:
