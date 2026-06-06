@@ -298,7 +298,9 @@ def _build_script(uid: str,
   function detectFormat(txt) {
     if (!txt) { return "pdb"; }
     var head = txt.slice(0, 4000);
-    if (/^\s*data_/.test(head) || head.indexOf("_atom_site.") >= 0) { return "mmcif"; }
+    if (head.indexOf("_atom_site.") >= 0 || head.slice(0, 60).indexOf("data_") >= 0) {
+      return "mmcif";
+    }
     return "pdb";
   }
 
