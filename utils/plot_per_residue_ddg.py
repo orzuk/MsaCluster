@@ -419,43 +419,77 @@ def _chain_pdb_path(pair_id: str, tag: str):
         return p if os.path.isfile(p) else None
 
 
+def _ss_from_phipsi(phi, psi):
+    """Crude Q3 secondary-structure call from backbone (phi, psi) in radians.
+    Ramachandran regions: alpha-helix -> H, beta-strand -> E, else coil C.
+    Good enough for a per-residue SS track (no DSSP binary / mdtraj needed)."""
+    import math
+    if phi is None or psi is None:
+        return "C"
+    p, s = math.degrees(phi), math.degrees(psi)
+    if -160.0 <= p <= -20.0 and -120.0 <= s <= 50.0:
+        return "H"
+    if -180.0 <= p <= -40.0 and (90.0 <= s <= 180.0 or -180.0 <= s <= -150.0):
+        return "E"
+    return "C"
+
+
+def _smooth_ss(ss, min_run=3):
+    """Demote helix/strand runs shorter than min_run to coil, so the φ/ψ-based
+    track shows clean SS segments instead of single-residue speckle."""
+    out = list(ss)
+    n = len(out)
+    i = 0
+    while i < n:
+        j = i
+        while j < n and out[j] == out[i]:
+            j += 1
+        if out[i] in "HE" and (j - i) < min_run:
+            for k in range(i, j):
+                out[k] = "C"
+        i = j
+    return "".join(out)
+
+
 def _dssp_ss_seq(pdb_path, chain=None):
-    """(ss, seq) for a fold via mdtraj DSSP (Q3 H/E/C). Robust to mmCIF content
-    in a .pdb-named file (converts to a temp PDB via Biopython first). Returns
-    (None, None) on any failure - the figure then just shows the bars."""
+    """(ss, seq) for one fold's chain. Pure Biopython (PPBuilder + phi/psi), so
+    it needs NO mdtraj and NO external DSSP binary, and handles mmCIF or PDB.
+    Restricts to `chain` when present (else the longest chain). (None, None) on
+    failure -> the figure then just shows the ΔΔG bars."""
     if not pdb_path or not os.path.isfile(pdb_path):
         return None, None
-    tmp = None
     try:
-        import mdtraj as md
-        load_path = pdb_path
+        from Bio.PDB import MMCIFParser, PDBParser, PPBuilder
         head = ""
         try:
             with open(pdb_path, "r", errors="replace") as fh:
                 head = fh.read(3000)
         except Exception:
             pass
-        # mdtraj can't parse mmCIF-content .pdb files; convert to real PDB.
-        if "_atom_site." in head or head.lstrip().startswith("data_"):
-            import tempfile
-            from Bio.PDB import MMCIFParser, PDBIO
-            s = MMCIFParser(QUIET=True).get_structure("x", pdb_path)
-            tmp = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False).name
-            io = PDBIO(); io.set_structure(s); io.save(tmp)
-            load_path = tmp
-        t = md.load(load_path)
-        ss = "".join(md.compute_dssp(t, simplified=True)[0]).replace("NA", "C")
-        seq = t.topology.to_fasta()[0]
-        if len(ss) and len(seq) and abs(len(ss) - len(seq)) <= 2:
-            return ss, seq
-        print(f"[ddg-ss] SS/seq length mismatch for {pdb_path} "
-              f"(ss={len(ss)}, seq={len(seq)}) - likely multi-chain; skipping")
+        is_cif = ("_atom_site." in head) or head.lstrip().startswith("data_")
+        parser = MMCIFParser(QUIET=True) if is_cif else PDBParser(QUIET=True)
+        struct = parser.get_structure("x", pdb_path)
+        model = next(iter(struct))
+        # pick the requested chain, else the longest one
+        ch = None
+        if chain and chain in model:
+            ch = model[chain]
+        else:
+            ch = max(model, key=lambda c: sum(1 for _ in c), default=None)
+        if ch is None:
+            return None, None
+        ppb = PPBuilder()
+        ss_chars, seq_chars = [], []
+        for pp in ppb.build_peptides(ch):
+            seq = str(pp.get_sequence())
+            for (phi, psi), aa in zip(pp.get_phi_psi_list(), seq):
+                ss_chars.append(_ss_from_phipsi(phi, psi))
+                seq_chars.append(aa)
+        if len(ss_chars) >= 3:
+            return _smooth_ss("".join(ss_chars)), "".join(seq_chars)
+        print(f"[ddg-ss] too few residues for SS in {pdb_path}")
     except Exception as e:
-        print(f"[ddg-ss] DSSP failed for {pdb_path}: {e}")
-    finally:
-        if tmp:
-            try: os.remove(tmp)
-            except Exception: pass
+        print(f"[ddg-ss] SS failed for {pdb_path}: {e}")
     return None, None
 
 
@@ -580,29 +614,41 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
         ax.set_xlim(0.5, n + 0.5)
         ax.margins(x=0)
 
-        # --- secondary-structure tracks (Porter Fig 1a/b style) ---
+        # --- secondary-structure tracks + sequence (Porter Fig 1a/b style) ---
         # fold1 SS on top, fold2 SS on the bottom, on the same residue axis as
-        # the ΔΔG bars, so ΔΔG peaks line up with helix<->strand changes between
-        # the two folds. SS from DSSP (mdtraj); the two folds' residues are
-        # matched with align_utils' pairwise alignment (fold2 mapped onto fold1).
+        # the ΔΔG bars, so peaks line up with helix<->strand changes between the
+        # two folds. SS is computed pure-Biopython (phi/psi; no mdtraj/DSSP
+        # binary); the two folds' residues are matched with align_utils' pairwise
+        # alignment (fold2 mapped onto fold1's frame). For short proteins the
+        # fold-1 sequence is drawn as the x-axis labels (fold switchers share ~the
+        # same sequence, so it labels both frames).
         try:
             from mpl_toolkits.axes_grid1 import make_axes_locatable
-            ss1, seq1 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagA)) if tagA else (None, None)
-            ss2, seq2 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagB)) if tagB else (None, None)
+            _cA = tagA[4:] if (tagA and len(tagA) > 4) else None
+            _cB = tagB[4:] if (tagB and len(tagB) > 4) else None
+            ss1, seq1 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagA), _cA) if tagA else (None, None)
+            ss2, seq2 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagB), _cB) if tagB else (None, None)
             if ss1 and ss2 and seq1 and seq2:
                 ss2_on1 = _map_ss_onto_frame(seq1, seq2, ss2) or list(ss2)
                 div = make_axes_locatable(ax)
                 ax_top = div.append_axes("top", size="8%", pad=0.06, sharex=ax)
-                ax_bot = div.append_axes("bottom", size="8%", pad=0.45, sharex=ax)
+                ax_bot = div.append_axes("bottom", size="8%", pad=0.55, sharex=ax)
                 _draw_ss_track(ax_top, list(ss1), n, f"{tagA or 'fold1'} SS ")
                 _draw_ss_track(ax_bot, ss2_on1, n, f"{tagB or 'fold2'} SS ")
-                ax_top.set_title("secondary structure: "
-                                 "■ helix  ■ strand  ■ coil",
+                ax_top.set_title("secondary structure  (helix=orange, strand=gold, coil=gray)",
                                  fontsize=7, pad=2)
-                ax_bot.set_xlabel("residue position (fold 1 frame)")
+                # Sequence row: fold-1 single-letter sequence as x-axis labels
+                # when the protein is short enough to be legible.
+                if len(seq1) and abs(len(seq1) - n) <= 3 and n <= 200:
+                    ax.set_xticks(range(1, len(seq1) + 1))
+                    ax.set_xticklabels(list(seq1), fontsize=4, family="monospace")
+                    ax.tick_params(axis="x", length=0, pad=1)
+                    ax.set_xlabel(f"residue (sequence shown = {tagA or 'fold1'})")
+                else:
+                    ax_bot.set_xlabel("residue position (fold 1 frame)")
             else:
                 print(f"[ddg-ss] no SS tracks for {pair_id} "
-                      f"(DSSP/seq unavailable for one fold)")
+                      f"(SS/seq unavailable for one fold)")
         except Exception as e:
             print(f"[ddg-ss] SS tracks skipped for {pair_id}: {e}")
 
