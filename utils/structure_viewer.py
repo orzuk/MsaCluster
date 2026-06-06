@@ -284,17 +284,17 @@ def _build_script(uid: str,
 
   // Build one structure from embedded PDB text and add a uniform-coloured
   // cartoon representation. Returns the structure ref (or null on failure).
-  async function addStructure(plugin, pdbText, colorInt) {
-    var data = await plugin.builders.data.rawData({ data: pdbText });
-    var traj = await plugin.builders.structure.parseTrajectory(data, "pdb");
-    // applyPreset builds model + structure + components + representations AND
-    // computes secondary structure, so cartoon renders real helices/strands
-    // (the manual createStructure/addRepresentation chain skipped SS -> a dot
-    // cloud). Use a uniform colour so the two folds are visually distinct.
-    await plugin.builders.structure.hierarchy.applyPreset(traj, "default", {
-      structure: { name: "model", params: {} },
-      representationPreset: "polymer-cartoon",
-      representationPresetParams: {
+  // Load one structure from embedded PDB text via the HIGH-LEVEL Viewer API.
+  // This is the same path the Ligo blog uses (loadStructureFromUrl): it builds
+  // model + structure + representation, computes secondary structure for a real
+  // cartoon, AND auto-focuses the camera on the loaded structure. The previous
+  // low-level builders.structure.hierarchy.applyPreset chain did neither
+  // reliably, leaving a blank (all-white) canvas. A uniform colour keeps the
+  // two folds visually distinct.
+  async function addStructure(viewer, pdbText, colorInt, label) {
+    await viewer.loadStructureFromData(pdbText, "pdb", {
+      dataLabel: label || "structure",
+      representationParams: {
         theme: {
           globalName: "uniform",
           globalColorParams: { value: colorInt }
@@ -368,10 +368,9 @@ def _build_script(uid: str,
     try {
       var viewer = await makeViewer(CFG.superposedId, statusId);
       if (!viewer) { return; }
-      var plugin = viewer.plugin;
       var any = false;
-      if (PDB1) { await addStructure(plugin, PDB1, CFG.color1); any = true; }
-      if (PDB2) { await addStructure(plugin, PDB2, CFG.color2); any = true; }
+      if (PDB1) { await addStructure(viewer, PDB1, CFG.color1, "Fold 1"); any = true; }
+      if (PDB2) { await addStructure(viewer, PDB2, CFG.color2, "Fold 2"); any = true; }
       if (!any) { setStatus(statusId, "No structures available.", "error"); return; }
       await finalize(viewer, statusId, "Superposed overlay ready (drag to rotate).");
     } catch (e) {
@@ -386,7 +385,7 @@ def _build_script(uid: str,
       if (!pdbText) { setStatus(statusId, "structure not found", "error"); return; }
       var viewer = await makeViewer(targetId, statusId);
       if (!viewer) { return; }
-      await addStructure(viewer.plugin, pdbText, colorInt);
+      await addStructure(viewer, pdbText, colorInt, label);
       await finalize(viewer, statusId, label + " ready.");
     } catch (e) {
       console.error(e);

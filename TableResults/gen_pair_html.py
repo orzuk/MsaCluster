@@ -247,8 +247,11 @@ class PageBuilder:
 
   /* Cluster metrics table. */
   .table-wrap {{ margin:10px 0 22px; overflow-x:auto; }}
-  table {{ width:100%; border-collapse:collapse; font-size:0.95em; }}
-  th, td {{ border:1px solid #333; padding:6px 8px; text-align:left; white-space:normal; }}
+  /* table-layout:fixed + width:100% makes the (many-column) metrics table fit
+     the page width instead of overflowing into a horizontal scroller; the
+     smaller font + word wrapping keep every column readable. */
+  table {{ width:100%; border-collapse:collapse; font-size:0.7em; table-layout:fixed; }}
+  th, td {{ border:1px solid #333; padding:3px 5px; text-align:left; white-space:normal; word-break:break-word; overflow-wrap:anywhere; }}
   th {{ background:#b71c1c; color:#fff; }}
   tr:nth-child(even) {{ background:#2b2b2b; }}
   tr:hover {{ background:#3a3a3a; }}
@@ -563,7 +566,11 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
                 from utils.method_labels import disp as _disp
             except Exception:
                 _disp = lambda x: x
-            thead = "<tr>" + "".join(f"<th>{html.escape(_disp(str(c)))}</th>" for c in df.columns) + "</tr>"
+            # disp() maps the bare method key "DDG"->"ΔΔG"; also rewrite the
+            # "DDG" prefix in compound headers (DDG_Bias, DDG_frac_F1, ...).
+            def _hdr(c):
+                return _disp(str(c)).replace("DDG", "ΔΔG")
+            thead = "<tr>" + "".join(f"<th>{html.escape(_hdr(c))}</th>" for c in df.columns) + "</tr>"
             rows = []
             for _, r in df.iterrows():
                 tds = []
