@@ -59,6 +59,7 @@ RUN_MODE_DESCRIPTIONS = {
     "run_speachaf":     "Run SPEACH-AF (random column-masking perturbation of cluster MSAs + ColabFold) per cluster.",
     "run_alphaflow":    "Run AlphaFlow (flow-matching diffusion ensemble) per cluster. Requires torch2-venv.",
     "run_boltz2":       "Run Boltz-2 (open-source AF3-class predictor with binding head) per cluster. Requires torch2-venv.",
+    "run_bioemu":       "Run BioEmu (equilibrium-ensemble generative model) per cluster; reports the per-cluster population balance between the two folds. Requires bioemu-venv (see INSTALL_bioemu.md).",
     "run_s4pred":       "Run S4PRED secondary-structure prediction per cluster (single-sequence, no PLM). Outputs per-cluster Q3 H/E/C string for SS-based fold preference (8th method, no AF/ESM bias).",
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
     "postprocess": "Compute TM/cmap metrics and build summary/detailed tables. Use --force_rerun_postprocess TRUE to recompute." ,
@@ -80,6 +81,7 @@ HEAVY_PAIR_MODES = {
     "run_speachaf",           # SPEACH-AF per cluster
     "run_alphaflow",          # AlphaFlow per cluster
     "run_boltz2",             # Boltz-2 per cluster
+    "run_bioemu",             # BioEmu equilibrium-ensemble per cluster
     "run_s4pred",             # S4PRED SS prediction per cluster
     "compute_deltaG",         # if you have a Rosetta/PyRosetta ΔG step
     "plot",                   # rendering/alignments can be slow
@@ -100,6 +102,7 @@ SBATCH_HINTS = {
     "run_speachaf":          {"time":"08:00:00", "mem":"24G",  "gpus":1, "cpus":8},
     "run_alphaflow":         {"time":"06:00:00", "mem":"32G",  "gpus":1, "cpus":8},
     "run_boltz2":            {"time":"06:00:00", "mem":"32G",  "gpus":1, "cpus":8},
+    "run_bioemu":            {"time":"08:00:00", "mem":"32G",  "gpus":1, "cpus":8},
     "run_s4pred":            {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
     "compute_deltaG":        {"time":"06:00:00", "mem":"16G",  "gpus":0, "cpus":8},
     "plot":                  {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
@@ -456,6 +459,10 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         partner = getattr(args, "boltz2_partner_yaml", "") or ""
         if partner:
             inner += ["--boltz2_partner_yaml", shlex.quote(partner)]
+    if run_mode == "run_bioemu":
+        nsamp = getattr(args, "bioemu_num_samples", None)
+        if nsamp:
+            inner += ["--bioemu_num_samples", str(int(nsamp))]
     if run_mode == "run_s4pred":
         s4dir = getattr(args, "s4pred_dir", None) or ""
         if s4dir:
@@ -2127,6 +2134,19 @@ def task_boltz2(pair_id: str, args: argparse.Namespace) -> None:
     _run(cmd, args.run_job_mode)
 
 
+def task_bioemu(pair_id: str, args: argparse.Namespace) -> None:
+    """BioEmu per cluster. Shells out to run_bioemu.py, which calls
+    scripts/shell/RunBioEmu.sh (activates bioemu-venv) to sample the
+    equilibrium ensemble, then TM-scores each sample vs both folds and
+    records the per-cluster population balance. See INSTALL_bioemu.md.
+    """
+    cmd = f"python3 ./run_bioemu.py -input {pair_id}"
+    nsamp = getattr(args, "bioemu_num_samples", None)
+    if nsamp:
+        cmd += f" --num_samples {int(nsamp)}"
+    _run(cmd, args.run_job_mode)
+
+
 def task_ddg(pair_id: str, args: argparse.Namespace) -> None:
     """
     Conformation-biasing DDG scoring per cluster using ThermoMPNN.
@@ -2945,7 +2965,7 @@ def main():
                    choices=["load", "get_msa", "cluster_msa", "run_cmap_msa_transformer", "run_cmap_ccmpred",
                             "run_esmfold", "run_AF", "run_ddg",
                             "run_cf_random", "run_speachaf", "run_alphaflow", "run_boltz2",
-                            "run_s4pred", "aggregate_s4pred",
+                            "run_bioemu", "run_s4pred", "aggregate_s4pred",
                             "tree", "plot", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=False, default=["ALL"],
@@ -2976,6 +2996,11 @@ def main():
                         "every cluster's input YAML. Use for targeted "
                         "holo experiments outside the trigger CSV "
                         "(e.g. specific RfaH-RNAP runs).")
+
+    # --- BioEmu (9th method: equilibrium-ensemble fold preference) options ---
+    p.add_argument("--bioemu_num_samples", type=int, default=50,
+                   help="BioEmu samples per cluster (default 50). More samples "
+                        "= better population-balance estimate, more GPU time.")
 
     # --- S4PRED (8th method: secondary-structure prediction) options ---
     p.add_argument("--s4pred_dir", default=None,
@@ -3471,6 +3496,9 @@ def main():
 
         elif args.run_mode == "run_boltz2":
             task_boltz2(pair_id, args)
+
+        elif args.run_mode == "run_bioemu":
+            task_bioemu(pair_id, args)
 
         elif args.run_mode == "run_s4pred":
             task_s4pred(pair_id, args)

@@ -361,6 +361,70 @@ def load_boltz2_diversity(pair_id, delta):
     return rows
 
 
+def load_bioemu_diversity(pair_id, delta):
+    """Load df_bioemu.csv (BioEmu equilibrium ensemble) -> per-cluster preference.
+
+    Schema (one row per ShallowMsa cluster, from run_bioemu.py):
+        pair_id, cluster, n_samples, mean_tm_fold1, mean_tm_fold2,
+        mean_TMdiff, best_tm_fold1, best_tm_fold2, frac_toward_f1
+
+    Unlike the point-estimate predictors (AF2/AF3/Boltz-2), BioEmu samples the
+    equilibrium ENSEMBLE, so the natural per-cluster signal is the ENSEMBLE MEAN
+    preference (the population balance between the folds). We therefore map the
+    ensemble means onto the standard TM1/TM2 fields and use mean_TMdiff as the
+    per-cluster signal (TMdiff_max), so BioEmu flows through the centered
+    classification + concordance exactly like the other methods. frac_toward_f1
+    (fraction of the ensemble closer to fold 1) is carried as the vote fraction.
+    """
+    csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_bioemu.csv")
+    if not os.path.isfile(csv_path):
+        return []
+    try:
+        df = pd.read_csv(csv_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return []
+    if df.empty or "mean_tm_fold1" not in df.columns or "mean_tm_fold2" not in df.columns:
+        return []
+
+    col = "cluster_num" if "cluster_num" in df.columns else "cluster"
+    if col not in df.columns:
+        return []
+    df["_tag"] = df[col].apply(_normalize_cluster)
+    df["TM1"] = pd.to_numeric(df["mean_tm_fold1"], errors="coerce")
+    df["TM2"] = pd.to_numeric(df["mean_tm_fold2"], errors="coerce")
+
+    rows = []
+    for tag, grp in df.groupby("_tag"):
+        tm1 = grp["TM1"].mean()
+        tm2 = grp["TM2"].mean()
+        n_samples = int(grp["n_samples"].iloc[0]) if "n_samples" in grp.columns else 1
+        frac_f1 = float(grp["frac_toward_f1"].iloc[0]) if "frac_toward_f1" in grp.columns else float("nan")
+        best1 = pd.to_numeric(grp.get("best_tm_fold1"), errors="coerce").max() if "best_tm_fold1" in grp.columns else tm1
+        best2 = pd.to_numeric(grp.get("best_tm_fold2"), errors="coerce").max() if "best_tm_fold2" in grp.columns else tm2
+        pref = _assign_pref(tm1, tm2, delta)
+        rows.append({
+            "pair_id": pair_id,
+            "cluster": tag,
+            "method": "BioEmu",
+            # ensemble MEAN is the per-cluster signal -> use it as the "max"
+            # (centering) field so BioEmu behaves like the other TM methods.
+            "TM1_max": round(tm1, 4) if pd.notna(tm1) else float("nan"),
+            "TM2_max": round(tm2, 4) if pd.notna(tm2) else float("nan"),
+            "TM1_mean": round(tm1, 4) if pd.notna(tm1) else float("nan"),
+            "TM2_mean": round(tm2, 4) if pd.notna(tm2) else float("nan"),
+            "TMdiff_max": round(tm1 - tm2, 4)
+                          if (pd.notna(tm1) and pd.notna(tm2)) else float("nan"),
+            "TMdiff_mean": round(tm1 - tm2, 4)
+                           if (pd.notna(tm1) and pd.notna(tm2)) else float("nan"),
+            "best_tm_fold1": round(float(best1), 4) if pd.notna(best1) else float("nan"),
+            "best_tm_fold2": round(float(best2), 4) if pd.notna(best2) else float("nan"),
+            "n_models": n_samples,
+            "vote_frac_f1": round(frac_f1, 3) if pd.notna(frac_f1) else float("nan"),
+            "pref": pref,
+        })
+    return rows
+
+
 def load_esm_diversity(pair_id, delta):
     """Load df_esm.csv and compute per-cluster fold preference.
 
@@ -893,7 +957,7 @@ def compute_pair_concordance(pair_id, cluster_rows_by_method):
                        max_concordance_methods (e.g. "AF2~DDG"),
                        max_concordance_pct
     """
-    methods = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2"]
+    methods = ["AF2", "AF3", "ESM", "MSAT", "CCMpred", "DDG", "Boltz2", "BioEmu"]
     # Build per-method dict cluster -> centered value
     by_m = {}
     for m in methods:
@@ -1088,6 +1152,16 @@ def main():
             all_cluster_rows.extend(boltz2_rows)
             per_method_rows["Boltz2"] = boltz2_rows
             s = summarize_pair(pair_id, boltz2_rows)
+            if s:
+                all_summaries.append(s)
+
+        # BioEmu (per-cluster equilibrium ensemble; reads df_bioemu.csv)
+        bioemu_rows = load_bioemu_diversity(pair_id, args.delta)
+        if bioemu_rows:
+            _apply_centered_classification(bioemu_rows, args.delta)
+            all_cluster_rows.extend(bioemu_rows)
+            per_method_rows["BioEmu"] = bioemu_rows
+            s = summarize_pair(pair_id, bioemu_rows)
             if s:
                 all_summaries.append(s)
 

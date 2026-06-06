@@ -14,7 +14,7 @@ Usage:
 # Ordered roughly strongest/most-informative -> weakest: the structure
 # predictors first, then DDG and S4PRED, then the sparse, noisy contact-based
 # methods (MSA-Transformer, CCMpred) last.
-METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "DDG", "S4PRED", "MSAT", "CCMpred"]
+METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "BioEmu", "DDG", "S4PRED", "MSAT", "CCMpred"]
 
 # KEY -> human display string. Unicode (Δ = U+0394) renders in both matplotlib
 # (DejaVu Sans) and HTML, so a single string serves every output target.
@@ -23,6 +23,7 @@ METHOD_DISPLAY = {
     "AF3":     "AF3",
     "ESM":     "ESMFold2",
     "Boltz2":  "Boltz-2",
+    "BioEmu":  "BioEmu",
     "DDG":     "ΔΔG",      # ΔΔG
     "MSAT":    "MSA-Transformer",
     "CCMpred": "CCMpred",
@@ -37,6 +38,7 @@ METHOD_METRIC = {
     "AF3":     "TM-score",
     "ESM":     "TM-score",
     "Boltz2":  "TM-score",
+    "BioEmu":  "TM-score",
     "DDG":     "−ΣΔΔG",        # kcal/mol, higher = more stable on that fold
     "S4PRED":  "SSS",          # secondary-structure (H/E) composition similarity
     "MSAT":    "recall",       # contact-map recall
