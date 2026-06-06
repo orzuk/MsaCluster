@@ -1036,16 +1036,25 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
         import matplotlib.patches as mpatches
         f1lab, f2lab = (fold_labels if (fold_labels and len(fold_labels) == 2)
                         else ("F1", "F2"))
+        # Append the protein/common name, e.g. "2n54B (XCL1)".
+        try:
+            from utils.pair_labels import pair_display
+            _disp = pair_display(f"{f1lab}_{f2lab}") if fold_labels else ""
+            if _disp:
+                f1lab, f2lab = f"{f1lab} ({_disp})", f"{f2lab} ({_disp})"
+        except Exception:
+            pass
         _items = [
-            mpatches.Patch(color="#1f77b4", label=f"F1  {f1lab}"),
-            mpatches.Patch(color="#d62728", label=f"F2  {f2lab}"),
+            mpatches.Patch(color="#1f77b4", label=f"fold 1: {f1lab}"),
+            mpatches.Patch(color="#d62728", label=f"fold 2: {f2lab}"),
             mpatches.Patch(color="#9467bd", label="both folds"),
             mpatches.Patch(color="#cccccc", label="none / low-support"),
         ]
         ax.legend(handles=_items, loc="lower left",
-                  bbox_to_anchor=(0.0, 0.0), fontsize=7, frameon=False,
-                  title="branch / leaf colour", title_fontsize=7,
-                  borderaxespad=0.0, handlelength=1.1, labelspacing=0.3)
+                  bbox_to_anchor=(0.0, -0.04), fontsize=11, frameon=True,
+                  framealpha=0.85, edgecolor="#bbbbbb",
+                  title="branch / leaf colour", title_fontsize=11,
+                  borderaxespad=0.0, handlelength=1.4, labelspacing=0.4)
     except Exception:
         pass
 
@@ -1354,7 +1363,11 @@ def compose_tree_and_heatmap(
             ticks = [vmin, 0.5 * (vmin + vmax), vmax]
 
             if unified_diverging:
-                labels = ["F2", "0", "F1"]
+                # pdb tags instead of F1/F2 (top = fold1, bottom = fold2)
+                if fold_labels and len(fold_labels) == 2:
+                    labels = [str(fold_labels[1]), "0", str(fold_labels[0])]
+                else:
+                    labels = ["F2", "0", "F1"]
             else:
                 # round to 2 decimals and avoid "-0.00"
                 labels = [("0.00" if abs(t) < 5e-6 else f"{t:.2f}") for t in ticks]
@@ -1365,7 +1378,14 @@ def compose_tree_and_heatmap(
             cb.update_ticks()
 
             if unified_diverging:
-                title = "Centered\npreference"
+                _disp = ""
+                try:
+                    from utils.pair_labels import pair_display
+                    if fold_labels and len(fold_labels) == 2:
+                        _disp = pair_display(f"{fold_labels[0]}_{fold_labels[1]}")
+                except Exception:
+                    _disp = ""
+                title = (f"{_disp}\nfold preference" if _disp else "Centered\npreference")
             else:
                 title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
                 # Wrap long titles so they don't overflow the colorbar column.

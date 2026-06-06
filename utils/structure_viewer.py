@@ -189,6 +189,18 @@ def _trigger_class(pair_id: str) -> str:
     return ""
 
 
+def _fold_label(tag, pair_id):
+    """'2n54B' -> '2n54B (XCL1)' using the pair's common name when available."""
+    try:
+        from utils.pair_labels import pair_display
+        disp = pair_display(pair_id)
+        if disp:
+            return f"{tag} ({disp})"
+    except Exception:
+        pass
+    return str(tag)
+
+
 def _filter_structure_to_chain(text, chain):
     """Return `text` reduced to a single chain. Self-contained (no deps).
 
@@ -390,15 +402,16 @@ def _build_script(uid: str,
     return "pdb";
   }
 
-  async function addStructure(viewer, pdbText, colorInt, label) {
+  async function addStructure(viewer, pdbText, colorInt, label, colorMode) {
+    // "uniform" (overlay: one solid colour per fold so the two are distinct)
+    // vs "gradient" (side-by-side: colour by residue number N->C so the SAME
+    // residue is the same colour in both folds -> matching residues line up).
+    var theme = (colorMode === "gradient")
+      ? { globalName: "sequence-id" }
+      : { globalName: "uniform", globalColorParams: { value: colorInt } };
     await viewer.loadStructureFromData(pdbText, detectFormat(pdbText), {
       dataLabel: label || "structure",
-      representationParams: {
-        theme: {
-          globalName: "uniform",
-          globalColorParams: { value: colorInt }
-        }
-      }
+      representationParams: { theme: theme }
     });
     return true;
   }
@@ -484,7 +497,7 @@ def _build_script(uid: str,
       if (!pdbText) { setStatus(statusId, "structure not found", "error"); return; }
       var viewer = await makeViewer(targetId, statusId);
       if (!viewer) { return; }
-      await addStructure(viewer, pdbText, colorInt, label);
+      await addStructure(viewer, pdbText, colorInt, label, "gradient");
       await finalize(viewer, statusId, label + " ready.");
     } catch (e) {
       console.error(e);
@@ -620,7 +633,8 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
             + _html.escape(_fig_label(0, "Aligned overlay (both folds superposed)"))
             + "</div>"
         )
-        parts.append(_legend(tag1 or "fold 1", tag2 or "fold 2"))
+        parts.append(_legend(_fold_label(tag1 or "fold 1", pair_id),
+                             _fold_label(tag2 or "fold 2", pair_id)))
         if pdb1_text is None:
             parts.append(_warn_div("structure not found: %s" % (tag1,)))
         if pdb2_text is None:
@@ -640,12 +654,12 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
             '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
         )
         if pdb1_text is not None:
-            parts.append(_viewer_box(side1_id, tag1 or "Fold 1",
+            parts.append(_viewer_box(side1_id, _fold_label(tag1 or "Fold 1", pair_id),
                                      side1_status_id))
         else:
             parts.append(_warn_div("structure not found: %s" % (tag1,)))
         if pdb2_text is not None:
-            parts.append(_viewer_box(side2_id, tag2 or "Fold 2",
+            parts.append(_viewer_box(side2_id, _fold_label(tag2 or "Fold 2", pair_id),
                                      side2_status_id))
         else:
             parts.append(_warn_div("structure not found: %s" % (tag2,)))
