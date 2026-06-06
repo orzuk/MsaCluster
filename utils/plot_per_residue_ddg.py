@@ -515,19 +515,56 @@ def _map_ss_onto_frame(seq_ref, seq_other, ss_other):
         return None
 
 
+def _seq2_on_frame(seq_ref, seq_other):
+    """fold2 residue aligned to each fold1 position ('-' for a gap); length =
+    len(seq_ref). Used to highlight which residues differ between the folds."""
+    try:
+        from Bio import pairwise2
+        aln = pairwise2.align.globalms(seq_ref, seq_other, 2, -1, -5, -0.5,
+                                       one_alignment_only=True)[0]
+        out = []
+        for a, b in zip(aln.seqA, aln.seqB):
+            if a != "-":
+                out.append(b if b != "-" else "-")
+        return out
+    except Exception:
+        return list(seq_ref)  # treat all as same on failure (no highlight)
+
+
 def _draw_ss_track(axt, ss_chars, n, label):
-    """Colour an SS track (helix/strand/coil) along residues 1..len on axt."""
-    from matplotlib.patches import Rectangle
-    SS_COL = {"H": "#e07b39", "G": "#e07b39", "I": "#e07b39",   # helix shades
-              "E": "#f4c430", "B": "#f4c430",                    # strand
-              "C": "#e8e8e8", "T": "#e8e8e8", "S": "#e8e8e8", "-": "#ffffff"}
-    for i, c in enumerate(ss_chars):
-        axt.add_patch(Rectangle((i + 0.5, 0.0), 1.0, 1.0,
-                                color=SS_COL.get(c, "#e8e8e8"), linewidth=0))
+    """Draw a secondary-structure cartoon along residues 1..len on axt:
+    helix = orange sine wave, strand = gold N->C arrow, coil = thin gray line."""
+    import numpy as np
+    from matplotlib.patches import FancyArrow
     axt.set_xlim(0.5, n + 0.5)
     axt.set_ylim(0.0, 1.0)
     axt.set_xticks([]); axt.set_yticks([])
+    axt.tick_params(labelbottom=False, bottom=False)   # never echo shared x-ticks
     axt.set_ylabel(label, rotation=0, ha="right", va="center", fontsize=7)
+    for sp in axt.spines.values():
+        sp.set_visible(False)
+    # coil baseline through the whole track
+    axt.plot([0.5, n + 0.5], [0.5, 0.5], color="#999999", lw=0.8, zorder=1)
+    m = len(ss_chars)
+    i = 0
+    while i < m:
+        j = i
+        while j < m and ss_chars[j] == ss_chars[i]:
+            j += 1
+        c, x0, x1 = ss_chars[i], i + 0.5, j + 0.5
+        L = x1 - x0
+        if c in "HGI" and L > 0:                         # helix: sine wave
+            npts = max(8, int(L * 6))
+            nwav = max(1.0, L / 3.6)                      # ~3.6 residues/turn
+            xs = np.linspace(x0, x1, npts)
+            ys = 0.5 + 0.40 * np.sin(np.linspace(0, nwav * 2 * np.pi, npts))
+            axt.plot(xs, ys, color="#e07b39", lw=2.2, solid_capstyle="round", zorder=3)
+        elif c in "EB" and L > 0:                         # strand: arrow
+            hl = min(1.6, L * 0.45)
+            axt.add_patch(FancyArrow(
+                x0, 0.5, L, 0.0, width=0.5, head_width=0.92, head_length=hl,
+                length_includes_head=True, color="#f4c430", linewidth=0, zorder=2))
+        i = j
 
 
 def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None:
@@ -606,7 +643,8 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
             plt.Rectangle((0, 0), 1, 1, color="#2c6fbb"),
             plt.Rectangle((0, 0), 1, 1, color="#c0392b"),
         ]
-        ax.legend(handles, [f1_label, f2_label], loc="best", fontsize=8, frameon=False)
+        ax.legend(handles, [f1_label, f2_label], loc="lower right", fontsize=8,
+                  frameon=True, framealpha=0.85, edgecolor="#cccccc")
 
         ax.set_xlabel("residue position")
         ax.set_ylabel("ΔΔG contribution to fold preference (kcal/mol)")
@@ -637,15 +675,21 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
                 _draw_ss_track(ax_bot, ss2_on1, n, f"{tagB or 'fold2'} SS ")
                 ax_top.set_title("secondary structure  (helix=orange, strand=gold, coil=gray)",
                                  fontsize=7, pad=2)
-                # Sequence row: fold-1 single-letter sequence as x-axis labels
-                # when the protein is short enough to be legible.
-                if len(seq1) and abs(len(seq1) - n) <= 3 and n <= 200:
+                # Single sequence row (the two folds are ~identical), drawn once
+                # at a legible size as the x-axis labels, with residues that
+                # DIFFER from the other fold highlighted in red+bold.
+                if len(seq1) and abs(len(seq1) - n) <= 3 and n <= 220:
+                    seq2_on1 = _seq2_on_frame(seq1, seq2)
                     ax.set_xticks(range(1, len(seq1) + 1))
-                    ax.set_xticklabels(list(seq1), fontsize=4, family="monospace")
+                    ax.set_xticklabels(list(seq1), fontsize=6, family="monospace")
                     ax.tick_params(axis="x", length=0, pad=1)
-                    ax.set_xlabel(f"residue (sequence shown = {tagA or 'fold1'})")
+                    for k, lbl in enumerate(ax.get_xticklabels()):
+                        if k < len(seq2_on1) and seq2_on1[k] != seq1[k]:
+                            lbl.set_color("#c0392b"); lbl.set_fontweight("bold")
+                    ax.set_xlabel(f"residue  (sequence = {tagA or 'fold1'}; "
+                                  f"red = differs in {tagB or 'fold2'})")
                 else:
-                    ax_bot.set_xlabel("residue position (fold 1 frame)")
+                    ax.set_xlabel("residue position (fold 1 frame)")
             else:
                 print(f"[ddg-ss] no SS tracks for {pair_id} "
                       f"(SS/seq unavailable for one fold)")
