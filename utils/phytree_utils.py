@@ -880,18 +880,29 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
     # focuses the horizontal axis on where the topology actually branches.
     try:
         _ALPHA = 0.5
-        _leaf_xs = [x_pos[n] for n in root.traverse() if n.is_leaf()]
-        _int_xs = [x_pos[n] for n in root.traverse() if not n.is_leaf()]
-        if _leaf_xs:
+        _leaf_nodes = [n for n in root.traverse() if n.is_leaf()]
+        _int_nodes = [n for n in root.traverse() if not n.is_leaf()]
+        _leaf_xs = [x_pos[n] for n in _leaf_nodes]
+        if _leaf_xs and _int_nodes:
             _tip_x = max(_leaf_xs)
-            _int_max = max(_int_xs) if _int_xs else _tip_x
+            _rightmost_int = max(_int_nodes, key=lambda n: x_pos[n])
+            _int_max = x_pos[_rightmost_int]
             _gap = _tip_x - _int_max
             _new_tip = _int_max + _ALPHA * _gap if _gap > 0 else _tip_x
-            for n in root.traverse():
-                if n.is_leaf():
-                    x_pos[n] = _new_tip
-    except Exception:
-        pass
+            # --- diagnostics (so we can verify the rightmost split is found right) ---
+            _ix = sorted(x_pos[n] for n in _int_nodes)
+            _n_leaf_desc = len(_rightmost_int.get_leaves())
+            print(f"[tree-spacing] tip_x={_tip_x:.4f}  rightmost_internal_x={_int_max:.4f}"
+                  f"  gap={_gap:.4f}  -> new_tip={_new_tip:.4f} (shift leaves left by {_tip_x-_new_tip:.4f})")
+            print(f"[tree-spacing] rightmost internal node='{_rightmost_int.name}' "
+                  f"has {_n_leaf_desc} leaf-descendants (2 => it's a near-tip cherry, "
+                  f"which is why the gap is small on a ladder tree)")
+            print(f"[tree-spacing] internal-node x distribution: "
+                  f"min={_ix[0]:.4f} median={_ix[len(_ix)//2]:.4f} max={_ix[-1]:.4f} (n={len(_ix)})")
+            for n in _leaf_nodes:
+                x_pos[n] = _new_tip
+    except Exception as _e:
+        print(f"[tree-spacing] skipped ({_e})")
 
     # compute y with guards
     def compute_y(n):
