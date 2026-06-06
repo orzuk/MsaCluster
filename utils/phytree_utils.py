@@ -869,16 +869,18 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
         for child in node.children:
             x_pos[child] = x_pos[node] + edge_len(child)
 
-    # Cosmetic: cap long terminal branches so the tips don't trail off in long
-    # uninformative horizontal lines (topology + leaf order unchanged).
+    # Align all leaf tips to a common right edge: the tree is UPGMA/ultrametric,
+    # so an aligned-tip layout is the honest one and pairs cleanly with the
+    # adjacent heatmap rows (no ragged gap). Internal nodes keep their
+    # distance-based x; only the terminal branches extend to the tip line.
     try:
-        _internal_max = max((x_pos[n] for n in x_pos if not n.is_leaf()), default=1.0)
-        _term_cap = 0.08 * _internal_max if _internal_max > 0 else None
-        if _term_cap:
-            for node in root.traverse("preorder"):
-                for child in node.children:
-                    if child.is_leaf():
-                        x_pos[child] = x_pos[node] + min(edge_len(child), _term_cap)
+        _leaf_xs = [x_pos[n] for n in root.traverse()
+                    if n.is_leaf() and np.isfinite(x_pos.get(n, np.nan))]
+        if _leaf_xs:
+            _tip_x = max(_leaf_xs)
+            for n in root.traverse():
+                if n.is_leaf():
+                    x_pos[n] = _tip_x
     except Exception:
         pass
 
@@ -897,15 +899,36 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
         v = compute_y(n)
         return v
 
-    # draw edges; skip segments with NaN y
+    # Per-node fold state -> branch colour. Leaves use the consensus leaf colour;
+    # internal nodes use the parsimony reconstruction. Each branch (edge into a
+    # node) is coloured by that node's lineage state, so contiguous clades read
+    # as solid colour blocks and a colour change marks a gain/loss event
+    # (Just et al. 2022, Fig. 4c style). Nodes without a call render neutral grey.
+    _SC = {"F1": "#d62728", "F2": "#1f77b4", "both": "#9467bd",
+           "none": "#dddddd", "Amb": "#999999"}
+    _NEUTRAL = "#cccccc"
+    def node_color(nd):
+        if nd.is_leaf():
+            return (leaf_colors or {}).get(nd.name, _NEUTRAL)
+        if internal_node_states:
+            st = internal_node_states.get(nd.name)
+            if st:
+                return _SC.get(st, _NEUTRAL)
+        return _NEUTRAL
+
+    # draw edges; skip segments with NaN y. Horizontal = branch into `child`
+    # (coloured by child's state); vertical connector = coloured by parent state.
     for node in root.traverse("preorder"):
+        cnode = node_color(node)
         for child in node.children:
             x0, y0 = x_pos[node], y(node)
             x1, y1 = x_pos[child], y(child)
             if not (np.isfinite(y0) and np.isfinite(y1)):
                 continue
-            ax.plot([x0, x1], [y1, y1], color="#666666", lw=1.0, solid_capstyle="butt")
-            ax.plot([x0, x0], [y0, y1], color="#666666", lw=1.0, solid_capstyle="butt")
+            ax.plot([x0, x1], [y1, y1], color=node_color(child), lw=1.3,
+                    solid_capstyle="butt", zorder=2)
+            ax.plot([x0, x0], [y0, y1], color=cnode, lw=1.3,
+                    solid_capstyle="butt", zorder=2)
 
     # draw colored leaf-tip markers
     if leaf_colors:

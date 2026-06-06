@@ -291,8 +291,19 @@ def _build_script(uid: str,
   // low-level builders.structure.hierarchy.applyPreset chain did neither
   // reliably, leaving a blank (all-white) canvas. A uniform colour keeps the
   // two folds visually distinct.
+  // The embedded structure text is often mmCIF (starts with "data_" / contains
+  // _atom_site.) even though it came from a ".pdb" file. Telling Mol* the wrong
+  // format makes it silently parse nothing -> blank canvas. Detect and pass the
+  // correct format.
+  function detectFormat(txt) {
+    if (!txt) { return "pdb"; }
+    var head = txt.slice(0, 4000);
+    if (/^\s*data_/.test(head) || head.indexOf("_atom_site.") >= 0) { return "mmcif"; }
+    return "pdb";
+  }
+
   async function addStructure(viewer, pdbText, colorInt, label) {
-    await viewer.loadStructureFromData(pdbText, "pdb", {
+    await viewer.loadStructureFromData(pdbText, detectFormat(pdbText), {
       dataLabel: label || "structure",
       representationParams: {
         theme: {
