@@ -278,6 +278,15 @@ def _superpose_overlay(text1, text2):
         for s in (s1, s2):
             for m in list(s)[1:]:
                 s.detach_child(m.id)
+        # Drop waters + ligands/heteroatoms so the overlay is clean protein only
+        # (these were the stray "dots" and odd colours in the viewer).
+        from Bio.PDB.Polypeptide import is_aa as _is_aa
+        for s in (s1, s2):
+            for model in s:
+                for chain in model:
+                    for res in list(chain):
+                        if not _is_aa(res, standard=True):
+                            chain.detach_child(res.id)
         ca1, seq1 = _ca_seq(s1)
         ca2, seq2 = _ca_seq(s2)
         if len(ca1) < 3 or len(ca2) < 3:
@@ -299,6 +308,46 @@ def _superpose_overlay(text1, text2):
     except Exception as e:
         print(f"[structure] overlay superposition failed: {e}")
         return None
+
+
+def _structure_caption(pair_id):
+    """One-line context for the 3D figures from docs/triggers_from_pdb.csv:
+    trigger class, per-fold chain counts (monomer/dimer/...), ligands."""
+    try:
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        import csv
+        with open(os.path.join(repo, "docs", "triggers_from_pdb.csv"),
+                  encoding="utf-8", errors="replace") as fh:
+            for row in csv.DictReader(fh):
+                if row.get("pair_id") != pair_id:
+                    continue
+                bits = []
+                tc = (row.get("trigger_class") or "").strip()
+                if tc:
+                    bits.append(f"trigger class: <b>{_html.escape(tc)}</b>")
+                n1 = (row.get("n_unique_chains_pdb1") or "").strip()
+                n2 = (row.get("n_unique_chains_pdb2") or "").strip()
+
+                def _olig(nch):
+                    try:
+                        k = int(nch)
+                    except Exception:
+                        return ""
+                    return {1: "monomer", 2: "dimer", 3: "trimer",
+                            4: "tetramer"}.get(k, f"{k}-mer")
+                o1, o2 = _olig(n1), _olig(n2)
+                if o1 or o2:
+                    bits.append(f"deposited assembly: fold1 {o1 or '?'} / fold2 {o2 or '?'}")
+                lig = ((row.get("ligands_pdb1") or "") + (row.get("ligands_pdb2") or "")).strip()
+                if lig:
+                    bits.append(f"ligand(s): {_html.escape(lig)}")
+                bits.append("showing the single fold-switching chain of each fold, "
+                            "Kabsch-superposed (waters/ligands hidden)")
+                return " &middot; ".join(bits)
+    except Exception:
+        pass
+    return ("showing the single fold-switching chain of each fold, "
+            "Kabsch-superposed (waters/ligands hidden)")
 
 
 def _fold_label(tag, pair_id):
@@ -748,6 +797,10 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
             '<div style="font-size:0.95em;font-weight:600;margin:4px 2px 6px;">'
             + _html.escape(_fig_label(0, "Aligned overlay (both folds superposed)"))
             + "</div>"
+        )
+        parts.append(
+            '<div style="font-size:0.8em;color:#9aa3b2;margin:0 2px 6px;">'
+            + _structure_caption(pair_id) + "</div>"
         )
         parts.append(_legend(_fold_label(tag1 or "fold 1", pair_id),
                              _fold_label(tag2 or "fold 2", pair_id)))
