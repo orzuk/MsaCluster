@@ -163,6 +163,92 @@ def _read_pdb_text(path):
         return None
 
 
+def _chain_of_tag(tag: str):
+    """Chain id encoded in a fold tag, e.g. '2n54B' -> 'B' (None if absent)."""
+    t = (tag or "").strip()
+    return t[4:] if len(t) > 4 else None
+
+
+def _trigger_class(pair_id: str) -> str:
+    """trigger_class for a pair from docs/triggers_from_pdb.csv ('' if unknown).
+
+    Used so that oligomerization switchers (where the fold change IS the
+    monomer<->multimer transition) keep their full assembly, while every other
+    class is reduced to the single fold-switching chain for a clean comparison.
+    """
+    try:
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        import csv
+        with open(os.path.join(repo, "docs", "triggers_from_pdb.csv"),
+                  encoding="utf-8", errors="replace") as fh:
+            for row in csv.DictReader(fh):
+                if row.get("pair_id") == pair_id:
+                    return (row.get("trigger_class") or "").strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _filter_structure_to_chain(text, chain):
+    """Return `text` reduced to a single chain. Self-contained (no deps).
+
+    Handles mmCIF (filter the _atom_site loop rows by auth/label_asym_id) and
+    plain PDB (filter ATOM/HETATM/TER/ANISOU by the chain column). Returns the
+    original text unchanged if the chain can't be isolated or would be empty -
+    never raises, never drops a structure.
+    """
+    if not text or not chain:
+        return text
+    try:
+        lines = text.splitlines(keepends=False)
+        is_cif = any(l.lstrip().startswith(("_atom_site.", "data_")) for l in lines[:60])
+        if is_cif:
+            # locate the _atom_site loop header
+            cols = []; ds = -1
+            for i, l in enumerate(lines):
+                if l.strip() == "loop_":
+                    blk = []; j = i + 1
+                    while j < len(lines) and lines[j].lstrip().startswith("_atom_site."):
+                        blk.append(lines[j].strip()); j += 1
+                    if blk:
+                        cols = blk; ds = j; break
+            if not cols:
+                return text
+            idx = {c: k for k, c in enumerate(cols)}
+            ca = idx.get("_atom_site.auth_asym_id", idx.get("_atom_site.label_asym_id"))
+            if ca is None:
+                return text
+            out = lines[:ds]; kept = 0
+            for k in range(ds, len(lines)):
+                ln = lines[k]; st = ln.strip()
+                if (not st) or st.startswith("#") or st.startswith("_") or st == "loop_":
+                    out.append(ln)
+                    # an atom-record run ends at the next non-record line
+                    if kept and (st.startswith("_") or st == "loop_"):
+                        out.extend(lines[k + 1:]); break
+                    continue
+                p = st.split()
+                if len(p) < len(cols):
+                    out.append(ln); continue
+                if p[ca] == chain:
+                    out.append(ln); kept += 1
+            return "\n".join(out) if kept >= 5 else text
+        else:
+            # plain PDB: chain id is column 22 (index 21)
+            out = []; kept = 0
+            for ln in lines:
+                rec = ln[:6].strip()
+                if rec in ("ATOM", "HETATM", "ANISOU", "TER"):
+                    if len(ln) > 21 and ln[21] == chain:
+                        out.append(ln); kept += 1 if rec in ("ATOM", "HETATM") else 0
+                    # else drop this record (other chain)
+                else:
+                    out.append(ln)
+            return "\n".join(out) if kept >= 5 else text
+    except Exception:
+        return text
+
+
 # --------------------------------------------------------------------------- #
 # HTML fragments
 # --------------------------------------------------------------------------- #
@@ -487,6 +573,18 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         if pdb1_text is None and pdb2_text is None:
             return (_warn_div(
                 "structure not found for both folds of %s" % (pair_id,)), 0)
+
+        # The deposited entries are whole assemblies (often a multimer for one
+        # fold and a monomer for the other), which makes the overlay meaningless
+        # and litters extra-chain colours. Reduce each fold to its single
+        # fold-switching chain (encoded in the tag, e.g. 2n54B -> chain B).
+        # Exception: oligomerization switchers, where the fold change *is* the
+        # multimer<->monomer transition - keep the full assembly there.
+        if _trigger_class(pair_id) != "oligomerization":
+            if pdb1_text is not None:
+                pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
+            if pdb2_text is not None:
+                pdb2_text = _filter_structure_to_chain(pdb2_text, _chain_of_tag(tag2))
 
         # Unique DOM ids per pair / viewer to avoid collisions on multi-viewer
         # pages.
