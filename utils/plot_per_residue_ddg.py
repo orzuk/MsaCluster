@@ -481,7 +481,7 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
 
         ax.set_xlabel("residue position")
         ax.set_ylabel("ΔΔG contribution to fold preference (kcal/mol)")
-        ax.set_title(f"Per-residue fold-preference contribution — {pair_id}")
+        ax.set_title(f"Per-residue fold-preference contribution ({pair_id})")
         ax.set_xlim(0.5, n + 0.5)
         ax.margins(x=0)
 

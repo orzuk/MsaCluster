@@ -202,7 +202,7 @@ def _plot_contacts_panel(match_predicted_cmaps, match_true_cmap, fig_dir_root, f
     plot_foldswitch_contacts_and_predictions(
         predictions=match_predicted_cmaps[deep_key],
         contacts=match_true_cmap,
-        title=f"Deep-MSA ({deep_key})",
+        title="Deep MSA",
         show_legend=True,
         cluster_names=("D", "D"),
     )
@@ -623,14 +623,24 @@ def plot_foldswitch_contacts_and_predictions(
         ax_xvec = fig.add_subplot(gs[0, 0], sharex=ax)
         ax_yvec = fig.add_subplot(gs[1, 1], sharey=ax)
         combined_vector = np.concatenate([x_vector.flatten(), y_vector.flatten()])
-        norm = plt.Normalize(vmin=combined_vector.min(), vmax=combined_vector.max())
-        ax_xvec.imshow(x_vector[np.newaxis, :], aspect="auto", cmap=vector_cmap, norm=norm)
+        # Per-residue ThermoMPNN ΔΔG carries extreme outliers (raw sums reach
+        # thousands of kcal/mol); scaling the strip to raw min/max blows the
+        # colorbar out to ±20000 and washes everything to one colour. Use a
+        # SYMMETRIC, robust (98th-percentile-of-|ΔΔG|) limit so the diverging
+        # map is centred at 0: red = residue favours F1, blue = favours F2.
+        finite = combined_vector[np.isfinite(combined_vector)]
+        lim = float(np.nanpercentile(np.abs(finite), 98)) if finite.size else 1.0
+        if not np.isfinite(lim) or lim <= 0:
+            lim = 1.0
+        norm = plt.Normalize(vmin=-lim, vmax=lim)
+        strip_cmap = "coolwarm"
+        ax_xvec.imshow(x_vector[np.newaxis, :], aspect="auto", cmap=strip_cmap, norm=norm)
         ax_xvec.axis("off")
-        ax_yvec.imshow(y_vector[:, np.newaxis], aspect="auto", cmap=vector_cmap, norm=norm)
+        ax_yvec.imshow(y_vector[:, np.newaxis], aspect="auto", cmap=strip_cmap, norm=norm)
         ax_yvec.axis("off")
         cbar_ax = fig.add_axes([0.93, 0.3, 0.02, 0.4])
-        cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=vector_cmap), cax=cbar_ax)
-        cbar.set_label("DDG (kcal/mol)", rotation=90, labelpad=-45, va='bottom')
+        cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=strip_cmap), cax=cbar_ax)
+        cbar.set_label("ΔΔG (kcal/mol)", rotation=90, labelpad=-45, va='bottom')
         plt.tight_layout(rect=[0, 0, 0.9, 1])
 
     if show_legend:
@@ -652,8 +662,8 @@ def plot_foldswitch_contacts_and_predictions(
     else:
         cx = _cluster_short_disp(cluster_names[0])
         cy = _cluster_short_disp(cluster_names[1])
-        ax.set_xlabel(f"{fold_ids[0]}, recall={round(recall[fold_ids[0]], 4)} — {cx}", fontsize=12)
-        ax.set_ylabel(f"{fold_ids[1]}, recall={round(recall[fold_ids[1]], 4)} — {cy}", fontsize=12)
+        ax.set_xlabel(f"{fold_ids[0]} ({cx}), recall={round(recall[fold_ids[0]], 4)}", fontsize=12)
+        ax.set_ylabel(f"{fold_ids[1]} ({cy}), recall={round(recall[fold_ids[1]], 4)}", fontsize=12)
 
     ax.set_xlim([0, seqlen])
     ax.set_ylim([0, seqlen])
