@@ -297,6 +297,14 @@ quit
         cmd.zoom('all', buffer=10)
         cmd.png(out_two, dpi=220, width=1200, height=900)
         cmd.align('fold2', 'fold1')
+        # Save the superposed coordinates so the interactive Mol* overlay can
+        # show a REAL alignment (fold1 = reference frame, fold2 moved onto it),
+        # instead of loading both in their own crystal frames.
+        try:
+            cmd.save(os.path.join(out_dir, f"{out_prefix}_super_fold1.pdb"), 'fold1')
+            cmd.save(os.path.join(out_dir, f"{out_prefix}_super_fold2.pdb"), 'fold2')
+        except Exception:
+            pass
         # Tint loops to retain molecule identity in superposition
         cmd.color('salmon',  'fold1 and ss L')
         cmd.color('skyblue', 'fold2 and ss L')

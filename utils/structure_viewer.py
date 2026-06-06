@@ -189,6 +189,33 @@ def _trigger_class(pair_id: str) -> str:
     return ""
 
 
+def _find_super_pdb(pair_id, fig_dir, which):
+    """Locate the PyMOL-superposed single-chain PDB for the aligned overlay.
+
+    plot_3d.py writes `<pair>_super_fold{1,2}.pdb` (fold1 = reference frame,
+    fold2 moved onto it) next to the other figures. Check the published fig dir
+    and the Pipeline output_figs dir. Returns a path or None.
+    """
+    name = f"{pair_id}_super_fold{which}.pdb"
+    cands = []
+    try:
+        if fig_dir:
+            cands.append(os.path.join(str(fig_dir), name))
+    except Exception:
+        pass
+    try:
+        cands.append(os.path.join(_data_dir(), pair_id, "output_figs", name))
+    except Exception:
+        pass
+    for c in cands:
+        try:
+            if os.path.isfile(c) and os.path.getsize(c) > 0:
+                return c
+        except Exception:
+            continue
+    return None
+
+
 def _fold_label(tag, pair_id):
     """'2n54B' -> '2n54B (XCL1)' using the pair's common name when available."""
     try:
@@ -579,25 +606,32 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         tag1, tag2 = _split_pair(pair_id)
         uid = _safe_dom_id(pair_id) or "pair"
 
-        # Resolve and read both PDBs (each independently optional).
-        pdb1_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag1))
-        pdb2_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag2))
+        # Prefer the PyMOL-superposed single-chain coords (real aligned overlay).
+        _super1 = _find_super_pdb(pair_id, fig_dir, 1)
+        _super2 = _find_super_pdb(pair_id, fig_dir, 2)
+        if _super1 and _super2:
+            # Already single-chain and superposed (fold1 reference frame) - use
+            # directly so the overlay lines up; no chain filter needed.
+            pdb1_text = _read_pdb_text(_super1)
+            pdb2_text = _read_pdb_text(_super2)
+        else:
+            # Fall back to the deposited entries. These are whole assemblies
+            # (often a multimer for one fold, monomer for the other), so reduce
+            # each fold to its single fold-switching chain (chain in the tag,
+            # e.g. 2n54B -> chain B). Exception: oligomerization switchers, where
+            # the fold change IS the multimer<->monomer transition - keep the
+            # full assembly. (Overlay won't be superposed on this path.)
+            pdb1_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag1))
+            pdb2_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag2))
+            if _trigger_class(pair_id) != "oligomerization":
+                if pdb1_text is not None:
+                    pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
+                if pdb2_text is not None:
+                    pdb2_text = _filter_structure_to_chain(pdb2_text, _chain_of_tag(tag2))
 
         if pdb1_text is None and pdb2_text is None:
             return (_warn_div(
                 "structure not found for both folds of %s" % (pair_id,)), 0)
-
-        # The deposited entries are whole assemblies (often a multimer for one
-        # fold and a monomer for the other), which makes the overlay meaningless
-        # and litters extra-chain colours. Reduce each fold to its single
-        # fold-switching chain (encoded in the tag, e.g. 2n54B -> chain B).
-        # Exception: oligomerization switchers, where the fold change *is* the
-        # multimer<->monomer transition - keep the full assembly there.
-        if _trigger_class(pair_id) != "oligomerization":
-            if pdb1_text is not None:
-                pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
-            if pdb2_text is not None:
-                pdb2_text = _filter_structure_to_chain(pdb2_text, _chain_of_tag(tag2))
 
         # Unique DOM ids per pair / viewer to avoid collisions on multi-viewer
         # pages.
