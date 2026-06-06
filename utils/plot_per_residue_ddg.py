@@ -403,6 +403,67 @@ def _default_out_path(pair_id: str) -> str:
                         f"{pair_id}_per_residue_ddg.png")
 
 
+def _chain_pdb_path(pair_id: str, tag: str):
+    """Pipeline/FoldPairs/<pair>/chain_pdb_files/<tag>.pdb (or None)."""
+    base = _data_dir()
+    if not base or not tag:
+        return None
+    p = os.path.join(base, pair_id, "chain_pdb_files", f"{tag}.pdb")
+    return p if os.path.isfile(p) else None
+
+
+def _dssp_ss_seq(pdb_path):
+    """(ss, seq) for a single-chain PDB via mdtraj DSSP (Q3 H/E/C). None on fail."""
+    try:
+        import mdtraj as md
+        t = md.load(pdb_path)
+        ss = "".join(md.compute_dssp(t, simplified=True)[0])     # 'H'/'E'/'C'/'NA'
+        seq = t.topology.to_fasta()[0]
+        ss = ss.replace("NA", "C")
+        if len(ss) and len(seq) and abs(len(ss) - len(seq)) <= 2:
+            return ss, seq
+    except Exception as e:
+        print(f"[ddg-ss] DSSP failed for {pdb_path}: {e}")
+    return None, None
+
+
+def _map_ss_onto_frame(seq_ref, seq_other, ss_other):
+    """Map ss_other (on seq_other) onto seq_ref's positions via a pairwise
+    alignment (align_utils' Biopython pairwise2). Returns a list len(seq_ref)
+    of SS chars ('-' where seq_other has a gap). Best-effort; None on failure."""
+    try:
+        from Bio import pairwise2
+        aln = pairwise2.align.globalms(seq_ref, seq_other, 2, -1, -5, -0.5,
+                                       one_alignment_only=True)[0]
+        a_ref, a_oth = aln.seqA, aln.seqB
+        out = []
+        j = 0  # index into seq_other / ss_other
+        for ca, co in zip(a_ref, a_oth):
+            if ca != "-":  # a reference position -> emit aligned other SS
+                out.append(ss_other[j] if (co != "-" and j < len(ss_other)) else "-")
+            if co != "-":
+                j += 1
+        return out
+    except Exception as e:
+        print(f"[ddg-ss] sequence alignment failed: {e}")
+        return None
+
+
+def _draw_ss_track(axt, ss_chars, n, label):
+    """Colour an SS track (helix/strand/coil) along residues 1..len on axt."""
+    from matplotlib.patches import Rectangle
+    SS_COL = {"H": "#e07b39", "G": "#e07b39", "I": "#e07b39",   # helix shades
+              "E": "#f4c430", "B": "#f4c430",                    # strand
+              "C": "#e8e8e8", "T": "#e8e8e8", "S": "#e8e8e8", "-": "#ffffff"}
+    for i, c in enumerate(ss_chars):
+        axt.add_patch(Rectangle((i + 0.5, 0.0), 1.0, 1.0,
+                                color=SS_COL.get(c, "#e8e8e8"), linewidth=0))
+    axt.set_xlim(0.5, n + 0.5)
+    axt.set_ylim(0.0, 1.0)
+    axt.set_xticks([]); axt.set_yticks([])
+    axt.set_ylabel(label, rotation=0, ha="right", va="center", fontsize=7)
+
+
 def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None:
     """Build the per-residue ThermoMPNN ΔΔG figure for a fold-switch pair.
 
@@ -486,6 +547,32 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
         ax.set_title(f"Per-residue fold-preference contribution ({pair_id})")
         ax.set_xlim(0.5, n + 0.5)
         ax.margins(x=0)
+
+        # --- secondary-structure tracks (Porter Fig 1a/b style) ---
+        # fold1 SS on top, fold2 SS on the bottom, on the same residue axis as
+        # the ΔΔG bars, so ΔΔG peaks line up with helix<->strand changes between
+        # the two folds. SS from DSSP (mdtraj); the two folds' residues are
+        # matched with align_utils' pairwise alignment (fold2 mapped onto fold1).
+        try:
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            ss1, seq1 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagA)) if tagA else (None, None)
+            ss2, seq2 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagB)) if tagB else (None, None)
+            if ss1 and ss2 and seq1 and seq2:
+                ss2_on1 = _map_ss_onto_frame(seq1, seq2, ss2) or list(ss2)
+                div = make_axes_locatable(ax)
+                ax_top = div.append_axes("top", size="8%", pad=0.06, sharex=ax)
+                ax_bot = div.append_axes("bottom", size="8%", pad=0.45, sharex=ax)
+                _draw_ss_track(ax_top, list(ss1), n, f"{tagA or 'fold1'} SS ")
+                _draw_ss_track(ax_bot, ss2_on1, n, f"{tagB or 'fold2'} SS ")
+                ax_top.set_title("secondary structure: "
+                                 "■ helix  ■ strand  ■ coil",
+                                 fontsize=7, pad=2)
+                ax_bot.set_xlabel("residue position (fold 1 frame)")
+            else:
+                print(f"[ddg-ss] no SS tracks for {pair_id} "
+                      f"(DSSP/seq unavailable for one fold)")
+        except Exception as e:
+            print(f"[ddg-ss] SS tracks skipped for {pair_id}: {e}")
 
         fig.tight_layout()
         try:
