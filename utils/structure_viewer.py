@@ -216,6 +216,91 @@ def _find_super_pdb(pair_id, fig_dir, which):
     return None
 
 
+def _superpose_overlay(text1, text2):
+    """Kabsch-superpose fold2 onto fold1 over sequence-matched CA atoms.
+
+    Both inputs are single-chain structure TEXT (PDB or mmCIF). Returns
+    (pdb1_text, pdb2_superposed_text) as PDB strings in fold1's reference frame,
+    or None on any failure (caller then shows the overlay unaligned). No PyMOL /
+    TMalign dependency - uses Biopython + a pairwise sequence alignment. For a
+    near-identical pair (TM~1) this overlays the two almost perfectly.
+    """
+    import tempfile
+    _AA3TO1 = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'CYS': 'C',
+               'GLN': 'Q', 'GLU': 'E', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
+               'LEU': 'L', 'LYS': 'K', 'MET': 'M', 'PHE': 'F', 'PRO': 'P',
+               'SER': 'S', 'THR': 'T', 'TRP': 'W', 'TYR': 'Y', 'VAL': 'V',
+               'MSE': 'M'}
+
+    def _parse(text):
+        is_cif = ("_atom_site." in text[:4000]) or text.lstrip().startswith("data_")
+        from Bio.PDB import MMCIFParser, PDBParser
+        suf = ".cif" if is_cif else ".pdb"
+        tf = tempfile.NamedTemporaryFile(suffix=suf, delete=False)
+        tf.write(text.encode("utf-8", "replace")); tf.close()
+        try:
+            parser = MMCIFParser(QUIET=True) if is_cif else PDBParser(QUIET=True)
+            return parser.get_structure("x", tf.name)
+        finally:
+            try: os.remove(tf.name)
+            except Exception: pass
+
+    def _ca_seq(struct):
+        model = next(iter(struct))
+        for ch in model:
+            cas, seq = [], []
+            for res in ch:
+                rn = res.resname.strip()
+                if "CA" in res and rn in _AA3TO1:
+                    cas.append(res["CA"]); seq.append(_AA3TO1[rn])
+            if len(cas) >= 3:
+                return cas, "".join(seq)
+        return [], ""
+
+    def _to_pdb(struct):
+        from Bio.PDB import PDBIO
+        io = PDBIO(); io.set_structure(struct)
+        tf = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False); tf.close()
+        io.save(tf.name)
+        try:
+            with open(tf.name) as fh:
+                return fh.read()
+        finally:
+            try: os.remove(tf.name)
+            except Exception: pass
+
+    try:
+        from Bio.PDB import Superimposer
+        from Bio import pairwise2
+        s1, s2 = _parse(text1), _parse(text2)
+        # NMR entries carry ~20 models; keep only the first so the overlay isn't
+        # a 20-model cloud and the embedded text stays small.
+        for s in (s1, s2):
+            for m in list(s)[1:]:
+                s.detach_child(m.id)
+        ca1, seq1 = _ca_seq(s1)
+        ca2, seq2 = _ca_seq(s2)
+        if len(ca1) < 3 or len(ca2) < 3:
+            return None
+        aln = pairwise2.align.globalms(seq1, seq2, 2, -1, -5, -0.5,
+                                       one_alignment_only=True)[0]
+        fixed, moving, i, j = [], [], 0, 0
+        for a, b in zip(aln.seqA, aln.seqB):
+            if a != "-" and b != "-" and i < len(ca1) and j < len(ca2):
+                fixed.append(ca1[i]); moving.append(ca2[j])
+            if a != "-": i += 1
+            if b != "-": j += 1
+        if len(fixed) < 3:
+            return None
+        sup = Superimposer()
+        sup.set_atoms(fixed, moving)
+        sup.apply(list(s2.get_atoms()))   # move ALL of fold2 onto fold1
+        return _to_pdb(s1), _to_pdb(s2)
+    except Exception as e:
+        print(f"[structure] overlay superposition failed: {e}")
+        return None
+
+
 def _fold_label(tag, pair_id):
     """'2n54B' -> '2n54B (XCL1)' using the pair's common name when available."""
     try:
@@ -606,32 +691,29 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         tag1, tag2 = _split_pair(pair_id)
         uid = _safe_dom_id(pair_id) or "pair"
 
-        # Prefer the PyMOL-superposed single-chain coords (real aligned overlay).
-        _super1 = _find_super_pdb(pair_id, fig_dir, 1)
-        _super2 = _find_super_pdb(pair_id, fig_dir, 2)
-        if _super1 and _super2:
-            # Already single-chain and superposed (fold1 reference frame) - use
-            # directly so the overlay lines up; no chain filter needed.
-            pdb1_text = _read_pdb_text(_super1)
-            pdb2_text = _read_pdb_text(_super2)
-        else:
-            # Fall back to the deposited entries. These are whole assemblies
-            # (often a multimer for one fold, monomer for the other), so reduce
-            # each fold to its single fold-switching chain (chain in the tag,
-            # e.g. 2n54B -> chain B). Exception: oligomerization switchers, where
-            # the fold change IS the multimer<->monomer transition - keep the
-            # full assembly. (Overlay won't be superposed on this path.)
-            pdb1_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag1))
-            pdb2_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag2))
-            if _trigger_class(pair_id) != "oligomerization":
-                if pdb1_text is not None:
-                    pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
-                if pdb2_text is not None:
-                    pdb2_text = _filter_structure_to_chain(pdb2_text, _chain_of_tag(tag2))
-
+        # Resolve each fold's structure and reduce to its single fold-switching
+        # chain (chain in the tag, e.g. 2n54B -> chain B). Oligomerization
+        # switchers keep the full assembly (the fold change IS the multimer state).
+        pdb1_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag1))
+        pdb2_text = _read_pdb_text(_find_pdb_for_tag(pair_id, tag2))
         if pdb1_text is None and pdb2_text is None:
             return (_warn_div(
                 "structure not found for both folds of %s" % (pair_id,)), 0)
+        _is_oligo = _trigger_class(pair_id) == "oligomerization"
+        if not _is_oligo:
+            if pdb1_text is not None:
+                pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
+            if pdb2_text is not None:
+                pdb2_text = _filter_structure_to_chain(pdb2_text, _chain_of_tag(tag2))
+
+        # Superpose fold2 onto fold1 (Biopython Kabsch over sequence-matched CA
+        # atoms) so the aligned overlay ACTUALLY lines up - no PyMOL/TMalign
+        # dependency. Replaces both texts with clean PDB in fold1's frame on
+        # success; leaves them as-is (overlay just unaligned) on any failure.
+        if pdb1_text and pdb2_text and not _is_oligo:
+            _sup = _superpose_overlay(pdb1_text, pdb2_text)
+            if _sup:
+                pdb1_text, pdb2_text = _sup
 
         # Unique DOM ids per pair / viewer to avoid collisions on multi-viewer
         # pages.
