@@ -623,24 +623,29 @@ def plot_foldswitch_contacts_and_predictions(
         ax_xvec = fig.add_subplot(gs[0, 0], sharex=ax)
         ax_yvec = fig.add_subplot(gs[1, 1], sharey=ax)
         combined_vector = np.concatenate([x_vector.flatten(), y_vector.flatten()])
-        # Per-residue ThermoMPNN ΔΔG carries extreme outliers (raw sums reach
-        # thousands of kcal/mol); scaling the strip to raw min/max blows the
-        # colorbar out to ±20000 and washes everything to one colour. Use a
-        # SYMMETRIC, robust (98th-percentile-of-|ΔΔG|) limit so the diverging
-        # map is centred at 0: red = residue favours F1, blue = favours F2.
+        # The raw per-residue ΔΔG strip (ThermoMPNN ΔG difference) spans tens of
+        # thousands of kcal/mol, so an absolute colorbar is meaningless and
+        # washes the strip to one colour. Normalise per-figure to a robust
+        # [-1, 1] (divide by the 98th percentile of |ΔΔG|, then clip) and use a
+        # diverging map centred at 0 - the same "centered preference" convention
+        # as the phytree heatmap: red = residue favours F1, blue = favours F2.
+        # (Absolute per-residue ΔΔG in kcal/mol is the separate per_residue_ddg
+        # figure.)
         finite = combined_vector[np.isfinite(combined_vector)]
-        lim = float(np.nanpercentile(np.abs(finite), 98)) if finite.size else 1.0
-        if not np.isfinite(lim) or lim <= 0:
-            lim = 1.0
-        norm = plt.Normalize(vmin=-lim, vmax=lim)
+        scale = float(np.nanpercentile(np.abs(finite), 98)) if finite.size else 1.0
+        if not np.isfinite(scale) or scale <= 0:
+            scale = 1.0
+        xn = np.clip(x_vector / scale, -1.0, 1.0)
+        yn = np.clip(y_vector / scale, -1.0, 1.0)
+        norm = plt.Normalize(vmin=-1.0, vmax=1.0)
         strip_cmap = "coolwarm"
-        ax_xvec.imshow(x_vector[np.newaxis, :], aspect="auto", cmap=strip_cmap, norm=norm)
+        ax_xvec.imshow(xn[np.newaxis, :], aspect="auto", cmap=strip_cmap, norm=norm)
         ax_xvec.axis("off")
-        ax_yvec.imshow(y_vector[:, np.newaxis], aspect="auto", cmap=strip_cmap, norm=norm)
+        ax_yvec.imshow(yn[:, np.newaxis], aspect="auto", cmap=strip_cmap, norm=norm)
         ax_yvec.axis("off")
         cbar_ax = fig.add_axes([0.93, 0.3, 0.02, 0.4])
         cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=strip_cmap), cax=cbar_ax)
-        cbar.set_label("ΔΔG (kcal/mol)", rotation=90, labelpad=-45, va='bottom')
+        cbar.set_label("per-residue ΔΔG (normalized)", rotation=90, labelpad=-10, va='bottom')
         plt.tight_layout(rect=[0, 0, 0.9, 1])
 
     if show_legend:
