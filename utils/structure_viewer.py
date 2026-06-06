@@ -178,15 +178,15 @@ def _viewer_box(dom_id: str, title: str, status_id: str) -> str:
     return (
         '<div class="molstar-box" '
         'style="position:relative;flex:1 1 320px;min-width:280px;max-width:100%;'
-        f'height:{_VIEWER_HEIGHT_PX}px;border:1px solid #3a3f4b;border-radius:12px;'
-        'overflow:hidden;background:#0e1116;box-shadow:0 2px 10px rgba(0,0,0,0.35);">'
-        f'<div style="position:absolute;top:8px;left:12px;z-index:5;color:#cfd6e4;'
+        f'height:{_VIEWER_HEIGHT_PX}px;border:1px solid #ccc;border-radius:12px;'
+        'overflow:hidden;background:#ffffff;box-shadow:0 2px 10px rgba(0,0,0,0.15);">'
+        f'<div style="position:absolute;top:8px;left:12px;z-index:5;color:#333;'
         'font-size:0.82em;font-weight:600;letter-spacing:0.02em;'
-        'text-shadow:0 1px 2px rgba(0,0,0,0.8);pointer-events:none;">'
+        'text-shadow:0 1px 2px rgba(255,255,255,0.8);pointer-events:none;">'
         + _html.escape(title) + "</div>"
         f'<div id="{dom_id}" style="position:absolute;inset:0;"></div>'
         f'<div id="{status_id}" class="molstar-status" '
-        'style="position:absolute;bottom:8px;left:12px;z-index:5;color:#8a93a6;'
+        'style="position:absolute;bottom:8px;left:12px;z-index:5;color:#555;'
         'font-size:0.75em;pointer-events:none;">Loading...</div>'
         "</div>"
     )
@@ -271,6 +271,7 @@ def _build_script(uid: str,
     viewportShowScreenshotControls: false,
     pdbProvider: "rcsb",
     emdbProvider: "rcsb",
+    illumination: true,
     pixelScale: 0.9
   };
 
@@ -314,9 +315,25 @@ def _build_script(uid: str,
         rotateSpeed: 5
       },
       renderer: {
-        backgroundColor: 0x0e1116
+        backgroundColor: 0xffffff
       }
     });
+  }
+
+  // Zoom the camera in by `amount` (<1 = closer) so the structure fills the
+  // canvas, mirroring the Ligo blog's framing. Safe no-op if state is missing.
+  function zoomCamera(plugin, amount) {
+    var cam = plugin && plugin.canvas3d && plugin.canvas3d.camera;
+    var st = cam && cam.state;
+    if (!st || !st.target || !st.position || typeof cam.setState !== "function") { return; }
+    var t = st.target, p = st.position;
+    var nx = t[0] + (p[0] - t[0]) * amount;
+    var ny = t[1] + (p[1] - t[1]) * amount;
+    var nz = t[2] + (p[2] - t[2]) * amount;
+    cam.setState(Object.assign({}, st, {
+      position: [nx, ny, nz],
+      radius: Math.max((st.radius || 1) * amount, 1)
+    }));
   }
 
   async function makeViewer(targetId, statusId) {
@@ -339,6 +356,8 @@ def _build_script(uid: str,
     if (plugin.canvas3d && plugin.canvas3d.requestCameraReset) {
       plugin.canvas3d.requestCameraReset({ durationMs: 0 });
     }
+    await sleep(180);
+    zoomCamera(plugin, 0.74);
     window.addEventListener("resize", function () { viewer.handleResize(); });
     setStatus(statusId, okMsg, "loaded");
   }
