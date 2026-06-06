@@ -254,6 +254,13 @@ def plot_array_contacts_and_predictions(
             show_legend=False,
             targets_override=targets_override
         )
+        # Small-multiple: the per-subplot axis labels (fold id + recall, fs=12)
+        # collide between neighbours. Drop them and the ticks - the subplot title
+        # already names the cluster; details live in the best/deep panels.
+        ax.set_xlabel(""); ax.set_ylabel("")
+        ax.set_xticks([]); ax.set_yticks([])
+        try: ax.title.set_fontsize(8)
+        except Exception: pass
 
     for j in range(n_pred, len(axes)):
         axes[j].axis("off")

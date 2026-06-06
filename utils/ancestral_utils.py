@@ -695,7 +695,8 @@ def render_ancestral_tree(tree, node_states: dict, pair_id: str,
     if max_x == 0:
         max_x = 1
 
-    fig, ax = plt.subplots(figsize=(6, max(3, 0.5 * n_leaves + 1)))
+    # Height ~0.16in/leaf (was 0.5 -> ~50in/7600px for a 100-leaf tree), capped.
+    fig, ax = plt.subplots(figsize=(7, min(20.0, max(3.0, 0.16 * n_leaves + 1.0))))
 
     # Draw edges
     for node in tree.traverse("preorder"):
@@ -717,9 +718,9 @@ def render_ancestral_tree(tree, node_states: dict, pair_id: str,
         x, y = node_x[key], node_y[key]
 
         if node.is_leaf():
-            ax.scatter(x, y, c=color, s=120, zorder=3, edgecolors="black", linewidths=0.5)
+            ax.scatter(x, y, c=color, s=35, zorder=3, edgecolors="black", linewidths=0.4)
             ax.text(x + max_x * 0.03, y, f" {node.name} ({state})",
-                    va="center", ha="left", fontsize=9)
+                    va="center", ha="left", fontsize=5)
         else:
             # Internal node: keep "clean" UNLESS a gain/loss event occurred on
             # the branch leading here (reconstructed state differs from parent).
