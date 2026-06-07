@@ -567,6 +567,47 @@ def _draw_ss_track(axt, ss_chars, n, label):
         i = j
 
 
+# Legend glyphs that match the SS cartoons (orange sine = helix, gold arrow =
+# strand, grey line = coil) so the figure shows the key graphically instead of
+# a "(helix=orange, ...)" text string.
+from matplotlib.legend_handler import HandlerBase as _HandlerBase
+
+
+class _SSHelixHandle:  pass
+class _SSStrandHandle: pass
+class _SSCoilHandle:   pass
+
+
+class _SSHelixHandler(_HandlerBase):
+    def create_artists(self, legend, orig, xd, yd, w, h, fontsize, trans):
+        import numpy as np
+        from matplotlib.lines import Line2D
+        xs = np.linspace(0, w, 32)
+        ys = yd + h / 2.0 + (h * 0.42) * np.sin(np.linspace(0, 4 * np.pi, 32))
+        ln = Line2D(xd + xs, ys, color="#e07b39", lw=1.8, solid_capstyle="round")
+        ln.set_transform(trans)
+        return [ln]
+
+
+class _SSStrandHandler(_HandlerBase):
+    def create_artists(self, legend, orig, xd, yd, w, h, fontsize, trans):
+        from matplotlib.patches import FancyArrow
+        arr = FancyArrow(xd, yd + h / 2.0, w, 0.0, width=h * 0.16,
+                         head_width=h * 0.6, head_length=w * 0.34,
+                         length_includes_head=True, color="#f4c430", linewidth=0)
+        arr.set_transform(trans)
+        return [arr]
+
+
+class _SSCoilHandler(_HandlerBase):
+    def create_artists(self, legend, orig, xd, yd, w, h, fontsize, trans):
+        from matplotlib.lines import Line2D
+        ln = Line2D([xd, xd + w], [yd + h / 2.0, yd + h / 2.0],
+                    color="#999999", lw=1.2)
+        ln.set_transform(trans)
+        return [ln]
+
+
 def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None:
     """Build the per-residue ThermoMPNN ΔΔG figure for a fold-switch pair.
 
@@ -673,8 +714,15 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
                 ax_bot = div.append_axes("bottom", size="8%", pad=0.55, sharex=ax)
                 _draw_ss_track(ax_top, list(ss1), n, f"{tagA or 'fold1'} SS ")
                 _draw_ss_track(ax_bot, ss2_on1, n, f"{tagB or 'fold2'} SS ")
-                ax_top.set_title("secondary structure  (helix=orange, strand=gold, coil=gray)",
-                                 fontsize=7, pad=2)
+                ax_top.legend(
+                    [_SSHelixHandle(), _SSStrandHandle(), _SSCoilHandle()],
+                    ["α-helix", "β-strand", "coil"],
+                    handler_map={_SSHelixHandle: _SSHelixHandler(),
+                                 _SSStrandHandle: _SSStrandHandler(),
+                                 _SSCoilHandle: _SSCoilHandler()},
+                    loc="lower center", bbox_to_anchor=(0.5, 1.05), ncol=3,
+                    fontsize=6.5, frameon=False, handlelength=1.8,
+                    handletextpad=0.4, columnspacing=1.6, borderpad=0.2)
                 # Single sequence row (the two folds are ~identical), drawn once
                 # at a legible size as the x-axis labels, with residues that
                 # DIFFER from the other fold highlighted in red+bold.

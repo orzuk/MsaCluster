@@ -304,7 +304,25 @@ def _superpose_overlay(text1, text2):
         sup = Superimposer()
         sup.set_atoms(fixed, moving)
         sup.apply(list(s2.get_atoms()))   # move ALL of fold2 onto fold1
-        return _to_pdb(s1), _to_pdb(s2)
+        # Per-residue CA deviation after superposition. Bake it into the B-factor
+        # of every atom so the viewer can colour the shared core (low deviation)
+        # vs the fold-switching region (high deviation). Also yields the TM-score
+        # for the caption (no TMalign dependency).
+        devs = [float(((a1.coord - a2.coord) ** 2).sum() ** 0.5)
+                for a1, a2 in zip(fixed, moving)]
+        hi = max(devs) if devs else 5.0
+        for s in (s1, s2):                     # default: unmatched = divergent
+            for atom in s.get_atoms():
+                atom.set_bfactor(hi)
+        for a1, a2, d in zip(fixed, moving, devs):
+            for atom in a1.get_parent():
+                atom.set_bfactor(d)
+            for atom in a2.get_parent():
+                atom.set_bfactor(d)
+        L = min(len(ca1), len(ca2))
+        d0 = max(0.5, 1.24 * (L - 15) ** (1.0 / 3.0) - 1.8) if L > 15 else 0.5
+        tm = (sum(1.0 / (1.0 + (d / d0) ** 2) for d in devs) / L) if L else float("nan")
+        return _to_pdb(s1), _to_pdb(s2), tm
     except Exception as e:
         print(f"[structure] overlay superposition failed: {e}")
         return None
@@ -567,13 +585,35 @@ def _build_script(uid: str,
     // "uniform" (overlay: one solid colour per fold so the two are distinct)
     // vs "gradient" (side-by-side: colour by residue number N->C so the SAME
     // residue is the same colour in both folds -> matching residues line up).
-    var theme = (colorMode === "gradient")
-      ? { globalName: "sequence-id" }
-      : { globalName: "uniform", globalColorParams: { value: colorInt } };
-    await viewer.loadStructureFromData(pdbText, detectFormat(pdbText), {
-      dataLabel: label || "structure",
-      representationParams: { theme: theme }
-    });
+    var theme;
+    if (colorMode === "gradient") {
+      theme = { globalName: "sequence-id" };
+    } else if (colorMode === "deviation") {
+      // Colour by per-residue CA deviation baked into the B-factor: the shared
+      // core (low) stays light grey for BOTH folds, the fold-switching region
+      // (high) takes each fold's distinct colour -> shared vs different at a
+      // glance. Same "uncertainty" (B-factor) theme the Ligo blog uses.
+      theme = { globalName: "uncertainty",
+                globalColorParams: { domain: [0.0, 8.0],
+                  list: { kind: "interpolate", colors: [0xdddddd, colorInt] } } };
+    } else {
+      theme = { globalName: "uniform", globalColorParams: { value: colorInt } };
+    }
+    var uniform = { globalName: "uniform", globalColorParams: { value: colorInt } };
+    try {
+      await viewer.loadStructureFromData(pdbText, detectFormat(pdbText), {
+        dataLabel: label || "structure",
+        representationParams: { theme: theme }
+      });
+    } catch (e) {
+      // A theme name unsupported by this Mol* build must not blank the overlay;
+      // retry with the always-available uniform colour.
+      console.warn("theme '" + colorMode + "' failed; using uniform", e);
+      await viewer.loadStructureFromData(pdbText, detectFormat(pdbText), {
+        dataLabel: label || "structure",
+        representationParams: { theme: uniform }
+      });
+    }
     return true;
   }
 
@@ -642,8 +682,8 @@ def _build_script(uid: str,
       var viewer = await makeViewer(CFG.superposedId, statusId);
       if (!viewer) { return; }
       var any = false;
-      if (PDB1) { await addStructure(viewer, PDB1, CFG.color1, "Fold 1"); any = true; }
-      if (PDB2) { await addStructure(viewer, PDB2, CFG.color2, "Fold 2"); any = true; }
+      if (PDB1) { await addStructure(viewer, PDB1, CFG.color1, "Fold 1", "deviation"); any = true; }
+      if (PDB2) { await addStructure(viewer, PDB2, CFG.color2, "Fold 2", "deviation"); any = true; }
       if (!any) { setStatus(statusId, "No structures available.", "error"); return; }
       await finalize(viewer, statusId, "Superposed overlay ready (drag to rotate).");
     } catch (e) {
@@ -759,10 +799,11 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         # atoms) so the aligned overlay ACTUALLY lines up - no PyMOL/TMalign
         # dependency. Replaces both texts with clean PDB in fold1's frame on
         # success; leaves them as-is (overlay just unaligned) on any failure.
+        _overlay_tm = None
         if pdb1_text and pdb2_text and not _is_oligo:
             _sup = _superpose_overlay(pdb1_text, pdb2_text)
             if _sup:
-                pdb1_text, pdb2_text = _sup
+                pdb1_text, pdb2_text, _overlay_tm = _sup
 
         # Unique DOM ids per pair / viewer to avoid collisions on multi-viewer
         # pages.
@@ -798,9 +839,14 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
             + _html.escape(_fig_label(0, "Aligned overlay (both folds superposed)"))
             + "</div>"
         )
+        _cap = _structure_caption(pair_id)
+        if _overlay_tm is not None and _overlay_tm == _overlay_tm:  # not NaN
+            _cap = ("<b>TM-score %.3f</b> &middot; " % _overlay_tm) + _cap
+        _cap += ('&middot; <span>grey = conserved core, '
+                 'colour = divergent (fold-switching) region</span>')
         parts.append(
             '<div style="font-size:0.8em;color:#9aa3b2;margin:0 2px 6px;">'
-            + _structure_caption(pair_id) + "</div>"
+            + _cap + "</div>"
         )
         parts.append(_legend(_fold_label(tag1 or "fold 1", pair_id),
                              _fold_label(tag2 or "fold 2", pair_id)))
