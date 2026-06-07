@@ -434,9 +434,10 @@ def _ss_from_phipsi(phi, psi):
     return "C"
 
 
-def _smooth_ss(ss, min_run=3):
+def _smooth_ss(ss, min_run=4):
     """Demote helix/strand runs shorter than min_run to coil, so the φ/ψ-based
-    track shows clean SS segments instead of single-residue speckle."""
+    track shows clean SS segments instead of single-residue speckle. min_run=4
+    drops 1-3 residue elements (not robust from crude φ/ψ and visually 'stray')."""
     out = list(ss)
     n = len(out)
     i = 0
@@ -709,6 +710,9 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
             ss2, seq2 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagB), _cB) if tagB else (None, None)
             if ss1 and ss2 and seq1 and seq2:
                 ss2_on1 = _map_ss_onto_frame(seq1, seq2, ss2) or list(ss2)
+                # mapping fold-2 SS through the alignment can re-fragment runs
+                # (gaps split a helix/strand) -> re-smooth to kill the speckle.
+                ss2_on1 = list(_smooth_ss("".join(ss2_on1)))
                 div = make_axes_locatable(ax)
                 ax_top = div.append_axes("top", size="8%", pad=0.06, sharex=ax)
                 ax_bot = div.append_axes("bottom", size="8%", pad=0.55, sharex=ax)
