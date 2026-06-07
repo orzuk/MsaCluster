@@ -610,14 +610,44 @@ def _discover_pairs() -> list[str]:
     return sorted(pairs)
 
 
+def _regen_plot_figs(pair_id: str) -> None:
+    """Regenerate the standalone plot PNGs that the page EMBEDS (contact maps +
+    tree), by running the pipeline's plot step inline for this pair.
+
+    gen_pair_html itself only builds the ddG figure, the 3D viewers, the cluster
+    metrics table and the page text; the *_cmap.png / *_phytree*.png it shows are
+    produced by `--run_mode plot`. With --make_figs we run that first so a single
+    command fully refreshes a page (figures included)."""
+    import subprocess, shlex
+    repo = Path(__file__).resolve().parents[1]
+    cmd = (f"{shlex.quote(sys.executable)} "
+           f"{shlex.quote(str(repo / 'run_foldswitch_pipeline.py'))} "
+           f"--run_mode plot --foldpair_ids {shlex.quote(pair_id)} "
+           f"--run_job_mode inline")
+    print(f"[gen_pair_html] --make_figs: regenerating plot figures for {pair_id}")
+    subprocess.run(cmd, shell=True, check=False, cwd=str(repo))
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Generate per-pair HTML pages using config paths.")
+    ap = argparse.ArgumentParser(
+        description="Build per-pair HTML pages: generates the ddG figure, the 3D "
+                    "viewers, the cluster-metrics table and the page text, and "
+                    "EMBEDS the contact-map + tree PNGs made by --run_mode plot. "
+                    "Use --make_figs to regenerate those embedded PNGs too.")
     ap.add_argument("--pairs", type=str, required=True,
                     help="Comma-separated pair IDs (e.g., 2qqjA_4qdsA,1abcX_2defY) or 'ALL'.")
     ap.add_argument("--mode", choices=["inline","copy","link"], default="inline",
                     help="How to include images in HTML. 'inline' embeds base64; 'copy' copies to docs/HTML/figs/<pair>; 'link' assumes already copied.")
     ap.add_argument("--output_dir", type=str, default=str(OUTPUT_PATH_NOTEBOOKS),
                     help="Directory to write HTML pages (default: config.OUTPUT_PATH_NOTEBOOKS).")
+    ap.add_argument("--make_figs", action="store_true",
+                    help="Also regenerate the embedded plot figures (contact maps + "
+                         "tree) by running the pipeline's --run_mode plot inline for "
+                         "each pair BEFORE assembling its page. Off by default: "
+                         "normally gen_pair_html only rebuilds the ddG figure, 3D "
+                         "viewers and table. Slow for ALL (serial); for parallel, run "
+                         "`--run_mode plot --run_job_mode sbatch` first, then this "
+                         "without --make_figs.")
     args = ap.parse_args()
 
     output_dir = Path(args.output_dir).resolve()
@@ -638,6 +668,8 @@ def main():
     ok, bad = [], []
     for pair_id in pairs:
         try:
+            if args.make_figs:
+                _regen_plot_figs(pair_id)
             out = render_pair_html(pair_id, output_dir, mode=args.mode)
             print(f"[gen_pair_html] wrote: {out}")
             ok.append(pair_id)
