@@ -678,10 +678,13 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
                 # Single sequence row (the two folds are ~identical), drawn once
                 # at a legible size as the x-axis labels, with residues that
                 # DIFFER from the other fold highlighted in red+bold.
-                if len(seq1) and abs(len(seq1) - n) <= 3 and n <= 220:
+                if len(seq1) and abs(len(seq1) - n) <= 3:
                     seq2_on1 = _seq2_on_frame(seq1, seq2)
+                    # show the sequence for any length; shrink the font as the
+                    # protein gets longer (zoomable PNG) instead of dropping it.
+                    _fs = 6 if n <= 120 else 5 if n <= 200 else 4 if n <= 340 else 3
                     ax.set_xticks(range(1, len(seq1) + 1))
-                    ax.set_xticklabels(list(seq1), fontsize=6, family="monospace")
+                    ax.set_xticklabels(list(seq1), fontsize=_fs, family="monospace")
                     ax.tick_params(axis="x", length=0, pad=1)
                     for k, lbl in enumerate(ax.get_xticklabels()):
                         if k < len(seq2_on1) and seq2_on1[k] != seq1[k]:
