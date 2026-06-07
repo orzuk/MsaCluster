@@ -652,7 +652,9 @@ def plot_foldswitch_contacts_and_predictions(
         ax_yvec.axis("off")
         cbar_ax = fig.add_axes([0.93, 0.3, 0.02, 0.4])
         cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=strip_cmap), cax=cbar_ax)
-        cbar.set_label("per-residue ΔΔG (normalized)", rotation=90, labelpad=-10, va='bottom')
+        # horizontal label BELOW the colorbar so it never overlaps the tick
+        # numbers running up the bar's right side.
+        cbar.ax.set_xlabel("ΔΔG\n(norm.)", fontsize=8, labelpad=6)
         plt.tight_layout(rect=[0, 0, 0.9, 1])
 
     if show_legend:
