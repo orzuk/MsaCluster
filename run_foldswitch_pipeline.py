@@ -64,6 +64,7 @@ RUN_MODE_DESCRIPTIONS = {
     "compute_deltaG":   "Compute ΔG stability metrics (requires PyRosetta).",
     "postprocess": "Compute TM/cmap metrics and build summary/detailed tables. Use --force_rerun_postprocess TRUE to recompute." ,
     "plot":             "Generate pair-specific plots (requires PyMOL).",
+    "gen_pair_html":    "Build the per-pair HTML page (ddG fig + 3D viewers + cluster metrics table) AND regenerate the embedded contact maps + tree (gen_pair_html.py --make_figs). Use --run_job_mode sbatch to fan out one job per pair (parallel).",
     "clean":            "Remove previous outputs for the pair.",
     "msaclust_pipeline":"Full pipeline: get_msa → cluster_msa → AF/ESM (as configured).",
     "help":             "Print this list of run modes with one-line explanations.",
@@ -106,7 +107,7 @@ SBATCH_HINTS = {
     "run_s4pred":            {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
     "compute_deltaG":        {"time":"06:00:00", "mem":"16G",  "gpus":0, "cpus":8},
     "plot":                  {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
-    "gen_pair_html":         {"time":"01:00:00", "mem":"4G",   "gpus":0, "cpus":2},
+    "gen_pair_html":         {"time":"02:00:00", "mem":"8G",   "gpus":0, "cpus":4},
 }
 
 
@@ -2496,6 +2497,23 @@ def task_plot(pair_id: str | None, args: argparse.Namespace) -> None:
     if failed:
         print(f"\n[plot] {len(failed)}/{len(pairs)} pairs failed: {failed}")
 
+
+def task_gen_pair_html(pair_id: str, args: argparse.Namespace) -> None:
+    """Build the per-pair HTML page AND regenerate the figures it embeds.
+
+    Shells out to TableResults/gen_pair_html.py --make_figs, which (a) runs the
+    plot step inline to remake the contact maps + tree, then (b) builds the ddG
+    figure, the 3D viewers and the cluster metrics table and assembles the page.
+    With --run_job_mode sbatch the per-pair fan-out submits one of these per
+    pair, so one command refreshes every page in parallel."""
+    cmd = (f"{shlex.quote(sys.executable)} TableResults/gen_pair_html.py "
+           f"--pairs {shlex.quote(pair_id)} --make_figs --mode inline")
+    print(f"[gen_pair_html] {cmd}", flush=True)
+    rc = subprocess.run(cmd, shell=True, check=False).returncode
+    if rc != 0:
+        print(f"[gen_pair_html] failed (rc={rc}) for {pair_id}.")
+
+
 def task_deltaG(pair_id: str) -> None:
     """
     Compute global ΔG per true structure and an aligned per-residue ΔΔG profile.
@@ -2970,7 +2988,7 @@ def main():
                             "run_esmfold", "run_AF", "run_ddg",
                             "run_cf_random", "run_speachaf", "run_alphaflow", "run_boltz2",
                             "run_bioemu", "run_s4pred", "aggregate_s4pred",
-                            "tree", "plot", "compute_deltaG", "clean",
+                            "tree", "plot", "gen_pair_html", "compute_deltaG", "clean",
                             "postprocess", "msaclust_pipeline", "help"])  # Last one is the full pipeline for a pair
     p.add_argument("--foldpair_ids", nargs="+", required=False, default=["ALL"],
                    help="List of pair IDs (e.g. 1dzlA_5keqF), or the literal token ALL "
@@ -3518,6 +3536,9 @@ def main():
             # We already did globals above; now do pair-specific plots
             # When called via the inner job, args.plot_scope is "pair"
             task_plot(pair_id, args)
+
+        elif args.run_mode == "gen_pair_html":
+            task_gen_pair_html(pair_id, args)
 
         elif args.run_mode == "clean":  # Remove existing files to run the pipeline clean
             task_clean(pair_id, args)
