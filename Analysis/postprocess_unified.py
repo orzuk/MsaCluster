@@ -510,6 +510,47 @@ def _read_or_compute_esm(pair_id: str, force: bool = False):
     df = compute_df_esm(pair_id, write=True)
     return df
 
+def _survey_pref_block(pair_id: str, methods: List[str]) -> pd.DataFrame:
+    """Per-cluster signed fold preference (>0 leans fold1) for `methods`, read
+    from docs/fold_diversity_survey.csv -- the SAME aggregated source the Fig-1
+    heatmap uses. Lets the metrics table cover methods that have no raw per-pair
+    df_*.csv broken out here (Boltz-2, S4PRED, CCMpred, BioEmu), so the table and
+    the heatmap agree on method coverage. Returns a DataFrame indexed by cluster
+    tag ('ShallowMsa_XXX'/'DeepMsa'), one '<method>_pref' column each; empty if
+    the survey is unavailable."""
+    csv = os.path.join(str(DOCS_DIR), "fold_diversity_survey.csv")
+    if not os.path.isfile(csv):
+        csv = os.path.join("docs", "fold_diversity_survey.csv")
+    if not os.path.isfile(csv):
+        return pd.DataFrame()
+    try:
+        survey = pd.read_csv(csv)
+    except Exception:
+        return pd.DataFrame()
+    if "pair_id" not in survey.columns or "method" not in survey.columns:
+        return pd.DataFrame()
+    sub = survey[survey["pair_id"] == pair_id].copy()
+    if sub.empty:
+        return pd.DataFrame()
+    _R = re.compile(r"(\d+)$")
+    def _norm(c):
+        s = str(c)
+        if s.lower().startswith("deep"):
+            return "DeepMsa"
+        m = _R.search(s)
+        return f"ShallowMsa_{int(m.group(1)):03d}" if m else None
+    sub["_tag"] = sub["cluster"].astype(str).map(_norm)
+    sub["TMdiff_max"] = pd.to_numeric(sub.get("TMdiff_max"), errors="coerce")
+    piv = sub.pivot_table(index="_tag", columns="method",
+                          values="TMdiff_max", aggfunc="first")
+    cols = [m for m in methods if m in piv.columns]
+    if not cols:
+        return pd.DataFrame()
+    piv = piv[cols]
+    piv.columns = [f"{m}_pref" for m in cols]
+    return piv
+
+
 def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
     """
     ONE row per cluster with columns (when available):
@@ -636,10 +677,14 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
             "_tag": d["_tag"],
         }).groupby("_tag", dropna=True).first()
 
+    # ---- missing-method preferences from the aggregated survey, so the table
+    # covers every method the Fig-1 heatmap shows (Boltz-2/S4PRED/CCMpred/BioEmu)
+    survey_block = _survey_pref_block(pair_id, ["Boltz2", "S4PRED", "CCMpred", "BioEmu"])
+
     # ---- assemble per-cluster table ----
-    idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(ddg_block.index) | set(cache_stats.keys()))
+    idx = sorted(set(af2.index) | set(af3.index) | set(ms.index) | set(esm_lists.index) | set(ddg_block.index) | set(survey_block.index) | set(cache_stats.keys()))
     out = pd.DataFrame(index=idx)
-    for block in (af2, af3, ms, esm_lists, ddg_block):
+    for block in (af2, af3, ms, esm_lists, ddg_block, survey_block):
         if not block.empty:
             out = out.join(block, how="left") if not out.empty else block.copy()
 
@@ -681,6 +726,7 @@ def build_pair_cluster_table(pair_id: str) -> pd.DataFrame:
         "RE-MSAT-COM","RE-MSAT1","RE-MSAT2",
         "ESM_SEQIDS","ESM_TM1_LIST","ESM_TM2_LIST",
         "DDG_Bias","DDG_Bias_std","DDG_frac_F1",
+        "Boltz2_pref","S4PRED_pref","CCMpred_pref","BioEmu_pref",
     ]
     out = out[[c for c in wanted if c in out.columns]]
     num_cols = out.select_dtypes(include="number").columns
