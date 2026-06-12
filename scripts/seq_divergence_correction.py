@@ -541,6 +541,7 @@ def before_after_table(corrected: pd.DataFrame, before_concord: pd.DataFrame,
 
 
 def main() -> None:
+    global METHODS, OUT_SURVEY, OUT_CONCORD
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--rebuild-pid-cache", action="store_true",
                     help="rebuild docs/per_cluster_pid_to_query.csv from a3m files")
@@ -552,7 +553,19 @@ def main() -> None:
                     help="run threshold-sensitivity sweep at delta in {0.03, 0.05, 0.07}")
     ap.add_argument("--candidate-pairs", default=",".join(CANDIDATE_PAIRS),
                     help="comma-separated pair IDs to print before/after for")
+    ap.add_argument("--methods", default=",".join(METHODS),
+                    help="comma-separated methods to include in the concordance "
+                         "statistic (default: the 4-method core AF2,ESM,MSAT,DDG)")
+    ap.add_argument("--out-suffix", default="",
+                    help="suffix appended to output CSV names (e.g. _8method) so "
+                         "the default 4-method outputs are not overwritten")
     args = ap.parse_args()
+
+    METHODS = [m.strip() for m in args.methods.split(",") if m.strip()]
+    if args.out_suffix:
+        OUT_SURVEY = REPO / "docs" / f"fold_diversity_survey_corrected{args.out_suffix}.csv"
+        OUT_CONCORD = REPO / "docs" / f"fold_diversity_concordance_corrected{args.out_suffix}.csv"
+    print(f"Methods ({len(METHODS)}): {METHODS}")
 
     if args.rebuild_pid_cache or not PID_CACHE.exists():
         print("Building per-cluster PID-to-query cache...")
