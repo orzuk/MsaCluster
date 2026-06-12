@@ -102,6 +102,35 @@ except Exception:
         build_pair_cluster_table = None
 
 
+def _collapse_list_columns(df):
+    """Collapse '*_LIST' cells (semicolon-separated per-sample values) to a
+    compact 'mean ± std' and drop the '_LIST' suffix, so the metrics table is
+    not a wall of numbers. Non-numeric lists are left as a count."""
+    import numpy as np
+    if df is None or getattr(df, "empty", True):
+        return df
+    out = df.copy()
+    for c in list(out.columns):
+        if not str(c).endswith("_LIST"):
+            continue
+        def _summ(v):
+            if v is None or (isinstance(v, float) and v != v):
+                return "-"
+            vals = []
+            for x in str(v).replace(",", ";").split(";"):
+                x = x.strip()
+                if x and x != "-":
+                    try: vals.append(float(x))
+                    except Exception: pass
+            if not vals:
+                return "-"
+            m = float(np.mean(vals))
+            return f"{m:.2f} ± {float(np.std(vals)):.2f}" if len(vals) > 1 else f"{m:.2f}"
+        out[c] = out[c].map(_summ)
+        out = out.rename(columns={c: str(c)[:-5]})  # strip "_LIST"
+    return out
+
+
 
 def _pair_tokens(pair_id: str) -> tuple[str, str]:
     if "_" in pair_id:
@@ -558,6 +587,7 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     if build_pair_cluster_table:
         try:
             df = build_pair_cluster_table(pair_id)
+            df = _collapse_list_columns(df)
         except Exception as e:
             df = None
             pb.push(f"""<div class="warn">[warn] Could not build per-pair cluster table: {html.escape(str(e))}</div>""")

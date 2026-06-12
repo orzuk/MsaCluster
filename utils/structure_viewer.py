@@ -842,7 +842,7 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         _cap = _structure_caption(pair_id)
         if _overlay_tm is not None and _overlay_tm == _overlay_tm:  # not NaN
             _cap = ("<b>TM-score %.3f</b> &middot; " % _overlay_tm) + _cap
-        _cap += ('&middot; <span>grey = conserved core, '
+        _cap += (' &middot; <span>grey = conserved core, '
                  'colour = divergent (fold-switching) region</span>')
         parts.append(
             '<div style="font-size:0.8em;color:#9aa3b2;margin:0 2px 6px;">'
