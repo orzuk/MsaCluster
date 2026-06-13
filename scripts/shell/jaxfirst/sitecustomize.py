@@ -20,3 +20,16 @@ try:
     _jnp.zeros(1).block_until_ready()  # forces real XLA backend init, not just import
 except Exception:
     pass
+
+# bioemu sets root logging to DEBUG, which makes jax/absl/httpx flood the log
+# with thousands of per-op trace lines. Pin those noisy loggers to WARNING here
+# (explicit level survives bioemu's later logging.basicConfig). bioemu's own
+# INFO progress lines ("Sampling…", "Completed…") are untouched.
+try:
+    import logging as _logging
+
+    for _name in ("jax", "jaxlib", "absl", "httpx", "httpcore",
+                  "h5py", "matplotlib", "urllib3", "filelock", "tensorflow"):
+        _logging.getLogger(_name).setLevel(_logging.WARNING)
+except Exception:
+    pass
