@@ -2141,7 +2141,9 @@ def task_bioemu(pair_id: str, args: argparse.Namespace) -> None:
     equilibrium ensemble, then TM-scores each sample vs both folds and
     records the per-cluster population balance. See INSTALL_bioemu.md.
     """
-    cmd = f"python3 ./run_bioemu.py -input {pair_id}"
+    # -u: unbuffered, so the per-cluster progress prints stream to the sbatch
+    # .out log live instead of appearing only when the job finishes.
+    cmd = f"python3 -u ./run_bioemu.py -input {pair_id}"
     nsamp = getattr(args, "bioemu_num_samples", None)
     if nsamp:
         cmd += f" --num_samples {int(nsamp)}"

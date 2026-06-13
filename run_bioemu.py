@@ -127,15 +127,15 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
         cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
                f"{shlex.quote(str(cluster_a3m))} {shlex.quote(str(out_root))} "
                f"{int(num_samples)}")
-        print(f"  [bioemu] {tag}: {cmd}")
+        print(f"  [bioemu] {tag}: {cmd}", flush=True)
         try:
             subprocess.run(cmd, shell=True, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"    [bioemu] failed for {tag}: {e}", file=sys.stderr)
+            print(f"    [bioemu] failed for {tag}: {e}", file=sys.stderr, flush=True)
             return []
         frames = _split_ensemble_to_pdbs(out_root)
     else:
-        print(f"  [bioemu] {tag}: skipping ({len(frames)} samples on disk)")
+        print(f"  [bioemu] {tag}: skipping ({len(frames)} samples on disk)", flush=True)
 
     rows = []
     for i, pdb in enumerate(frames):
@@ -207,10 +207,12 @@ def main():
         sys.exit(2)
 
     print(f"[bioemu] {pair_id}: {len(cluster_a3ms)} clusters, "
-          f"{args.num_samples} samples/cluster")
+          f"{args.num_samples} samples/cluster", flush=True)
     t0 = time.time()
     all_rows = []
-    for a3m in cluster_a3ms:
+    for k, a3m in enumerate(cluster_a3ms, 1):
+        print(f"[bioemu] cluster {k}/{len(cluster_a3ms)}: {a3m.stem} "
+              f"({time.time()-t0:.0f}s elapsed)", flush=True)
         all_rows.extend(run_one_cluster(pair_id, a3m, pdbid1, chain1,
                                         pdbid2, chain2, pair_dir,
                                         args.num_samples))
