@@ -63,8 +63,14 @@ CF_DIR="$(readlink -f "$HOME/.cache/colabfold" 2>/dev/null || true)"
 # the files are cached. Resolve them from the HF cache snapshot dir.
 BIOEMU_MODEL="${BIOEMU_MODEL:-bioemu-v1.1}"
 HF_BIOEMU="$HF_HOME/hub/models--microsoft--bioemu"
-CKPT="$(ls "$HF_BIOEMU"/snapshots/*/checkpoints/"$BIOEMU_MODEL"/checkpoint.ckpt 2>/dev/null | head -1)"
-CFG="$(ls "$HF_BIOEMU"/snapshots/*/checkpoints/"$BIOEMU_MODEL"/config.yaml 2>/dev/null | head -1)"
+# Resolve via nullglob arrays (NOT `ls | head`, which returns non-zero under
+# `set -euo pipefail` and would abort the script with exit 2).
+shopt -s nullglob
+_ckpts=( "$HF_BIOEMU"/snapshots/*/checkpoints/"$BIOEMU_MODEL"/checkpoint.ckpt )
+_cfgs=(  "$HF_BIOEMU"/snapshots/*/checkpoints/"$BIOEMU_MODEL"/config.yaml )
+shopt -u nullglob
+CKPT="${_ckpts[0]:-}"
+CFG="${_cfgs[0]:-}"
 CKPT_ARGS=""
 if [[ -f "$CKPT" && -f "$CFG" ]]; then
     CKPT_ARGS="--ckpt_path $CKPT --model_config_path $CFG"
