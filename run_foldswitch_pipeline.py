@@ -467,6 +467,12 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         maxcl = getattr(args, "bioemu_max_clusters", None)
         if maxcl:
             inner += ["--bioemu_max_clusters", str(int(maxcl))]
+        maxlen = getattr(args, "bioemu_max_len", None)
+        if maxlen:
+            inner += ["--bioemu_max_len", str(int(maxlen))]
+        minsamp = getattr(args, "bioemu_min_samples", None)
+        if minsamp:
+            inner += ["--bioemu_min_samples", str(int(minsamp))]
         # Propagate the shared query/MSA flags so an outer override reaches the
         # inner inline run (default medoid + top-10, same as AF2/AF3).
         inner += ["--query_type", str(getattr(args, "query_type", "medoid"))]
@@ -2157,6 +2163,12 @@ def task_bioemu(pair_id: str, args: argparse.Namespace) -> None:
     maxcl = getattr(args, "bioemu_max_clusters", None)
     if maxcl:
         cmd += f" --max_clusters {int(maxcl)}"
+    maxlen = getattr(args, "bioemu_max_len", None)
+    if maxlen:
+        cmd += f" --max_len {int(maxlen)}"
+    minsamp = getattr(args, "bioemu_min_samples", None)
+    if minsamp:
+        cmd += f" --min_samples {int(minsamp)}"
     # Same query source + shallow-MSA subsample as AF2/AF3 (shared flags).
     cmd += f" --query_type {getattr(args, 'query_type', 'medoid')}"
     cmd += f" --af_msa_top_n {int(getattr(args, 'af_msa_top_n', 10))}"
@@ -3042,6 +3054,15 @@ def main():
                    help="Pilot mode: if >0, process only the first N ShallowMsa "
                         "clusters per pair (0 = all). Use to bound GPU time when "
                         "a pair has many clusters.")
+    p.add_argument("--bioemu_max_len", type=int, default=0,
+                   help="Skip clusters whose query exceeds N residues (0 = no "
+                        "limit). BioEmu time ~ (L/58)^2/cluster and is unvalidated "
+                        "beyond ~225 res; cap (e.g. 200-250) to keep tractable.")
+    p.add_argument("--bioemu_min_samples", type=int, default=0,
+                   help="Adaptive sampling floor: scale n_samples down ~1/L^2 for "
+                        "longer chains (≈constant time/cluster), floored here "
+                        "(0 = off). E.g. --bioemu_num_samples 100 "
+                        "--bioemu_min_samples 10.")
 
     # --- S4PRED (8th method: secondary-structure prediction) options ---
     p.add_argument("--s4pred_dir", default=None,
