@@ -19,6 +19,10 @@ set -euo pipefail
 # --- CONFIG (edit after install) ----------------------------------------
 BIOEMU_VENV="${BIOEMU_VENV:-/sci/labs/orzuk/orzuk/venvs/bioemu-venv}"
 BIOEMU_CACHE="${BIOEMU_CACHE:-/sci/labs/orzuk/orzuk/bioemu_cache}"
+# HF_HOME must point at lab storage (home has ~2 GB quota) AND match where the
+# bioemu checkpoint was first downloaded, so per-cluster runs hit the local
+# cache instead of re-downloading from the Hub (compute nodes can be offline).
+export HF_HOME="${HF_HOME:-/sci/labs/orzuk/orzuk/hf_cache}"
 # ------------------------------------------------------------------------
 
 if [[ $# -lt 3 ]]; then
