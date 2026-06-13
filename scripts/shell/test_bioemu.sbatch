@@ -14,6 +14,13 @@ export BIOEMU_CACHE=/sci/labs/orzuk/orzuk/bioemu_cache
 export HF_HOME=/sci/labs/orzuk/orzuk/hf_cache
 mkdir -p "$BIOEMU_CACHE" "$HF_HOME"
 
+# JAX + TensorFlow both bundle xla_data.proto and double-register it in
+# protobuf's C++ descriptor pool -> "File already exists in database" abort.
+# Force protobuf's pure-Python backend so there is no shared C++ pool to clash.
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+# Quiet the TF/absl + httpx/httpcore DEBUG firehose.
+export TF_CPP_MIN_LOG_LEVEL=3
+
 echo "=== GPU check ==="
 python -c "import torch; print('cuda', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'NO GPU')"
 
