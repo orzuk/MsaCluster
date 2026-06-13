@@ -23,6 +23,13 @@ BIOEMU_CACHE="${BIOEMU_CACHE:-/sci/labs/orzuk/orzuk/bioemu_cache}"
 # bioemu checkpoint was first downloaded, so per-cluster runs hit the local
 # cache instead of re-downloading from the Hub (compute nodes can be offline).
 export HF_HOME="${HF_HOME:-/sci/labs/orzuk/orzuk/hf_cache}"
+# GPU compute nodes have no outbound internet, so hf_hub_download's HEAD call
+# fails and raises LocalEntryNotFoundError even though the checkpoint IS cached.
+# Force offline mode: use the cached snapshot, never hit the network. All
+# required files are pre-cached by the smoke test (HF checkpoint+config; AF2
+# params live in the colabfold dir; the MSA is the local cluster a3m).
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 # ------------------------------------------------------------------------
 
 if [[ $# -lt 3 ]]; then

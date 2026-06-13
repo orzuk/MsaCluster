@@ -464,6 +464,9 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         nsamp = getattr(args, "bioemu_num_samples", None)
         if nsamp:
             inner += ["--bioemu_num_samples", str(int(nsamp))]
+        maxcl = getattr(args, "bioemu_max_clusters", None)
+        if maxcl:
+            inner += ["--bioemu_max_clusters", str(int(maxcl))]
     if run_mode == "run_s4pred":
         s4dir = getattr(args, "s4pred_dir", None) or ""
         if s4dir:
@@ -2147,6 +2150,9 @@ def task_bioemu(pair_id: str, args: argparse.Namespace) -> None:
     nsamp = getattr(args, "bioemu_num_samples", None)
     if nsamp:
         cmd += f" --num_samples {int(nsamp)}"
+    maxcl = getattr(args, "bioemu_max_clusters", None)
+    if maxcl:
+        cmd += f" --max_clusters {int(maxcl)}"
     _run(cmd, args.run_job_mode)
 
 
@@ -3025,6 +3031,10 @@ def main():
     p.add_argument("--bioemu_num_samples", type=int, default=50,
                    help="BioEmu samples per cluster (default 50). More samples "
                         "= better population-balance estimate, more GPU time.")
+    p.add_argument("--bioemu_max_clusters", type=int, default=0,
+                   help="Pilot mode: if >0, process only the first N ShallowMsa "
+                        "clusters per pair (0 = all). Use to bound GPU time when "
+                        "a pair has many clusters.")
 
     # --- S4PRED (8th method: secondary-structure prediction) options ---
     p.add_argument("--s4pred_dir", default=None,
