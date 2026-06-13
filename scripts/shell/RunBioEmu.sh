@@ -53,6 +53,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH="$HERE/jaxfirst${PYTHONPATH:+:$PYTHONPATH}"
 export TF_CPP_MIN_LOG_LEVEL=3
 
+# By default jax pre-allocates ~75% of the GPU on init. When the scheduler packs
+# several bioemu jobs onto one GPU node (and/or shares a GPU), that starves the
+# later jobs -> instant OOM/init failure (seen as mass 5s failures in the sweep).
+# Allocate jax memory on demand and cap it so jobs coexist (and leave room for
+# bioemu's own torch diffusion sharing the same card).
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.3
+
 # Home has ~2 GB quota; keep ALL caches in lab storage. bioemu downloads AF2
 # params (~3.5 GB) to ~/.cache/colabfold (a symlink to lab) -- make sure the
 # symlink target exists so the download doesn't fail on a dangling link.
