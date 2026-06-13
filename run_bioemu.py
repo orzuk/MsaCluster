@@ -187,6 +187,9 @@ def main():
     ap.add_argument("-input", "--input", dest="input", required=True)
     ap.add_argument("--num_samples", type=int, default=DEFAULT_NUM_SAMPLES,
                     help=f"BioEmu samples per cluster (default {DEFAULT_NUM_SAMPLES}).")
+    ap.add_argument("--max_clusters", type=int, default=0,
+                    help="If >0, only process the first N ShallowMsa clusters "
+                         "(pilot mode). 0 = all clusters.")
     args = ap.parse_args()
 
     pair_id = args.input
@@ -205,6 +208,12 @@ def main():
     if not os.path.isfile(SH_WRAPPER):
         print(f"[error] missing shell wrapper {SH_WRAPPER}", file=sys.stderr)
         sys.exit(2)
+
+    n_total = len(cluster_a3ms)
+    if args.max_clusters and args.max_clusters > 0 and n_total > args.max_clusters:
+        cluster_a3ms = cluster_a3ms[: args.max_clusters]
+        print(f"[bioemu] PILOT: capping to first {args.max_clusters} of "
+              f"{n_total} clusters (--max_clusters)", flush=True)
 
     print(f"[bioemu] {pair_id}: {len(cluster_a3ms)} clusters, "
           f"{args.num_samples} samples/cluster", flush=True)
