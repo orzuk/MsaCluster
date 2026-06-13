@@ -467,6 +467,10 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         maxcl = getattr(args, "bioemu_max_clusters", None)
         if maxcl:
             inner += ["--bioemu_max_clusters", str(int(maxcl))]
+        # Propagate the shared query/MSA flags so an outer override reaches the
+        # inner inline run (default medoid + top-10, same as AF2/AF3).
+        inner += ["--query_type", str(getattr(args, "query_type", "medoid"))]
+        inner += ["--af_msa_top_n", str(int(getattr(args, "af_msa_top_n", 10)))]
     if run_mode == "run_s4pred":
         s4dir = getattr(args, "s4pred_dir", None) or ""
         if s4dir:
@@ -2153,6 +2157,9 @@ def task_bioemu(pair_id: str, args: argparse.Namespace) -> None:
     maxcl = getattr(args, "bioemu_max_clusters", None)
     if maxcl:
         cmd += f" --max_clusters {int(maxcl)}"
+    # Same query source + shallow-MSA subsample as AF2/AF3 (shared flags).
+    cmd += f" --query_type {getattr(args, 'query_type', 'medoid')}"
+    cmd += f" --af_msa_top_n {int(getattr(args, 'af_msa_top_n', 10))}"
     _run(cmd, args.run_job_mode)
 
 

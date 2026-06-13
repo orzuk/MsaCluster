@@ -485,26 +485,6 @@ def keep_mask_query(seq_q):
     """Columns where the query has a residue (for AF)."""
     return [j for j, ch in enumerate(seq_q) if ch != '-']
 
-
-def write_query_anchored_a3m(in_a3m, out_a3m):
-    """Write a colabfold-style a3m whose FIRST row is the UNGAPPED query.
-
-    BioEmu (and AF) require the query (row 0) to be a gapless protein sequence;
-    cluster ShallowMsa a3m files keep the query in aligned (gapped) form, which
-    makes BioEmu reject it ("non-valid protein character: -"). We reuse the
-    existing match-state parser + query-column mask to project every row onto
-    the query's residue columns, dropping insertions. Row 0 becomes the ungapped
-    query; the rest stay aligned to it. Returns out_a3m (str).
-    """
-    with open(in_a3m) as fh:
-        headers, seqs = parse_a3m_records(fh.readlines(), strip_inserts=True)
-    keep = keep_mask_query(seqs[0])
-    proj = project_columns(seqs, keep)
-    with open(out_a3m, "w") as fh:
-        for h, s in zip(headers, proj):
-            fh.write(f"{h}\n{s}\n")
-    return str(out_a3m)
-
 def find_row_idx(headers, tokens, default=None):
     """Find a header containing all tokens (case-insensitive)."""
     toks = [t.lower() for t in tokens if t]
