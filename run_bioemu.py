@@ -51,7 +51,9 @@ sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR, MAIN_DIR  # noqa: E402
 from utils.align_utils import compute_tmscore_align  # noqa: E402
-from utils.msa_utils import write_query_anchored_a3m  # noqa: E402
+# Reuse the SAME per-cluster query-A3M builder AF2/AF3 use (medoid query etc.),
+# so the query choice + gap handling are identical across methods (no dup).
+from run_foldswitch_pipeline import _write_pair_a3m_for_chain  # noqa: E402
 
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunBioEmu.sh")
 DEFAULT_NUM_SAMPLES = 50
@@ -115,7 +117,8 @@ def _split_ensemble_to_pdbs(out_root: Path) -> list:
 
 
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
-                    pair_dir, num_samples, force_rerun=False):
+                    pair_dir, num_samples, query_type="medoid", msa_top_n=10,
+                    force_rerun=False):
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_bioemu" / tag
     out_root.mkdir(parents=True, exist_ok=True)
@@ -125,13 +128,23 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
     frames = _split_ensemble_to_pdbs(out_root)
     need_sample = force_rerun or not any(p.stat().st_size > 100 for p in frames)
     if need_sample:
-        # BioEmu needs the query (a3m row 0) ungapped; cluster a3m keeps it
-        # aligned/gapped. Project onto query columns -> ungapped-query a3m.
+        # Build BioEmu's input A3M with the SAME builder AF2/AF3 use: query_type
+        # selects the row-1 query (default 'medoid' = variant-as-query, written
+        # ungapped) and msa_top_n applies the shallow-MSA subsample. This is why
+        # there's no gap problem and no method-specific duplication.
         bioemu_a3m = out_root / "bioemu_query.a3m"
+        deep_a3m = str(pair_dir / "output_get_msa" / "DeepMsa.a3m")
+        chain_tag = f"{pdbid1}{chain1}"
         try:
-            write_query_anchored_a3m(cluster_a3m, bioemu_a3m)
+            ok = _write_pair_a3m_for_chain(
+                str(cluster_a3m), deep_a3m, chain_tag, str(bioemu_a3m),
+                query_type=query_type, msa_top_n=msa_top_n)
         except Exception as e:
-            print(f"    [bioemu] could not build query-anchored a3m for {tag}: {e}",
+            print(f"    [bioemu] a3m build raised for {tag}: {e}",
+                  file=sys.stderr, flush=True)
+            ok = False
+        if not ok or not bioemu_a3m.is_file():
+            print(f"    [bioemu] could not build query a3m for {tag}; skipping",
                   file=sys.stderr, flush=True)
             return []
         cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
@@ -200,6 +213,14 @@ def main():
     ap.add_argument("--max_clusters", type=int, default=0,
                     help="If >0, only process the first N ShallowMsa clusters "
                          "(pilot mode). 0 = all clusters.")
+    # Mirror AF2/AF3: same query source + shallow-MSA subsample, same builder.
+    ap.add_argument("--query_type", default="medoid",
+                    choices=["chain", "medoid", "consensus"],
+                    help="Per-cluster query source (shared with AF2/AF3). "
+                         "Default 'medoid' (variant-as-query).")
+    ap.add_argument("--af_msa_top_n", type=int, default=10,
+                    help="Subsample the per-cluster MSA to the N rows closest "
+                         "to the query (0 = full). Matches AF's --af_msa_top_n.")
     args = ap.parse_args()
 
     pair_id = args.input
@@ -226,7 +247,8 @@ def main():
               f"{n_total} clusters (--max_clusters)", flush=True)
 
     print(f"[bioemu] {pair_id}: {len(cluster_a3ms)} clusters, "
-          f"{args.num_samples} samples/cluster", flush=True)
+          f"{args.num_samples} samples/cluster, query_type={args.query_type}, "
+          f"af_msa_top_n={args.af_msa_top_n}", flush=True)
     t0 = time.time()
     all_rows = []
     for k, a3m in enumerate(cluster_a3ms, 1):
@@ -234,7 +256,9 @@ def main():
               f"({time.time()-t0:.0f}s elapsed)", flush=True)
         all_rows.extend(run_one_cluster(pair_id, a3m, pdbid1, chain1,
                                         pdbid2, chain2, pair_dir,
-                                        args.num_samples))
+                                        args.num_samples,
+                                        query_type=args.query_type,
+                                        msa_top_n=args.af_msa_top_n))
 
     ana = pair_dir / "Analysis"
     ana.mkdir(parents=True, exist_ok=True)
