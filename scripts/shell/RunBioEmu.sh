@@ -38,6 +38,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH="$HERE/jaxfirst${PYTHONPATH:+:$PYTHONPATH}"
 export TF_CPP_MIN_LOG_LEVEL=3
 
+# Home has ~2 GB quota; keep ALL caches in lab storage. bioemu downloads AF2
+# params (~3.5 GB) to ~/.cache/colabfold (a symlink to lab) -- make sure the
+# symlink target exists so the download doesn't fail on a dangling link.
+BIOEMU_SO3_CACHE="${BIOEMU_SO3_CACHE:-$BIOEMU_CACHE/so3}"
+mkdir -p "$BIOEMU_SO3_CACHE"
+CF_DIR="$(readlink -f "$HOME/.cache/colabfold" 2>/dev/null || true)"
+[ -n "$CF_DIR" ] && mkdir -p "$CF_DIR/params"
+
 # BioEmu CLI: `python -m bioemu.sample`. The exact flag names can vary across
 # bioemu releases -- verify with `python -m bioemu.sample --help` after install
 # and adjust here. As of the public release it accepts a sequence OR an a3m via
@@ -47,7 +55,8 @@ CMD="python -m bioemu.sample \
     --sequence $A3M \
     --num_samples $N \
     --output_dir $OUT \
-    --cache_embeds_dir $BIOEMU_CACHE"
+    --cache_embeds_dir $BIOEMU_CACHE \
+    --cache_so3_dir $BIOEMU_SO3_CACHE"
 
 echo "[bioemu] $CMD"
 exec $CMD
