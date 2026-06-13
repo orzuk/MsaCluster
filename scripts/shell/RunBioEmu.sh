@@ -31,10 +31,11 @@ mkdir -p "$OUT" "$BIOEMU_CACHE"
 
 . "$BIOEMU_VENV/bin/activate"
 
-# JAX + TensorFlow both bundle xla_data.proto and double-register it in
-# protobuf's C++ descriptor pool -> "File already exists in database" abort.
-# Force protobuf's pure-Python backend so there is no shared C++ pool to clash.
-export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+# jaxlib + tensorflow both register xla_data.proto into protobuf's C++ pool;
+# jaxlib aborts when it is the SECOND registrant. sitecustomize.py in jaxfirst/
+# forces jax to init first (see that file). Put it at the FRONT of PYTHONPATH.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="$HERE/jaxfirst${PYTHONPATH:+:$PYTHONPATH}"
 export TF_CPP_MIN_LOG_LEVEL=3
 
 # BioEmu CLI: `python -m bioemu.sample`. The exact flag names can vary across
