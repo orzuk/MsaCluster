@@ -51,6 +51,7 @@ sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR, MAIN_DIR  # noqa: E402
 from utils.align_utils import compute_tmscore_align  # noqa: E402
+from utils.msa_utils import write_query_anchored_a3m  # noqa: E402
 
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunBioEmu.sh")
 DEFAULT_NUM_SAMPLES = 50
@@ -124,8 +125,17 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
     frames = _split_ensemble_to_pdbs(out_root)
     need_sample = force_rerun or not any(p.stat().st_size > 100 for p in frames)
     if need_sample:
+        # BioEmu needs the query (a3m row 0) ungapped; cluster a3m keeps it
+        # aligned/gapped. Project onto query columns -> ungapped-query a3m.
+        bioemu_a3m = out_root / "bioemu_query.a3m"
+        try:
+            write_query_anchored_a3m(cluster_a3m, bioemu_a3m)
+        except Exception as e:
+            print(f"    [bioemu] could not build query-anchored a3m for {tag}: {e}",
+                  file=sys.stderr, flush=True)
+            return []
         cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
-               f"{shlex.quote(str(cluster_a3m))} {shlex.quote(str(out_root))} "
+               f"{shlex.quote(str(bioemu_a3m))} {shlex.quote(str(out_root))} "
                f"{int(num_samples)}")
         print(f"  [bioemu] {tag}: {cmd}", flush=True)
         try:
