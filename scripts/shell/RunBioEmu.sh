@@ -22,7 +22,11 @@ BIOEMU_CACHE="${BIOEMU_CACHE:-/sci/labs/orzuk/orzuk/bioemu_cache}"
 # HF_HOME must point at lab storage (home has ~2 GB quota) AND match where the
 # bioemu checkpoint was first downloaded, so per-cluster runs hit the local
 # cache instead of re-downloading from the Hub (compute nodes can be offline).
-export HF_HOME="${HF_HOME:-/sci/labs/orzuk/orzuk/hf_cache}"
+# Hard-set (do NOT defer to an inherited HF_HOME): the bioemu checkpoint was
+# cached under hf_cache, and a stray HF_HOME from the login shell/another venv
+# (e.g. .../tmp/huggingface) points the cache lookup at the wrong dir -> the
+# --ckpt_path bypass comes up empty -> bioemu tries to download -> offline fail.
+export HF_HOME="/sci/labs/orzuk/orzuk/hf_cache"
 # GPU compute nodes have no outbound internet, so hf_hub_download's HEAD call
 # fails and raises LocalEntryNotFoundError even though the checkpoint IS cached.
 # Force offline mode: use the cached snapshot, never hit the network. All
