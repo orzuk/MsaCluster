@@ -12,7 +12,15 @@ set -e
 . /sci/labs/orzuk/orzuk/venvs/bioemu-venv/bin/activate
 export BIOEMU_CACHE=/sci/labs/orzuk/orzuk/bioemu_cache
 export HF_HOME=/sci/labs/orzuk/orzuk/hf_cache
-mkdir -p "$BIOEMU_CACHE" "$HF_HOME"
+export BIOEMU_SO3_CACHE="$BIOEMU_CACHE/so3"
+mkdir -p "$BIOEMU_CACHE" "$HF_HOME" "$BIOEMU_SO3_CACHE"
+
+# Home has ~2 GB quota; keep ALL caches in lab storage. bioemu/colabfold
+# downloads AF2 params (~3.5 GB) to ~/.cache/colabfold, which is a symlink to
+# lab -- ensure the symlink target exists so the download doesn't fail on a
+# dangling link. (Writes go to lab via the symlink; nothing lands in home.)
+CF_DIR="$(readlink -f "$HOME/.cache/colabfold" 2>/dev/null || true)"
+[ -n "$CF_DIR" ] && mkdir -p "$CF_DIR/params"
 
 # jaxlib + tensorflow both register xla_data.proto into protobuf's C++ pool;
 # jaxlib aborts when it is the SECOND registrant. sitecustomize.py in jaxfirst/
@@ -30,7 +38,8 @@ python -c "import bioemu.sample as s, inspect; fn=getattr(s,'main',None) or geta
 echo "=== tiny standalone sample (chignolin, 10 samples) ==="
 OUT=/sci/labs/orzuk/orzuk/bioemu_test_out
 rm -rf "$OUT"; mkdir -p "$OUT"
-python -m bioemu.sample --sequence GYDPETGTWG --num_samples 10 --output_dir "$OUT"
+python -m bioemu.sample --sequence GYDPETGTWG --num_samples 10 --output_dir "$OUT" \
+    --cache_embeds_dir "$BIOEMU_CACHE" --cache_so3_dir "$BIOEMU_SO3_CACHE"
 
 echo "=== output files ==="
 ls -la "$OUT"
