@@ -37,10 +37,10 @@ export TRANSFORMERS_OFFLINE=1
 # ------------------------------------------------------------------------
 
 if [[ $# -lt 3 ]]; then
-  echo "Usage: $0 <cluster.a3m> <out_dir> <num_samples>" >&2
+  echo "Usage: $0 <cluster.a3m> <out_dir> <num_samples> [batch_size_100]" >&2
   exit 2
 fi
-A3M="$1"; OUT="$2"; N="$3"
+A3M="$1"; OUT="$2"; N="$3"; BS100="${4:-}"   # BS100 optional (see run_bioemu.py)
 
 mkdir -p "$OUT" "$BIOEMU_CACHE"
 
@@ -53,13 +53,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH="$HERE/jaxfirst${PYTHONPATH:+:$PYTHONPATH}"
 export TF_CPP_MIN_LOG_LEVEL=3
 
-# By default jax pre-allocates ~75% of the GPU on init. When the scheduler packs
-# several bioemu jobs onto one GPU node (and/or shares a GPU), that starves the
-# later jobs -> instant OOM/init failure (seen as mass 5s failures in the sweep).
-# Allocate jax memory on demand and cap it so jobs coexist (and leave room for
-# bioemu's own torch diffusion sharing the same card).
+# By default jax pre-allocates ~75% of the GPU on init, which starves co-scheduled
+# bioemu jobs (mass 5s OOM failures in the sweep). PREALLOCATE=false makes jax
+# grab memory ON DEMAND, so small jobs use little and coexist on a shared card --
+# that alone fixes the contention. Do NOT hard-cap MEM_FRACTION low: long chains
+# need quadratically more memory, and a tight cap made them OOM. Leave the ceiling
+# at the jax default so big proteins can use the card when they have it.
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
-export XLA_PYTHON_CLIENT_MEM_FRACTION=0.3
 
 # Home has ~2 GB quota; keep ALL caches in lab storage. bioemu downloads AF2
 # params (~3.5 GB) to ~/.cache/colabfold (a symlink to lab) -- make sure the
@@ -97,13 +97,18 @@ fi
 # and adjust here. As of the public release it accepts a sequence OR an a3m via
 # --sequence, the sample count via --num_samples, and an output dir via
 # --output_dir. We pass the A3M so the embedding uses our cluster MSA.
+# batch_size_100 (optional 4th arg): run_bioemu.py scales it up for long chains
+# so BioEmu's int(batch_size_100*(100/L)^2) batch never underflows to 0.
+BS_ARG=""
+[[ -n "$BS100" ]] && BS_ARG="--batch_size_100 $BS100"
 CMD="python -m bioemu.sample \
     --sequence $A3M \
     --num_samples $N \
     --output_dir $OUT \
     --cache_embeds_dir $BIOEMU_CACHE \
     --cache_so3_dir $BIOEMU_SO3_CACHE \
-    $CKPT_ARGS"
+    $CKPT_ARGS \
+    $BS_ARG"
 
 echo "[bioemu] $CMD"
 exec $CMD

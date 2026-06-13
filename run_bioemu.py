@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import os
 import re
 import shlex
@@ -116,6 +117,19 @@ def _split_ensemble_to_pdbs(out_root: Path) -> list:
         return []
 
 
+def _query_len(a3m_path) -> int:
+    """Length of the query (first sequence) in an a3m — the chain BioEmu folds."""
+    try:
+        with open(a3m_path) as fh:
+            for line in fh:
+                if line.startswith(">"):
+                    continue
+                return len(line.strip())
+    except Exception:
+        pass
+    return 0
+
+
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, num_samples, query_type="medoid", msa_top_n=10,
                     force_rerun=False):
@@ -147,9 +161,16 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
             print(f"    [bioemu] could not build query a3m for {tag}; skipping",
                   file=sys.stderr, flush=True)
             return []
+        # BioEmu auto-shrinks the sampling batch as int(batch_size_100*(100/L)^2)
+        # (quadratic memory in length L); with the default batch_size_100=10 this
+        # underflows to 0 for L>316 -> "range() arg 3 must not be zero" crash.
+        # Scale batch_size_100 up so the batch is always >=1 (long chains run at
+        # batch 1; if a chain is too big for GPU memory it OOMs and is caught).
+        q_len = _query_len(bioemu_a3m)
+        bs100 = max(10, math.ceil(q_len * q_len / 10000.0)) if q_len else 10
         cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
                f"{shlex.quote(str(bioemu_a3m))} {shlex.quote(str(out_root))} "
-               f"{int(num_samples)}")
+               f"{int(num_samples)} {int(bs100)}")
         print(f"  [bioemu] {tag}: {cmd}", flush=True)
         try:
             subprocess.run(cmd, shell=True, check=True)
