@@ -57,6 +57,23 @@ mkdir -p "$BIOEMU_SO3_CACHE"
 CF_DIR="$(readlink -f "$HOME/.cache/colabfold" 2>/dev/null || true)"
 [ -n "$CF_DIR" ] && mkdir -p "$CF_DIR/params"
 
+# Pass the cached checkpoint + config EXPLICITLY so bioemu's
+# maybe_download_checkpoint() short-circuits (returns the given paths) instead
+# of calling hf_hub_download -- which fails on the offline GPU nodes even though
+# the files are cached. Resolve them from the HF cache snapshot dir.
+BIOEMU_MODEL="${BIOEMU_MODEL:-bioemu-v1.1}"
+HF_BIOEMU="$HF_HOME/hub/models--microsoft--bioemu"
+CKPT="$(ls "$HF_BIOEMU"/snapshots/*/checkpoints/"$BIOEMU_MODEL"/checkpoint.ckpt 2>/dev/null | head -1)"
+CFG="$(ls "$HF_BIOEMU"/snapshots/*/checkpoints/"$BIOEMU_MODEL"/config.yaml 2>/dev/null | head -1)"
+CKPT_ARGS=""
+if [[ -f "$CKPT" && -f "$CFG" ]]; then
+    CKPT_ARGS="--ckpt_path $CKPT --model_config_path $CFG"
+    echo "[bioemu] using cached checkpoint: $CKPT"
+else
+    echo "[bioemu] WARNING: cached checkpoint/config not found under $HF_BIOEMU;" \
+         "bioemu will try to download (will fail on an offline node)." >&2
+fi
+
 # BioEmu CLI: `python -m bioemu.sample`. The exact flag names can vary across
 # bioemu releases -- verify with `python -m bioemu.sample --help` after install
 # and adjust here. As of the public release it accepts a sequence OR an a3m via
@@ -67,7 +84,8 @@ CMD="python -m bioemu.sample \
     --num_samples $N \
     --output_dir $OUT \
     --cache_embeds_dir $BIOEMU_CACHE \
-    --cache_so3_dir $BIOEMU_SO3_CACHE"
+    --cache_so3_dir $BIOEMU_SO3_CACHE \
+    $CKPT_ARGS"
 
 echo "[bioemu] $CMD"
 exec $CMD
