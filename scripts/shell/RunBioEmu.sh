@@ -101,12 +101,18 @@ fi
 # so BioEmu's int(batch_size_100*(100/L)^2) batch never underflows to 0.
 BS_ARG=""
 [[ -n "$BS100" ]] && BS_ARG="--batch_size_100 $BS100"
+# --filter_samples False: BioEmu's physicality filter crashes the whole cluster
+# with `ValueError: Invalid suffix '_unphysical.xtc'` (buggy with_suffix() call)
+# whenever it has unphysical samples to write -- the #1 cause of missing clusters
+# (1408 of them). Disabling it keeps the full ensemble; clashy samples just
+# TM-score low and don't bias the population fraction.
 CMD="python -m bioemu.sample \
     --sequence $A3M \
     --num_samples $N \
     --output_dir $OUT \
     --cache_embeds_dir $BIOEMU_CACHE \
     --cache_so3_dir $BIOEMU_SO3_CACHE \
+    --filter_samples False \
     $CKPT_ARGS \
     $BS_ARG"
 
