@@ -3059,10 +3059,10 @@ def main():
                         "limit). BioEmu time ~ (L/58)^2/cluster and is unvalidated "
                         "beyond ~225 res; cap (e.g. 200-250) to keep tractable.")
     p.add_argument("--bioemu_min_samples", type=int, default=0,
-                   help="Adaptive sampling floor: scale n_samples down ~1/L^2 for "
-                        "longer chains (≈constant time/cluster), floored here "
-                        "(0 = off). E.g. --bioemu_num_samples 100 "
-                        "--bioemu_min_samples 10.")
+                   help="Adaptive sampling floor: scale n_samples down ~1/L "
+                        "(num * 50/L) for longer chains, floored here (0 = off). "
+                        "E.g. --bioemu_num_samples 100 --bioemu_min_samples 10 "
+                        "-> 100 at L<=50, 10 at L>=500.")
 
     # --- S4PRED (8th method: secondary-structure prediction) options ---
     p.add_argument("--s4pred_dir", default=None,
