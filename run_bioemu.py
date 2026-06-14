@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import os
 import re
 import shlex
@@ -57,6 +58,10 @@ from run_foldswitch_pipeline import _write_pair_a3m_for_chain  # noqa: E402
 
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunBioEmu.sh")
 DEFAULT_NUM_SAMPLES = 50
+# Reference length for adaptive sampling (~1/L): chains this short get the full
+# --num_samples; longer ones scale down (num * SAMPLE_REF_LEN / L), floored at
+# --min_samples. With num=100, floor=10 this hits the floor at L=500.
+SAMPLE_REF_LEN = 50
 
 
 def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
@@ -116,9 +121,22 @@ def _split_ensemble_to_pdbs(out_root: Path) -> list:
         return []
 
 
+def _query_len(a3m_path) -> int:
+    """Length of the query (first sequence) in an a3m — the chain BioEmu folds."""
+    try:
+        with open(a3m_path) as fh:
+            for line in fh:
+                if line.startswith(">"):
+                    continue
+                return len(line.strip())
+    except Exception:
+        pass
+    return 0
+
+
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, num_samples, query_type="medoid", msa_top_n=10,
-                    force_rerun=False):
+                    max_len=0, min_samples=0, force_rerun=False):
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_bioemu" / tag
     out_root.mkdir(parents=True, exist_ok=True)
@@ -147,9 +165,34 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
             print(f"    [bioemu] could not build query a3m for {tag}; skipping",
                   file=sys.stderr, flush=True)
             return []
+        # BioEmu auto-shrinks the sampling batch as int(batch_size_100*(100/L)^2)
+        # (quadratic memory in length L); with the default batch_size_100=10 this
+        # underflows to 0 for L>316 -> "range() arg 3 must not be zero" crash.
+        # Scale batch_size_100 up so the batch is always >=1 (long chains run at
+        # batch 1; if a chain is too big for GPU memory it OOMs and is caught).
+        q_len = _query_len(bioemu_a3m)
+        if max_len and max_len > 0 and q_len > max_len:
+            print(f"  [bioemu] {tag}: SKIP query length {q_len} > max_len "
+                  f"{max_len} (too slow / outside BioEmu's validated range)",
+                  flush=True)
+            return []
+        # Adaptive sampling ~1/L (gentle): full n_samples for short chains
+        # (L <= SAMPLE_REF_LEN), scaling down to min_samples for long ones. We use
+        # 1/L, NOT 1/L^2 -- a longer protein shouldn't have its ensemble gutted.
+        # e.g. num=100, ref=50: L=50->100, L=100->50, L=250->20, L=500->10.
+        eff_samples = int(num_samples)
+        if min_samples and min_samples > 0 and q_len:
+            eff_samples = max(int(min_samples),
+                              min(int(num_samples),
+                                  round(num_samples * SAMPLE_REF_LEN / q_len)))
+            if eff_samples != num_samples:
+                print(f"  [bioemu] {tag}: adaptive n_samples={eff_samples} "
+                      f"(L={q_len}, max={num_samples}, floor={min_samples})",
+                      flush=True)
+        bs100 = max(10, math.ceil(q_len * q_len / 10000.0)) if q_len else 10
         cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
                f"{shlex.quote(str(bioemu_a3m))} {shlex.quote(str(out_root))} "
-               f"{int(num_samples)}")
+               f"{int(eff_samples)} {int(bs100)}")
         print(f"  [bioemu] {tag}: {cmd}", flush=True)
         try:
             subprocess.run(cmd, shell=True, check=True)
@@ -221,6 +264,15 @@ def main():
     ap.add_argument("--af_msa_top_n", type=int, default=10,
                     help="Subsample the per-cluster MSA to the N rows closest "
                          "to the query (0 = full). Matches AF's --af_msa_top_n.")
+    ap.add_argument("--max_len", type=int, default=0,
+                    help="Skip clusters whose query exceeds N residues (0 = no "
+                         "limit). BioEmu time ~ (L/58)^2/cluster and it is "
+                         "unvalidated beyond ~225 res, so cap to keep the sweep "
+                         "tractable (e.g. 200-250).")
+    ap.add_argument("--min_samples", type=int, default=0,
+                    help="Enable adaptive sampling: scale n_samples down ~1/L "
+                         "(num * 50/L) for longer chains, floored at this value "
+                         "(0 = off, always use --num_samples).")
     args = ap.parse_args()
 
     pair_id = args.input
@@ -258,7 +310,9 @@ def main():
                                         pdbid2, chain2, pair_dir,
                                         args.num_samples,
                                         query_type=args.query_type,
-                                        msa_top_n=args.af_msa_top_n))
+                                        msa_top_n=args.af_msa_top_n,
+                                        max_len=args.max_len,
+                                        min_samples=args.min_samples))
 
     ana = pair_dir / "Analysis"
     ana.mkdir(parents=True, exist_ok=True)
