@@ -81,8 +81,17 @@ def representative_from_rows(rows: List[Tuple[str, str]],
         return "".join(c for c in cols if c.isalpha()).upper()
 
     if method == "medoid":
+        # Prefer sequences with only standard residues as the representative:
+        # a medoid that lands on a sequence containing X/B/Z/U/O (non-standard,
+        # common in DB hits) is rejected downstream by BioEmu and folded as an
+        # unknown by AF, so don't pick it as the query when clean members exist.
+        # Fall back to all rows only if every member has a non-standard residue.
+        _STD = set("ACDEFGHIKLMNPQRSTVWY")
+        clean = [a for a in aligned
+                 if all(c.upper() in _STD for c in a if c not in "-.")]
+        cand = clean if clean else aligned
         # Sub-sample for tractability on huge clusters
-        sub = aligned[:max_rows_for_medoid]
+        sub = cand[:max_rows_for_medoid]
         arr = np.array([list(s) for s in sub])
         n = arr.shape[0]
         dist = np.zeros((n, n), dtype=np.int32)
