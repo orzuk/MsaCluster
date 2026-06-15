@@ -112,7 +112,7 @@ CMD="python -m bioemu.sample \
     --output_dir $OUT \
     --cache_embeds_dir $BIOEMU_CACHE \
     --cache_so3_dir $BIOEMU_SO3_CACHE \
-    --filter_samples False \
+    --filter_samples=False \
     $CKPT_ARGS \
     $BS_ARG"
 
