@@ -40,8 +40,9 @@ import html as _html
 
 # Distinct, attractive colours for the two folds (hex, used both in CSS swatches
 # and as integers passed to Mol*'s uniform colour theme).
-_FOLD1_COLOR = "#4FC3F7"   # cyan / light blue
-_FOLD2_COLOR = "#FF8A65"   # warm coral / orange
+_FOLD1_COLOR = "#2166ac"   # blue  = fold1 (matches heatmap + Fig 5 seq track)
+_FOLD2_COLOR = "#b2182b"   # red   = fold2 (matches heatmap + Fig 5 seq track)
+_LIGAND_COLOR = "#2ca02c"  # green = bound ligand (distinct from both folds)
 
 # Relative path (from a page in docs/HTML/) to the copied Mol* assets.
 _ASSET_JS = "assets/molstar.js"
@@ -216,6 +217,74 @@ def _find_super_pdb(pair_id, fig_dir, which):
     return None
 
 
+def _ss_records_for_struct(struct):
+    """PDB HELIX/SHEET records from φ/ψ secondary structure - the SAME definition
+    as Figure 5's SS track (utils.plot_per_residue_ddg) - so Mol* renders the same
+    helices/strands. The point: an isolated fibril/oligomer protomer's β-strands
+    (whose β-sheet H-bond partners live in the not-shown assembly) are detected by
+    φ/ψ as β here, keeping the 3-D cartoon consistent with Figure 5 (which Mol*'s
+    own H-bond SS would otherwise draw as coil). Returns '' on any failure.
+    """
+    try:
+        from Bio.PDB import PPBuilder
+        from utils.plot_per_residue_ddg import _ss_from_phipsi, _smooth_ss
+    except Exception:
+        return ""
+
+    def _fixed(fields):
+        buf = [" "] * 80
+        for start, val in fields:
+            for k, ch in enumerate(str(val)):
+                if 0 <= start - 1 + k < 80:
+                    buf[start - 1 + k] = ch
+        return "".join(buf).rstrip()
+
+    recs = []
+    try:
+        ppb = PPBuilder()
+        model = next(iter(struct))
+        h = s = 0
+        for chain in model:
+            cid = (str(chain.id) or "A")[:1] or "A"
+            residues, ss = [], []
+            for pp in ppb.build_peptides(chain):
+                for res, (phi, psi) in zip(pp, pp.get_phi_psi_list()):
+                    residues.append(res)
+                    ss.append(_ss_from_phipsi(phi, psi))
+            if len(ss) < 3:
+                continue
+            ss = _smooth_ss("".join(ss))
+            i, n = 0, len(ss)
+            while i < n:
+                j = i
+                while j < n and ss[j] == ss[i]:
+                    j += 1
+                if ss[i] in "HE":
+                    r0, r1 = residues[i], residues[j - 1]
+                    n0, n1 = int(r0.id[1]), int(r1.id[1])
+                    a0 = r0.resname.strip()[:3].rjust(3)
+                    a1 = r1.resname.strip()[:3].rjust(3)
+                    if ss[i] == "H":
+                        h += 1
+                        recs.append(_fixed([
+                            (1, "HELIX"), (8, "%3d" % h), (12, "%3d" % h),
+                            (16, a0), (20, cid), (22, "%4d" % n0),
+                            (28, a1), (32, cid), (34, "%4d" % n1),
+                            (39, "%2d" % 1), (72, "%5d" % (j - i))]))
+                    else:
+                        s += 1
+                        recs.append(_fixed([
+                            (1, "SHEET"), (8, "%3d" % s), (12, "A"),
+                            (15, "%2d" % 1), (18, a0), (22, cid),
+                            (23, "%4d" % n0), (29, a1), (33, cid),
+                            (34, "%4d" % n1), (39, "%2d" % 0)]))
+                i = j
+    except Exception as e:
+        print(f"[structure] SS record build failed: {e}")
+        return ""
+    return "\n".join(recs)
+
+
 def _superpose_overlay(text1, text2):
     """Kabsch-superpose fold2 onto fold1 over sequence-matched CA atoms.
 
@@ -264,10 +333,17 @@ def _superpose_overlay(text1, text2):
         io.save(tf.name)
         try:
             with open(tf.name) as fh:
-                return fh.read()
+                body = fh.read()
         finally:
             try: os.remove(tf.name)
             except Exception: pass
+        # Prepend φ/ψ-derived HELIX/SHEET records (SAME SS definition as Figure 5)
+        # so Mol* renders helices/strands consistently - in particular a fibril /
+        # oligomer protomer's β-strands (whose H-bond partners are in the
+        # not-shown assembly) show as β here instead of coil. Biopython PDBIO
+        # drops authored SS, so we re-add it.
+        ss = _ss_records_for_struct(struct)
+        return (ss + "\n" + body) if ss else body
 
     def _to_pdb_path(struct):
         """Serialize a structure to a temp .pdb and return the path (caller deletes)."""
@@ -421,16 +497,29 @@ def _structure_caption(pair_id):
 
 
 def _structure_meta(pair_id):
-    """Structured 3D-figure context from docs/triggers_from_pdb.csv.
+    """Per-fold 3D-figure context from docs/triggers_from_pdb.csv.
 
-    Returns ``{'trigger', 'assembly', 'ligands'}`` (any may be ''):
-      - trigger  : the trigger class (e.g. 'mutation') for the concise caption.
-      - assembly : deposited-assembly phrase, ONLY when non-trivial (i.e. at
-                   least one fold is a multimer); a plain monomer/monomer pair
-                   is the default and is omitted.
-      - ligands  : ligand phrase when any are present.
+    Returns ``{'trigger', 'fold1_note', 'fold2_note', 'lig1', 'lig2'}``:
+      - trigger  : the pair's trigger class (e.g. 'mutation') for the caption.
+      - foldN_note: a short per-fold ASSEMBLY tag for the legend (e.g. 'monomer',
+        '6-mer'), shown only when informative; '' for an ordinary monomer.
+      - ligN     : ligand code(s) bound to foldN ('' if none), shown as a
+        separate GREEN legend entry (matching the green ligand in the 3D view).
     """
-    out = {"trigger": "", "assembly": "", "ligands": ""}
+    import re
+    out = {"trigger": "", "fold1_note": "", "fold2_note": "", "lig1": "", "lig2": ""}
+
+    def _olig(n):
+        if not n:
+            return ""
+        return {1: "monomer", 2: "dimer", 3: "trimer",
+                4: "tetramer"}.get(n, f"{n}-mer")
+
+    def _lig(val):
+        # 'GSH' / "['GSH']" / '' -> clean ligand code(s) or ''
+        s = (val or "").strip().strip("[]").replace("'", "").strip()
+        return s
+
     try:
         repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         import csv
@@ -439,24 +528,31 @@ def _structure_meta(pair_id):
             for row in csv.DictReader(fh):
                 if row.get("pair_id") != pair_id:
                     continue
-                out["trigger"] = (row.get("trigger_class") or "").strip()
-
-                def _olig(nch):
-                    try:
-                        k = int(nch)
-                    except Exception:
-                        return ""
-                    return {1: "monomer", 2: "dimer", 3: "trimer",
-                            4: "tetramer"}.get(k, f"{k}-mer")
-                o1 = _olig((row.get("n_unique_chains_pdb1") or "").strip())
-                o2 = _olig((row.get("n_unique_chains_pdb2") or "").strip())
-                if (o1 and o1 != "monomer") or (o2 and o2 != "monomer"):
-                    out["assembly"] = (f"Deposited assembly: fold1 {o1 or '?'}, "
-                                       f"fold2 {o2 or '?'}.")
-                lig = ((row.get("ligands_pdb1") or "")
-                       + (row.get("ligands_pdb2") or "")).strip()
-                if lig:
-                    out["ligands"] = "Ligand(s): " + _html.escape(lig) + "."
+                trig = (row.get("trigger_class") or "").strip()
+                out["trigger"] = trig
+                # Per-fold chain-instance counts (the real assembly state) live in
+                # the evidence string for oligomerisation pairs ("pdb1=1, pdb2=6");
+                # fall back to n_unique_chains otherwise.
+                ev = row.get("evidence") or ""
+                m = re.search(r"pdb1\s*=\s*(\d+).*?pdb2\s*=\s*(\d+)", ev)
+                if m:
+                    n1, n2 = int(m.group(1)), int(m.group(2))
+                else:
+                    def _int(x):
+                        try: return int((x or "").strip())
+                        except Exception: return None
+                    n1 = _int(row.get("n_unique_chains_pdb1"))
+                    n2 = _int(row.get("n_unique_chains_pdb2"))
+                note1, note2 = [], []
+                # Show the assembly state only when informative: oligomerisation,
+                # or a multimer, or the two folds differ in oligomeric state.
+                if trig == "oligomerization" or (n1 and n2 and (n1 > 1 or n2 > 1 or n1 != n2)):
+                    if _olig(n1): note1.append(_olig(n1))
+                    if _olig(n2): note2.append(_olig(n2))
+                out["lig1"] = _lig(row.get("ligands_pdb1"))
+                out["lig2"] = _lig(row.get("ligands_pdb2"))
+                out["fold1_note"] = " · ".join(note1)
+                out["fold2_note"] = " · ".join(note2)
                 break
     except Exception:
         pass
@@ -564,24 +660,31 @@ def _viewer_box(dom_id: str, title: str, status_id: str) -> str:
     )
 
 
-def _legend(tag1: str, tag2: str, extra=None) -> str:
-    """One concise line: fold1/fold2 colour swatches + any ``extra`` items
-    (e.g. 'TM-score 0.453', 'Trigger class: mutation') appended on the same row.
-    ``extra`` items are taken as already-safe HTML/text."""
+def _legend(tag1: str, tag2: str, ligand=None, extra=None) -> str:
+    """Two rows: (1) blue fold1 / red fold2 colour swatches + labels, plus a green
+    ``ligand`` swatch when a ligand is bound (matching the green ligand in the 3D);
+    (2) any ``extra`` items (e.g. 'TM-score: 0.453', 'Trigger class: mutation') on
+    their own line below. ``extra`` items are already-safe HTML/text."""
     sw = ('display:inline-block;width:12px;height:12px;border-radius:3px;'
           'margin-right:5px;vertical-align:middle;')
-    out = [
+    row1_parts = [
         '<div class="molstar-legend" '
-        'style="margin:6px 2px 10px;font-size:0.86em;color:#cfd6e4;">',
+        'style="margin:6px 2px 2px;font-size:0.86em;color:#cfd6e4;">',
         f'<span style="margin-right:18px;"><span style="{sw}background:{_FOLD1_COLOR};">'
         f'</span>{_html.escape(tag1)}</span>',
         f'<span style="margin-right:18px;"><span style="{sw}background:{_FOLD2_COLOR};">'
         f'</span>{_html.escape(tag2)}</span>',
     ]
-    for item in (extra or []):
-        out.append(f'<span style="margin-right:18px;">{item}</span>')
-    out.append("</div>")
-    return "".join(out)
+    if ligand:
+        row1_parts.append(
+            f'<span><span style="{sw}background:{_LIGAND_COLOR};"></span>'
+            f'{_html.escape(ligand)}</span>')
+    row1_parts.append("</div>")
+    row2 = ""
+    if extra:
+        row2 = ('<div style="margin:0 2px 10px;font-size:0.82em;color:#9aa3b2;">'
+                + " &middot; ".join(extra) + "</div>")
+    return "".join(row1_parts) + row2
 
 
 # --------------------------------------------------------------------------- #
@@ -683,64 +786,52 @@ def _build_script(uid: str,
   }
 
   async function addStructure(viewer, pdbText, colorInt, label, colorMode) {
-    // "uniform" (overlay: one solid colour per fold so the two are distinct)
-    // vs "gradient" (side-by-side: colour by residue number N->C so the SAME
-    // residue is the same colour in both folds -> matching residues line up).
-    var theme;
+    // Build the structure with the explicit builders API so the colour theme
+    // actually applies. (The high-level loadStructureFromData ignored
+    // representationParams in this Mol* build, leaving Mol*'s default per-entity
+    // colours - the green/orange we kept seeing.) colorMode:
+    //   "uniform"  : solid fold colour (overlay -> the two folds are distinct)
+    //   "deviation": colour by per-residue CA deviation (baked into the B-factor)
+    //                - conserved core low, fold-switching region high
+    //   "gradient" : N->C sequence position
+    var plugin = viewer.plugin;
+    var color = "uniform", colorParams = { value: colorInt };
     if (colorMode === "gradient") {
-      theme = { globalName: "sequence-id" };
+      color = "sequence-id"; colorParams = {};
     } else if (colorMode === "deviation") {
-      // Colour by per-residue CA deviation baked into the B-factor: the shared
-      // core (low) stays light grey for BOTH folds, the fold-switching region
-      // (high) takes each fold's distinct colour -> shared vs different at a
-      // glance. Same "uncertainty" (B-factor) theme the Ligo blog uses.
-      theme = { globalName: "uncertainty",
-                globalColorParams: { domain: [0.0, 8.0],
-                  list: { kind: "interpolate", colors: [0xdddddd, colorInt] } } };
-    } else {
-      theme = { globalName: "uniform", globalColorParams: { value: colorInt } };
+      // colour by the per-residue CA deviation baked into the B-factor: grey
+      // (conserved core) -> fold colour (divergent / fold-switching region).
+      color = "uncertainty";
+      colorParams = { domain: [0.0, 10.0],
+        list: { kind: "interpolate", colors: [0xdddddd, colorInt] } };
     }
-    var uniform = { globalName: "uniform", globalColorParams: { value: colorInt } };
     try {
-      await viewer.loadStructureFromData(pdbText, detectFormat(pdbText), {
-        dataLabel: label || "structure",
-        representationParams: { theme: theme }
-      });
-    } catch (e) {
-      // A theme name unsupported by this Mol* build must not blank the overlay;
-      // retry with the always-available uniform colour.
-      console.warn("theme '" + colorMode + "' failed; using uniform", e);
-      await viewer.loadStructureFromData(pdbText, detectFormat(pdbText), {
-        dataLabel: label || "structure",
-        representationParams: { theme: uniform }
-      });
-    }
-    await addLigandRep(viewer);
-    return true;
-  }
-
-  // Make any bound ligand stand out: add an element-coloured (CPK) ball-and-stick
-  // on top of the cartoon for the just-loaded structure, so the ligand (often the
-  // fold-switch trigger) is visible without rotating and is not blended into the
-  // uniform fold colour. No-op when the structure has no ligand. Defensive: a
-  // failure here must never blank the viewer.
-  async function addLigandRep(viewer) {
-    try {
-      var plugin = viewer.plugin;
-      var list = plugin.managers.structure.hierarchy.current.structures;
-      if (!list || !list.length) { return; }
-      var sref = list[list.length - 1].cell;
-      var ligand = await plugin.builders.structure.tryCreateComponentStatic(sref, "ligand");
+      var data = await plugin.builders.data.rawData({ data: pdbText, label: label || "structure" });
+      var traj = await plugin.builders.structure.parseTrajectory(data, detectFormat(pdbText));
+      var model = await plugin.builders.structure.createModel(traj);
+      var struct = await plugin.builders.structure.createStructure(model);
+      var polymer = await plugin.builders.structure.tryCreateComponentStatic(struct, "polymer");
+      if (polymer) {
+        await plugin.builders.structure.representation.addRepresentation(polymer, {
+          type: "cartoon", color: color, colorParams: colorParams
+        });
+      }
+      // Bound ligand (if any): element-coloured (CPK) ball-and-stick so the
+      // ligand - often the fold-switch trigger - stands out from the cartoon.
+      var ligand = await plugin.builders.structure.tryCreateComponentStatic(struct, "ligand");
       if (ligand) {
+        // Uniform GREEN so the ligand is clearly distinct from the blue (fold1)
+        // and red (fold2) cartoons - element/CPK colouring would re-use blue (N)
+        // and red (O) and be confused with a fold.
         await plugin.builders.structure.representation.addRepresentation(ligand, {
-          type: "ball-and-stick",
-          color: "element-symbol",
-          size: "physical"
+          type: "ball-and-stick", color: "uniform",
+          colorParams: { value: 0x2ca02c }, size: "physical"
         });
       }
     } catch (e) {
-      console.warn("ligand representation failed", e);
+      console.error("addStructure failed", e);
     }
+    return true;
   }
 
   function tuneCanvas(plugin) {
@@ -808,8 +899,8 @@ def _build_script(uid: str,
       var viewer = await makeViewer(CFG.superposedId, statusId);
       if (!viewer) { return; }
       var any = false;
-      if (PDB1) { await addStructure(viewer, PDB1, CFG.color1, "Fold 1", "deviation"); any = true; }
-      if (PDB2) { await addStructure(viewer, PDB2, CFG.color2, "Fold 2", "deviation"); any = true; }
+      if (PDB1) { await addStructure(viewer, PDB1, CFG.color1, "Fold 1", "uniform"); any = true; }
+      if (PDB2) { await addStructure(viewer, PDB2, CFG.color2, "Fold 2", "uniform"); any = true; }
       if (!any) { setStatus(statusId, "No structures available.", "error"); return; }
       await finalize(viewer, statusId, "Superposed overlay ready (drag to rotate).");
     } catch (e) {
@@ -824,7 +915,7 @@ def _build_script(uid: str,
       if (!pdbText) { setStatus(statusId, "structure not found", "error"); return; }
       var viewer = await makeViewer(targetId, statusId);
       if (!viewer) { return; }
-      await addStructure(viewer, pdbText, colorInt, label, "gradient");
+      await addStructure(viewer, pdbText, colorInt, label, "deviation");
       await finalize(viewer, statusId, label + " ready.");
     } catch (e) {
       console.error(e);
@@ -972,26 +1063,36 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
                 if (_overlay_tm is not None and _overlay_tm == _overlay_tm)
                 else "")
         _expl = ("The single fold-switching chain of each fold " + _sup
-                 + "waters hidden, any ligand shown as sticks. "
+                 + "waters hidden, any ligand shown as green sticks. "
                  "Grey = structurally conserved core, colour = divergent "
                  "(fold-switching) region.")
-        if meta["assembly"]:
-            _expl += " " + meta["assembly"]
-        if meta["ligands"]:
-            _expl += " " + meta["ligands"]
         if meta["trigger"] == "oligomerization":
             _expl += (" This pair switches fold coupled to oligomerisation; "
                       "a single protomer is shown, not the full assembly.")
         parts.append('<p class="explain" style="font-size:0.85em;">' + _expl + "</p>")
-        # ONE concise caption line: fold legend + TM-score + trigger class.
+        # ONE concise caption line: per-fold legend (name + assembly/ligand note,
+        # so the reader sees WHICH fold is the oligomer / carries the ligand,
+        # tied to its blue/red colour) + TM-score + trigger class.
+        _lab1 = _fold_label(tag1 or "fold 1", pair_id)
+        _lab2 = _fold_label(tag2 or "fold 2", pair_id)
+        if meta["fold1_note"]:
+            _lab1 += " · " + meta["fold1_note"]
+        if meta["fold2_note"]:
+            _lab2 += " · " + meta["fold2_note"]
+        # Green ligand legend entry (name + the fold it is bound to), matching the
+        # green ligand sticks in the 3-D view.
+        _ligs = []
+        if meta["lig1"]:
+            _ligs.append("Ligand %s (bound to %s)" % (meta["lig1"], tag1 or "fold 1"))
+        if meta["lig2"]:
+            _ligs.append("Ligand %s (bound to %s)" % (meta["lig2"], tag2 or "fold 2"))
+        _lig_label = ", ".join(_ligs) or None
         _extra = []
         if _overlay_tm is not None and _overlay_tm == _overlay_tm:
-            _extra.append("TM-score %.3f" % _overlay_tm)
+            _extra.append("TM-score: %.3f" % _overlay_tm)
         if meta["trigger"]:
             _extra.append("Trigger class: " + _html.escape(meta["trigger"]))
-        parts.append(_legend(_fold_label(tag1 or "fold 1", pair_id),
-                             _fold_label(tag2 or "fold 2", pair_id),
-                             extra=_extra))
+        parts.append(_legend(_lab1, _lab2, ligand=_lig_label, extra=_extra))
         if pdb1_text is None:
             parts.append(_warn_div("structure not found: %s" % (tag1,)))
         if pdb2_text is None:

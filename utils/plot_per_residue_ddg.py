@@ -777,9 +777,22 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
                 # fold1 (blue) over fold2 (red) stacked wherever a mutation makes
                 # them differ. The bars' own x labels are hidden (the track owns
                 # the residue identity + position numbers).
+                #
+                # The ΔΔG frame has length n. Anchor the track on whichever fold's
+                # structure sequence matches n (the two folds can differ in length
+                # - e.g. one is a fragment/domain of the other - so requiring fold1
+                # to match dropped the sequence entirely for those pairs). Then map
+                # the OTHER fold onto that frame. Always draw fold1 on top (blue) /
+                # fold2 below (red) regardless of which is the anchor.
+                f1_frame = f2_frame = None
                 if len(seq1) and abs(len(seq1) - n) <= 3:
-                    seq2_on1 = _seq2_on_frame(seq1, seq2)
-                    _draw_seq_track(seq_ax, seq1, seq2_on1, n, tagA, tagB)
+                    f1_frame = seq1
+                    f2_frame = _seq2_on_frame(seq1, seq2)       # fold2 on fold1 frame
+                elif len(seq2) and abs(len(seq2) - n) <= 3:
+                    f2_frame = seq2
+                    f1_frame = _seq2_on_frame(seq2, seq1)       # fold1 on fold2 frame
+                if f1_frame is not None and f2_frame is not None:
+                    _draw_seq_track(seq_ax, f1_frame, f2_frame, n, tagA, tagB)
                     seq_ax.set_xlabel(
                         f"residue  ·  one letter where {tagA or 'fold1'} and "
                         f"{tagB or 'fold2'} agree; stacked "
@@ -789,7 +802,7 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
                     seq_ax.set_xticks([]); seq_ax.set_yticks([])
                     for _sp in seq_ax.spines.values():
                         _sp.set_visible(False)
-                    seq_ax.set_xlabel("residue position (fold 1 frame)")
+                    seq_ax.set_xlabel("residue position")
                 ax.tick_params(axis="x", labelbottom=False, bottom=False)
                 ax.set_xlabel("")
             else:
