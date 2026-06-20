@@ -91,15 +91,45 @@ def _coords_seq_from_pdb(pdb_path: str, chain_id: str | None):
     return np.empty((0,3), dtype=np.float32), ""
 
 
+def _parse_tmalign_matrix(path: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Parse the rotation/translation file written by ``TMalign -m``.
+
+    The file holds three data rows ``m  t[m]  u[m][0] u[m][1] u[m][2]`` defining
+    the rigid transform that rotates Chain-1 onto Chain-2:
+    ``x_new[i] = t[i] + sum_j u[i][j] * x_old[j]``.
+    Returns ``(u, t)`` with ``u`` shape (3, 3) and ``t`` shape (3,).
+    """
+    u = np.zeros((3, 3), dtype=float)
+    t = np.zeros(3, dtype=float)
+    seen = set()
+    with open(path) as fh:
+        for ln in fh:
+            parts = ln.split()
+            if len(parts) == 5 and parts[0] in ("0", "1", "2"):
+                try:
+                    m = int(parts[0])
+                    vals = [float(x) for x in parts[1:]]
+                except ValueError:
+                    continue
+                t[m] = vals[0]
+                u[m, 0], u[m, 1], u[m, 2] = vals[1], vals[2], vals[3]
+                seen.add(m)
+    if seen != {0, 1, 2}:
+        raise RuntimeError("Could not parse TMalign rotation matrix from -m file")
+    return u, t
+
+
 def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
     if not (os.path.isfile(TMALIGN_EXE) and os.access(TMALIGN_EXE, os.X_OK)):
         raise FileNotFoundError(f"TM-align binary not found or not executable: {TMALIGN_EXE}")
 
     p1, tmp1 = _prep_pdb_for_binary(pdb1, chain1)
     p2, tmp2 = _prep_pdb_for_binary(pdb2, chain2)
+    matf = tempfile.NamedTemporaryFile(delete=False, suffix=".txt").name
 
     try:
-        res = subprocess.run([TMALIGN_EXE, p1, p2], check=True, capture_output=True, text=True)
+        res = subprocess.run([TMALIGN_EXE, p1, p2, "-m", matf],
+                             check=True, capture_output=True, text=True)
         out = res.stdout
     finally:
         for path, is_tmp in [(p1, tmp1), (p2, tmp2)]:
@@ -120,7 +150,7 @@ def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
         raise RuntimeError("Could not parse TM-score from TMalign output:\n" + out)
 
     print(f"[TM-align] Using binary: {TMALIGN_EXE}")
-    return {
+    result = {
         "engine": "binary",
         "exe": TMALIGN_EXE,
         "tm_by_1": tm1,
@@ -129,6 +159,18 @@ def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
         "aligned_length": aligned_length,
         "raw_output": out,
     }
+    # Rigid transform (Chain-1 -> Chain-2 frame), x_new = u @ x + t. Optional:
+    # never let a matrix-parse hiccup break the TM-score return.
+    try:
+        u, t = _parse_tmalign_matrix(matf)
+        result["u"] = u.tolist()
+        result["t"] = t.tolist()
+    except Exception:
+        pass
+    finally:
+        try: os.remove(matf)
+        except OSError: pass
+    return result
 
 
 
@@ -199,12 +241,21 @@ def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
 
     res = tm_align(coords1, coords2, seq1, seq2)
     print("[TM-align] Using tmtools (Python bindings)")
-    return {
+    out = {
         "engine": "tmtools",
         "tm_by_1": float(res.tm_norm_chain1),
         "tm_by_2": float(res.tm_norm_chain2),
         "rmsd": float(res.rmsd),
     }
+    # Rigid transform (chain1 -> chain2 frame), x_new = u @ x + t. Exposed so
+    # callers (e.g. the 3-D overlay viewer) can superpose without re-running
+    # TM-align. Wrapped: a missing/odd attribute must not break the score path.
+    try:
+        out["u"] = np.asarray(res.u, dtype=float).tolist()
+        out["t"] = np.asarray(res.t, dtype=float).tolist()
+    except Exception:
+        pass
+    return out
 
 
 # === Sequence identity computed from the two query rows in the seed MSA ===

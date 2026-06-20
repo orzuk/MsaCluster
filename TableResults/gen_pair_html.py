@@ -501,7 +501,7 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     EXPL_TREE = (
         "The pair's MSA as a phylogenetic tree, one leaf per sequence cluster. "
         "Leaf rings show each cluster's predicted fold preference; the heatmap "
-        "gives all 8 methods (AF2/AF3/ESMFold2/Boltz-2/ΔΔG/S4PRED/"
+        "gives all 9 methods (AF2/AF3/ESMFold2/Boltz-2/BioEmu/ΔΔG/S4PRED/"
         "MSA-Transformer/CCMpred) × clusters; internal-node markers flag "
         "parsimony-inferred gain/loss/swap of fold-switching. The core question: "
         "do different clades predict different folds?")

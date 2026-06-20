@@ -3367,8 +3367,13 @@ def main():
         task_aggregate_s4pred(pair_id=None, args=args)
         return
 
-    # If we're plotting, do the global plots once locally, then fall through to per-pair handling.
-    if args.run_mode == "plot":
+    # If we're plotting WITH global scope, do the global plots once here, then
+    # (for "both") fall through to per-pair handling. With --plot_scope pair we
+    # SKIP the global block entirely: it is heavy (loads the whole survey and
+    # renders the large panels - enough to OOM a login node), and the per-pair
+    # fan-out already passes --plot_scope pair to every child so the global
+    # figures are not re-rendered (and raced on) 93 times.
+    if args.run_mode == "plot" and getattr(args, "plot_scope", "both") in ("global", "both"):
         a_global = deepcopy(args)
         a_global.plot_scope = "global"
         try:

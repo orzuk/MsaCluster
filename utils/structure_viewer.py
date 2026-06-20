@@ -269,6 +269,14 @@ def _superpose_overlay(text1, text2):
             try: os.remove(tf.name)
             except Exception: pass
 
+    def _to_pdb_path(struct):
+        """Serialize a structure to a temp .pdb and return the path (caller deletes)."""
+        from Bio.PDB import PDBIO
+        io = PDBIO(); io.set_structure(struct)
+        tf = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False); tf.close()
+        io.save(tf.name)
+        return tf.name
+
     try:
         from Bio.PDB import Superimposer
         from Bio import pairwise2
@@ -301,13 +309,52 @@ def _superpose_overlay(text1, text2):
             if b != "-": j += 1
         if len(fixed) < 3:
             return None
-        sup = Superimposer()
-        sup.set_atoms(fixed, moving)
-        sup.apply(list(s2.get_atoms()))   # move ALL of fold2 onto fold1
+        # --- Superpose fold2 onto fold1 -----------------------------------
+        # Preferred: TM-align's optimal rigid transform, which aligns the
+        # largest well-superposable core - the right behaviour for fold
+        # switchers, where a global Kabsch fit over ALL matched residues is
+        # dragged by the divergent regions and never tightly overlays the
+        # shared core. Routed through utils.align_utils so the TM-score path
+        # stays unified; falls back to Bio.PDB.Superimposer (global Kabsch) if
+        # TM-align / tmtools is unavailable or returns no transform.
+        import numpy as np
+        tm = None
+        mv0 = np.array([a.coord for a in moving], dtype=float)
+        fx = np.array([a.coord for a in fixed], dtype=float)
+        try:
+            from utils import align_utils as _au
+            p1 = _to_pdb_path(s1)
+            p2 = _to_pdb_path(s2)
+            try:
+                r = _au.tmalign_unified(p2, p1)   # u, t map fold2 -> fold1 frame
+            finally:
+                for _p in (p1, p2):
+                    try: os.remove(_p)
+                    except OSError: pass
+            u = np.asarray(r.get("u"), dtype=float)
+            t = np.asarray(r.get("t"), dtype=float)
+            if u.shape == (3, 3) and t.shape == (3,):
+                moved = mv0 @ u.T + t
+                # Accept only if the transform actually superposes the core
+                # (guards against any matrix-convention mismatch).
+                near_after = int((np.linalg.norm(moved - fx, axis=1) < 5.0).sum())
+                near_before = int((np.linalg.norm(mv0 - fx, axis=1) < 5.0).sum())
+                if near_after >= max(3, near_before):
+                    for atom in s2.get_atoms():
+                        atom.transform(u.T, t)   # Bio.PDB: coord @ rot + tran
+                    tmv = [v for v in (r.get("tm_by_1"), r.get("tm_by_2"))
+                           if v is not None]
+                    tm = float(max(tmv)) if tmv else None
+        except Exception as e:
+            print(f"[structure] TM-align overlay unavailable ({e}); using Kabsch")
+        if tm is None:
+            sup = Superimposer()
+            sup.set_atoms(fixed, moving)
+            sup.apply(list(s2.get_atoms()))   # move ALL of fold2 onto fold1
+
         # Per-residue CA deviation after superposition. Bake it into the B-factor
         # of every atom so the viewer can colour the shared core (low deviation)
-        # vs the fold-switching region (high deviation). Also yields the TM-score
-        # for the caption (no TMalign dependency).
+        # vs the fold-switching region (high deviation).
         devs = [float(((a1.coord - a2.coord) ** 2).sum() ** 0.5)
                 for a1, a2 in zip(fixed, moving)]
         hi = max(devs) if devs else 5.0
@@ -319,9 +366,12 @@ def _superpose_overlay(text1, text2):
                 atom.set_bfactor(d)
             for atom in a2.get_parent():
                 atom.set_bfactor(d)
-        L = min(len(ca1), len(ca2))
-        d0 = max(0.5, 1.24 * (L - 15) ** (1.0 / 3.0) - 1.8) if L > 15 else 0.5
-        tm = (sum(1.0 / (1.0 + (d / d0) ** 2) for d in devs) / L) if L else float("nan")
+        # TM-score for the caption: TM-align's value when available, else a
+        # deviation-based estimate (no TMalign dependency).
+        if tm is None:
+            L = min(len(ca1), len(ca2))
+            d0 = max(0.5, 1.24 * (L - 15) ** (1.0 / 3.0) - 1.8) if L > 15 else 0.5
+            tm = (sum(1.0 / (1.0 + (d / d0) ** 2) for d in devs) / L) if L else float("nan")
         return _to_pdb(s1), _to_pdb(s2), tm
     except Exception as e:
         print(f"[structure] overlay superposition failed: {e}")
@@ -828,26 +878,21 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
             f'src="{_ASSET_JS}" data-molstar-asset="1"></script>'
         )
 
+        # Section 1: superposed overlay. Wrapped in <section class="fig"> with an
+        # <h2> title so it matches the page's other figures (the page CSS styles
+        # `section.fig h2`); previously a bare <div> title looked inconsistent.
+        parts.append('<section class="fig structure-viewers">')
         parts.append(
-            '<div class="structure-viewers" '
-            'style="margin:14px 0;color:#cfd6e4;font-family:inherit;">'
-        )
-
-        # Section 1: superposed overlay
-        parts.append(
-            '<div style="font-size:0.95em;font-weight:600;margin:4px 2px 6px;">'
+            "<h2>"
             + _html.escape(_fig_label(0, "Aligned overlay (both folds superposed)"))
-            + "</div>"
+            + "</h2>"
         )
         _cap = _structure_caption(pair_id)
         if _overlay_tm is not None and _overlay_tm == _overlay_tm:  # not NaN
             _cap = ("<b>TM-score %.3f</b> &middot; " % _overlay_tm) + _cap
         _cap += (' &middot; <span>grey = conserved core, '
                  'colour = divergent (fold-switching) region</span>')
-        parts.append(
-            '<div style="font-size:0.8em;color:#9aa3b2;margin:0 2px 6px;">'
-            + _cap + "</div>"
-        )
+        parts.append('<p class="explain" style="font-size:0.85em;">' + _cap + "</p>")
         parts.append(_legend(_fold_label(tag1 or "fold 1", pair_id),
                              _fold_label(tag2 or "fold 2", pair_id)))
         if pdb1_text is None:
@@ -858,12 +903,14 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         parts.append(_viewer_box(superposed_id, "Aligned overlay",
                                  superposed_status_id))
         parts.append("</div>")
+        parts.append("</section>")  # aligned-overlay figure
 
         # Section 2: side-by-side
+        parts.append('<section class="fig structure-viewers">')
         parts.append(
-            '<div style="font-size:0.95em;font-weight:600;margin:18px 2px 6px;">'
+            "<h2>"
             + _html.escape(_fig_label(1, "The two folds, side by side"))
-            + "</div>"
+            + "</h2>"
         )
         parts.append(
             '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
@@ -879,8 +926,7 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         else:
             parts.append(_warn_div("structure not found: %s" % (tag2,)))
         parts.append("</div>")  # side-by-side flex
-
-        parts.append("</div>")  # structure-viewers
+        parts.append("</section>")  # side-by-side figure
 
         # Script
         parts.append(_build_script(
