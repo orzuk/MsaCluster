@@ -471,9 +471,20 @@ def convert_biopython_to_ete3(biopy_tree, parent_ete_node=None):
         node.name = "node" + str(ctr)
         ctr += 1
 
-    Phylo.write(biopy_tree, "temp_tree.nwk", "newick")  # write to file
-
-    ete_tree = Tree("temp_tree.nwk", 1) # read
+    # Round-trip through a UNIQUE temp file. A hardcoded "temp_tree.nwk" in the
+    # cwd is a race: the per-pair plot fan-out runs many jobs concurrently, all
+    # --chdir'd to the repo root, so they clobber each other's temp_tree.nwk and
+    # ete3 reads a half-written tree -> "Parentheses do not match. Broken tree
+    # structure?" (this is what intermittently dropped pairs like 2lelA_2k0qA).
+    import tempfile
+    tf = tempfile.NamedTemporaryFile(suffix="_tree.nwk", delete=False)
+    tf.close()
+    try:
+        Phylo.write(biopy_tree, tf.name, "newick")  # write to file
+        ete_tree = Tree(tf.name, 1)  # read
+    finally:
+        try: os.remove(tf.name)
+        except OSError: pass
     for node in ete_tree.traverse():  # modify name
         node.name = node_dict[node.name]
 

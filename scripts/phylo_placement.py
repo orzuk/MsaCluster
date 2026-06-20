@@ -106,6 +106,7 @@ print(f"[phylo] imports done in {time.time()-_t0:.1f}s", flush=True)
 # starts emitting them.
 SCORED_METHODS: Tuple[str, ...] = (
     "AF2", "AF3", "Boltz2",          # MSA-conditioned structure predictors
+    "BioEmu",                         # generative equilibrium-ensemble (9th method)
     "ESM",                            # single-sequence ESMFold (v1) or ESMFold2 (v2)
     "MSAT", "CCMpred",                # contact-map predictors
     "DDG",                            # Rosetta ΔΔG per cluster
