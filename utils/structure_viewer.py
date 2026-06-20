@@ -418,6 +418,49 @@ def _structure_caption(pair_id):
             "Kabsch-superposed (waters/ligands hidden)")
 
 
+def _structure_meta(pair_id):
+    """Structured 3D-figure context from docs/triggers_from_pdb.csv.
+
+    Returns ``{'trigger', 'assembly', 'ligands'}`` (any may be ''):
+      - trigger  : the trigger class (e.g. 'mutation') for the concise caption.
+      - assembly : deposited-assembly phrase, ONLY when non-trivial (i.e. at
+                   least one fold is a multimer); a plain monomer/monomer pair
+                   is the default and is omitted.
+      - ligands  : ligand phrase when any are present.
+    """
+    out = {"trigger": "", "assembly": "", "ligands": ""}
+    try:
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        import csv
+        with open(os.path.join(repo, "docs", "triggers_from_pdb.csv"),
+                  encoding="utf-8", errors="replace") as fh:
+            for row in csv.DictReader(fh):
+                if row.get("pair_id") != pair_id:
+                    continue
+                out["trigger"] = (row.get("trigger_class") or "").strip()
+
+                def _olig(nch):
+                    try:
+                        k = int(nch)
+                    except Exception:
+                        return ""
+                    return {1: "monomer", 2: "dimer", 3: "trimer",
+                            4: "tetramer"}.get(k, f"{k}-mer")
+                o1 = _olig((row.get("n_unique_chains_pdb1") or "").strip())
+                o2 = _olig((row.get("n_unique_chains_pdb2") or "").strip())
+                if (o1 and o1 != "monomer") or (o2 and o2 != "monomer"):
+                    out["assembly"] = (f"Deposited assembly: fold1 {o1 or '?'}, "
+                                       f"fold2 {o2 or '?'}.")
+                lig = ((row.get("ligands_pdb1") or "")
+                       + (row.get("ligands_pdb2") or "")).strip()
+                if lig:
+                    out["ligands"] = "Ligand(s): " + _html.escape(lig) + "."
+                break
+    except Exception:
+        pass
+    return out
+
+
 def _fold_label(tag, pair_id):
     """'2n54B' -> '2n54B (XCL1)' using the pair's common name when available."""
     try:
@@ -519,18 +562,24 @@ def _viewer_box(dom_id: str, title: str, status_id: str) -> str:
     )
 
 
-def _legend(tag1: str, tag2: str) -> str:
+def _legend(tag1: str, tag2: str, extra=None) -> str:
+    """One concise line: fold1/fold2 colour swatches + any ``extra`` items
+    (e.g. 'TM-score 0.453', 'Trigger class: mutation') appended on the same row.
+    ``extra`` items are taken as already-safe HTML/text."""
     sw = ('display:inline-block;width:12px;height:12px;border-radius:3px;'
           'margin-right:5px;vertical-align:middle;')
-    return (
+    out = [
         '<div class="molstar-legend" '
-        'style="margin:6px 2px 10px;font-size:0.82em;color:#cfd6e4;">'
-        f'<span style="margin-right:18px;"><span style="{sw}background:{_FOLD1_COLOR};"></span>'
-        f'{_html.escape(tag1)}</span>'
-        f'<span><span style="{sw}background:{_FOLD2_COLOR};"></span>'
-        f'{_html.escape(tag2)}</span>'
-        "</div>"
-    )
+        'style="margin:6px 2px 10px;font-size:0.86em;color:#cfd6e4;">',
+        f'<span style="margin-right:18px;"><span style="{sw}background:{_FOLD1_COLOR};">'
+        f'</span>{_html.escape(tag1)}</span>',
+        f'<span style="margin-right:18px;"><span style="{sw}background:{_FOLD2_COLOR};">'
+        f'</span>{_html.escape(tag2)}</span>',
+    ]
+    for item in (extra or []):
+        out.append(f'<span style="margin-right:18px;">{item}</span>')
+    out.append("</div>")
+    return "".join(out)
 
 
 # --------------------------------------------------------------------------- #
@@ -887,14 +936,35 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
             + _html.escape(_fig_label(0, "Aligned overlay (both folds superposed)"))
             + "</h2>"
         )
-        _cap = _structure_caption(pair_id)
-        if _overlay_tm is not None and _overlay_tm == _overlay_tm:  # not NaN
-            _cap = ("<b>TM-score %.3f</b> &middot; " % _overlay_tm) + _cap
-        _cap += (' &middot; <span>grey = conserved core, '
-                 'colour = divergent (fold-switching) region</span>')
-        parts.append('<p class="explain" style="font-size:0.85em;">' + _cap + "</p>")
+        meta = _structure_meta(pair_id)
+        # Verbose context goes ABOVE, in the explain paragraph (what the overlay
+        # shows + how it is coloured + non-trivial assembly/ligands).
+        if _is_oligo:
+            _expl = ("Both folds shown as their full deposited assemblies "
+                     "(this pair switches via oligomerisation); waters and "
+                     "ligands hidden.")
+        else:
+            _sup = ("superposed by TM-align; "
+                    if (_overlay_tm is not None and _overlay_tm == _overlay_tm)
+                    else "")
+            _expl = ("The two fold-switching chains (one per fold) " + _sup
+                     + "waters and ligands hidden. "
+                     "Grey = structurally conserved core, colour = divergent "
+                     "(fold-switching) region.")
+        if meta["assembly"]:
+            _expl += " " + meta["assembly"]
+        if meta["ligands"]:
+            _expl += " " + meta["ligands"]
+        parts.append('<p class="explain" style="font-size:0.85em;">' + _expl + "</p>")
+        # ONE concise caption line: fold legend + TM-score + trigger class.
+        _extra = []
+        if _overlay_tm is not None and _overlay_tm == _overlay_tm:
+            _extra.append("TM-score %.3f" % _overlay_tm)
+        if meta["trigger"]:
+            _extra.append("Trigger class: " + _html.escape(meta["trigger"]))
         parts.append(_legend(_fold_label(tag1 or "fold 1", pair_id),
-                             _fold_label(tag2 or "fold 2", pair_id)))
+                             _fold_label(tag2 or "fold 2", pair_id),
+                             extra=_extra))
         if pdb1_text is None:
             parts.append(_warn_div("structure not found: %s" % (tag1,)))
         if pdb2_text is None:

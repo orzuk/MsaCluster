@@ -532,6 +532,49 @@ def _seq2_on_frame(seq_ref, seq_other):
         return list(seq_ref)  # treat all as same on failure (no highlight)
 
 
+_SEQ_FOLD1_COLOR = "#2166ac"   # blue  = fold1
+_SEQ_FOLD2_COLOR = "#b2182b"   # red   = fold2
+_SEQ_SAME_COLOR = "#222222"    # both folds agree
+
+
+def _draw_seq_track(axs, seq1, seq2_on1, n, tag1=None, tag2=None):
+    """Sequence track aligned to residues 1..n.
+
+    Where the two folds carry the SAME residue, one letter is drawn (centred).
+    Where they DIFFER (a mutation), BOTH are stacked: fold1 (blue) on top,
+    fold2 (red) below - so the display is symmetric between the two folds
+    instead of showing only fold1 with the differences merely highlighted.
+    """
+    axs.set_xlim(0.5, n + 0.5)
+    axs.set_ylim(0.0, 1.0)
+    axs.set_yticks([])
+    for sp in axs.spines.values():
+        sp.set_visible(False)
+    axs.set_ylabel("seq ", rotation=0, ha="right", va="center", fontsize=7)
+    m = min(len(seq1), n)
+    if m <= 0:
+        return
+    fs = 6 if n <= 120 else 5 if n <= 200 else 4 if n <= 340 else 3
+    for k in range(m):
+        a = seq1[k]
+        b = seq2_on1[k] if k < len(seq2_on1) else "-"
+        x = k + 1
+        if b == "-" or a == b:                      # folds agree -> one letter
+            axs.text(x, 0.5, a, ha="center", va="center", fontsize=fs,
+                     family="monospace", color=_SEQ_SAME_COLOR)
+        else:                                       # mutation -> stack both
+            axs.text(x, 0.72, a, ha="center", va="center", fontsize=fs,
+                     family="monospace", color=_SEQ_FOLD1_COLOR, fontweight="bold")
+            axs.text(x, 0.26, b, ha="center", va="center", fontsize=fs,
+                     family="monospace", color=_SEQ_FOLD2_COLOR, fontweight="bold")
+    # sparse position numbers for reference (letters carry the identity)
+    step = 10 if n <= 200 else 20 if n <= 500 else 50
+    ticks = list(range(step, n + 1, step))
+    axs.set_xticks(ticks)
+    axs.set_xticklabels([str(t) for t in ticks], fontsize=6)
+    axs.tick_params(axis="x", length=2, pad=1, labelbottom=True, bottom=True)
+
+
 def _draw_ss_track(axt, ss_chars, n, label):
     """Draw a secondary-structure cartoon along residues 1..len on axt:
     helix = orange sine wave, strand = gold N->C arrow, coil = thin gray line."""
@@ -715,7 +758,10 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
                 ss2_on1 = list(_smooth_ss("".join(ss2_on1)))
                 div = make_axes_locatable(ax)
                 ax_top = div.append_axes("top", size="8%", pad=0.06, sharex=ax)
-                ax_bot = div.append_axes("bottom", size="8%", pad=0.55, sharex=ax)
+                # Order matters: the first "bottom" append sits directly under the
+                # bars (sequence track), the second goes below it (fold2 SS).
+                seq_ax = div.append_axes("bottom", size="13%", pad=0.12, sharex=ax)
+                ax_bot = div.append_axes("bottom", size="8%", pad=0.42, sharex=ax)
                 _draw_ss_track(ax_top, list(ss1), n, f"{tagA or 'fold1'} SS ")
                 _draw_ss_track(ax_bot, ss2_on1, n, f"{tagB or 'fold2'} SS ")
                 ax_top.legend(
@@ -727,24 +773,25 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
                     loc="lower center", bbox_to_anchor=(0.5, 1.05), ncol=3,
                     fontsize=6.5, frameon=False, handlelength=1.8,
                     handletextpad=0.4, columnspacing=1.6, borderpad=0.2)
-                # Single sequence row (the two folds are ~identical), drawn once
-                # at a legible size as the x-axis labels, with residues that
-                # DIFFER from the other fold highlighted in red+bold.
+                # Symmetric sequence track: one letter where the two folds agree,
+                # fold1 (blue) over fold2 (red) stacked wherever a mutation makes
+                # them differ. The bars' own x labels are hidden (the track owns
+                # the residue identity + position numbers).
                 if len(seq1) and abs(len(seq1) - n) <= 3:
                     seq2_on1 = _seq2_on_frame(seq1, seq2)
-                    # show the sequence for any length; shrink the font as the
-                    # protein gets longer (zoomable PNG) instead of dropping it.
-                    _fs = 6 if n <= 120 else 5 if n <= 200 else 4 if n <= 340 else 3
-                    ax.set_xticks(range(1, len(seq1) + 1))
-                    ax.set_xticklabels(list(seq1), fontsize=_fs, family="monospace")
-                    ax.tick_params(axis="x", length=0, pad=1)
-                    for k, lbl in enumerate(ax.get_xticklabels()):
-                        if k < len(seq2_on1) and seq2_on1[k] != seq1[k]:
-                            lbl.set_color("#c0392b"); lbl.set_fontweight("bold")
-                    ax.set_xlabel(f"residue  (sequence = {tagA or 'fold1'}; "
-                                  f"red = differs in {tagB or 'fold2'})")
+                    _draw_seq_track(seq_ax, seq1, seq2_on1, n, tagA, tagB)
+                    seq_ax.set_xlabel(
+                        f"residue  ·  one letter where {tagA or 'fold1'} and "
+                        f"{tagB or 'fold2'} agree; stacked "
+                        f"({tagA or 'fold1'} top / {tagB or 'fold2'} bottom) where they differ",
+                        fontsize=7)
                 else:
-                    ax.set_xlabel("residue position (fold 1 frame)")
+                    seq_ax.set_xticks([]); seq_ax.set_yticks([])
+                    for _sp in seq_ax.spines.values():
+                        _sp.set_visible(False)
+                    seq_ax.set_xlabel("residue position (fold 1 frame)")
+                ax.tick_params(axis="x", labelbottom=False, bottom=False)
+                ax.set_xlabel("")
             else:
                 print(f"[ddg-ss] no SS tracks for {pair_id} "
                       f"(SS/seq unavailable for one fold)")
