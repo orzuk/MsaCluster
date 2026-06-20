@@ -286,14 +286,16 @@ def _superpose_overlay(text1, text2):
         for s in (s1, s2):
             for m in list(s)[1:]:
                 s.detach_child(m.id)
-        # Drop waters + ligands/heteroatoms so the overlay is clean protein only
-        # (these were the stray "dots" and odd colours in the viewer).
-        from Bio.PDB.Polypeptide import is_aa as _is_aa
+        # Drop ONLY waters; KEEP ligands/heteroatoms - the bound ligand is often
+        # the fold-switch trigger and should be visible. Ligands ride along with
+        # their chain through the superposition transform below, and Mol* renders
+        # them as ball-and-stick over the protein cartoon.
+        _WATERS = {"HOH", "WAT", "DOD", "H2O", "TIP", "SOL"}
         for s in (s1, s2):
             for model in s:
                 for chain in model:
                     for res in list(chain):
-                        if not _is_aa(res, standard=True):
+                        if res.resname.strip().upper() in _WATERS:
                             chain.detach_child(res.id)
         ca1, seq1 = _ca_seq(s1)
         ca2, seq2 = _ca_seq(s2)
@@ -713,7 +715,32 @@ def _build_script(uid: str,
         representationParams: { theme: uniform }
       });
     }
+    await addLigandRep(viewer);
     return true;
+  }
+
+  // Make any bound ligand stand out: add an element-coloured (CPK) ball-and-stick
+  // on top of the cartoon for the just-loaded structure, so the ligand (often the
+  // fold-switch trigger) is visible without rotating and is not blended into the
+  // uniform fold colour. No-op when the structure has no ligand. Defensive: a
+  // failure here must never blank the viewer.
+  async function addLigandRep(viewer) {
+    try {
+      var plugin = viewer.plugin;
+      var list = plugin.managers.structure.hierarchy.current.structures;
+      if (!list || !list.length) { return; }
+      var sref = list[list.length - 1].cell;
+      var ligand = await plugin.builders.structure.tryCreateComponentStatic(sref, "ligand");
+      if (ligand) {
+        await plugin.builders.structure.representation.addRepresentation(ligand, {
+          type: "ball-and-stick",
+          color: "element-symbol",
+          size: "physical"
+        });
+      }
+    } catch (e) {
+      console.warn("ligand representation failed", e);
+    }
   }
 
   function tuneCanvas(plugin) {
@@ -887,19 +914,21 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         if pdb1_text is None and pdb2_text is None:
             return (_warn_div(
                 "structure not found for both folds of %s" % (pair_id,)), 0)
-        _is_oligo = _trigger_class(pair_id) == "oligomerization"
-        if not _is_oligo:
-            if pdb1_text is not None:
-                pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
-            if pdb2_text is not None:
-                pdb2_text = _filter_structure_to_chain(pdb2_text, _chain_of_tag(tag2))
+        # Always reduce BOTH folds to the single fold-switching chain (the tag's
+        # chain) - including oligomerisation. For oligomers we compare ONE
+        # protomer's conformation in the monomer vs the assembly; drawing the
+        # full 1-vs-N-chain assemblies is not superposable and reads as noise.
+        # The biological assembly state stays described in the caption.
+        if pdb1_text is not None:
+            pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
+        if pdb2_text is not None:
+            pdb2_text = _filter_structure_to_chain(pdb2_text, _chain_of_tag(tag2))
 
-        # Superpose fold2 onto fold1 (Biopython Kabsch over sequence-matched CA
-        # atoms) so the aligned overlay ACTUALLY lines up - no PyMOL/TMalign
-        # dependency. Replaces both texts with clean PDB in fold1's frame on
-        # success; leaves them as-is (overlay just unaligned) on any failure.
+        # Superpose fold2 onto fold1 (TM-align optimal transform, see
+        # _superpose_overlay). Replaces both texts with clean PDB in fold1's
+        # frame on success; leaves them as-is (overlay unaligned) on any failure.
         _overlay_tm = None
-        if pdb1_text and pdb2_text and not _is_oligo:
+        if pdb1_text and pdb2_text:
             _sup = _superpose_overlay(pdb1_text, pdb2_text)
             if _sup:
                 pdb1_text, pdb2_text, _overlay_tm = _sup
@@ -939,22 +968,20 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         meta = _structure_meta(pair_id)
         # Verbose context goes ABOVE, in the explain paragraph (what the overlay
         # shows + how it is coloured + non-trivial assembly/ligands).
-        if _is_oligo:
-            _expl = ("Both folds shown as their full deposited assemblies "
-                     "(this pair switches via oligomerisation); waters and "
-                     "ligands hidden.")
-        else:
-            _sup = ("superposed by TM-align; "
-                    if (_overlay_tm is not None and _overlay_tm == _overlay_tm)
-                    else "")
-            _expl = ("The two fold-switching chains (one per fold) " + _sup
-                     + "waters and ligands hidden. "
-                     "Grey = structurally conserved core, colour = divergent "
-                     "(fold-switching) region.")
+        _sup = ("superposed by TM-align; "
+                if (_overlay_tm is not None and _overlay_tm == _overlay_tm)
+                else "")
+        _expl = ("The single fold-switching chain of each fold " + _sup
+                 + "waters hidden, any ligand shown as sticks. "
+                 "Grey = structurally conserved core, colour = divergent "
+                 "(fold-switching) region.")
         if meta["assembly"]:
             _expl += " " + meta["assembly"]
         if meta["ligands"]:
             _expl += " " + meta["ligands"]
+        if meta["trigger"] == "oligomerization":
+            _expl += (" This pair switches fold coupled to oligomerisation; "
+                      "a single protomer is shown, not the full assembly.")
         parts.append('<p class="explain" style="font-size:0.85em;">' + _expl + "</p>")
         # ONE concise caption line: fold legend + TM-score + trigger class.
         _extra = []
