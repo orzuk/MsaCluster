@@ -218,6 +218,7 @@ def concordance_per_pair(corrected: pd.DataFrame, residual_col: str
 
 
 def main() -> None:
+    global METHODS
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--survey", default=SURVEY)
     ap.add_argument("--pid", default=PID)
@@ -226,7 +227,12 @@ def main() -> None:
     ap.add_argument("--pairs", default="ALL",
                     help="Comma-separated pair IDs to focus on (default ALL); "
                          "summary is computed over all pairs regardless.")
+    ap.add_argument("--methods", default=",".join(METHODS),
+                    help="comma-separated methods in the concordance statistic "
+                         "(default 4-method AF2,ESM,MSAT,DDG; pass all 8 to match "
+                         "the 8-method headline)")
     args = ap.parse_args()
+    METHODS = [m.strip() for m in args.methods.split(",") if m.strip()]
 
     if not os.path.isfile(args.survey):
         raise SystemExit(f"Missing survey CSV: {args.survey}")
