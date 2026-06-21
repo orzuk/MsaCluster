@@ -217,74 +217,6 @@ def _find_super_pdb(pair_id, fig_dir, which):
     return None
 
 
-def _ss_records_for_struct(struct):
-    """PDB HELIX/SHEET records from φ/ψ secondary structure - the SAME definition
-    as Figure 5's SS track (utils.plot_per_residue_ddg) - so Mol* renders the same
-    helices/strands. The point: an isolated fibril/oligomer protomer's β-strands
-    (whose β-sheet H-bond partners live in the not-shown assembly) are detected by
-    φ/ψ as β here, keeping the 3-D cartoon consistent with Figure 5 (which Mol*'s
-    own H-bond SS would otherwise draw as coil). Returns '' on any failure.
-    """
-    try:
-        from Bio.PDB import PPBuilder
-        from utils.plot_per_residue_ddg import _ss_from_phipsi, _smooth_ss
-    except Exception:
-        return ""
-
-    def _fixed(fields):
-        buf = [" "] * 80
-        for start, val in fields:
-            for k, ch in enumerate(str(val)):
-                if 0 <= start - 1 + k < 80:
-                    buf[start - 1 + k] = ch
-        return "".join(buf).rstrip()
-
-    recs = []
-    try:
-        ppb = PPBuilder()
-        model = next(iter(struct))
-        h = s = 0
-        for chain in model:
-            cid = (str(chain.id) or "A")[:1] or "A"
-            residues, ss = [], []
-            for pp in ppb.build_peptides(chain):
-                for res, (phi, psi) in zip(pp, pp.get_phi_psi_list()):
-                    residues.append(res)
-                    ss.append(_ss_from_phipsi(phi, psi))
-            if len(ss) < 3:
-                continue
-            ss = _smooth_ss("".join(ss))
-            i, n = 0, len(ss)
-            while i < n:
-                j = i
-                while j < n and ss[j] == ss[i]:
-                    j += 1
-                if ss[i] in "HE":
-                    r0, r1 = residues[i], residues[j - 1]
-                    n0, n1 = int(r0.id[1]), int(r1.id[1])
-                    a0 = r0.resname.strip()[:3].rjust(3)
-                    a1 = r1.resname.strip()[:3].rjust(3)
-                    if ss[i] == "H":
-                        h += 1
-                        recs.append(_fixed([
-                            (1, "HELIX"), (8, "%3d" % h), (12, "%3d" % h),
-                            (16, a0), (20, cid), (22, "%4d" % n0),
-                            (28, a1), (32, cid), (34, "%4d" % n1),
-                            (39, "%2d" % 1), (72, "%5d" % (j - i))]))
-                    else:
-                        s += 1
-                        recs.append(_fixed([
-                            (1, "SHEET"), (8, "%3d" % s), (12, "A"),
-                            (15, "%2d" % 1), (18, a0), (22, cid),
-                            (23, "%4d" % n0), (29, a1), (33, cid),
-                            (34, "%4d" % n1), (39, "%2d" % 0)]))
-                i = j
-    except Exception as e:
-        print(f"[structure] SS record build failed: {e}")
-        return ""
-    return "\n".join(recs)
-
-
 def _superpose_overlay(text1, text2):
     """Kabsch-superpose fold2 onto fold1 over sequence-matched CA atoms.
 
@@ -333,17 +265,10 @@ def _superpose_overlay(text1, text2):
         io.save(tf.name)
         try:
             with open(tf.name) as fh:
-                body = fh.read()
+                return fh.read()
         finally:
             try: os.remove(tf.name)
             except Exception: pass
-        # Prepend φ/ψ-derived HELIX/SHEET records (SAME SS definition as Figure 5)
-        # so Mol* renders helices/strands consistently - in particular a fibril /
-        # oligomer protomer's β-strands (whose H-bond partners are in the
-        # not-shown assembly) show as β here instead of coil. Biopython PDBIO
-        # drops authored SS, so we re-add it.
-        ss = _ss_records_for_struct(struct)
-        return (ss + "\n" + body) if ss else body
 
     def _to_pdb_path(struct):
         """Serialize a structure to a temp .pdb and return the path (caller deletes)."""
@@ -450,7 +375,16 @@ def _superpose_overlay(text1, text2):
             L = min(len(ca1), len(ca2))
             d0 = max(0.5, 1.24 * (L - 15) ** (1.0 / 3.0) - 1.8) if L > 15 else 0.5
             tm = (sum(1.0 / (1.0 + (d / d0) ** 2) for d in devs) / L) if L else float("nan")
-        return _to_pdb(s1), _to_pdb(s2), tm
+        # Emit mmCIF carrying OUR secondary structure (utils.ss_utils.compute_ss
+        # via structure_to_mmcif -> _struct_conf/_struct_sheet_range), so Mol*
+        # renders the cartoon from our DSSP instead of recomputing its own. Falls
+        # back to plain PDB (Mol*'s own DSSP) only if the mmCIF writer fails.
+        try:
+            from utils.ss_utils import structure_to_mmcif
+            return structure_to_mmcif(s1), structure_to_mmcif(s2), tm
+        except Exception as _e:
+            print(f"[structure] mmCIF SS authoring failed ({_e}); plain PDB")
+            return _to_pdb(s1), _to_pdb(s2), tm
     except Exception as e:
         print(f"[structure] overlay superposition failed: {e}")
         return None

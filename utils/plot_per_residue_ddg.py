@@ -419,21 +419,6 @@ def _chain_pdb_path(pair_id: str, tag: str):
         return p if os.path.isfile(p) else None
 
 
-def _ss_from_phipsi(phi, psi):
-    """Crude Q3 secondary-structure call from backbone (phi, psi) in radians.
-    Ramachandran regions: alpha-helix -> H, beta-strand -> E, else coil C.
-    Good enough for a per-residue SS track (no DSSP binary / mdtraj needed)."""
-    import math
-    if phi is None or psi is None:
-        return "C"
-    p, s = math.degrees(phi), math.degrees(psi)
-    if -160.0 <= p <= -20.0 and -120.0 <= s <= 50.0:
-        return "H"
-    if -180.0 <= p <= -40.0 and (90.0 <= s <= 180.0 or -180.0 <= s <= -150.0):
-        return "E"
-    return "C"
-
-
 def _smooth_ss(ss, min_run=4):
     """Demote helix/strand runs shorter than min_run to coil, so the φ/ψ-based
     track shows clean SS segments instead of single-residue speckle. min_run=4
@@ -453,45 +438,14 @@ def _smooth_ss(ss, min_run=4):
 
 
 def _dssp_ss_seq(pdb_path, chain=None):
-    """(ss, seq) for one fold's chain. Pure Biopython (PPBuilder + phi/psi), so
-    it needs NO mdtraj and NO external DSSP binary, and handles mmCIF or PDB.
-    Restricts to `chain` when present (else the longest chain). (None, None) on
-    failure -> the figure then just shows the ΔΔG bars."""
-    if not pdb_path or not os.path.isfile(pdb_path):
-        return None, None
-    try:
-        from Bio.PDB import MMCIFParser, PDBParser, PPBuilder
-        head = ""
-        try:
-            with open(pdb_path, "r", errors="replace") as fh:
-                head = fh.read(3000)
-        except Exception:
-            pass
-        is_cif = ("_atom_site." in head) or head.lstrip().startswith("data_")
-        parser = MMCIFParser(QUIET=True) if is_cif else PDBParser(QUIET=True)
-        struct = parser.get_structure("x", pdb_path)
-        model = next(iter(struct))
-        # pick the requested chain, else the longest one
-        ch = None
-        if chain and chain in model:
-            ch = model[chain]
-        else:
-            ch = max(model, key=lambda c: sum(1 for _ in c), default=None)
-        if ch is None:
-            return None, None
-        ppb = PPBuilder()
-        ss_chars, seq_chars = [], []
-        for pp in ppb.build_peptides(ch):
-            seq = str(pp.get_sequence())
-            for (phi, psi), aa in zip(pp.get_phi_psi_list(), seq):
-                ss_chars.append(_ss_from_phipsi(phi, psi))
-                seq_chars.append(aa)
-        if len(ss_chars) >= 3:
-            return _smooth_ss("".join(ss_chars)), "".join(seq_chars)
-        print(f"[ddg-ss] too few residues for SS in {pdb_path}")
-    except Exception as e:
-        print(f"[ddg-ss] SS failed for {pdb_path}: {e}")
-    return None, None
+    """(ss, seq) for one fold's chain via the SINGLE project SS source
+    (utils.ss_utils.compute_ss = pydssp DSSP). This replaced a crude phi/psi
+    Ramachandran classifier that over-called helices ~4x and disagreed with the
+    DSSP used by the 3-D viewers. (None, None) on failure -> the figure then just
+    shows the ΔΔG bars."""
+    from utils.ss_utils import compute_ss
+    ss, seq = compute_ss(pdb_path, chain)
+    return (ss, seq) if ss else (None, None)
 
 
 def _map_ss_onto_frame(seq_ref, seq_other, ss_other):
