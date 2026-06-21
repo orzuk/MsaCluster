@@ -51,6 +51,12 @@ DEFAULT_EXPLANATIONS = {
     "MSATrans_CMAP_PR2": "Maximum precision vs Fold2 truth (same settings).",
     "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
     "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
+    "CONCORD": "AGGREGATE: cross-method per-cluster sign concordance, sequence-divergence-corrected, averaged over the 28 method-pairs of the 8 point-estimate methods (shuffle null ~0.50; higher = orthogonal methods agree more on each cluster's fold preference). Source: docs/fold_diversity_concordance_corrected_perm_8method_bh.csv.",
+    "CONCORD_pBH": "AGGREGATE: Benjamini-Hochberg-adjusted permutation p-value for CONCORD over the full pool of pairs (<=0.05 = significant cross-method concordance). Same source.",
+    "MORANS_I": "AGGREGATE (clade-preference): strongest positive Moran's I of per-cluster fold preference across the methods (on the cluster tree, inverse-patristic weights). Effect size of phylogenetic clade structure; ~0 = no clade structure, larger = fold-preferring clusters form clades. Source: docs/phylo_placement_corrected.csv.",
+    "MORANS_Inorm": "AGGREGATE (clade-preference): Moran's I normalised by the maximum achievable on each pair's tree (0 = null, 1 = maximal clade segregation). Rank clade structure by this, not by the BH p-value (the test is over-powered at ~100 clusters). Same source.",
+    "MORANS_pBH": "AGGREGATE (clade-preference): BH-adjusted permutation p-value for the strongest-method Moran's I. NOTE: at ~100 clusters this test is over-powered, so many pairs pass BH at negligible effect size; interpret with MORANS_I / MORANS_Inorm. Same source.",
+    "MORANS_method": "AGGREGATE: which method gives the strongest positive Moran's I for this pair.",
 }
 
 
@@ -232,6 +238,42 @@ def gen_html_from_summary_table(
         except Exception as e:
             print(f"[gen_html] WARN: failed to merge ss_switch_fraction: {e}")
 
+    # --- Merge AGGREGATE cross-method results: cross-method concordance and
+    #     phylogenetic clade-preference (Moran's I). These are the per-pair
+    #     summary statistics, kept in their own column group on the right. ---
+    _docs_dir = os.path.dirname(summary_csv)
+    # (1) Corrected full-pool concordance perm-BH (8 point-estimate methods)
+    _conc_csv = os.path.join(_docs_dir, "fold_diversity_concordance_corrected_perm_8method_bh.csv")
+    if os.path.isfile(_conc_csv):
+        try:
+            _c = pd.read_csv(_conc_csv)
+            _ccol = "observed_mean_concordance_corrected"
+            if "pair_id" in _c.columns and _ccol in _c.columns:
+                _c = _c[["pair_id", _ccol, "p_bh"]].drop_duplicates("pair_id").rename(
+                    columns={_ccol: "CONCORD", "p_bh": "CONCORD_pBH"})
+                df = df.merge(_c, on="pair_id", how="left")
+        except Exception as e:
+            print(f"[gen_html] WARN: failed to merge concordance: {e}")
+    # (2) Clade-preference: per-pair strongest positive Moran's I across methods
+    _phylo_csv = os.path.join(_docs_dir, "phylo_placement_corrected.csv")
+    if os.path.isfile(_phylo_csv):
+        try:
+            _m = pd.read_csv(_phylo_csv)
+            if {"pair_id", "morans_I"}.issubset(_m.columns):
+                _pcol = "morans_p_bh" if "morans_p_bh" in _m.columns else None
+                _keep = ["pair_id", "morans_I", "morans_I_norm", "method"]
+                _keep = [c for c in _keep if c in _m.columns] + ([_pcol] if _pcol else [])
+                _mb = (_m[_m["morans_I"].notna()]
+                       .sort_values("morans_I", ascending=False)
+                       .drop_duplicates("pair_id"))[_keep]
+                _ren = {"morans_I": "MORANS_I", "morans_I_norm": "MORANS_Inorm",
+                        "method": "MORANS_method"}
+                if _pcol: _ren[_pcol] = "MORANS_pBH"
+                _mb = _mb.rename(columns=_ren)
+                df = df.merge(_mb, on="pair_id", how="left")
+        except Exception as e:
+            print(f"[gen_html] WARN: failed to merge Moran's I: {e}")
+
 
     # Now also add RMSD for structure
 
@@ -328,7 +370,53 @@ def gen_html_from_summary_table(
     else:
         ordered += remaining
 
+    # Force the aggregate (cross-method) columns to the very end so they form a
+    # single right-hand column group.
+    _AGG_COLS = ["CONCORD", "CONCORD_pBH", "MORANS_I", "MORANS_Inorm",
+                 "MORANS_pBH", "MORANS_method"]
+    _agg_present = [c for c in _AGG_COLS if c in ordered]
+    ordered = [c for c in ordered if c not in _agg_present] + _agg_present
+
     df = df[ordered]
+
+    # --- Column-group bookkeeping (for coloured headers + thick separators) ---
+    # Three groups: description / single-method / aggregate. The first column of
+    # each group gets a thick left border; NAME/ORGANISM wrap to two lines.
+    _DESC_COLS = {"pair_id", "NAME", "ORGANISM", "trigger_class", "#RES",
+                  "MSA: DEPTH; #RES; #Clusters", "SEQ_ID%", "PAIR_TM", "SS_SWITCH%"}
+    _AGG_SET = set(_AGG_COLS)
+    _WRAP_COLS = {"NAME", "ORGANISM"}
+
+    def _col_group(col: str) -> str:
+        if col in _AGG_SET:
+            return "agg"
+        if col in _DESC_COLS:
+            return "desc"
+        return "method"
+
+    _group_start = set()
+    _prev_g = None
+    for _c in df.columns:
+        _g = _col_group(_c)
+        if _g != _prev_g:
+            _group_start.add(_c)
+        _prev_g = _g
+
+    def _th_cls(col: str) -> str:
+        cl = [f"g-{_col_group(col)}"]
+        if col in _group_start:
+            cl.append("gstart")
+        if col in _WRAP_COLS:
+            cl.append("wrapcol")
+        return ' class="' + " ".join(cl) + '"'
+
+    def _td_cls(col: str) -> str:
+        cl = []
+        if col in _group_start:
+            cl.append("gstart")
+        if col in _WRAP_COLS:
+            cl.append("wrapcol")
+        return (' class="' + " ".join(cl) + '"') if cl else ""
 
     # Round numeric columns to 3 decimals for display. Skip pre-formatted
     # percent columns (already 1-decimal, e.g. SEQ_ID%, SS_SWITCH%) and text
@@ -360,7 +448,7 @@ def gen_html_from_summary_table(
         return col.replace("DDG", "ΔΔG")
 
     thead = "<tr>" + "".join(
-        f'<th onclick="sortTable({i})">{html.escape(_display_header(col))}</th>'
+        f'<th{_th_cls(col)} onclick="sortTable({i})">{html.escape(_display_header(col))}</th>'
         for i, col in enumerate(df.columns)
     ) + "</tr>"
 
@@ -386,7 +474,7 @@ def gen_html_from_summary_table(
     for _, r in df.iterrows():
         pair = str(r["pair_id"])
         link = (base_pair_url or "{pair_id}.html").format(pair_id=html.escape(pair))
-        tds = [f'<td><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
+        tds = [f'<td{_td_cls("pair_id")}><a href="{link}" target="_blank">{html.escape(pair)}</a></td>']
         is_avg = pair.lower().startswith("average")  # "Average" or "Averages"
 
         for col in df.columns[1:]:
@@ -403,7 +491,7 @@ def gen_html_from_summary_table(
             else:
                 disp = "-" if pd.isna(val) else str(val)
 
-            tds.append(f'<td data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
+            tds.append(f'<td{_td_cls(col)} data-sort-value="{html.escape(numeric_part(val))}">{html.escape(disp)}</td>')
 
         row_cls = ""
         if fade_min_clusters is not None:
@@ -415,7 +503,7 @@ def gen_html_from_summary_table(
 
     # ---- Averages row (2 decimals). Special handling for "MSA: DEPTH; #RES; #Clusters" ----
     avg_label = '<a href="https://orzuk.github.io/MsaCluster/pairs_global_analysis.html" target="_blank">Averages</a>'
-    avg_tds = [f'<td>{avg_label}</td>']
+    avg_tds = [f'<td{_td_cls("pair_id")}>{avg_label}</td>']
 
     # Pre-compute means for the triple column if present
     triple_col = "MSA: DEPTH; #RES; #Clusters"
@@ -442,16 +530,16 @@ def gen_html_from_summary_table(
     # Build cells
     for col in df.columns[1:]:
         if col == triple_col:
-            avg_tds.append(f'<td data-sort-value="">{html.escape(triple_disp)}</td>')
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value="">{html.escape(triple_disp)}</td>')
             continue
         s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
         if s.notna().any():
             mu = s.mean()
             sd = s.std(ddof=1) if s.count() > 1 else 0.0
             disp = f"{mu:.2f} ({sd:.2f})"
-            avg_tds.append(f'<td data-sort-value="{mu:.6f}">{html.escape(disp)}</td>')
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value="{mu:.6f}">{html.escape(disp)}</td>')
         else:
-            avg_tds.append('<td data-sort-value=""></td>')
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value=""></td>')
     rows.append("<tr>" + "".join(avg_tds) + "</tr>")
 
 
@@ -485,8 +573,16 @@ def gen_html_from_summary_table(
     width: 98%; margin: auto; border-collapse: collapse;
     box-shadow: 0 4px 8px rgba(0,0,0,0.5);
   }}
-  th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; }}
+  th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; vertical-align: top; }}
   th {{ background-color: #b71c1c; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
+  /* column-group header colours: description (red) / single-method (blue) / aggregate (green) */
+  th.g-desc {{ background-color: #b71c1c; }}
+  th.g-method {{ background-color: #1565c0; }}
+  th.g-agg {{ background-color: #2e7d32; }}
+  /* thick separator at the first column of each group; thin (#333) within a group */
+  th.gstart, td.gstart {{ border-left: 3px solid #cfcfcf; }}
+  /* let NAME / ORGANISM wrap to ~two lines instead of forcing one very wide column */
+  th.wrapcol, td.wrapcol {{ white-space: normal; max-width: 16ch; }}
   tr:nth-child(even) {{ background-color: #2b2b2b; }}
   tr:hover {{ background-color: #3a3a3a; }}
   a {{ color: #64B5F6; text-decoration: none; }}
