@@ -660,6 +660,40 @@ def _viewer_box(dom_id: str, title: str, status_id: str) -> str:
     )
 
 
+def _deviation_colorbar(tag1: str, tag2: str, dmax: float = 10.0) -> str:
+    """Caption + gradient colour key for Figure 3's per-residue deviation colouring.
+
+    Each fold is coloured by the Cα distance between its residue and the matching
+    residue of the OTHER (superposed) fold: grey ~0 A (conserved core) -> full
+    fold colour at >= dmax A (structurally divergent / fold-switching region).
+    Hue only identifies the fold; intensity is the (shared) deviation magnitude.
+    """
+    def _bar(color_hex, label):
+        grad = f"linear-gradient(to right, #dddddd 0%, {color_hex} 100%)"
+        return (
+            '<div style="display:flex;align-items:center;gap:8px;margin:2px 0;">'
+            f'<span style="display:inline-block;width:150px;height:12px;border:1px solid #999;'
+            f'border-radius:2px;background:{grad};"></span>'
+            f'<span style="font-size:0.8em;color:#cfd6e4;">{_html.escape(label)}</span>'
+            "</div>"
+        )
+    ticks = (
+        '<div style="width:150px;display:flex;justify-content:space-between;'
+        'font-size:0.72em;color:#9aa3b2;margin:1px 2px 0;">'
+        '<span>0&#8201;&#197;</span><span>5</span>'
+        f'<span>&#8805;{int(dmax)}&#8201;&#197;</span></div>'
+    )
+    return (
+        '<div style="margin:4px 2px 10px;">'
+        '<div style="font-size:0.82em;color:#9aa3b2;margin-bottom:4px;">'
+        'Each fold is coloured by per-residue C&#945; deviation between the two '
+        'superposed structures: grey&nbsp;&#8776;&nbsp;conserved core, full colour&nbsp;=&nbsp;'
+        'structurally divergent (fold-switching) region.</div>'
+        + _bar(_FOLD1_COLOR, tag1) + _bar(_FOLD2_COLOR, tag2) + ticks +
+        "</div>"
+    )
+
+
 def _legend(tag1: str, tag2: str, ligand=None, extra=None) -> str:
     """Two rows: (1) blue fold1 / red fold2 colour swatches + labels, plus a green
     ``ligand`` swatch when a ligand is bound (matching the green ligand in the 3D);
@@ -1110,6 +1144,8 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
             + _html.escape(_fig_label(1, "The two folds, side by side"))
             + "</h2>"
         )
+        parts.append(_deviation_colorbar(_fold_label(tag1 or "Fold 1", pair_id),
+                                         _fold_label(tag2 or "Fold 2", pair_id)))
         parts.append(
             '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
         )
