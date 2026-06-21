@@ -574,6 +574,7 @@ def _submit_self_sbatch(args, script_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main():
+    global ALL_METHODS
     parser = argparse.ArgumentParser(
         description="Permutation-null test for fold_diversity_survey concordance. "
                     "--mode raw uses TMdiff_centered (pre-correction); "
@@ -597,6 +598,18 @@ def main():
         help="Output CSV path. Default depends on --mode: "
              "raw → docs/fold_diversity_concordance_perm.csv; "
              "corrected → docs/fold_diversity_concordance_corrected_perm.csv"
+    )
+    parser.add_argument(
+        "--methods", type=str, default=",".join(ALL_METHODS),
+        help="comma-separated methods to include in the concordance statistic "
+             "(default: the 5-method core AF2,ESM,MSAT,CCMpred,DDG). Pass all 8 "
+             "e.g. AF2,AF3,ESM,MSAT,CCMpred,DDG,Boltz2,S4PRED to match the "
+             "8-method corrected concordance."
+    )
+    parser.add_argument(
+        "--out-suffix", type=str, default="",
+        help="suffix appended to the default output CSV name before .csv "
+             "(e.g. _8method) so the default 5-method outputs are not overwritten"
     )
     parser.add_argument(
         "--n-perm", type=int, default=1000,
@@ -630,7 +643,13 @@ def main():
     parser.add_argument("--sbatch-time", default="04:00:00")
     args = parser.parse_args()
 
-    # sbatch self-submission
+    # Override the module-level method set from --methods so every helper
+    # (_pairwise_concordance, _format_row, _mean_concordance_from_residuals,
+    # _run_corrected_mode) sees the requested methods. Mirrors the --methods
+    # flag in scripts/seq_divergence_correction.py.
+    ALL_METHODS = [m.strip() for m in args.methods.split(",") if m.strip()]
+
+    # sbatch self-submission (pass methods through verbatim)
     if args.run_job_mode == "sbatch":
         _submit_self_sbatch(args, os.path.abspath(__file__))
         return
@@ -641,9 +660,11 @@ def main():
                       if args.mode == "corrected"
                       else os.path.join("docs", "fold_diversity_survey.csv"))
     if args.output is None:
-        args.output = (os.path.join("docs", "fold_diversity_concordance_corrected_perm.csv")
-                       if args.mode == "corrected"
-                       else os.path.join("docs", "fold_diversity_concordance_perm.csv"))
+        base = ("fold_diversity_concordance_corrected_perm"
+                if args.mode == "corrected"
+                else "fold_diversity_concordance_perm")
+        args.output = os.path.join("docs", f"{base}{args.out_suffix}.csv")
+    print(f"Methods ({len(ALL_METHODS)}): {ALL_METHODS}")
 
     # Dispatch by mode
     if args.mode == "corrected":

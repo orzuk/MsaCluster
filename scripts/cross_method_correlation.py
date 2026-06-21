@@ -80,7 +80,8 @@ def spearman_matrix(wide: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return corr, counts
 
 
-def render(corr: pd.DataFrame, counts: pd.DataFrame, out_path: str) -> None:
+def render(corr: pd.DataFrame, counts: pd.DataFrame, out_path: str,
+           n_pairs: int = 0) -> None:
     cols = list(corr.columns)
     labels = [disp(c) for c in cols]
     M = corr.to_numpy(dtype=float)
@@ -108,8 +109,9 @@ def render(corr: pd.DataFrame, counts: pd.DataFrame, out_path: str) -> None:
     cbar = plt.colorbar(im, ax=ax, shrink=0.85)
     cbar.set_label("Spearman ρ of TMdiff_centered\n(across all per-pair × cluster rows)",
                    fontsize=9)
+    _pairs_txt = f"pooled across {n_pairs} pairs" if n_pairs else "pooled across all pairs"
     ax.set_title("Cross-method correlation of per-cluster centered fold preference\n"
-                 f"({M.shape[0]} methods, pooled across 85 pairs)",
+                 f"({M.shape[0]} methods, {_pairs_txt})",
                  fontsize=10, pad=8)
     plt.tight_layout()
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -134,7 +136,7 @@ def main() -> None:
     corr.round(4).to_csv(csv_out)
     counts.to_csv(n_out)
     print(f"[ok] wrote {csv_out} (correlation matrix) and {n_out} (pairwise n)")
-    render(corr, counts, OUT)
+    render(corr, counts, OUT, n_pairs=int(df["pair_id"].nunique()))
 
 
 if __name__ == "__main__":
