@@ -1642,7 +1642,7 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
 
     # If tree mode and no explicit tree is provided, try a sensible default location
     tree_arg = ""
-    if alg == "tree":
+    if alg in ("tree", "tree_mono"):
         pair_dir = os.path.join("Pipeline", "FoldPairs", pair_id)
         tree_path = args.cluster_tree_path
         if tree_path:
@@ -1671,7 +1671,7 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
         If seqs_per_cluster > 0, computes K_adapt = clip(N_seqs/spc, k_min, k_max)
         and overrides static values. Otherwise returns the static values.
         """
-        if alg != "tree" or seqs_per_cluster <= 0:
+        if alg not in ("tree", "tree_mono") or seqs_per_cluster <= 0:
             return static_k_target, static_max
         msa_path = os.path.join("Pipeline", "FoldPairs", pair_id,
                                  "output_get_msa", "DeepMsa.a3m")
@@ -3080,7 +3080,7 @@ def main():
                    help="Scratch dir for per-pair fasta + S4PRED outputs.")
 
     # --- Clustering options ---
-    p.add_argument("--cluster_alg", default="tree", choices=["hdbscan", "tree", "ahc"],
+    p.add_argument("--cluster_alg", default="tree", choices=["hdbscan", "tree", "ahc", "tree_mono"],
                    help="Clustering algorithm for --run_mode cluster_msa (default: tree).")
     p.add_argument("--cluster_tree_path", default=None,
                    help="Path to Newick tree for --cluster_alg tree (e.g., Pipeline/<pair>/output_phytree/DeepMsa_tree.nwk).")

@@ -731,6 +731,128 @@ def cluster_tree(headers: List[str], seqs: List[str], args) -> Dict[int, List[in
     return assigns
 
 
+# ------------- TREE path v2: strictly monophyletic clade cut -------------
+def cluster_tree_monophyletic(headers: List[str], seqs: List[str], args
+                              ) -> Dict[int, List[int]]:
+    """Cut the phylogenetic tree into monophyletic clades (clusters obey the tree).
+
+    Every cluster is a whole subtree (clade) of ``args.tree_path``, so the cluster
+    set is a coarse-graining of the all-sequences tree. We split the largest
+    splittable clade top-down until we reach the target number of clusters; a clade
+    is "splittable" only when ALL of its children have >= min_size leaves, so every
+    emitted cluster is a clade with >= min_size sequences. Sequences present in the
+    MSA but not in the tree are assigned to the nearest cluster by gap-aware PID
+    (they do not affect monophyly of the tree core).
+
+    This replaces the PID-based reduce-to-K merge of ``cluster_tree()`` (which
+    combined tree-distant clades and broke monophyly). The clade each cluster came
+    from is its MRCA, and the tree nodes above the cut are the backbone ancestors -
+    used by the coarse resolution (a higher cut of the same tree) and by ancestral
+    sequence reconstruction. Returns {cluster_id: [seq_idx, ...]}.
+    """
+    if not args.tree_path or not os.path.isfile(args.tree_path):
+        raise SystemExit("Missing tree! Run with --tree_path *.nwk or choose "
+                         "--cluster_alg ahc/hdbscan.")
+    from Bio import Phylo
+    verbose = bool(int(getattr(args, "verbose", 1)))
+
+    def _norm(nm: str) -> str:
+        nm = (nm or "").strip().strip("'").strip('"').split()[0]
+        return nm.split("/")[0] if "/" in nm else nm
+
+    name_to_idx: Dict[str, int] = {}
+    for i, h in enumerate(headers):
+        name_to_idx[_norm(h)] = i
+
+    tree = Phylo.read(args.tree_path, "newick")
+    min_size = int(args.min_output_size)
+    max_clusters = int(args.max_clusters)
+    K = int(getattr(args, "tree_min_num_clusters", 5)) or max_clusters
+    K_target = min(K, max_clusters) if max_clusters > 0 else K
+
+    # subtree -> mapped seq indices (single postorder pass)
+    node_idxs: Dict[object, List[int]] = {}
+    for clade in tree.find_clades(order="postorder"):
+        if clade.is_terminal():
+            nm = _norm(clade.name)
+            node_idxs[clade] = [name_to_idx[nm]] if nm in name_to_idx else []
+        else:
+            agg: List[int] = []
+            for ch in clade.clades:
+                agg.extend(node_idxs[ch])
+            node_idxs[clade] = agg
+
+    if not node_idxs.get(tree.root):
+        if verbose:
+            print("[TREE-MONO] no tree leaves map to MSA headers; empty result.")
+        return {}
+
+    def can_split(clade) -> bool:
+        if clade.is_terminal():
+            return False
+        kids = [c for c in clade.clades if node_idxs[c]]
+        return len(kids) >= 2 and all(len(node_idxs[c]) >= min_size for c in kids)
+
+    # Greedily split the largest splittable clade until K_target clusters. Only
+    # whole clades are ever emitted, so every cluster is monophyletic.
+    cut = [tree.root]
+    while len(cut) < K_target:
+        cands = [c for c in cut if can_split(c)]
+        if not cands:
+            break
+        c = max(cands, key=lambda x: len(node_idxs[x]))
+        cut.remove(c)
+        cut.extend(ch for ch in c.clades if node_idxs[ch])
+
+    accepted = [sorted(set(node_idxs[c])) for c in cut]
+    if verbose:
+        szs = sorted(len(g) for g in accepted)
+        print(f"[TREE-MONO] {len(accepted)} monophyletic clusters "
+              f"(K_target={K_target}); sizes min={szs[0]} "
+              f"median={szs[len(szs) // 2]} max={szs[-1]}")
+
+    # Assign off-tree MSA sequences to the nearest cluster by gap-aware PID.
+    if int(getattr(args, "tree_assign_missing", 1)) == 1:
+        present: set = set()
+        for g in accepted:
+            present.update(g)
+        missing = [i for i in range(len(seqs)) if i not in present]
+        if missing:
+            rng = np.random.default_rng(int(getattr(args, "sample_seed", 0)))
+            REP_CAP = int(getattr(args, "tree_rep_cap", 200))
+
+            def rep_of(idxs: List[int]) -> str:
+                if len(idxs) <= 1:
+                    return seqs[idxs[0]] if idxs else ""
+                ids = (idxs if len(idxs) <= REP_CAP
+                       else rng.choice(idxs, size=REP_CAP, replace=False).tolist())
+                S = [seqs[i] for i in ids]
+                m = len(S)
+                if m == 1:
+                    return S[0]
+                Msum = np.zeros(m, dtype=float)
+                for a in range(m - 1):
+                    for b in range(a + 1, m):
+                        d = gapaware_hamming(S[a], S[b])
+                        Msum[a] += d
+                        Msum[b] += d
+                return S[int(np.argmin(Msum))]
+
+            reps = [rep_of(g) for g in accepted]
+            tmp = {ci: list(g) for ci, g in enumerate(accepted)}
+            for i in missing:
+                s = seqs[i]
+                dmin, cmin = 1e9, 0
+                for ci, r in enumerate(reps):
+                    d = gapaware_hamming(s, r)
+                    if d < dmin:
+                        dmin, cmin = d, ci
+                tmp[cmin].append(i)
+            accepted = [sorted(set(tmp[k])) for k in sorted(tmp.keys())]
+
+    return {i: g for i, g in enumerate(accepted)}
+
+
 # ------------- common post-processing and writing ------------------------
 def postprocess_and_write(assigns: Dict[int, List[int]],
                           headers: List[str], seqs: List[str], args) -> pd.DataFrame:
@@ -948,7 +1070,7 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--a3m", required=True, help="Input A3M path.")
     p.add_argument("-o", "--outdir", required=True, help="Output directory.")
     p.add_argument("--keyword", default="ShallowMsa", help="Prefix for cluster files.")
-    p.add_argument("--cluster_alg", choices=["hdbscan","tree","ahc"], default="ahc",
+    p.add_argument("--cluster_alg", choices=["hdbscan","tree","ahc","tree_mono"], default="ahc",
                    help="Clustering algorithm to use (default: ahc).")
 
     p.add_argument("--metric", choices=["hamming"], default="hamming", help="Distance metric (currently: hamming).")
@@ -1052,6 +1174,12 @@ def main():
         assigns = cluster_ahc(headers, seqs, args)
     elif args.cluster_alg == "tree":
         assigns = cluster_tree(headers, seqs, args)
+    elif args.cluster_alg == "tree_mono":
+        # Strictly tree-monophyletic clade cut (every cluster is a clade of the
+        # tree). OPT-IN ONLY (not a default) - intended for the tree-consistent
+        # re-clustering + ancestral-sequence-reconstruction follow-up study; the
+        # production analyses use the existing 'tree'/'ahc' paths.
+        assigns = cluster_tree_monophyletic(headers, seqs, args)
     else:
         raise SystemExit(f"Unknown --cluster_alg {args.cluster_alg}")
 
