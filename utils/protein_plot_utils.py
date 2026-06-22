@@ -675,6 +675,30 @@ def make_foldswitch_all_plots(
 
         ylabels_override = [_cluster_short_label_from_tag(t) for t in ordered_tags]
 
+        # ----- Locate the two PDB query sequences' "home" cluster -----
+        # The deep-MSA query rows are named S1 (fold1 structure) and S2 (fold2);
+        # both usually co-cluster (they are ~the same sequence). Map each to its
+        # cluster, then to that cluster's representative leaf, so the tree can mark
+        # the home-clade tip with an X (F1 / F2 / F1+F2).
+        pdb_cluster_leaves = {}
+        try:
+            _qc = seqs_ids_to_cluster_ids(
+                os.path.join(fasta_dir, foldpair_id, "output_msa_cluster", "*.a3m"),
+                ["S1", "S2"])
+            for _q, _fold in (("S1", "F1"), ("S2", "F2")):
+                _tag = _qc.get(_q)
+                # seqs_ids_to_cluster_ids returns 'Msa_012' (it slices the first 7
+                # chars); reps keys are the canonical 'ShallowMsa_012' -> normalise.
+                if _tag and _tag.startswith("Msa_"):
+                    _tag = "Shallow" + _tag
+                if _tag in reps and reps[_tag] in leaf_order:
+                    _ln = reps[_tag]
+                    prev = pdb_cluster_leaves.get(_ln)
+                    pdb_cluster_leaves[_ln] = f"{prev}+{_fold}" if prev else _fold
+            print(f"[plot] PDB home-cluster tips: {pdb_cluster_leaves}")
+        except Exception as _e:
+            print(f"[plot] PDB home-cluster detection skipped: {_e}")
+
         # ----- Compute fold preferences for colored tree tips -----
         # Multi-method consensus call (mean of normalized centered preferences
         # across the 7 methods) rather than AF2-only — avoids visually repeating
@@ -761,6 +785,7 @@ def make_foldswitch_all_plots(
             extra_top_row_label="Deep MSA",
             label_in_leaf=True,
             fold_labels=(pdbids[0] + pdbchains[0], pdbids[1] + pdbchains[1]),
+            pdb_cluster_leaves=pdb_cluster_leaves,
         )
 
         print(f"[ok] saved tree heatmap -> {out_root}.png")
