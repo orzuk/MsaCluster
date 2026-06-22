@@ -253,17 +253,20 @@ load "{p2}", fold2
 viewport 1200, 900
 zoom all, 10
 png {out_two}, dpi=220, width=1200, height=900
-# Aligned view: superpose fold2 on fold1, recolor by SS for clarity
+# Aligned view: superpose fold2 on fold1, color by FOLD (fold1=red, fold2=blue),
+# matching the Mol* web viewer; orient + tight zoom + ray-trace for the paper.
 align fold2, fold1
 hide everything
+remove solvent
 show cartoon
-color white, all
-color red,    ss H
-color yellow, ss S
-# Tint by molecule to retain "which is which" info (light tint over SS)
-color salmon, fold1 and ss L
-color skyblue, fold2 and ss L
-png {out_aln}, dpi=220, width=1200, height=900
+color red, fold1
+color blue, fold2
+bg_color white
+orient
+zoom all, 2
+set ray_opaque_background, 0
+ray 1200, 900
+png {out_aln}, dpi=300, width=1200, height=900
 quit
 """.lstrip()
             _pymol_cli_render(script)
@@ -305,10 +308,18 @@ quit
             cmd.save(os.path.join(out_dir, f"{out_prefix}_super_fold2.pdb"), 'fold2')
         except Exception:
             pass
-        # Tint loops to retain molecule identity in superposition
-        cmd.color('salmon',  'fold1 and ss L')
-        cmd.color('skyblue', 'fold2 and ss L')
-        cmd.png(out_aln, dpi=220, width=1200, height=900)
+        # Color by FOLD for the paper overlay (fold1=red, fold2=blue), matching
+        # the Mol* web viewer; orient + tight zoom + ray-trace for publication.
+        cmd.hide('everything')
+        cmd.remove('solvent')
+        cmd.show('cartoon')
+        cmd.color('red',  'fold1')
+        cmd.color('blue', 'fold2')
+        cmd.orient()
+        cmd.zoom('all', buffer=2)
+        cmd.set('ray_opaque_background', 0)
+        cmd.ray(1200, 900)
+        cmd.png(out_aln, dpi=300, width=1200, height=900)
     finally:
         cmd.quit()
     _add_png_legend(out_two,  label_red, label_blue, title=None)
