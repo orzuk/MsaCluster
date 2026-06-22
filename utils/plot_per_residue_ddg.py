@@ -529,20 +529,50 @@ def _draw_seq_track(axs, seq1, seq2_on1, n, tag1=None, tag2=None):
     axs.tick_params(axis="x", length=2, pad=1, labelbottom=True, bottom=True)
 
 
-def _draw_ss_track(axt, ss_chars, n, label):
-    """Draw a secondary-structure cartoon along residues 1..len on axt:
-    helix = orange sine wave, strand = gold N->C arrow, coil = thin gray line."""
+# SS-track colours. Shapes encode SS TYPE (helix wave / strand arrow / coil line);
+# colour encodes whether the two folds AGREE at that residue: neutral orange where
+# they agree, blue (F1/top) or red (F2/bottom) at residues whose SS differs between
+# the folds - so the fold-switch region lights up.
+_SS_NEUTRAL = "#e07b39"   # orange = same SS in both folds
+_SS_F1_DIFF = "#2166ac"   # blue   = this residue differs (top / fold1 track)
+_SS_F2_DIFF = "#b2182b"   # red    = this residue differs (bottom / fold2 track)
+
+
+def _draw_ss_track(axt, ss_chars, n, label, res_colors=None):
+    """Secondary-structure cartoon along residues 1..n on axt. Shapes show the SS
+    TYPE (helix = sine wave, strand = arrow, coil = thin line); per-residue colour
+    comes from ``res_colors`` (len n; default all neutral orange). Callers pass
+    blue/red at residues whose SS differs between the two folds so the switch
+    region is highlighted - even a single differing residue mid-helix is coloured.
+    """
     import numpy as np
-    from matplotlib.patches import FancyArrow
+    from matplotlib.collections import LineCollection
+    from matplotlib.patches import Polygon
+    if res_colors is None:
+        res_colors = [_SS_NEUTRAL] * n
+
+    def col(x):
+        idx = min(n - 1, max(0, int(x - 0.5)))
+        return res_colors[idx] if 0 <= idx < len(res_colors) else _SS_NEUTRAL
+
     axt.set_xlim(0.5, n + 0.5)
     axt.set_ylim(0.0, 1.0)
     axt.set_xticks([]); axt.set_yticks([])
-    axt.tick_params(labelbottom=False, bottom=False)   # never echo shared x-ticks
+    axt.tick_params(labelbottom=False, bottom=False)
     axt.set_ylabel(label, rotation=0, ha="right", va="center", fontsize=7)
     for sp in axt.spines.values():
         sp.set_visible(False)
-    # coil baseline through the whole track
-    axt.plot([0.5, n + 0.5], [0.5, 0.5], color="#999999", lw=0.8, zorder=1)
+
+    segs, cols, lws = [], [], []
+
+    def add_polyline(xs, ys, lw):
+        for k in range(len(xs) - 1):
+            segs.append([(xs[k], ys[k]), (xs[k + 1], ys[k + 1])])
+            cols.append(col(0.5 * (xs[k] + xs[k + 1])))
+            lws.append(lw)
+
+    # Neutral-grey coil baseline through the whole track (background).
+    axt.plot([0.5, n + 0.5], [0.5, 0.5], color="#bbbbbb", lw=0.8, zorder=1)
     m = len(ss_chars)
     i = 0
     while i < m:
@@ -551,18 +581,27 @@ def _draw_ss_track(axt, ss_chars, n, label):
             j += 1
         c, x0, x1 = ss_chars[i], i + 0.5, j + 0.5
         L = x1 - x0
-        if c in "HGI" and L > 0:                         # helix: sine wave
-            npts = max(8, int(L * 6))
-            nwav = max(1.0, L / 3.6)                      # ~3.6 residues/turn
+        if c in "HGI" and L > 0:                          # helix: sine wave
+            npts = max(8, int(L * 8))
+            nwav = max(1.0, L / 3.6)                       # ~3.6 residues/turn
             xs = np.linspace(x0, x1, npts)
             ys = 0.5 + 0.40 * np.sin(np.linspace(0, nwav * 2 * np.pi, npts))
-            axt.plot(xs, ys, color="#e07b39", lw=2.2, solid_capstyle="round", zorder=3)
-        elif c in "EB" and L > 0:                         # strand: arrow
+            add_polyline(xs, ys, 2.2)
+        elif c in "EB" and L > 0:                          # strand: thick bar + head
             hl = min(1.6, L * 0.45)
-            axt.add_patch(FancyArrow(
-                x0, 0.5, L, 0.0, width=0.5, head_width=0.92, head_length=hl,
-                length_includes_head=True, color="#f4c430", linewidth=0, zorder=2))
+            bx1 = max(x0, x1 - hl)
+            xs = np.linspace(x0, bx1, max(2, int((bx1 - x0) * 4) + 2))
+            add_polyline(xs, [0.5] * len(xs), 6.0)
+            axt.add_patch(Polygon(
+                [(bx1, 0.5 - 0.46), (x1, 0.5), (bx1, 0.5 + 0.46)],
+                closed=True, color=col(x1 - 0.6), linewidth=0, zorder=3))
+        else:                                              # coil: highlight diffs only
+            for r in range(i, j):
+                if r < len(res_colors) and res_colors[r] != _SS_NEUTRAL:
+                    add_polyline([r + 0.5, r + 1.5], [0.5, 0.5], 2.6)
         i = j
+    axt.add_collection(LineCollection(segs, colors=cols, linewidths=lws,
+                                      capstyle="round", zorder=2))
 
 
 # Legend glyphs that match the SS cartoons (orange sine = helix, gold arrow =
@@ -592,7 +631,7 @@ class _SSStrandHandler(_HandlerBase):
         from matplotlib.patches import FancyArrow
         arr = FancyArrow(xd, yd + h / 2.0, w, 0.0, width=h * 0.16,
                          head_width=h * 0.6, head_length=w * 0.34,
-                         length_includes_head=True, color="#f4c430", linewidth=0)
+                         length_includes_head=True, color="#e07b39", linewidth=0)
         arr.set_transform(trans)
         return [arr]
 
@@ -706,27 +745,58 @@ def per_residue_ddg_fig(pair_id: str, out_path: str | None = None) -> str | None
             ss1, seq1 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagA), _cA) if tagA else (None, None)
             ss2, seq2 = _dssp_ss_seq(_chain_pdb_path(pair_id, tagB), _cB) if tagB else (None, None)
             if ss1 and ss2 and seq1 and seq2:
-                ss2_on1 = _map_ss_onto_frame(seq1, seq2, ss2) or list(ss2)
-                # mapping fold-2 SS through the alignment can re-fragment runs
-                # (gaps split a helix/strand) -> re-smooth to kill the speckle.
-                ss2_on1 = list(_smooth_ss("".join(ss2_on1)))
+                # Put BOTH folds' SS on ONE common frame of length n (the ΔΔG
+                # frame), anchored on whichever fold's structure sequence matches
+                # n - so the two SS tracks, the per-residue diff, and the ΔΔG bars
+                # all share the same residue axis (the two folds can differ in
+                # length; mapping onto fold1's frame previously misaligned and
+                # crashed). Mirrors the sequence-track anchoring below.
+                if abs(len(seq1) - n) <= 3:
+                    ss1_fr = list(ss1)
+                    ss2_fr = _map_ss_onto_frame(seq1, seq2, ss2) or list(ss2)
+                elif abs(len(seq2) - n) <= 3:
+                    ss2_fr = list(ss2)
+                    ss1_fr = _map_ss_onto_frame(seq2, seq1, ss1) or list(ss1)
+                else:
+                    ss1_fr = list(ss1)
+                    ss2_fr = _map_ss_onto_frame(seq1, seq2, ss2) or list(ss2)
+                # re-smooth (alignment gaps can fragment runs) then fit to exactly n
+                ss1_fr = list(_smooth_ss("".join(ss1_fr)))
+                ss2_fr = list(_smooth_ss("".join(ss2_fr)))
+
+                def _fit(s):
+                    s = list(s)[:n]
+                    return s + ["C"] * (n - len(s))
+                ss1_fr, ss2_fr = _fit(ss1_fr), _fit(ss2_fr)
                 div = make_axes_locatable(ax)
                 ax_top = div.append_axes("top", size="8%", pad=0.06, sharex=ax)
                 # Order matters: the first "bottom" append sits directly under the
                 # bars (sequence track), the second goes below it (fold2 SS).
                 seq_ax = div.append_axes("bottom", size="13%", pad=0.12, sharex=ax)
                 ax_bot = div.append_axes("bottom", size="8%", pad=0.42, sharex=ax)
-                _draw_ss_track(ax_top, list(ss1), n, f"{tagA or 'fold1'} SS ")
-                _draw_ss_track(ax_bot, ss2_on1, n, f"{tagB or 'fold2'} SS ")
+                # Per-residue SS difference on the common frame: orange where the
+                # SS agrees, blue (fold1 track) / red (fold2 track) where it
+                # differs - even a single differing residue mid-helix is coloured.
+                _diff = [ss1_fr[i] != ss2_fr[i] for i in range(n)]
+                _col_top = [_SS_F1_DIFF if _diff[i] else _SS_NEUTRAL for i in range(n)]
+                _col_bot = [_SS_F2_DIFF if _diff[i] else _SS_NEUTRAL for i in range(n)]
+                _draw_ss_track(ax_top, ss1_fr, n, f"{tagA or 'fold1'} SS ",
+                               res_colors=_col_top)
+                _draw_ss_track(ax_bot, ss2_fr, n, f"{tagB or 'fold2'} SS ",
+                               res_colors=_col_bot)
+                _bluep = plt.Rectangle((0, 0), 1, 1, color=_SS_F1_DIFF)
+                _redp = plt.Rectangle((0, 0), 1, 1, color=_SS_F2_DIFF)
                 ax_top.legend(
-                    [_SSHelixHandle(), _SSStrandHandle(), _SSCoilHandle()],
-                    ["α-helix", "β-strand", "coil"],
+                    [_SSHelixHandle(), _SSStrandHandle(), _SSCoilHandle(),
+                     _bluep, _redp],
+                    ["α-helix", "β-strand", "coil",
+                     f"{tagA or 'fold1'} SS differs", f"{tagB or 'fold2'} SS differs"],
                     handler_map={_SSHelixHandle: _SSHelixHandler(),
                                  _SSStrandHandle: _SSStrandHandler(),
                                  _SSCoilHandle: _SSCoilHandler()},
-                    loc="lower center", bbox_to_anchor=(0.5, 1.05), ncol=3,
-                    fontsize=6.5, frameon=False, handlelength=1.8,
-                    handletextpad=0.4, columnspacing=1.6, borderpad=0.2)
+                    loc="lower center", bbox_to_anchor=(0.5, 1.05), ncol=5,
+                    fontsize=6.5, frameon=False, handlelength=1.6,
+                    handletextpad=0.4, columnspacing=1.3, borderpad=0.2)
                 # Symmetric sequence track: one letter where the two folds agree,
                 # fold1 (blue) over fold2 (red) stacked wherever a mutation makes
                 # them differ. The bars' own x labels are hidden (the track owns

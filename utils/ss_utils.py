@@ -62,12 +62,60 @@ def _chain_backbone(ch):
     return np.asarray(coords, dtype=np.float32), "".join(seq), residues
 
 
+def _assembly_ss_for_chain(model, target_chain_id) -> str:
+    """SS for one chain computed IN THE CONTEXT OF THE WHOLE ASSEMBLY.
+
+    Fibril / oligomer protomers form their β-sheets by hydrogen-bonding to
+    *neighbouring* chains (cross-β). DSSP on a single isolated chain finds no
+    partner strands, so it calls those residues coil. Running DSSP on the
+    concatenated backbone of ALL chains recovers the inter-chain sheet; we then
+    return only ``target_chain_id``'s residues. (A few residues at chain joins may
+    be mislabelled by the artificial adjacency, but the cross-β core is recovered.)
+    Returns '' on failure.
+    """
+    try:
+        import pydssp
+        all_coords, mask = [], []
+        for ch in model:
+            coords, _seq, _res = _chain_backbone(ch)
+            same = (ch.id == target_chain_id)
+            for row in coords:
+                all_coords.append(row)
+                mask.append(same)
+        if len(all_coords) < 3 or not any(mask):
+            return ""
+        arr = np.asarray(all_coords, dtype=np.float32)
+        raw = pydssp.assign(arr, out_type="c3")
+        ss_all = ["H" if str(x) == "H" else "E" if str(x) == "E" else "C" for x in raw]
+        return "".join(s for s, m in zip(ss_all, mask) if m)
+    except Exception as e:
+        print(f"[ss_utils] _assembly_ss_for_chain failed: {e}")
+        return ""
+
+
+def _n_protein_chains(model) -> int:
+    from Bio.PDB.Polypeptide import is_aa
+    return sum(1 for ch in model
+              if any(is_aa(r, standard=True) for r in ch))
+
+
 def compute_ss_chain(ch) -> str:
     """SS string (H/E/C per standard-aa residue) for an in-memory Bio.PDB chain -
     same engine as compute_ss(). '' on failure. Use this in the 3-D viewer so the
-    structure's SS comes from THIS function, not Mol*'s internal DSSP."""
+    structure's SS comes from THIS function, not Mol*'s internal DSSP.
+
+    If the chain's parent model holds OTHER protein chains (an oligomer/fibril
+    assembly), SS is computed in the full-assembly context so inter-chain β-sheets
+    (cross-β) are recovered instead of being mis-called coil - keeping Figure 5 and
+    the 3-D cartoon identical for those pairs.
+    """
     try:
         import pydssp
+        parent = ch.get_parent()
+        if parent is not None and _n_protein_chains(parent) > 1:
+            ss = _assembly_ss_for_chain(parent, ch.id)
+            if ss:
+                return ss
         coords, _seq, _res = _chain_backbone(ch)
         if len(coords) < 3:
             return ""
@@ -91,7 +139,8 @@ def _ss_runs(ss: str, code: str):
     return out
 
 
-def structure_to_mmcif(struct, fold_chain: Optional[str] = None) -> str:
+def structure_to_mmcif(struct, fold_chain: Optional[str] = None,
+                       ss_override: Optional[str] = None) -> str:
     """Serialize a (single-fold-switching-chain, optional ligand) Bio.PDB structure
     to mmCIF text whose secondary structure is OUR compute_ss_chain() result,
     written as _struct_conf (helix) + _struct_sheet_range (strand). Mol* reads
@@ -125,8 +174,13 @@ def structure_to_mmcif(struct, fold_chain: Optional[str] = None) -> str:
                 el = (atom.element or atom.get_id()[0]).strip() or "C"
                 lines.append(f"ATOM {aid} {el} {atom.get_id()} {comp} {asym} "
                              f"{seqid} {x:.3f} {y:.3f} {z:.3f} 1.00 {atom.get_bfactor():.2f}")
-        # SS for this chain's protein residues
+        # SS for this chain's protein residues. ss_override (assembly-context SS
+        # for the single displayed chain, precomputed before the viewer reduced
+        # the oligomer to one chain) wins when its length matches, so the 3-D
+        # cartoon shows the same cross-β as Figure 5.
         ss = compute_ss_chain(ch)
+        if ss_override and len(ss_override) == len(prot):
+            ss = ss_override
         for b, e in _ss_runs(ss, "H"):
             helices.append((asym, b, e))
         for b, e in _ss_runs(ss, "E"):
@@ -181,6 +235,14 @@ def compute_ss(pdb_path: str, chain: Optional[str] = None) -> Tuple[str, str]:
             ch = max(model, key=lambda c: sum(1 for _ in c), default=None)
         if ch is None:
             return "", ""
+        # Oligomer/fibril: compute SS with all chains present so inter-chain
+        # cross-β is recovered (same rule as compute_ss_chain; keeps Fig5 == 3D).
+        if _n_protein_chains(model) > 1:
+            ss_asm = _assembly_ss_for_chain(model, ch.id)
+            if ss_asm:
+                _, seq_only, _ = _chain_backbone(ch)
+                if len(ss_asm) == len(seq_only):
+                    return ss_asm, seq_only
         coords, seq = [], []
         for res in ch:
             if not is_aa(res, standard=True):

@@ -854,7 +854,8 @@ def draw_grouped_heatmap(
 
 def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
                        leaf_labels=None, internal_node_states=None,
-                       event_node_states=None, fold_labels=None):
+                       event_node_states=None, fold_labels=None,
+                       pdb_cluster_leaves=None):
     """Draw L-shaped tree branches aligned to heatmap rows.
 
     Parameters
@@ -891,12 +892,14 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
     # but the crowded near-root split region is EXPANDED and the long terminal
     # region COMPRESSED. GAMMA=1 recovers the exact ultrametric distances.
     _GAMMA = 0.5
+    tree_depth = None          # original (pre-transform) root->tip distance (subs/site)
     try:
         _leaf_nodes = [n for n in root.traverse() if n.is_leaf()]
         _int_nodes = [n for n in root.traverse() if not n.is_leaf()]
         _leaf_xs = [x_pos[n] for n in _leaf_nodes]
         if _leaf_xs:
             _tip_x = max(_leaf_xs)
+            tree_depth = float(_tip_x)
             _ix = sorted(x_pos[n] for n in _int_nodes) if _int_nodes else [0.0]
             print(f"[tree-spacing] tip_x={_tip_x:.4f}  internal-node x: "
                   f"min={_ix[0]:.4f} median={_ix[len(_ix)//2]:.4f} max={_ix[-1]:.4f} "
@@ -1006,6 +1009,53 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
             except Exception:
                 pass
 
+    # --- mark the PDB structures' "home" cluster tip(s) with a black X ---
+    # The two deposited structures (S1=fold1, S2=fold2) are ~the same sequence and
+    # usually fall in ONE cluster; pdb_cluster_leaves maps that cluster's
+    # representative leaf -> "F1"/"F2"/"F1+F2". An X there shows which clade the
+    # reference structures belong to (so the reader sees the fold-switching is
+    # inferred across the OTHER clades). Drawn over the cluster 'o'.
+    try:
+        if pdb_cluster_leaves:
+            for node in root.iter_leaves():
+                lab = pdb_cluster_leaves.get(node.name)
+                if lab and node.name in y_pos:
+                    xc = x_pos[node]; yc = y_pos[node.name]
+                    ax.plot(xc, yc, marker="X", color="black", markersize=11,
+                            markeredgecolor="white", markeredgewidth=1.0, zorder=8)
+                    ax.annotate(f"PDB {lab}", (xc, yc),
+                                textcoords="offset points", xytext=(7, 0),
+                                ha="left", va="center", fontsize=6,
+                                fontweight="bold", zorder=8)
+    except Exception as _e:
+        print(f"[tree] PDB home-cluster X markers skipped ({_e})")
+
+    # --- evolutionary-distance scale bar (substitutions/site) ---
+    # The x-axis is sqrt-compressed for readability, so a fixed-distance ruler
+    # would have a position-dependent pixel length; draw the bar in the tip region
+    # (where the transform is least distorting) using a blended transform (x in
+    # data units, y in axes fraction) and annotate the root->tip depth + an
+    # approximate mean pairwise identity (Poisson model, id ~ exp(-2*depth)).
+    try:
+        if tree_depth and tree_depth > 0:
+            from matplotlib.transforms import blended_transform_factory
+            raw = tree_depth / 4.0
+            mag = 10.0 ** np.floor(np.log10(raw)) if raw > 0 else 0.01
+            bar = min([1, 2, 5, 10], key=lambda k: abs(k * mag - raw)) * mag
+            x_hi = tree_depth
+            x_lo = ((max(0.0, tree_depth - bar) / tree_depth) ** _GAMMA) * tree_depth
+            tr = blended_transform_factory(ax.transData, ax.transAxes)
+            ax.plot([x_lo, x_hi], [1.012, 1.012], color="black", lw=1.6,
+                    solid_capstyle="butt", transform=tr, clip_on=False, zorder=9)
+            pid = 100.0 * np.exp(-2.0 * tree_depth)
+            ax.text((x_lo + x_hi) / 2.0, 1.022,
+                    f"{bar:g} subs/site  ·  root→tip {tree_depth:.2f} "
+                    f"(~{pid:.0f}% mean pairwise id)",
+                    transform=tr, ha="center", va="bottom", fontsize=5,
+                    zorder=9, clip_on=False)
+    except Exception as _e:
+        print(f"[tree] scale bar skipped ({_e})")
+
     # Internal-node gain/loss EVENT markers (parsimony ancestral reconstruction).
     # Mark only nodes whose reconstructed state differs from the parent's; the
     # rest stay clean. Same fold colors as the leaf rings. Fully guarded so a
@@ -1104,6 +1154,7 @@ def compose_tree_and_heatmap(
     internal_node_states=None,  # {node_name: F1/F2/Amb} RELATIVE recon -> branch colour
     event_node_states=None,     # {node_name: F1/F2/both/none} ABSOLUTE recon -> gain/loss markers
     fold_labels=None,           # NEW: (pdb1, pdb2) names for the tree colour legend
+    pdb_cluster_leaves=None,     # NEW: {rep_leaf_name: "F1"/"F2"/"F1+F2"} -> mark with X
 ):
     import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
     from matplotlib.gridspec import GridSpecFromSubplotSpec
@@ -1194,7 +1245,8 @@ def compose_tree_and_heatmap(
                       leaf_colors=leaf_colors, leaf_labels=_leaf_labels,
                       internal_node_states=internal_node_states,
                       event_node_states=event_node_states,
-                      fold_labels=fold_labels)
+                      fold_labels=fold_labels,
+                      pdb_cluster_leaves=pdb_cluster_leaves)
 
     # ----- draw the heatmaps -----
     # shared colormap (with NaN color); per-group vmin/vmax

@@ -90,13 +90,14 @@ GLOBAL_FIGURE_SPEC = [
         "file": "figures/global/global_morans_method_x_pair.png",
         "title": "Phylogenetic clade signal — method × pair",
         "caption":
-            "Sequence-divergence-corrected clade signal (Moran's I_norm) for every "
+            "Sequence-divergence-corrected clade signal (Moran's I) for every "
             "method (columns) and fold-switch pair (rows). Red = clusters that "
             "prefer the same fold are phylogenetically grouped (clade-structured); "
-            "blue = anti-structured; white ≈ none. Rows are sorted by the median "
-            "signal across methods (robust to the sparse, noisy contact-based "
-            "methods), so the most clade-structured pairs sit at the top. Signal "
-            "is weak overall — few cells exceed I_norm ≈ 0.2.",
+            "blue = anti-structured (dispersed); white ≈ none. Rows are sorted by "
+            "the median signal across methods (robust to the sparse, noisy "
+            "contact-based methods), so the most clade-structured pairs sit at the "
+            "top. Pairs with fewer than 10 clusters are excluded (Moran's I is "
+            "degenerate there). Signal is weak overall — few pairs exceed I ≈ 0.15.",
     },
     {
         "file": "figures/global/global_method_correlation.png",
@@ -112,11 +113,11 @@ GLOBAL_FIGURE_SPEC = [
         "file": "figures/global/global_morans_effectsize_by_method.png",
         "title": "Clade-signal effect size, per method",
         "caption":
-            "Distribution across pairs of the clade-signal effect size (Moran's "
-            "I_norm) for each method. Boxes near zero indicate little systematic "
-            "clade structure; ΔΔG shows the widest positive tail. Because n ≈ 100 "
-            "clusters makes the permutation test overpowered, we rank methods by "
-            "effect size here rather than by significance counts.",
+            "Distribution across pairs of the clade signal (Moran's I) for each "
+            "method. Boxes near zero indicate little systematic clade structure; "
+            "ΔΔG shows the widest positive tail. Because n ≈ 100 clusters makes the "
+            "permutation test overpowered, we rank methods by raw Moran's I here "
+            "rather than by significance counts.",
     },
     {
         "file": "figs/cross_method_correlation.png",
@@ -247,10 +248,19 @@ def plot_per_fold_support_panel(output_dir: str, agg: str = "max",
 # Phylogenetic-signal (Moran's) global plots — read docs/phylo_placement*.csv
 # =====================================================================
 
-def _load_phylo(labels: str = "corrected"):
+def _load_phylo(labels: str = "corrected", min_clusters: int = 10):
     """Load the Moran's phylo-placement table; return (df, metric) or (None, None).
 
-    metric is the best available effect/signal column: I_norm > z > I.
+    The clade-signal metric is SIGNED RAW Moran's I (positive = clade preference,
+    negative = dispersed/anti-clade) - directly interpretable and consistent with
+    the per-pair comparison table.
+
+    NOT I_norm: I_norm = (I_obs - E)/(achievable_ceiling - E) is sign-confounded on
+    degenerate few-cluster pairs. With few clusters E[I] = -1/(n-1) is very negative,
+    so an absolutely-NEGATIVE (dispersed) I_obs can still sit "above expectation" and
+    saturate I_norm to 1.0 (e.g. 1svfC_4wsgC, n=4: raw I=-0.28 but I_norm=1.0),
+    wrongly surfacing ANTI-clade pairs as the top clade signal. We drop pairs with
+    < min_clusters clusters and rank/colour by raw I instead.
     """
     fn = ("phylo_placement_corrected.csv" if labels == "corrected"
           else "phylo_placement.csv")
@@ -259,14 +269,13 @@ def _load_phylo(labels: str = "corrected"):
         print(f"[global] no {fn}; skipping Moran's plots.")
         return None, None
     d = pd.read_csv(path)
-    # I_norm is a fraction of achievable clade signal and is bounded to [-1, 1].
-    # Older CSVs (pre ceiling-clamp fix in phylo_placement.py) can carry a few
-    # |I_norm|>1 values from the heuristic max_perm underestimating the true
-    # ceiling on tiny/sparse pairs (MSAT/CCMpred). Clip defensively so figures
-    # never show impossible values; harmless once the source CSV is regenerated.
-    if "morans_I_norm" in d.columns:
-        d["morans_I_norm"] = pd.to_numeric(d["morans_I_norm"], errors="coerce").clip(-1.0, 1.0)
-    for m in ("morans_I_norm", "morans_z", "morans_I"):
+    # Drop degenerate few-cluster pairs (see docstring).
+    if "morans_n" in d.columns:
+        n0 = len(d)
+        d = d[pd.to_numeric(d["morans_n"], errors="coerce") >= min_clusters].copy()
+        print(f"[global] Moran's: kept {len(d)}/{n0} method-rows with "
+              f">= {min_clusters} clusters (dropped degenerate few-cluster pairs).")
+    for m in ("morans_I", "morans_z", "morans_I_norm"):
         if m in d.columns and d[m].notna().any():
             return d, m
     print(f"[global] {fn} has no morans_* columns (old thresholded file?); "

@@ -217,10 +217,41 @@ def _find_super_pdb(pair_id, fig_dir, which):
     return None
 
 
-def _superpose_overlay(text1, text2):
+def _assembly_ss_from_text(text, chain_id):
+    """Assembly-context SS for one chain of a multi-chain structure TEXT, or None.
+
+    Used for oligomer/fibril folds: the viewer reduces them to a single chain for
+    display, which loses the inter-chain β partners. Computing SS here, on the
+    full multi-chain text BEFORE reduction, recovers the cross-β; the per-residue
+    SS still lines up with the reduced single chain. None for single-chain inputs
+    (plain DSSP already correct).
+    """
+    import tempfile
+    try:
+        from utils.ss_utils import (_assembly_ss_for_chain, _n_protein_chains,
+                                     _load_structure)
+        is_cif = ("_atom_site." in text[:4000]) or text.lstrip().startswith("data_")
+        suf = ".cif" if is_cif else ".pdb"
+        tf = tempfile.NamedTemporaryFile(suffix=suf, delete=False)
+        tf.write(text.encode("utf-8", "replace")); tf.close()
+        try:
+            model = next(iter(_load_structure(tf.name)))
+            if _n_protein_chains(model) > 1:
+                return _assembly_ss_for_chain(model, chain_id) or None
+        finally:
+            try: os.remove(tf.name)
+            except Exception: pass
+    except Exception as e:
+        print(f"[structure] assembly SS skipped: {e}")
+    return None
+
+
+def _superpose_overlay(text1, text2, ss1_override=None, ss2_override=None):
     """Kabsch-superpose fold2 onto fold1 over sequence-matched CA atoms.
 
-    Both inputs are single-chain structure TEXT (PDB or mmCIF). Returns
+    Both inputs are single-chain structure TEXT (PDB or mmCIF). ss1/ss2_override
+    are optional precomputed assembly-context SS strings for the (single) chain.
+    Returns
     (pdb1_text, pdb2_superposed_text) as PDB strings in fold1's reference frame,
     or None on any failure (caller then shows the overlay unaligned). No PyMOL /
     TMalign dependency - uses Biopython + a pairwise sequence alignment. For a
@@ -381,7 +412,8 @@ def _superpose_overlay(text1, text2):
         # back to plain PDB (Mol*'s own DSSP) only if the mmCIF writer fails.
         try:
             from utils.ss_utils import structure_to_mmcif
-            return structure_to_mmcif(s1), structure_to_mmcif(s2), tm
+            return (structure_to_mmcif(s1, ss_override=ss1_override),
+                    structure_to_mmcif(s2, ss_override=ss2_override), tm)
         except Exception as _e:
             print(f"[structure] mmCIF SS authoring failed ({_e}); plain PDB")
             return _to_pdb(s1), _to_pdb(s2), tm
@@ -978,6 +1010,13 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         # protomer's conformation in the monomer vs the assembly; drawing the
         # full 1-vs-N-chain assemblies is not superposable and reads as noise.
         # The biological assembly state stays described in the caption.
+        # For oligomer/fibril folds, compute the displayed chain's SS in the FULL
+        # assembly context NOW (before we drop the other chains), so the 3-D
+        # cartoon shows the same cross-β as Figure 5. None for single-chain folds.
+        _ss1_ovr = (_assembly_ss_from_text(pdb1_text, _chain_of_tag(tag1))
+                    if pdb1_text is not None else None)
+        _ss2_ovr = (_assembly_ss_from_text(pdb2_text, _chain_of_tag(tag2))
+                    if pdb2_text is not None else None)
         if pdb1_text is not None:
             pdb1_text = _filter_structure_to_chain(pdb1_text, _chain_of_tag(tag1))
         if pdb2_text is not None:
@@ -988,7 +1027,8 @@ def render_structure_viewers(pair_id: str, fig_dir, output_dir, mode: str,
         # frame on success; leaves them as-is (overlay unaligned) on any failure.
         _overlay_tm = None
         if pdb1_text and pdb2_text:
-            _sup = _superpose_overlay(pdb1_text, pdb2_text)
+            _sup = _superpose_overlay(pdb1_text, pdb2_text,
+                                      ss1_override=_ss1_ovr, ss2_override=_ss2_ovr)
             if _sup:
                 pdb1_text, pdb2_text, _overlay_tm = _sup
 
