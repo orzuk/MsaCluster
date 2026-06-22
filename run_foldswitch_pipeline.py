@@ -2539,6 +2539,17 @@ def task_gen_pair_html(pair_id: str, args: argparse.Namespace) -> None:
     rc = subprocess.run(cmd, shell=True, check=False).returncode
     if rc != 0:
         print(f"[gen_pair_html] failed (rc={rc}) for {pair_id}.")
+        return
+    # Opt-in: also capture the interactive Mol* aligned-overlay viewer as a static
+    # PNG (two_structures_aligned.png) for the paper. Headless + virtual display, so
+    # it is slow (software GL) -> only do it for pairs you explicitly feature.
+    if getattr(args, "capture_3d", False):
+        try:
+            from utils.capture_molstar import capture_pair, run_under_display
+            out = run_under_display(capture_pair, pair_id)
+            print(f"[capture_3d] wrote static Mol* 3D: {out}", flush=True)
+        except Exception as e:
+            print(f"[capture_3d] skipped for {pair_id}: {e}", flush=True)
 
 
 def task_deltaG(pair_id: str) -> None:
@@ -3231,6 +3242,11 @@ def main():
     # Plotting
     p.add_argument("--plot_scope", choices=["pair", "global", "both"], default="both",
                 help="In --run_mode plot: generate pair-specific plots only, global plots only, or both.")
+    p.add_argument("--capture_3d", action="store_true",
+                help="With --run_mode gen_pair_html: also capture the interactive Mol* "
+                     "aligned-overlay viewer as a static PNG (two_structures_aligned.png) for "
+                     "the paper. Needs playwright+chromium and xvfbwrapper (or run under xvfb-run). "
+                     "Slow (headless software GL) - use only for pairs you feature in the paper.")
     p.add_argument('--plot3dformat', default='static', choices = ['static', 'interactive', 'both'],
                 help = '3D figure format: PNG (static), HTML (interactive), or both')
     p.add_argument('--plot_null_permutation', default='FALSE',
