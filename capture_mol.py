@@ -41,6 +41,12 @@ with sync_playwright() as p:
         print("NO CANVAS:", e)
         print("console errors:", " || ".join(errs[-6:]))
         b.close(); sys.exit(2)
+    # Hide every OTHER Mol* viewer so only the target keeps rendering (software GL
+    # rendering many viewers at once makes any screenshot crawl / time out).
+    pg.evaluate(
+        "(id)=>{const keep=document.getElementById(id).closest('.molstar-box')||document.getElementById(id);"
+        "document.querySelectorAll('.molstar-box').forEach(b=>{if(b!==keep)b.style.display='none';});}",
+        element_id)
     pg.wait_for_timeout(12000)                      # let Mol* load structures + superpose + settle
     pg.evaluate("()=>window.dispatchEvent(new Event('resize'))")
     pg.wait_for_timeout(3000)
@@ -59,6 +65,6 @@ with sync_playwright() as p:
     vw, vh = pg.viewport_size["width"], pg.viewport_size["height"]
     clip = {"x": bb["x"], "y": bb["y"],
             "width": min(bb["w"], vw - bb["x"]), "height": min(bb["h"], vh - bb["y"])}
-    pg.screenshot(path=out_png, clip=clip)
+    pg.screenshot(path=out_png, clip=clip, timeout=180000, animations="disabled")
     b.close()
     print("WROTE", out_png)
