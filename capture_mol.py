@@ -44,13 +44,21 @@ with sync_playwright() as p:
     pg.wait_for_timeout(12000)                      # let Mol* load structures + superpose + settle
     pg.evaluate("()=>window.dispatchEvent(new Event('resize'))")
     pg.wait_for_timeout(3000)
-    target = pg.eval_on_selector(sel, "e=>0")       # ensure present
-    box = pg.query_selector(sel)
-    # screenshot the bounding box (the .molstar-box) so we get the framed viewer
-    handle = pg.evaluate_handle(
-        "(id)=>document.getElementById(id).closest('.molstar-box')||document.getElementById(id)",
-        element_id,
+    # A live WebGL canvas never goes "stable", so element.screenshot() times out.
+    # Instead: scroll the viewer box to the top and screenshot that page region (clip).
+    pg.evaluate(
+        "(id)=>{const e=document.getElementById(id).closest('.molstar-box')||document.getElementById(id);"
+        "e.scrollIntoView({block:'start'});}", element_id)
+    pg.wait_for_timeout(1500)
+    bb = pg.eval_on_selector(
+        sel,
+        "e=>{const b=(e.closest('.molstar-box')||e).getBoundingClientRect();"
+        "return {x:Math.max(0,Math.round(b.left)),y:Math.max(0,Math.round(b.top)),"
+        "w:Math.round(b.width),h:Math.round(b.height)};}",
     )
-    handle.as_element().screenshot(path=out_png)
+    vw, vh = pg.viewport_size["width"], pg.viewport_size["height"]
+    clip = {"x": bb["x"], "y": bb["y"],
+            "width": min(bb["w"], vw - bb["x"]), "height": min(bb["h"], vh - bb["y"])}
+    pg.screenshot(path=out_png, clip=clip)
     b.close()
     print("WROTE", out_png)
