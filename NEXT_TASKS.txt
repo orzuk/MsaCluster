@@ -1,6 +1,6 @@
 ================================================================================
 NEXT_TASKS.txt - MsaCluster Pending Work & Simplification Plan
-Generated: 2026-02-19
+Generated: 2026-02-19  |  Updated: 2026-07-12
 ================================================================================
 
 DATA SOURCE OF TRUTH: The cluster (Moriah/glacier) holds the authoritative
@@ -21,6 +21,62 @@ Guided by Karpathy's rules:
   2. Simplicity First    - minimum code, no speculative features
   3. Surgical Changes    - touch only what you must
   4. Goal-Driven         - define success criteria, verify
+
+================================================================================
+CURRENT STATUS & OPEN WORK (2026-07-12)
+================================================================================
+
+This banner reflects state as of 2026-07-12; the phase-by-phase plan below is
+the ORIGINAL 2026-02 record (kept for history). Read this banner first.
+
+--- DONE since the original plan (highlights) ---
+  Predictors added beyond AF2/ESM/MSAT:
+    AF3 (in df_af.csv via model column), Boltz-2 (apo+holo), AlphaFlow,
+    CFrandom, SpeachAF, ThermoMPNN DDG, BioEmu (9th method), ESMFold2.
+  Contact/SS:
+    CCMpred integrated + run (df_cmap_ccmpred); S4PRED per-cluster secondary
+    structure axis (run_s4pred + aggregate_s4pred_into_survey.py).
+  Concordance analysis suite (the paper's core quantitative axis):
+    fold_diversity_survey now N-method (default 8: AF2,AF3,ESM,MSAT,CCMpred,
+    DDG,Boltz2,BioEmu; 9 with S4PRED); per-pair seq-divergence correction;
+    permutation nulls (pre + post correction, 1K/100K); BH FDR; bootstrap CI;
+    estimator robustness (OLS/Spearman/Theil-Sen); cross-method correlation.
+  Phylogenetic axis:
+    phylo_placement (raw + residual-corrected + v2); ancestral reconstruction
+    RUN (docs/ancestral_summary.csv); clade-clustering ranking; Moran's I.
+  Meta / stratification:
+    trigger classification RUN (docs/triggers_from_pdb.csv: 29 ligand /
+    19 oligo / 17 protein_binding / 15 equilibrium_or_unknown / 13 mutation);
+    stratified BH by trigger (stratified_concordance_by_trigger.py); parallel
+    class-level analysis package (Analysis/class_level/: Fisher+KW+LMM+perm).
+  Controls:
+    all three types set up + RUN (99 IDP / 48 matched / 100 random ~= 247);
+    docs/controls_vs_pairs_comparison.csv.
+  Clustering:
+    default switched from AHC to phylo-TREE; v2 coarse-from-fine
+    (build_coarse_from_fine.py) + nesting/freshness diagnostics.
+  Infra / figures:
+    Mol* interactive 3D viewers (utils/structure_viewer.py); SS single source
+    of truth (utils/ss_utils.py, pydssp); method/pair/representative/score
+    single-source modules; PDB-mining suite for NEW candidate pairs.
+
+  => This retires most of PHASE 8 (controls), PHASE 10/ANA-3 (ancestral),
+     PHASE 11/SURVEY-4 (CCMpred), and PHASE 12 ANA-1 (triggers) / ANA-5
+     (controls) / ANA-6 (CCMpred). See inline "DONE (2026)" tags below.
+
+--- STILL OPEN (genuine current work) ---
+  [SPLIT-2] run_foldswitch_pipeline.py is now 3632 lines (was ~2800) --
+            still monolithic; extract stages into a pipeline/ package.
+  [SPLIT-3] utils/phytree_utils.py is now 1622 lines -- still mixes build /
+            viz / ancestral; split pending.
+  [BOLTZ]   Boltz-2 full 93-pair run still partial (holo mode exists).
+  [CASE]    Case-study figures: regen_case_study_figs.py is ready but must be
+            re-run against current AHC/tree clusters and SYNCED to the paper
+            repo (stale HDBSCAN cluster IDs may remain in the LaTeX).
+  [FRESH]   Before aggregating v2 results, run scripts/check_df_freshness.py --
+            per-pair Analysis CSVs can be STALE vs the current fine clustering.
+  [CCMPRED] Verify CCMpred per-pair aggregation covers all 93 (was partial).
+  [OVER-2/3] Minor simplifications (parasail fallback, infer_esm3) still open.
 
 ================================================================================
 PHASE 1: BUG FIXES (high priority, low risk) -- COMPLETED
@@ -337,7 +393,7 @@ PHASE 11: FOLD DIVERSITY SURVEY COMPLETE + PORTER COMPARISON
 SCIENTIFIC/PIPELINE TASKS (non-refactoring)
 ================================================================================
 
-From existing PROJECT_SUMMARY.md and README.md:
+From README.md / CODE_STRUCTURE.txt (the former PROJECT_SUMMARY.md no longer exists):
 
 [SCI-1] Run full pipeline on all 93 pairs
   Status: Partially complete (many Pipeline/ dirs exist with outputs).
@@ -379,7 +435,12 @@ Tasks ordered by priority (best impact/effort/risk ratio first).
 ────────────────────────────────────────────────────────────────────────────────
 PRIORITY 1: CLASSIFY PAIRS BY FOLD-SWITCH TRIGGER TYPE
 ────────────────────────────────────────────────────────────────────────────────
-[ANA-1] Classify 94 fold-switching pairs by trigger mechanism
+[ANA-1] DONE (2026) - Classify 93 fold-switching pairs by trigger mechanism
+  Implemented in scripts/classify_triggers_from_pdb.py (auto from PDB metadata,
+  no manual curation needed). Output docs/triggers_from_pdb.csv. Distribution:
+  29 ligand / 19 oligomerization / 17 protein_binding / 15 equilibrium_or_unknown
+  / 13 mutation. Stratified concordance by trigger + class-level tests followed.
+  Original plan retained below for context.
 
   Impact:  HIGH — stratifying results by trigger type could explain WHY
     86% of pairs show no cluster diversity (many may be ligand-triggered
@@ -425,7 +486,10 @@ PRIORITY 1: CLASSIFY PAIRS BY FOLD-SWITCH TRIGGER TYPE
 ────────────────────────────────────────────────────────────────────────────────
 PRIORITY 2: RUN MSAT ON DEEP MSA (full MSA comparison)
 ────────────────────────────────────────────────────────────────────────────────
-[ANA-2] Run MSA-Transformer on DeepMsa.a3m for each pair
+[ANA-2] DONE (2026) - Run MSA-Transformer on DeepMsa.a3m for each pair
+  cmap_analysis.py + fold_diversity_survey handle the "DeepMsa" tag, so the
+  deep-MSA contact map is scored alongside the per-cluster maps. Original plan
+  retained below for context.
 
   Impact:  HIGH — directly tests whether both-fold signal exists in the
     full MSA (like Porter found) but is not cluster-separable. If the
@@ -452,7 +516,9 @@ PRIORITY 2: RUN MSAT ON DEEP MSA (full MSA comparison)
 ────────────────────────────────────────────────────────────────────────────────
 PRIORITY 3: ANCESTRAL FOLD-PREFERENCE RECONSTRUCTION
 ────────────────────────────────────────────────────────────────────────────────
-[ANA-3] Run ancestral state reconstruction on cluster trees
+[ANA-3] DONE (2026) - Run ancestral state reconstruction on cluster trees
+  Run via scripts/run_ancestral_analysis.py -> docs/ancestral_summary.csv
+  (85 testable pairs). Original plan retained below for context.
 
   Impact:  HIGH — this is the evolutionary narrative for the paper.
     For the 13 AF2-diverse pairs: was fold preference gained once or
@@ -477,7 +543,11 @@ PRIORITY 3: ANCESTRAL FOLD-PREFERENCE RECONSTRUCTION
 ────────────────────────────────────────────────────────────────────────────────
 PRIORITY 4: AF2 WITH REPRESENTATIVE CLUSTER SEQUENCES
 ────────────────────────────────────────────────────────────────────────────────
-[ANA-4] Fold representative sequences from each cluster with AF2
+[ANA-4] PARTIALLY DONE (2026) - Fold representative sequences from each cluster
+  The medoid/representative path exists (utils/cluster_representative.py,
+  --cluster_representative medoid|consensus|chain) and is used by ESMFold2 /
+  BioEmu; a full AF2-on-representative sweep across all pairs is not the default.
+  Original plan retained below for context.
 
   Impact:  MED-HIGH — tests whether different lineages actually fold
     differently due to sequence divergence (Model B: different sequences →
@@ -507,7 +577,11 @@ PRIORITY 4: AF2 WITH REPRESENTATIVE CLUSTER SEQUENCES
 ────────────────────────────────────────────────────────────────────────────────
 PRIORITY 5: NEGATIVE CONTROLS
 ────────────────────────────────────────────────────────────────────────────────
-[ANA-5] Run negative control pipeline on cluster
+[ANA-5] DONE (2026) - Run negative control pipeline on cluster
+  All three control types set up + run (99 IDP / 48 matched / 100 random).
+  Comparison in scripts/compare_controls_vs_pairs.py ->
+  docs/controls_vs_pairs_comparison.csv. See CLUSTER_CONTROLS_GUIDE.txt.
+  Original plan retained below for context.
 
   Impact:  MED — establishes baseline false-positive rate. Reviewers will
     ask "how do you know 14% isn't just noise?" Controls answer this.
@@ -531,7 +605,11 @@ PRIORITY 5: NEGATIVE CONTROLS
 ────────────────────────────────────────────────────────────────────────────────
 PRIORITY 6: RUN CCMPRED ON CLUSTER
 ────────────────────────────────────────────────────────────────────────────────
-[ANA-6] Compile CCMpred and run contact prediction pipeline
+[ANA-6] DONE (2026) - Compile CCMpred and run contact prediction pipeline
+  CCMpred binary compiled + run; --run_mode run_cmap_ccmpred wired; per-pair
+  df_cmap_ccmpred.csv feeds fold_diversity_survey (CCMpred is a survey method).
+  (Verify 93/93 aggregation coverage -- see [CCMPRED] in the status banner.)
+  Original plan retained below for context.
 
   Impact:  MED — adds a second contact prediction method (Potts model /
     DCA). If CCMpred shows higher diversity than MSAT, it suggests the

@@ -1,16 +1,70 @@
 ================================================================================
 RESULTS_STATUS.txt — Snapshot of analysis state after the 2026-04-26..27 session
 ================================================================================
-Updated: 2026-04-27
+Updated: 2026-04-27  |  Superseding banner added: 2026-07-12
 
-This document captures everything new since SUMMARY_RESULTS.txt was written
-(2026-02-25). It is the current state of the analysis. Older results in
-SUMMARY_RESULTS.txt remain valid as a historical baseline; see "What changed
-vs SUMMARY_RESULTS.txt" below for the diff.
+NOTE (2026-07-12): The body below is the 2026-04-27 snapshot and is now
+HISTORICAL. It captured the 5-method (AF2/ESM/MSAT/DDG/CCMpred) centered +
+concordance analysis. Much has changed since; read the "UPDATE (2026-07-12)"
+section immediately below FIRST — it supersedes several claims in the body
+(notably "seq-divergence regression NOT YET IMPLEMENTED", "CCMpred never run",
+and "controls postprocess RUNNING"). The 2026-04-27 body is kept for the
+scientific reasoning and the XCL1 case study, which remain valid context.
 
-For data-availability audit: see FOLD_DIVERSITY_AUDIT.txt (current STATUS BANNER
-at top of that file is still the authoritative data state).
-For pending tasks: see NEXT_TASKS.txt.
+Older results in SUMMARY_RESULTS.txt (2026-02-25, 3-method) remain the
+historical baseline. For pending tasks: see NEXT_TASKS.txt (its top banner is
+the current task state). For code layout: see CODE_STRUCTURE.txt.
+
+================================================================================
+UPDATE (2026-07-12) — current state supersedes the 2026-04-27 body
+================================================================================
+
+RESOLVED since 2026-04-27 (items the body lists as pending/not-done):
+  - Sequence-divergence regression correction (body §7A#3, §9): IMPLEMENTED —
+    scripts/seq_divergence_correction.py (per-pair OLS of centered TMdiff on
+    per-cluster PID-to-query, per method). This is now a core axis of the
+    analysis, not a future task.
+  - CCMpred (body §3, §6, §9 "never run"): RUN and integrated as a survey
+    method (df_cmap_ccmpred.csv per pair).
+  - Negative controls (body §9 "running"): COMPLETE for all three types
+    (99 IDP / 48 matched / 100 random ~= 247) ->
+    docs/controls_vs_pairs_comparison.csv.
+  - Trigger classification (body §7B, §9): DONE — docs/triggers_from_pdb.csv
+    (29 ligand / 19 oligo / 17 protein_binding / 15 equilibrium_or_unknown /
+    13 mutation) + stratified BH by trigger + Analysis/class_level/ tests.
+  - Ancestral reconstruction (body §9): RUN -> docs/ancestral_summary.csv.
+
+NEW since 2026-04-27:
+  - Methods expanded from 5 to 8 (default concordance run: AF2, AF3, ESM,
+    MSAT, CCMpred, DDG, Boltz2, BioEmu); 9 with S4PRED secondary structure.
+    See docs/fold_diversity_*_8method.csv and *_9method.csv.
+  - Statistical rigor added on top of concordance: permutation nulls
+    (pre + post correction, 1K and 100K), BH FDR over the per-pair p-values,
+    and bootstrap 95% CIs on corrected concordance.
+  - Estimator robustness (OLS vs Spearman vs Theil-Sen):
+    docs/regression_robustness*.csv. Documented result — XCL1 (2n54B_2hdmA)
+    is the only candidate stable across all three estimators.
+  - Phylogenetic-placement test on raw + residual-corrected labels
+    (docs/phylo_placement*.csv). Documented result (2026-05-18): ZERO pairs
+    pass BH on residual-corrected phylo placement.
+  - KaiB (5jytA_2qkeE) K=100 + medoid tree-clustering pilot
+    (docs/treek100_pilot_*.csv), validated against Wayment-Steele clades.
+
+HEADLINE SHIFT (important): the 2026-04-27 body leads with 2namA_1uxmK as the
+primary positive on RAW + centered + concordance. After adding the
+sequence-divergence correction + permutation nulls + BH FDR, the surviving
+signal is much tighter: post-correction, XCL1 (2n54B_2hdmA) is the estimator-
+robust candidate, and residual-corrected phylogenetic placement leaves no pair
+passing BH. Treat the docs/*_corrected*.csv and docs/regression_robustness*.csv
+as the current source of truth for candidate calls; the raw counts in the body
+are the earlier, less-corrected view.
+
+DATA STATE now: df_af.csv carries both AF2 and AF3 (model column); df_ddg,
+df_bioemu, df_cmap_ccmpred, df_boltz2[/_holo] per pair; controls complete.
+
+For data-availability audit: see FOLD_DIVERSITY_AUDIT.txt (its "mostly missing
+data" conclusion is itself historical — coverage reached ~92-93/93 by
+2026-04-27; see §1 of the body).
 
 ================================================================================
 1. DATA STATE — full coverage achieved

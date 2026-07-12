@@ -1,7 +1,14 @@
 ================================================================================
 CLUSTER_CONTROLS_GUIDE.txt - All steps to run negative controls on the cluster
 ================================================================================
-Updated: 2026-02-20
+Updated: 2026-07-12
+
+STATUS: All three control types have been set up and run on the cluster.
+  Counts (as generated): 99 Porter IDP, 48 Pfam-matched single-fold,
+  100 random single-chain = ~247 controls total. Their intra-cluster TM-score
+  diversity feeds scripts/compare_controls_vs_pairs.py ->
+  docs/controls_vs_pairs_comparison.csv (pairs-vs-controls baseline).
+  The steps below remain the reference for re-running or extending them.
 
 PREREQUISITE: Pull latest code on cluster
   cd /sci/labs/orzuk/orzuk/github/MsaCluster
@@ -22,14 +29,17 @@ Pipeline/Controls/ with FASTA files. Run from the login node (needs internet).
   Data source: data/porter_idp_proteins.csv (tracked in git, no internet needed)
 
 
-  1b. Matched single-fold controls (CTRL-2): ~93 Pfam-matched proteins
+  1b. Matched single-fold controls (CTRL-2): 48 Pfam-matched proteins
   ---------------------------------------------------------------------
   nohup python scripts/setup_matched_controls.py > matched_controls.log 2>&1 &
   tail -f matched_controls.log
 
   Creates: Pipeline/Controls/MatchedSingleFold/<PDB_chain>/
   Progress: data/matched_controls.csv (saves incrementally, safe to restart)
-  NOTE: Queries PDBe/InterPro/UniProt APIs. Can take hours for all 93 pairs.
+  NOTE: Iterates all 93 pairs but only ~48 yield a valid single-fold Pfam
+        match (same Pfam, length +-30%, >30% identity, exactly 1 PDB) --
+        so the final set is 48, not 93.
+        Queries PDBe/InterPro/UniProt APIs; can take hours for all 93 pairs.
         If it crashes, just rerun -- it skips pairs already in the CSV.
   Single pair: python scripts/setup_matched_controls.py --pair-id 1dzlA_5keqF
 
@@ -112,6 +122,12 @@ Output per protein:
 
 Global summary:
   Pipeline/Controls/<type>/controls_diversity_summary.csv
+
+  IMPORTANT (race condition): the per-type controls_diversity_summary.csv must
+  be built by a SINGLE-shot `--protein_ids ALL` run AFTER all per-protein
+  parallel jobs have finished. Running the aggregation while per-protein jobs
+  are still writing df_diversity.csv corrupts the summary. (See the same note
+  in CODE_STRUCTURE.txt / run_controls_pipeline.py.)
 
 ================================================================================
 EXPECTED RESULTS

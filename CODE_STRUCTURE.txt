@@ -20,8 +20,8 @@ asks whether the fold-switch signal differs by trigger type.
 DATASET: 93 protein pairs (full) or 10 pairs (test).
 FORMAT:  <pdb1><chain>_<pdb2><chain>  e.g. "1dzlA_5keqF"
 
-Controls: 100 IDP (Porter & Looger 2022), 48 Pfam-matched single-fold,
-          101 random single-chain PDB. Total 249 controls.
+Controls: 99 IDP (Porter & Looger 2022), 48 Pfam-matched single-fold,
+          100 random single-chain PDB. Total ~247 controls.
 
 DATA SOURCE OF TRUTH: The cluster (Moriah/glacier) holds the authoritative
   Pipeline/FoldPairs/ data. The local Windows machine has an old, partial copy.
@@ -34,7 +34,7 @@ DIRECTORY TREE
 MsaCluster/
 |-- config.py                  # Central config: paths, constants, multi-user
 |-- run_foldswitch_pipeline.py # MAIN ENTRY POINT - orchestrates all stages
-|-- run_controls_pipeline.py   # Controls pipeline: 249 control proteins
+|-- run_controls_pipeline.py   # Controls pipeline: ~247 control proteins
 |-- Analysis_params.py         # Analysis parameter defaults
 |-- monitoring.py              # Pipeline monitoring utilities
 |-- a3m_toaf3json.py           # Convert A3M to AF3 JSON input format
@@ -227,7 +227,7 @@ MsaCluster/
 |
 |-- Pipeline/                  # Root pipeline directory (on cluster only)
 |   |-- FoldPairs/<pairID>/    #   93 fold-switching pair working dirs (see below)
-|   |-- Controls/              #   249 control protein dirs (IDP/Matched/Random)
+|   |-- Controls/              #   ~247 control protein dirs (IDP/Matched/Random)
 |   |-- Results/               #   Global pipeline results & figures
 |
 |-- olds/old/                  # Archived/legacy code (kept as reference archive)
@@ -356,7 +356,7 @@ KEY FILE NOTES (largest / most active modules)
   flags to inner inline reruns.
 
 --- run_controls_pipeline.py (847 lines) ---
-  Mirror of the main pipeline for the 249 control proteins. Postprocess
+  Mirror of the main pipeline for the ~247 control proteins. Postprocess
   aggregation must use --protein_ids ALL after per-protein parallel runs
   (race-condition fix).
 
