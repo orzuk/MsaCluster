@@ -27,7 +27,7 @@ RESOLVED since 2026-04-27 (items the body lists as pending/not-done):
   - CCMpred (body §3, §6, §9 "never run"): RUN and integrated as a survey
     method (df_cmap_ccmpred.csv per pair).
   - Negative controls (body §9 "running"): COMPLETE for all three types
-    (99 IDP / 48 matched / 100 random ~= 247) ->
+    (100 IDP / 48 matched / 101 random = 249) ->
     docs/controls_vs_pairs_comparison.csv.
   - Trigger classification (body §7B, §9): DONE — docs/triggers_from_pdb.csv
     (29 ligand / 19 oligo / 17 protein_binding / 15 equilibrium_or_unknown /

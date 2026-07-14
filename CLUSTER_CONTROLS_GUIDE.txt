@@ -4,8 +4,10 @@ CLUSTER_CONTROLS_GUIDE.txt - All steps to run negative controls on the cluster
 Updated: 2026-07-12
 
 STATUS: All three control types have been set up and run on the cluster.
-  Counts (as generated): 99 Porter IDP, 48 Pfam-matched single-fold,
-  100 random single-chain = ~247 controls total. Their intra-cluster TM-score
+  Counts (published panel): 100 Porter IDP, 48 Pfam-matched single-fold,
+  101 random single-chain = 249 controls total (the local candidate CSVs list
+  99 / 100 respectively; the deployed cluster set is 100 / 101). Their
+  intra-cluster TM-score
   diversity feeds scripts/compare_controls_vs_pairs.py ->
   docs/controls_vs_pairs_comparison.csv (pairs-vs-controls baseline).
   The steps below remain the reference for re-running or extending them.

@@ -50,7 +50,7 @@ the ORIGINAL 2026-02 record (kept for history). Read this banner first.
     stratified BH by trigger (stratified_concordance_by_trigger.py); parallel
     class-level analysis package (Analysis/class_level/: Fisher+KW+LMM+perm).
   Controls:
-    all three types set up + RUN (99 IDP / 48 matched / 100 random ~= 247);
+    all three types set up + RUN (100 IDP / 48 matched / 101 random = 249);
     docs/controls_vs_pairs_comparison.csv.
   Clustering:
     default switched from AHC to phylo-TREE; v2 coarse-from-fine
@@ -578,7 +578,7 @@ PRIORITY 4: AF2 WITH REPRESENTATIVE CLUSTER SEQUENCES
 PRIORITY 5: NEGATIVE CONTROLS
 ────────────────────────────────────────────────────────────────────────────────
 [ANA-5] DONE (2026) - Run negative control pipeline on cluster
-  All three control types set up + run (99 IDP / 48 matched / 100 random).
+  All three control types set up + run (100 IDP / 48 matched / 101 random = 249).
   Comparison in scripts/compare_controls_vs_pairs.py ->
   docs/controls_vs_pairs_comparison.csv. See CLUSTER_CONTROLS_GUIDE.txt.
   Original plan retained below for context.
