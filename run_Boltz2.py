@@ -48,10 +48,7 @@ sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR, MAIN_DIR  # noqa: E402
 from utils.align_utils import compute_tmscore_align  # noqa: E402
-from utils.trigger_utils import (  # noqa: E402
-    get_trigger_class,
-    ligand_codes_for_holo,
-)
+from utils.trigger_utils import condition_spec  # noqa: E402
 
 
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunBoltz2.sh")
@@ -95,7 +92,8 @@ def _safe_tm(pred_pdb, truth_pdb):
 def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
                       out_yaml: Path,
                       msa_path: Optional[Path] = None,
-                      ligand_ccds: Optional[List[str]] = None) -> None:
+                      ligand_ccds: Optional[List[str]] = None,
+                      n_copies: int = 1) -> None:
     """Compose the Boltz YAML input for a single cluster.
 
     Parameters
@@ -112,27 +110,39 @@ def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
         to append as ``ligand:`` blocks for a holo prediction. Codes are
         taken from ``docs/triggers_from_pdb.csv`` (columns
         ``ligands_pdb1`` / ``ligands_pdb2``).
+    n_copies
+        Number of identical protein chains to emit (homo-oligomer holo for
+        the 'oligomerization' trigger class). ``1`` = monomer (default);
+        ``n>1`` emits chains A, B, ... all sharing ``sequence`` and the
+        same per-cluster ``msa_path``. The chain IDs consumed by copies
+        are skipped when numbering subsequent ligand blocks.
     partner_yaml
         Path to an existing YAML fragment to append (protein partner,
-        SMILES ligand, RNA partner). Used for ad-hoc holo experiments
-        outside the trigger CSV.
+        SMILES ligand, RNA partner). Used for the 'protein_binding' class
+        (whose partner sequence is not in the trigger CSV) and other
+        ad-hoc holo experiments.
     """
     if partner_yaml and os.path.isfile(partner_yaml):
         partner_block = open(partner_yaml).read().rstrip() + "\n"
     else:
         partner_block = ""
+    n_copies = max(1, int(n_copies))
     with open(out_yaml, "w") as f:
         f.write("version: 1\n")
         f.write("sequences:\n")
-        f.write(f"  - protein:\n")
-        f.write(f"      id: A\n")
-        f.write(f"      sequence: {sequence}\n")
-        if msa_path is not None:
-            # Boltz reads custom MSA when this is set (overrides server fetch)
-            f.write(f"      msa: {msa_path}\n")
-        # Append holo ligand blocks (PDB CCD codes) from trigger CSV
+        # Emit n_copies identical protein chains (A, B, ... for homo-oligomer).
+        next_id = ord("A")
+        for _ in range(n_copies):
+            f.write(f"  - protein:\n")
+            f.write(f"      id: {chr(next_id)}\n")
+            f.write(f"      sequence: {sequence}\n")
+            if msa_path is not None:
+                # Boltz reads custom MSA when this is set (overrides server fetch)
+                f.write(f"      msa: {msa_path}\n")
+            next_id += 1
+        # Append holo ligand blocks (PDB CCD codes) from trigger CSV, using
+        # the next free chain IDs after the protein copies.
         if ligand_ccds:
-            next_id = ord("B")
             for code in ligand_ccds:
                 f.write(f"  - ligand:\n")
                 f.write(f"      id: {chr(next_id)}\n")
@@ -145,6 +155,7 @@ def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, partner_yaml,
                     ligand_ccds: Optional[List[str]] = None,
+                    n_copies: int = 1,
                     force_rerun: bool = False):
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_boltz2" / tag
@@ -194,7 +205,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
     # one via --use_msa_server. This is the whole point of per-cluster
     # prediction (same as AF2/AF3 per-cluster).
     _write_boltz_yaml(tag, consensus, partner_yaml, in_yaml,
-                      msa_path=cluster_a3m, ligand_ccds=ligand_ccds)
+                      msa_path=cluster_a3m, ligand_ccds=ligand_ccds,
+                      n_copies=n_copies)
 
     cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
            f"{shlex.quote(str(in_yaml))} {shlex.quote(str(out_root))}")
@@ -259,17 +271,24 @@ def main():
     ap.add_argument(
         "--mode", choices=["apo", "holo", "auto"], default="apo",
         help="apo: predict each cluster with no ligand/partner (default). "
-             "holo: predict each cluster WITH the trigger's ligand block "
-             "(only implemented for trigger_class='ligand' so far; other "
-             "classes raise an error). auto: behave as holo when the "
-             "pair is ligand-triggered per docs/triggers_from_pdb.csv, "
+             "holo: predict each cluster WITH the trigger encoded, per "
+             "docs/triggers_from_pdb.csv -- ligand CCD block (ligand class), "
+             "homo-oligomer copies (oligomerization class), or an explicit "
+             "partner block (protein_binding class, via --partner_yaml). "
+             "auto: holo when the pair is in a representable triggered class, "
              "else apo. The result CSV's `mode` column records what ran.")
     ap.add_argument("--partner_yaml", default="",
                     help="Optional Boltz-2 partner block (extra protein/"
-                         "ligand/RNA). If provided, appended to every "
-                         "cluster's input YAML; useful for ad-hoc holo "
-                         "experiments that aren't captured by the trigger "
-                         "CSV (e.g. specific RfaH-RNAP runs).")
+                         "ligand/RNA). Required for protein_binding holo "
+                         "(the partner sequence is not in the trigger CSV); "
+                         "also useful for ad-hoc holo experiments (e.g. "
+                         "specific RfaH-RNAP runs).")
+    ap.add_argument("--copies", type=int, default=0,
+                    help="Homo-oligomer chain copies for oligomerization "
+                         "holo. 0 (default) = derive from the trigger CSV "
+                         "chain counts, falling back to 2 (dimer) when the "
+                         "CSV does not record the stoichiometry. Ignored in "
+                         "apo mode.")
     args = ap.parse_args()
 
     pair_id = args.input
@@ -289,33 +308,51 @@ def main():
         print(f"[error] missing shell wrapper {SH_WRAPPER}", file=sys.stderr)
         sys.exit(2)
 
-    # Resolve mode + ligand list from the trigger CSV
-    trigger_class = get_trigger_class(pair_id)
+    # Resolve mode + condition (ligand / oligomer copies / partner) from the
+    # trigger CSV via the shared condition_spec (utils.trigger_utils).
+    spec = condition_spec(pair_id)
+    trigger_class = spec["trigger_class"]
     ligand_ccds: List[str] = []
+    n_copies = 1
     effective_mode = args.mode
     if effective_mode == "auto":
-        effective_mode = "holo" if trigger_class == "ligand" else "apo"
+        effective_mode = "holo" if spec["representable"] else "apo"
+
     if effective_mode == "holo":
-        if trigger_class != "ligand":
-            # Other holo subclasses (protein_binding / oligomerization /
-            # mutation) are not yet implemented because they need partner
-            # sequence extraction or homo-multimer scaffolding.
-            print(f"[boltz2] holo mode requested for {pair_id} but "
-                  f"trigger_class={trigger_class!r} — only 'ligand' is "
-                  f"supported. Falling back to apo. Edit run_Boltz2.py "
-                  f"to add protein_binding/oligomerization holo paths.",
+        if not spec["representable"]:
+            print(f"[boltz2] holo requested for {pair_id} but "
+                  f"trigger_class={trigger_class!r} is not representable as a "
+                  f"holo condition ({spec['note']}). Falling back to apo.",
                   file=sys.stderr)
             effective_mode = "apo"
-        else:
-            ligand_ccds = ligand_codes_for_holo(pair_id)
+        elif trigger_class == "ligand":
+            ligand_ccds = spec["ligand_ccds"]
             if not ligand_ccds:
-                print(f"[boltz2] {pair_id}: trigger_class=ligand but no "
-                      f"ligand codes in CSV; falling back to apo.",
+                print(f"[boltz2] {pair_id}: ligand class but no CCD codes; "
+                      f"falling back to apo.", file=sys.stderr)
+                effective_mode = "apo"
+        elif trigger_class == "oligomerization":
+            # Homo-oligomer: repeat the chain. The CSV rarely records the true
+            # stoichiometry (chain counts are often 1/1), so honor --copies,
+            # else the CSV-derived count, else default to a dimer.
+            n_copies = args.copies or spec["n_copies"] or 2
+            if not args.copies and spec["n_copies"] is None:
+                print(f"[boltz2] {pair_id}: oligomer stoichiometry unknown "
+                      f"from CSV; defaulting to a dimer (--copies to override).",
                       file=sys.stderr)
+        elif trigger_class == "protein_binding":
+            # The partner SEQUENCE is not in the trigger CSV; it must be
+            # supplied via --partner_yaml. Without it we cannot build the holo.
+            if not (args.partner_yaml and os.path.isfile(args.partner_yaml)):
+                print(f"[boltz2] {pair_id}: protein_binding holo needs a "
+                      f"--partner_yaml (partner sequence not in CSV). "
+                      f"Falling back to apo.", file=sys.stderr)
                 effective_mode = "apo"
 
     if effective_mode == "holo":
-        print(f"[boltz2] {pair_id}: HOLO mode, ligand CCDs = {ligand_ccds}")
+        print(f"[boltz2] {pair_id}: HOLO mode (class={trigger_class}, "
+              f"ligand CCDs={ligand_ccds}, copies={n_copies}, "
+              f"partner={'yes' if args.partner_yaml else 'no'})")
     else:
         print(f"[boltz2] {pair_id}: APO mode "
               f"(trigger_class={trigger_class}, requested={args.mode})")
@@ -325,11 +362,13 @@ def main():
     for a3m in cluster_a3ms:
         rows = run_one_cluster(pair_id, a3m, pdbid1, chain1, pdbid2, chain2,
                                pair_dir, args.partner_yaml,
-                               ligand_ccds=ligand_ccds if effective_mode == "holo" else None)
+                               ligand_ccds=ligand_ccds if effective_mode == "holo" else None,
+                               n_copies=n_copies if effective_mode == "holo" else 1)
         # Record which mode produced these rows
         for r in rows:
             r["mode"] = effective_mode
             r["ligand_ccds"] = ",".join(ligand_ccds) if ligand_ccds else ""
+            r["n_copies"] = n_copies if effective_mode == "holo" else 1
         all_rows.extend(rows)
 
     ana = pair_dir / "Analysis"
@@ -348,6 +387,7 @@ def main():
         for s in summary:
             s["mode"] = effective_mode
             s["ligand_ccds"] = ",".join(ligand_ccds) if ligand_ccds else ""
+            s["n_copies"] = n_copies if effective_mode == "holo" else 1
         with open(ana / sum_fn, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(summary[0].keys()))
             w.writeheader()

@@ -10,6 +10,13 @@ FAKE_HOME="${FAKE_HOME:-/sci/labs/orzuk/orzuk/software/conda_tmp/home_fake}"
 
 CONVERTER="${CONVERTER:-/sci/labs/orzuk/orzuk/github/MsaCluster/a3m_toaf3json.py}"  # your converter
 
+# Optional holo condition passed to the converter via env (set by the pipeline
+# for --af3_mode holo/auto): AF3_LIGANDS="ATP,MG" (ligand class),
+# AF3_COPIES=2 (homo-oligomer). Empty => apo (monomer, no ligand).
+CONV_ARGS=()
+[[ -n "${AF3_LIGANDS:-}" ]] && CONV_ARGS+=(--ligands "$AF3_LIGANDS")
+[[ -n "${AF3_COPIES:-}"  ]] && CONV_ARGS+=(--copies  "$AF3_COPIES")
+
 # Activate AF3 env
 source "$AF3_VENV/bin/activate"
 
@@ -117,7 +124,7 @@ case "$INP" in
     a3m_to_first_fa "$INP" "$TMPFA"
     JSON="$OUT/${NAME}_af3.json"
     echo "[conv] python $CONVERTER $TMPFA $INP $JSON"
-    python "$CONVERTER" "$TMPFA" "$INP" "$JSON"
+    python "$CONVERTER" "$TMPFA" "$INP" "$JSON" "${CONV_ARGS[@]}"
     ;;
   *.fa|*.fasta)
     echo "[mode] FASTA provided → call shared fasta2MSA_Colabfold.sh → convert → AF3 inference-only"
@@ -130,7 +137,7 @@ case "$INP" in
     a3m_to_first_fa "$A3M" "$TMPFA"
     JSON="$OUT/${NAME}_af3.json"
     echo "[conv] python $CONVERTER $TMPFA $A3M $JSON"
-    python "$CONVERTER" "$TMPFA" "$A3M" "$JSON"
+    python "$CONVERTER" "$TMPFA" "$A3M" "$JSON" "${CONV_ARGS[@]}"
     ;;
   *)
     echo "[fatal] Input must be .json/.a3m/.fasta/.fa"; exit 2;;

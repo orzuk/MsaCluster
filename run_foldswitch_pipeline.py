@@ -460,6 +460,9 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         partner = getattr(args, "boltz2_partner_yaml", "") or ""
         if partner:
             inner += ["--boltz2_partner_yaml", shlex.quote(partner)]
+        copies = int(getattr(args, "boltz2_copies", 0) or 0)
+        if copies:
+            inner += ["--boltz2_copies", str(copies)]
     if run_mode == "run_bioemu":
         nsamp = getattr(args, "bioemu_num_samples", None)
         if nsamp:
@@ -2142,9 +2145,12 @@ def task_boltz2(pair_id: str, args: argparse.Namespace) -> None:
     """
     partner = getattr(args, "boltz2_partner_yaml", "") or ""
     mode = getattr(args, "boltz2_mode", "apo") or "apo"
+    copies = int(getattr(args, "boltz2_copies", 0) or 0)
     cmd = f"python3 ./run_Boltz2.py -input {pair_id} --mode {shlex.quote(mode)}"
     if partner:
         cmd += f" --partner_yaml {shlex.quote(partner)}"
+    if copies:
+        cmd += f" --copies {copies}"
     _run(cmd, args.run_job_mode)
 
 
@@ -2210,6 +2216,37 @@ def task_ddg(pair_id: str, args: argparse.Namespace) -> None:
         _run(cmd, args.run_job_mode)
     except Exception as e:
         print(f"[ddg] ERROR: {e}", flush=True)
+
+
+def _af3_holo_env(pair_id: str, args: argparse.Namespace) -> str:
+    """Return a shell env prefix (e.g. 'AF3_LIGANDS=ATP,MG AF3_COPIES=2 ')
+    that makes RunAF3_Colabfold.sh's converter build a *holo* AF3 input for
+    ``pair_id``, or '' for an apo run.
+
+    Driven by --af3_mode (apo|holo|auto) and the shared trigger condition_spec:
+      ligand           -> AF3_LIGANDS from the CSV CCD codes
+      oligomerization  -> AF3_COPIES (--af3_copies, else CSV, else dimer)
+      protein_binding  -> apo here (the partner sequence is not available to
+                          the per-cluster converter; use Boltz-2 --partner_yaml)
+    Keep apo/holo outputs separate with --af_output_suffix holo.
+    """
+    mode = str(getattr(args, "af3_mode", "apo") or "apo").lower()
+    if mode == "apo":
+        return ""
+    try:
+        from utils.trigger_utils import condition_spec
+        spec = condition_spec(pair_id)
+    except Exception:
+        return ""
+    if mode == "auto" and not spec.get("representable"):
+        return ""
+    parts = []
+    if spec.get("ligand_ccds"):
+        parts.append("AF3_LIGANDS=" + shlex.quote(",".join(spec["ligand_ccds"])))
+    if spec.get("trigger_class") == "oligomerization":
+        copies = int(getattr(args, "af3_copies", 0) or 0) or spec.get("n_copies") or 2
+        parts.append(f"AF3_COPIES={int(copies)}")
+    return (" ".join(parts) + " ") if parts else ""
 
 
 def task_af(pair_id: str, args: argparse.Namespace) -> None:
@@ -2332,9 +2369,13 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
                 f"--num-models 5 --num-recycle 1 --model-type alphafold2_ptm"
             )  # do not save large pickle files
         elif ver == "3":
-            # AF3 runner converts A3M->JSON and runs AF3; also export top PDB
+            # AF3 runner converts A3M->JSON and runs AF3; also export top PDB.
+            # Condition-aware holo: pass the trigger's ligand/copies to the
+            # converter via env (AF3_LIGANDS / AF3_COPIES). Keep apo/holo
+            # outputs separate with --af_output_suffix holo.
+            af3_env = _af3_holo_env(pair_id, args)
             return (
-                f"bash ./scripts/shell/RunAF3_Colabfold.sh "
+                f"{af3_env}bash ./scripts/shell/RunAF3_Colabfold.sh "
                 f"{shlex.quote(a3m_path)} {shlex.quote(out_dir)} "
                 f"--pdb=rank1"
             )
@@ -3047,15 +3088,22 @@ def main():
     p.add_argument("--boltz2_mode", default="apo",
                    choices=["apo", "holo", "auto"],
                    help="apo: predict each cluster without ligand/partner "
-                        "(default). holo: include ligand block from the "
-                        "trigger CSV (only implemented for ligand-class). "
-                        "auto: holo for ligand-class pairs, apo otherwise.")
+                        "(default). holo: encode the trigger from the CSV -- "
+                        "ligand block (ligand class), homo-oligomer copies "
+                        "(oligomerization), or an explicit partner "
+                        "(protein_binding, via --boltz2_partner_yaml). "
+                        "auto: holo for representable triggered classes, "
+                        "apo otherwise.")
     p.add_argument("--boltz2_partner_yaml", default="",
                    help="Path to an ad-hoc Boltz-2 partner YAML fragment "
                         "(extra protein/ligand/RNA block), appended to "
-                        "every cluster's input YAML. Use for targeted "
-                        "holo experiments outside the trigger CSV "
+                        "every cluster's input YAML. Required for "
+                        "protein_binding holo (partner sequence is not in "
+                        "the trigger CSV); also for targeted experiments "
                         "(e.g. specific RfaH-RNAP runs).")
+    p.add_argument("--boltz2_copies", type=int, default=0,
+                   help="Homo-oligomer chain copies for oligomerization holo "
+                        "(0 = derive from the trigger CSV, else dimer).")
 
     # --- BioEmu (9th method: equilibrium-ensemble fold preference) options ---
     p.add_argument("--bioemu_num_samples", type=int, default=50,
@@ -3184,7 +3232,21 @@ def main():
                     help="Optional suffix added to the AF output directory "
                          "(default empty -> output_AF/AF2 and output_AF/AF3). "
                          "Set to e.g. 'treek100_full' or 'treek100_top10' to "
-                         "keep multiple methodology variants side by side.")
+                         "keep multiple methodology variants side by side. "
+                         "Use 'holo' together with --af3_mode to keep the "
+                         "condition-aware AF3 run separate from the apo one.")
+    p.add_argument("--af3_mode", default="apo", choices=["apo", "holo", "auto"],
+                    help="Condition for AF3 (run_AF, --af_ver 3/both). apo: "
+                         "monomer, no ligand (default). holo: encode the "
+                         "trigger from docs/triggers_from_pdb.csv -- ligand "
+                         "CCD block (ligand class) or homo-oligomer copies "
+                         "(oligomerization). auto: holo for representable "
+                         "triggered pairs, apo otherwise. protein_binding "
+                         "needs an explicit partner and stays apo here. "
+                         "Pair with --af_output_suffix holo.")
+    p.add_argument("--af3_copies", type=int, default=0,
+                    help="Homo-oligomer chain copies for AF3 oligomerization "
+                         "holo (0 = derive from the CSV, else dimer).")
     p.add_argument("--query_type", default="medoid",
                     choices=["chain", "medoid", "consensus"],
                     help="Per-cluster AF2/AF3 query source. "

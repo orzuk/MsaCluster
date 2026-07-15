@@ -156,6 +156,141 @@ def ligand_codes_for_holo(pair_id: str,
     return out
 
 
+def _to_int(x: str, default: int = 1) -> int:
+    try:
+        return int(str(x).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def oligomer_counts(pair_id: str,
+                    csv_path: Optional[str] = None) -> tuple:
+    """Return (n_unique_chains_pdb1, n_unique_chains_pdb2) as ints.
+
+    NOTE: these are the chain counts of the entries as recorded by
+    classify_triggers_from_pdb.py, which reflect the *extracted* chains,
+    not necessarily the full biological assembly. For the 'oligomerization'
+    class they are frequently (1, 1) because a single chain was extracted
+    from each entry, so they do NOT give the true homo-oligomer stoichiometry
+    (see bound_fold / condition_spec below).
+    """
+    info = get_trigger_info(pair_id, csv_path)
+    if not info:
+        return (1, 1)
+    return (_to_int(info.get("n_unique_chains_pdb1", "1")),
+            _to_int(info.get("n_unique_chains_pdb2", "1")))
+
+
+def bound_fold(pair_id: str,
+               csv_path: Optional[str] = None) -> Optional[int]:
+    """Return which fold (1 or 2) is the *bound / holo / complexed* state,
+    or None when it cannot be determined from the trigger CSV.
+
+    This is the condition->fold mapping needed to score fold preference
+    under two conditions (the Delta_switch statistic; see
+    scripts/fold_diversity_survey.py). The bound fold is the deposited
+    structure that carries the trigger:
+
+      ligand           -> the entry whose ligands_pdb* column is populated
+                          (if both, the one with more codes; tie -> None)
+      protein_binding  -> the entry with more unique chains (the hetero-complex)
+      oligomerization  -> the more oligomeric entry, IF the chain counts differ;
+                          the CSV often stores (1, 1) here, in which case the
+                          assembly stoichiometry is unknown and we return None
+      mutation /        -> None (no apo/holo axis; the two states differ by
+      equilibrium          sequence or are both spontaneously populated)
+    """
+    info = get_trigger_info(pair_id, csv_path)
+    if not info:
+        return None
+    cls = info.get("trigger_class", "")
+    if cls == "ligand":
+        n1 = len(ligand_codes_for_holo(pair_id, csv_path)) if info.get("ligands_pdb1") else 0
+        n2 = 0
+        # Count per-entry so we can pick the more-liganded fold.
+        c1 = [t for t in info.get("ligands_pdb1", "").replace("|", " ").split() if t]
+        c2 = [t for t in info.get("ligands_pdb2", "").replace("|", " ").split() if t]
+        if c1 and not c2:
+            return 1
+        if c2 and not c1:
+            return 2
+        if c1 and c2:
+            if len(c1) > len(c2):
+                return 1
+            if len(c2) > len(c1):
+                return 2
+        return None
+    if cls in ("protein_binding", "oligomerization"):
+        n1, n2 = oligomer_counts(pair_id, csv_path)
+        if n1 > n2:
+            return 1
+        if n2 > n1:
+            return 2
+        return None
+    return None
+
+
+def condition_spec(pair_id: str,
+                   csv_path: Optional[str] = None) -> Dict:
+    """Single source of truth for how to run a *holo / condition-aware*
+    prediction for ``pair_id`` and how to score it.
+
+    Returns a dict:
+        {
+          "trigger_class": str,
+          "representable": bool,   # can any predictor encode this trigger?
+          "bound_fold":    1|2|None,
+          "ligand_ccds":   [str],  # PDB CCD codes for the ligand block (ligand class)
+          "n_copies":      int|None,  # homo-oligomer copies for the bound fold, if known
+          "needs_partner": bool,   # protein_binding: a partner SEQUENCE is required
+                                   #   (not stored in the CSV -> must be supplied)
+          "note":          str,
+        }
+
+    Representability by class (what a structure predictor can actually encode):
+      ligand           -> ligand_ccds (fully driven by the CSV)
+      protein_binding  -> needs a partner sequence (NOT in the CSV; supply
+                          a partner block explicitly, e.g. Boltz --partner_yaml)
+      oligomerization  -> homo-oligomer copies; the CSV lacks the true
+                          stoichiometry, so n_copies is None unless the chain
+                          counts differ, in which case max(n1,n2) is used
+      mutation /        -> not representable as an apo/holo axis
+      equilibrium
+    """
+    info = get_trigger_info(pair_id, csv_path)
+    cls = (info or {}).get("trigger_class", "") if info else ""
+    spec = {
+        "trigger_class": cls,
+        "representable": False,
+        "bound_fold": bound_fold(pair_id, csv_path),
+        "ligand_ccds": [],
+        "n_copies": None,
+        "needs_partner": False,
+        "note": "",
+    }
+    if cls == "ligand":
+        spec["ligand_ccds"] = ligand_codes_for_holo(pair_id, csv_path)
+        spec["representable"] = bool(spec["ligand_ccds"])
+        if not spec["ligand_ccds"]:
+            spec["note"] = "ligand class but no CCD codes in CSV"
+    elif cls == "protein_binding":
+        spec["representable"] = True
+        spec["needs_partner"] = True
+        spec["note"] = "partner sequence not in CSV; supply a partner block"
+    elif cls == "oligomerization":
+        spec["representable"] = True
+        n1, n2 = oligomer_counts(pair_id, csv_path)
+        spec["n_copies"] = max(n1, n2) if max(n1, n2) > 1 else None
+        if spec["n_copies"] is None:
+            spec["note"] = ("oligomer stoichiometry unknown from CSV "
+                            "(chain counts equal); supply --copies")
+    elif cls == "mutation":
+        spec["note"] = "mutation: the two states differ by sequence, no apo/holo axis"
+    else:
+        spec["note"] = "equilibrium/unknown: no external trigger"
+    return spec
+
+
 def summarize() -> Dict[str, int]:
     """Return {trigger_class -> count} for the loaded table.
 

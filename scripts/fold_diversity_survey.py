@@ -30,6 +30,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import DATA_DIR, PAIR_DIR_RE, TABLES_RES
 
+try:
+    from utils.trigger_utils import bound_fold, condition_spec
+except Exception:                    # trigger CSV optional at import time
+    bound_fold = lambda pid: None    # noqa: E731
+    condition_spec = lambda pid: {}  # noqa: E731
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -302,10 +308,10 @@ def load_boltz2_diversity(pair_id, delta):
     toward each fold, parallel to load_af2_diversity. With n_models=1 per
     cluster the rank1 and mean values coincide for tm_fold1/tm_fold2.
 
-    Holo (df_boltz2_holo.csv) is intentionally NOT loaded here: holo
-    predictions are a separate orthogonal contrast (ligand-driven fold
-    preference) and are reported in a separate Results subsection rather
-    than commingled into the apo-only concordance statistic.
+    Holo (df_boltz2_holo.csv) is NOT commingled into the apo concordance:
+    the condition-aware contrast is computed separately via
+    load_boltz2_holo_diversity + compute_condition_switch under the
+    --condition-switch flag (writes fold_diversity_condition_switch.csv).
     """
     csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_boltz2.csv")
     if not os.path.isfile(csv_path):
@@ -359,6 +365,165 @@ def load_boltz2_diversity(pair_id, delta):
             "pref": pref,
         })
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Condition-aware (holo) loaders + Delta_switch scoring
+# ---------------------------------------------------------------------------
+#
+# The methods that can encode a folding condition (AF3, Boltz-2) are run a
+# second time WITH the physiological trigger (ligand / homo-oligomer copies /
+# partner), producing a "holo" prediction alongside the default "apo" one.
+# Fold preference is then scored not as a single static TMdiff but as the
+# CHANGE in preference between conditions -- the difference-in-differences
+#
+#     Delta_switch = b(holo) - b(apo),   b(c) = TM(P_c, F_bound) - TM(P_c, F_free)
+#
+# oriented toward the fold that the trigger is known to stabilize (F_bound,
+# from utils.trigger_utils.bound_fold). Delta_switch > 0 means the trigger
+# pushed the prediction toward the bound fold, i.e. the method reproduced the
+# switch. See the appendix "Folding-condition dependence" table in the paper.
+
+
+def _load_boltz2_like(csv_path, pair_id, delta, method):
+    """Shared Boltz-2 rank1 reader used for both apo and holo CSVs."""
+    try:
+        df = pd.read_csv(csv_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return []
+    if df.empty or "rank1_tm_fold1" not in df.columns or "rank1_tm_fold2" not in df.columns:
+        return []
+    col = "cluster_num" if "cluster_num" in df.columns else "cluster"
+    if col not in df.columns:
+        return []
+    df["_tag"] = df[col].apply(_normalize_cluster)
+    df["TM1"] = pd.to_numeric(df["rank1_tm_fold1"], errors="coerce")
+    df["TM2"] = pd.to_numeric(df["rank1_tm_fold2"], errors="coerce")
+    rows = []
+    for tag, grp in df.groupby("_tag"):
+        tm1 = grp["TM1"].max()
+        tm2 = grp["TM2"].max()
+        if pd.isna(tm1) or pd.isna(tm2):
+            continue
+        rows.append({
+            "pair_id": pair_id, "cluster": tag, "method": method,
+            "TM1_max": round(float(tm1), 4), "TM2_max": round(float(tm2), 4),
+            "TMdiff_max": round(float(tm1 - tm2), 4),
+            "pref": _assign_pref(tm1, tm2, delta),
+        })
+    return rows
+
+
+def load_boltz2_holo_diversity(pair_id, delta):
+    """Per-cluster holo Boltz-2 rows (df_boltz2_holo.csv), method 'Boltz2_holo'."""
+    csv_path = os.path.join(DATA_DIR, pair_id, "Analysis", "df_boltz2_holo.csv")
+    return _load_boltz2_like(csv_path, pair_id, delta, method="Boltz2_holo")
+
+
+def load_af3_holo_diversity(pair_id, delta):
+    """Per-cluster holo AF3 rows.
+
+    AF3 holo predictions are scored the same way as apo, but stored either as
+    a dedicated ``df_af_holo.csv`` or as rows of ``df_af.csv`` carrying a
+    ``condition == 'holo'`` column. We try both so this works regardless of
+    how the (cluster-side) aggregation lands them. Method label 'AF3_holo'.
+    """
+    ana = os.path.join(DATA_DIR, pair_id, "Analysis")
+    # (a) dedicated holo CSV
+    holo_csv = os.path.join(ana, "df_af_holo.csv")
+    src = None
+    if os.path.isfile(holo_csv):
+        src = pd.read_csv(holo_csv)
+    else:
+        af_csv = os.path.join(ana, "df_af.csv")
+        if os.path.isfile(af_csv):
+            df = pd.read_csv(af_csv)
+            if "condition" in df.columns:
+                src = df[(df.get("model", "").astype(str).str.upper() == "AF3")
+                         & (df["condition"].astype(str).str.lower() == "holo")]
+    if src is None or src.empty:
+        return []
+    if "TMscore_fold1" not in src.columns and "score_pdb1" in src.columns:
+        src = src.rename(columns={"score_pdb1": "TMscore_fold1",
+                                  "score_pdb2": "TMscore_fold2"})
+    if "TMscore_fold1" not in src.columns:
+        return []
+    col = "cluster_num" if "cluster_num" in src.columns else "cluster"
+    if col not in src.columns:
+        return []
+    src = src.copy()
+    src["_tag"] = src[col].apply(_normalize_cluster)
+    src["TM1"] = pd.to_numeric(src["TMscore_fold1"], errors="coerce")
+    src["TM2"] = pd.to_numeric(src["TMscore_fold2"], errors="coerce")
+    rows = []
+    for tag, grp in src.groupby("_tag"):
+        tm1 = grp["TM1"].max()
+        tm2 = grp["TM2"].max()
+        if pd.isna(tm1) or pd.isna(tm2):
+            continue
+        rows.append({
+            "pair_id": pair_id, "cluster": tag, "method": "AF3_holo",
+            "TM1_max": round(float(tm1), 4), "TM2_max": round(float(tm2), 4),
+            "TMdiff_max": round(float(tm1 - tm2), 4),
+            "pref": _assign_pref(tm1, tm2, delta),
+        })
+    return rows
+
+
+def compute_condition_switch(pair_id, method, apo_rows, holo_rows, delta):
+    """Delta_switch fold-preference rows for one (pair, method) with both
+    apo and holo predictions.
+
+    For every cluster present in BOTH conditions:
+      TMdiff_apo/holo  = TM(F1) - TM(F2)                    (signed toward F1)
+      dswitch_f1       = TMdiff_holo - TMdiff_apo           (more F1 under holo)
+      dswitch_bound    = s * dswitch_f1,  s = +1 if bound fold is F1 else -1
+                         (>0  => trigger pushed prediction toward the bound
+                          fold, i.e. the method reproduces the switch)
+      pref_switch      = toward_bound | away_from_bound | Amb    (|.| vs delta)
+    Plus condition-matched TMs (holo-to-bound, apo-to-free).
+
+    ``bound`` is utils.trigger_utils.bound_fold(pair_id); when it is unknown
+    (None -- e.g. oligomerization pairs whose stoichiometry the CSV lacks) the
+    bound-oriented columns are left as NaN but dswitch_f1 is still emitted.
+    """
+    bf = bound_fold(pair_id)
+    apo = {r["cluster"]: r for r in apo_rows}
+    holo = {r["cluster"]: r for r in holo_rows}
+    s = None if bf not in (1, 2) else (1.0 if bf == 1 else -1.0)
+    out = []
+    for cl in sorted(set(apo) & set(holo)):
+        a, h = apo[cl], holo[cl]
+        da, dh = a.get("TMdiff_max"), h.get("TMdiff_max")
+        if da is None or dh is None or np.isnan(da) or np.isnan(dh):
+            continue
+        dsw_f1 = round(float(dh - da), 4)
+        dsw_bound = round(s * dsw_f1, 4) if s is not None else float("nan")
+        if s is None or np.isnan(dsw_bound):
+            pref = "NA"
+        elif dsw_bound > delta:
+            pref = "toward_bound"
+        elif dsw_bound < -delta:
+            pref = "away_from_bound"
+        else:
+            pref = "Amb"
+        # condition-matched TMs
+        tm_bound = tm_free = float("nan")
+        if bf in (1, 2):
+            tm_bound = h.get("TM1_max") if bf == 1 else h.get("TM2_max")
+            tm_free = a.get("TM2_max") if bf == 1 else a.get("TM1_max")
+        out.append({
+            "pair_id": pair_id, "cluster": cl, "method": f"{method}_switch",
+            "bound_fold": bf,
+            "TMdiff_apo": da, "TMdiff_holo": dh,
+            "dswitch_f1": dsw_f1, "dswitch_bound": dsw_bound,
+            "pref_switch": pref,
+            "holo_tm_bound": (round(float(tm_bound), 4)
+                              if tm_bound == tm_bound else float("nan")),
+            "apo_tm_free": (round(float(tm_free), 4)
+                            if tm_free == tm_free else float("nan")),
+        })
+    return out
 
 
 def load_bioemu_diversity(pair_id, delta):
@@ -1046,6 +1211,13 @@ def main():
     parser.add_argument("--delta-ddg", type=float, default=1.0,
                         help="kcal/mol threshold for DDG F1/F2/Amb assignment "
                              "(default 1.0; DDG is on a different scale than TM-score)")
+    parser.add_argument("--condition-switch", action="store_true",
+                        help="Also score condition-aware fold preference "
+                             "(Delta_switch) for methods with both apo and "
+                             "holo predictions (AF3, Boltz-2). Reads "
+                             "df_boltz2_holo.csv / df_af holo rows and writes "
+                             "docs/fold_diversity_condition_switch.csv plus a "
+                             "per-pair summary. Does not alter the apo survey.")
     parser.add_argument("--min-clusters-for-concordance", type=int, default=10,
                         help="Min mean_n_clusters per pair for inclusion in the "
                              "printed concordance ranking (default 10). Pairs with "
@@ -1070,6 +1242,8 @@ def main():
     all_cluster_rows = []
     all_summaries = []
     all_concordance = []   # one row per pair (cross-method concordance)
+    all_switch_rows = []       # per (pair, cluster, method) Delta_switch rows
+    all_switch_summary = []    # per (pair, method) Delta_switch summary
 
     n_af2 = n_af3 = n_esm = n_msat = n_ccmpred = n_ddg = n_boltz2 = 0
 
@@ -1165,6 +1339,37 @@ def main():
             if s:
                 all_summaries.append(s)
 
+        # Condition-aware Delta_switch (apo vs holo) for AF3 and Boltz-2
+        if args.condition_switch:
+            for method, apo_rows, holo_loader in (
+                ("AF3", af3_rows, load_af3_holo_diversity),
+                ("Boltz2", boltz2_rows, load_boltz2_holo_diversity),
+            ):
+                if not apo_rows:
+                    continue
+                holo_rows = holo_loader(pair_id, args.delta)
+                if not holo_rows:
+                    continue
+                sw = compute_condition_switch(pair_id, method, apo_rows,
+                                              holo_rows, args.delta)
+                if not sw:
+                    continue
+                all_switch_rows.extend(sw)
+                bound = [r for r in sw if r["pref_switch"] == "toward_bound"]
+                away = [r for r in sw if r["pref_switch"] == "away_from_bound"]
+                vals = [r["dswitch_bound"] for r in sw
+                        if r["dswitch_bound"] == r["dswitch_bound"]]
+                all_switch_summary.append({
+                    "pair_id": pair_id, "method": method,
+                    "trigger_class": condition_spec(pair_id).get("trigger_class", ""),
+                    "bound_fold": sw[0]["bound_fold"],
+                    "n_clusters": len(sw),
+                    "n_toward_bound": len(bound),
+                    "n_away_from_bound": len(away),
+                    "mean_dswitch_bound": round(float(np.mean(vals)), 4) if vals else float("nan"),
+                    "frac_toward_bound": round(len(bound) / len(sw), 3) if sw else 0.0,
+                })
+
         # Cross-method concordance for THIS pair
         if len(per_method_rows) >= 2:
             all_concordance.append(compute_pair_concordance(pair_id, per_method_rows))
@@ -1192,6 +1397,22 @@ def main():
         df_concord.to_csv(concord_path, index=False)
         print(f"Saved cross-method concordance: {concord_path} "
               f"({len(df_concord)} rows)")
+
+    # --- Save condition-aware Delta_switch CSVs (opt-in) ---
+    if args.condition_switch:
+        if all_switch_rows:
+            sw_path = os.path.join(out_dir, "fold_diversity_condition_switch.csv")
+            pd.DataFrame(all_switch_rows).to_csv(sw_path, index=False)
+            sws_path = os.path.join(out_dir,
+                                    "fold_diversity_condition_switch_summary.csv")
+            pd.DataFrame(all_switch_summary).to_csv(sws_path, index=False)
+            n_pairs_sw = len({r["pair_id"] for r in all_switch_rows})
+            print(f"Saved condition-switch (Delta_switch): {sw_path} "
+                  f"({len(all_switch_rows)} cluster rows, {n_pairs_sw} pairs) "
+                  f"+ summary {sws_path}")
+        else:
+            print("[condition-switch] no pair had both apo and holo predictions "
+                  "(need df_boltz2_holo.csv or AF3 holo rows); nothing written.")
 
     # --- Print analysis ---
     print(f"\n{'='*70}")
