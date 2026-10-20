@@ -52,7 +52,22 @@ PAIR_DIRS = {"AF":"output_AF", "ESMFold":"output_esm_fold", "Cmap":"output_cmaps
 
 # --- Pipeline directory hierarchy ---
 PIPELINE_BASE_DIR = MAIN_DIR + '/Pipeline'       # root of all pipeline work
-DATA_DIR = PIPELINE_BASE_DIR + '/FoldPairs'       # fold-switching pair directories
+# Fold-pair data root. Default: Pipeline/FoldPairs (production). Override with
+# env MSACLUSTER_DATA_DIR=<dir> (run_foldswitch_pipeline.py --data_root <dir> sets
+# it) to run every task on a pilot / variant copy of a pair, e.g.
+# Pipeline/Pilots/<name>/<pair_id>/, without touching production outputs.
+# Build per-pair paths from DATA_DIR (absolute) or FOLDPAIRS_REL (the form used
+# in commands run from the repo root; absolute when overridden).
+_DATA_DIR_OVERRIDE = os.environ.get('MSACLUSTER_DATA_DIR', '').strip()
+if _DATA_DIR_OVERRIDE:
+    FOLDPAIRS_REL = os.path.normpath(
+        _DATA_DIR_OVERRIDE if os.path.isabs(_DATA_DIR_OVERRIDE)
+        else os.path.join(MAIN_DIR, _DATA_DIR_OVERRIDE))
+    DATA_DIR = FOLDPAIRS_REL
+    print('CONFIG DATA_DIR OVERRIDE (MSACLUSTER_DATA_DIR): ' + DATA_DIR)
+else:
+    FOLDPAIRS_REL = 'Pipeline/FoldPairs'
+    DATA_DIR = PIPELINE_BASE_DIR + '/FoldPairs'       # fold-switching pair directories
 CONTROLS_BASE_DIR = PIPELINE_BASE_DIR + '/Controls'
 PORTER_IDP_DIR    = CONTROLS_BASE_DIR + '/PorterIDP'
 MATCHED_CONTROLS_DIR = CONTROLS_BASE_DIR + '/MatchedSingleFold'

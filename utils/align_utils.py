@@ -218,12 +218,12 @@ def _guess_seed_msa_path(pair_id: str) -> str:
     """Try several canonical locations for the pair's seed MSA and return the first that exists."""
     from pathlib import Path
     cand = [
-        f"Pipeline/FoldPairs/{pair_id}/_seed_both_pairtrim.a3m",
-        f"Pipeline/FoldPairs/{pair_id}/_seed_both.a3m",
-        f"Pipeline/FoldPairs/{pair_id}/MSA/_seed_both_pairtrim.a3m",
-        f"Pipeline/FoldPairs/{pair_id}/MSA/_seed_both.a3m",
-        f"Pipeline/FoldPairs/{pair_id}/msa/_seed_both_pairtrim.a3m",
-        f"Pipeline/FoldPairs/{pair_id}/msa/_seed_both.a3m",
+        f"{FOLDPAIRS_REL}/{pair_id}/_seed_both_pairtrim.a3m",
+        f"{FOLDPAIRS_REL}/{pair_id}/_seed_both.a3m",
+        f"{FOLDPAIRS_REL}/{pair_id}/MSA/_seed_both_pairtrim.a3m",
+        f"{FOLDPAIRS_REL}/{pair_id}/MSA/_seed_both.a3m",
+        f"{FOLDPAIRS_REL}/{pair_id}/msa/_seed_both_pairtrim.a3m",
+        f"{FOLDPAIRS_REL}/{pair_id}/msa/_seed_both.a3m",
     ]
     for p in cand:
         if Path(p).exists():

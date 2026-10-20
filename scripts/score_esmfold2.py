@@ -19,12 +19,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from utils.score_against_folds import score_predictions_vs_truth
+from config import DATA_DIR  # honours MSACLUSTER_DATA_DIR (pilot pair roots)
 
 
 def score_one_pair(pair_id: str, mode_label: str, output_dir: Path,
                     pred_subdir: str = "output_esmfold2",
                     skip_existing: bool = False) -> None:
-    pair_dir = ROOT / "Pipeline" / "FoldPairs" / pair_id
+    pair_dir = Path(DATA_DIR) / pair_id
     preds_dir = pair_dir / pred_subdir
     out_csv = output_dir / f"esmfold2_tmscores_{pair_id}.csv"
 
@@ -160,7 +161,7 @@ def main():
         pair_list = [args.pair]
     elif args.foldpair_ids:
         if args.foldpair_ids == "ALL":
-            pair_list = sorted(p.name for p in (ROOT / "Pipeline" / "FoldPairs").glob("*/")
+            pair_list = sorted(p.name for p in Path(DATA_DIR).glob("*/")
                                if p.name not in ("_s4pred_work", "jobs"))
         else:
             pair_list = [s.strip() for s in args.foldpair_ids.split(",") if s.strip()]

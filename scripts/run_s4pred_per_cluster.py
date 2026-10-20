@@ -252,15 +252,21 @@ def process_pair(pair_id: str, fpairs_root: str, s4pred_dir: str,
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    # Pair-root override (pilot / variant runs; see config.DATA_DIR): defaults
+    # move under MSACLUSTER_DATA_DIR so a pilot never overwrites production files.
+    data_root = os.environ.get("MSACLUSTER_DATA_DIR", "").strip()
     ap.add_argument("--pairs", default="ALL")
-    ap.add_argument("--fpairs_root", default="Pipeline/FoldPairs")
+    ap.add_argument("--fpairs_root", default=data_root or "Pipeline/FoldPairs")
     ap.add_argument("--s4pred_dir", required=True,
                     help="Path to s4pred repo (containing run_model.py).")
-    ap.add_argument("--work_root", default="Pipeline/FoldPairs/_s4pred_work")
+    ap.add_argument("--work_root",
+                    default=os.path.join(data_root or "Pipeline/FoldPairs", "_s4pred_work"))
     ap.add_argument("--n_reps", type=int, default=10)
     ap.add_argument("--device", default="cpu", choices=["cpu", "gpu"])
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--out", default="docs/s4pred_per_cluster_summary.csv")
+    ap.add_argument("--out",
+                    default=(os.path.join(data_root, "s4pred_per_cluster_summary.csv")
+                             if data_root else "docs/s4pred_per_cluster_summary.csv"))
     args = ap.parse_args()
 
     rng = random.Random(args.seed)

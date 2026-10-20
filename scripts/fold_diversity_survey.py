@@ -590,7 +590,7 @@ def load_bioemu_diversity(pair_id, delta):
     return rows
 
 
-def load_esmfold2_diversity(pair_id, delta):
+def load_esmfold2_diversity(pair_id, delta, score_dir=None):
     """Load ESMFold2 per-cluster TM-scores (the v2 single-sequence baseline).
 
     Reads docs/esmfold2_tmscores_<pair>.csv (written by
@@ -603,7 +603,8 @@ def load_esmfold2_diversity(pair_id, delta):
     Pairs whose ESMFold2 scoring failed (e.g. all-NaN TM) yield no rows -
     we do NOT silently fall back to stale v1 ESMFold.
     """
-    csv_path = os.path.join(TABLES_RES, f"esmfold2_tmscores_{pair_id}.csv")
+    # score_dir (--esmfold2-dir) lets pilot runs keep their scores out of docs/.
+    csv_path = os.path.join(score_dir or TABLES_RES, f"esmfold2_tmscores_{pair_id}.csv")
     if not os.path.isfile(csv_path) or os.path.getsize(csv_path) == 0:
         return []
     df = pd.read_csv(csv_path)
@@ -1134,6 +1135,10 @@ def main():
                         help="Threshold for F1/F2/Amb assignment")
     parser.add_argument("--output-dir", type=str, default=None,
                         help="Output directory (default: docs/)")
+    parser.add_argument("--esmfold2-dir", type=str, default=None,
+                        help="Directory with esmfold2_tmscores_<pair>.csv "
+                             "(written by scripts/score_esmfold2.py --output_dir; "
+                             "default: docs/)")
     parser.add_argument("--msat-metric", type=str, default="t_recall",
                         choices=["t_recall", "uniq_recall"],
                         help="MSAT metric: t_recall (full-fold, default) or "
@@ -1204,7 +1209,8 @@ def main():
                 all_summaries.append(s)
 
         # ESM slot = ESMFold2 (v2 single-sequence baseline; replaces ESMFold v1)
-        esm_rows = load_esmfold2_diversity(pair_id, args.delta)
+        esm_rows = load_esmfold2_diversity(pair_id, args.delta,
+                                           score_dir=args.esmfold2_dir)
         if esm_rows:
             _apply_centered_classification(esm_rows, args.delta)
             n_esm += 1

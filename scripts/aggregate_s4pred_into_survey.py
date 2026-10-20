@@ -255,7 +255,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pairs", default="ALL")
-    ap.add_argument("--fpairs_root", default="Pipeline/FoldPairs")
+    ap.add_argument("--fpairs_root",
+                    default=os.environ.get("MSACLUSTER_DATA_DIR", "").strip() or "Pipeline/FoldPairs")
     ap.add_argument("--survey_csv", default=SURVEY_CSV)
     ap.add_argument("--write_mode", default="append",
                     choices=["append", "replace_method"],

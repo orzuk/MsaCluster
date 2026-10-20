@@ -1034,6 +1034,10 @@ if __name__ == "__main__":
                    help="FULL mode: recompute per-pair Analysis CSVs even if they exist.")
     p.add_argument("--mode", choices=["full", "unify"], default="full",
                    help="'full' recomputes per-pair Analysis CSVs then unifies; 'unify' only rebuilds unified CSVs from cached per-pair Analysis CSVs.")
+    p.add_argument("--per_pair_only", action="store_true",
+                   help="FULL mode: only refresh the per-pair Analysis CSVs (df_af.csv, ...); "
+                        "skip the unified/global tables under docs/ (pilot runs with --data_root / "
+                        "MSACLUSTER_DATA_DIR must not overwrite the production tables).")
     args = p.parse_args()
 
     # Resolve "ALL" / None / specific pairs once, reuse everywhere
@@ -1044,6 +1048,9 @@ if __name__ == "__main__":
         # 1) Recompute/refresh per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv)
         summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=resolved_pairs)
         print(f"[postprocess] per-pair Analysis refreshed: summary rows={len(summary_df)} | detailed rows={len(detailed_df)}")
+
+    if args.per_pair_only:
+        sys.exit(0)
 
     # 2) Build unified CSVs from those cached per-pair Analysis CSVs (single writer)
     build_unified_tables_from_cluster_dfs(pairs=resolved_pairs, write_out=True)

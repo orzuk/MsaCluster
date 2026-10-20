@@ -147,8 +147,9 @@ def score_predictions_vs_truth(
         raise ValueError("pred_paths and cluster_ids must be parallel lists")
 
     if pair_dir is None:
-        # Assume CWD is repo root or that Pipeline/FoldPairs is on the path
-        pair_dir = Path("Pipeline") / "FoldPairs" / pair_id
+        # config.DATA_DIR = Pipeline/FoldPairs unless MSACLUSTER_DATA_DIR overrides it
+        from config import DATA_DIR
+        pair_dir = Path(DATA_DIR) / pair_id
 
     (truth_F1, truth_F2), (ch1, ch2), (pdb1, pdb2) = find_truth_pdbs(pair_id, pair_dir)
     nominal_chain = chain_label if chain_label is not None else f"{pdb1}{ch1}"

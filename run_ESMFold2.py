@@ -187,7 +187,13 @@ def _resolve_input_dirs(args) -> list[tuple[str, Path, Path]]:
             pid = pid.strip()
             if not pid:
                 continue
-            pair_dir = repo / "Pipeline" / "FoldPairs" / pid
+            # Same pair root as config.DATA_DIR (env MSACLUSTER_DATA_DIR override,
+            # set by run_foldswitch_pipeline.py --data_root); config is not
+            # imported here because this runs in the separate esmfold2-venv.
+            root = os.environ.get("MSACLUSTER_DATA_DIR", "").strip()
+            pairs_root = (Path(root) if root and os.path.isabs(root)
+                          else repo / (root or "Pipeline/FoldPairs"))
+            pair_dir = pairs_root / pid
             inp = pair_dir / "output_msa_cluster"
             outp = pair_dir / "output_esmfold2"
             out.append((pid, inp, outp))
