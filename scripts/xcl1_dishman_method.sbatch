@@ -47,9 +47,11 @@ case "$METHOD" in
     # shellcheck disable=SC1091
     source "$VENV/bin/activate"
     case "$METHOD" in af2) VER=2 ;; af3) VER=3 ;; *) VER=both ;; esac
+    # No --af_output_suffix: the pilot has its own pair root, so the default
+    # output_AF/AF{2,3} dirs collide with nothing and the postprocess AF
+    # aggregation (which only scans the unsuffixed dirs) picks the runs up.
     "${PIPE[@]}" --run_mode run_AF --af_ver "$VER" \
-        --query_type medoid --af_msa_top_n 10 \
-        --af_output_suffix dishman --allow_inline_af
+        --query_type medoid --af_msa_top_n 10 --allow_inline_af
     ;;
   esmfold2)
     # Separate venv (own transformers/esm pins); run_ESMFold2.py reads

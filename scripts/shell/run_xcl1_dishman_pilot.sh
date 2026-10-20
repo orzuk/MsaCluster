@@ -146,8 +146,9 @@ if [[ "$SKIP_SETUP" -eq 0 ]]; then
         --data_root "$PILOT_ROOT" --run_job_mode inline \
         --cluster_alg tree_mono \
         --cluster_tree_min_num_clusters "$K_CLUSTERS" \
-        --cluster_max_clusters "$K_CLUSTERS" \
-        --cluster_min_output_size "$MIN_CLUSTER_SIZE" \
+        --cluster_max_clusters $((K_CLUSTERS * 2)) \
+        --cluster_tree_mono_min_clade "$MIN_CLUSTER_SIZE" \
+        --cluster_min_output_size 1 \
         --cluster_min_neff 1 \
         --cluster_frac_gaps_cutoff 0.9
 
