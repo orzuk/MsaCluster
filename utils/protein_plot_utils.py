@@ -58,10 +58,8 @@ from utils.plot_3d import (                                       # noqa: F401
     write_py3dmol_overlay_html,
 )
 from utils.plot_contacts import (                                 # noqa: F401
-    plot_contacts_and_predictions,
     plot_foldswitch_contacts_and_predictions,
     plot_array_contacts_and_predictions,
-    plot_viz_cmap,
 )
 
 
