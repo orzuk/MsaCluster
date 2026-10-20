@@ -1,0 +1,40 @@
+curated sequences: 994  (species: 31)
+per family: XCL=34, CCL=519, CXCL=350, CX3CL=14, unclassified=77
+family source: gene_name=528, motif=357, none=77, uniprot_family=32
+reviewed: 166
+dropped: same_gene_in_species=469, near_identical_in_species=85, precursor_length=11, nonstandard_aa=7, identical_sequence=7
+
+species                        group                 n  XCL  CCL  CXCL CX3CL uncl  XCL entries
+Homo_sapiens                   placental            47    2   26    18     1    0  Q9UBD3:XCL2(uniprot_family) P47992:XCL1(uniprot_family)
+Macaca_mulatta                 placental            52    2   31    16     1    2  A0A5F7ZCA2:XCL1(uniprot_family) F6SZS4:LOC100423131(uniprot_family)
+Mus_musculus                   placental            39    1   22    15     1    0  P47993:Xcl1(uniprot_family)
+Rattus_norvegicus              placental            34    1   18    14     1    0  P51672:Xcl1(uniprot_family)
+Oryctolagus_cuniculus          placental            40    1   20    14     1    4  G1T4F1:LOC100349255(uniprot_family)
+Canis_lupus_familiaris         placental            38    1   24    10     1    2  A0A8I3MLK4:TBX19(uniprot_family)
+Bos_taurus                     placental            44    3   23    15     1    2  A0A3Q1NB11:LOC100297044(uniprot_family) E1BH62:XCL2(uniprot_family) Q9BDJ2:NA(uniprot_family)
+Sus_scrofa                     placental            37    1   23    13     0    0  F1RPV4:XCL1(uniprot_family)
+Equus_caballus                 placental            46    2   19    17     0    8  A0A3Q2IDW7:NA(uniprot_family) F7AEZ0:NA(uniprot_family)
+Myotis_lucifugus               placental            42    1   24    15     0    2  G1PJF5:LOC102423013(uniprot_family)
+Loxodonta_africana             placental            29    1   16    11     1    0  G3TJJ5:XCL1(uniprot_family)
+Dasypus_novemcinctus           placental             1    0    0     1     0    0  
+Monodelphis_domestica          marsupial            32    2   18     7     1    4  F6PM94:LOC100018887(uniprot_family) K7E1S4:NA(uniprot_family)
+Sarcophilus_harrisii           marsupial            36    2   21     7     1    5  G5EA71:LOC100914986(uniprot_family) G3VNJ0:NA(uniprot_family)
+Phascolarctos_cinereus         marsupial            42    2   27     9     1    3  A0A6P5JGU0:LOC110199728(uniprot_family) A0A6P5J7R9:LOC110199757(uniprot_family)
+Ornithorhynchus_anatinus       monotreme            24    1   10    11     0    2  F7A481:LOC100083475(uniprot_family)
+Gallus_gallus                  bird                 35    2   18    11     1    3  A0A8V0XNC9:XCL1(uniprot_family) O57411:NA(uniprot_family)
+Taeniopygia_guttata            bird                 19    1    6     8     1    3  H0ZT85:LOC100227529(uniprot_family)
+Anas_platyrhynchos             bird                  9    0    7     1     0    1  
+Anolis_carolinensis            reptile               8    0    2     6     0    0  
+Chrysemys_picta_bellii         reptile              35    3   12    10     0   10  A0A8C3F9M1:LOC101938916(uniprot_family) A0A8C3FKF7:NA(motif) A0A8C3FK32:LOC101943654(motif)
+Alligator_mississippiensis     reptile              28    1   13    11     1    2  A0A151MD84:XCL1(uniprot_family)
+Xenopus_tropicalis             amphibian            28    1   13    13     0    1  A0A8J0QRI6:xcl1(gene_name)
+Xenopus_laevis                 amphibian            47    1   19    21     0    6  A0A1L8G536:LOC108717597(uniprot_family)
+Danio_rerio                    bony_fish            62    0   39    19     0    4  
+Oryzias_latipes                bony_fish            41    2   24    13     0    2  A0A3B3HY37:NA(motif) A0A3B3HBF7:NA(motif)
+Takifugu_rubripes              bony_fish            26    0   13     9     0    4  
+Lepisosteus_oculatus           bony_fish            21    0   11     5     0    5  
+Latimeria_chalumnae            lobe_finned_fish      9    0    6     3     0    0  
+Callorhinchus_milii            cartilaginous_fish   37    0   14    21     0    2  
+Petromyzon_marinus             jawless               6    0    0     6     0    0  
+
+species WITHOUT any XCL entry (9): Dasypus_novemcinctus, Anas_platyrhynchos, Anolis_carolinensis, Danio_rerio, Takifugu_rubripes, Lepisosteus_oculatus, Latimeria_chalumnae, Callorhinchus_milii, Petromyzon_marinus

@@ -1,0 +1,36 @@
+# Default species set for the XCL1 Dishman-like curated chemokine pilot (pair 2n54B_2hdmA).
+# Approximates the 30-vertebrate sampling of Dishman et al., Science 2021 (457 chemokines);
+# swap in their supplementary species list when available. Columns are tab-separated.
+# group is used for the mammalian / non-mammalian split of the XCL clade in the analysis.
+taxon_id	name	group
+9606	Homo_sapiens	placental
+9544	Macaca_mulatta	placental
+10090	Mus_musculus	placental
+10116	Rattus_norvegicus	placental
+9986	Oryctolagus_cuniculus	placental
+9615	Canis_lupus_familiaris	placental
+9913	Bos_taurus	placental
+9823	Sus_scrofa	placental
+9796	Equus_caballus	placental
+59463	Myotis_lucifugus	placental
+9785	Loxodonta_africana	placental
+9361	Dasypus_novemcinctus	placental
+13616	Monodelphis_domestica	marsupial
+9305	Sarcophilus_harrisii	marsupial
+38626	Phascolarctos_cinereus	marsupial
+9258	Ornithorhynchus_anatinus	monotreme
+9031	Gallus_gallus	bird
+59729	Taeniopygia_guttata	bird
+8839	Anas_platyrhynchos	bird
+28377	Anolis_carolinensis	reptile
+8478	Chrysemys_picta_bellii	reptile
+8496	Alligator_mississippiensis	reptile
+8364	Xenopus_tropicalis	amphibian
+8355	Xenopus_laevis	amphibian
+7955	Danio_rerio	bony_fish
+8090	Oryzias_latipes	bony_fish
+31033	Takifugu_rubripes	bony_fish
+7918	Lepisosteus_oculatus	bony_fish
+7897	Latimeria_chalumnae	lobe_finned_fish
+7868	Callorhinchus_milii	cartilaginous_fish
+7757	Petromyzon_marinus	jawless

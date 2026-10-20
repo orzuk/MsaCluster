@@ -1,0 +1,995 @@
+seq_id	accession	entry_name	gene	species	taxon_id	group	family	family_source	uniprot_family	reviewed	annotation_score	signal_end	precursor_len	mature_len
+P78423|CX3CL1|Homo_sapiens|CX3CL	P78423	X3CL1_HUMAN	CX3CL1	Homo_sapiens	9606	placental	CX3CL	uniprot_family	Intercrine delta family	reviewed	5.0	24	397	373
+Q9H2A7|CXCL16|Homo_sapiens|CXCL	Q9H2A7	CXL16_HUMAN	CXCL16	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	29	254	225
+O15444|CCL25|Homo_sapiens|CCL	O15444	CCL25_HUMAN	CCL25	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	150	127
+O00585|CCL21|Homo_sapiens|CCL	O00585	CCL21_HUMAN	CCL21	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	134	111
+Q9NRJ3|CCL28|Homo_sapiens|CCL	Q9NRJ3	CCL28_HUMAN	CCL28	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	19	127	108
+Q07325|CXCL9|Homo_sapiens|CXCL	Q07325	CXCL9_HUMAN	CXCL9	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	22	125	103
+P55773|CCL23|Homo_sapiens|CCL	P55773	CCL23_HUMAN	CCL23	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	21	120	99
+Q6UXB2|CXCL17|Homo_sapiens|CXCL	Q6UXB2	CXL17_HUMAN	CXCL17	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	119	98
+O15467|CCL16|Homo_sapiens|CCL	O15467	CCL16_HUMAN	CCL16	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	120	97
+P02775|PPBP|Homo_sapiens|CXCL	P02775	CXCL7_HUMAN	PPBP	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	34	128	94
+O00175|CCL24|Homo_sapiens|CCL	O00175	CCL24_HUMAN	CCL24	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	26	119	93
+Q9UBD3|XCL2|Homo_sapiens|XCL	Q9UBD3	XCL2_HUMAN	XCL2	Homo_sapiens	9606	placental	XCL	uniprot_family	Intercrine gamma family	reviewed	5.0	21	114	93
+P47992|XCL1|Homo_sapiens|XCL	P47992	XCL1_HUMAN	XCL1	Homo_sapiens	9606	placental	XCL	uniprot_family	Intercrine gamma family	reviewed	5.0	21	114	93
+Q16663|CCL15|Homo_sapiens|CCL	Q16663	CCL15_HUMAN	CCL15	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	21	113	92
+Q9Y4X3|CCL27|Homo_sapiens|CCL	Q9Y4X3	CCL27_HUMAN	CCL27	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	24	112	88
+O43927|CXCL13|Homo_sapiens|CXCL	O43927	CXL13_HUMAN	CXCL13	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	22	109	87
+Q99616|CCL13|Homo_sapiens|CCL	Q99616	CCL13_HUMAN	CCL13	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	16	98	82
+P10145|CXCL8|Homo_sapiens|CXCL	P10145	IL8_HUMAN	CXCL8	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	20	99	79
+P42830|CXCL5|Homo_sapiens|CXCL	P42830	CXCL5_HUMAN	CXCL5	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	36	114	78
+P80162|CXCL6|Homo_sapiens|CXCL	P80162	CXCL6_HUMAN	CXCL6	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	37	114	77
+P02778|CXCL10|Homo_sapiens|CXCL	P02778	CXL10_HUMAN	CXCL10	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	98	77
+O95715|CXCL14|Homo_sapiens|CXCL	O95715	CXL14_HUMAN	CXCL14	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	34	111	77
+Q99731|CCL19|Homo_sapiens|CCL	Q99731	CCL19_HUMAN	CCL19	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	21	98	77
+P80075|CCL8|Homo_sapiens|CCL	P80075	CCL8_HUMAN	CCL8	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	99	76
+P80098|CCL7|Homo_sapiens|CCL	P80098	CCL7_HUMAN	CCL7	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	99	76
+P13500|CCL2|Homo_sapiens|CCL	P13500	CCL2_HUMAN	CCL2	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	99	76
+P10720|PF4V1|Homo_sapiens|CXCL	P10720	PF4V_HUMAN	PF4V1	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	30	104	74
+P51671|CCL11|Homo_sapiens|CCL	P51671	CCL11_HUMAN	CCL11	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	97	74
+Q16627|CCL14|Homo_sapiens|CCL	Q16627	CCL14_HUMAN	CCL14	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	19	93	74
+O14625|CXCL11|Homo_sapiens|CXCL	O14625	CXL11_HUMAN	CXCL11	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	94	73
+P09341|CXCL1|Homo_sapiens|CXCL	P09341	GROA_HUMAN	CXCL1	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	34	107	73
+P19875|CXCL2|Homo_sapiens|CXCL	P19875	CXCL2_HUMAN	CXCL2	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	34	107	73
+P22362|CCL1|Homo_sapiens|CCL	P22362	CCL1_HUMAN	CCL1	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	96	73
+P48061|CXCL12|Homo_sapiens|CXCL	P48061	SDF1_HUMAN	CXCL12	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	93	72
+Q9Y258|CCL26|Homo_sapiens|CCL	Q9Y258	CCL26_HUMAN	CCL26	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	94	71
+Q92583|CCL17|Homo_sapiens|CCL	Q92583	CCL17_HUMAN	CCL17	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	94	71
+P02776|PF4|Homo_sapiens|CXCL	P02776	PLF4_HUMAN	PF4	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	31	101	70
+P16619|CCL3L1-_CCL3L3|Homo_sapiens|CCL	P16619	CL3L1_HUMAN	CCL3L1; CCL3L3	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	93	70
+P78556|CCL20|Homo_sapiens|CCL	P78556	CCL20_HUMAN	CCL20	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	26	96	70
+Q8NHW4|CCL4L1-_CCL4L2|Homo_sapiens|CCL	Q8NHW4	CC4L_HUMAN	CCL4L1; CCL4L2	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	92	69
+O00626|CCL22|Homo_sapiens|CCL	O00626	CCL22_HUMAN	CCL22	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	24	93	69
+P10147|CCL3|Homo_sapiens|CCL	P10147	CCL3_HUMAN	CCL3	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	92	69
+P55774|CCL18|Homo_sapiens|CCL	P55774	CCL18_HUMAN	CCL18	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	20	89	69
+P13501|CCL5|Homo_sapiens|CCL	P13501	CCL5_HUMAN	CCL5	Homo_sapiens	9606	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	91	68
+P19876|CXCL3|Homo_sapiens|CXCL	P19876	CXCL3_HUMAN	CXCL3	Homo_sapiens	9606	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	4.0	34	107	73
+A0A8I5KW61|NA|Homo_sapiens|CXCL	A0A8I5KW61	A0A8I5KW61_HUMAN		Homo_sapiens	9606	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	193	159
+A0A0J9YWH4|CCL4L2|Homo_sapiens|CCL	A0A0J9YWH4	A0A0J9YWH4_HUMAN	CCL4L2	Homo_sapiens	9606	placental	CCL	gene_name		unreviewed	1.0	23	103	80
+Q8HYP5|CCL21|Macaca_mulatta|CCL	Q8HYP5	CCL21_MACMU	CCL21	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	131	108
+P67813|CXCL8|Macaca_mulatta|CXCL	P67813	IL8_MACMU	CXCL8	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	22	101	79
+Q8HYQ3|CCL3|Macaca_mulatta|CCL	Q8HYQ3	CCL3_MACMU	CCL3	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	26	92	66
+Q8MIZ1|CXCL10|Macaca_mulatta|CXCL	Q8MIZ1	CXL10_MACMU	CXCL10	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	4.0	21	98	77
+P61275|CCL2|Macaca_mulatta|CCL	P61275	CCL2_MACMU	CCL2	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	99	76
+Q8HYP4|CCL23|Macaca_mulatta|CCL	Q8HYP4	CCL23_MACMU	CCL23	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	21	120	99
+Q8MIT7|CCL11|Macaca_mulatta|CCL	Q8MIT7	CCL11_MACMU	CCL11	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	97	74
+Q8HYP8|CCL18|Macaca_mulatta|CCL	Q8HYP8	CCL18_MACMU	CCL18	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	19	88	69
+Q8HYQ2|CCL4|Macaca_mulatta|CCL	Q8HYQ2	CCL4_MACMU	CCL4	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	92	69
+Q8HYQ1|CCL5|Macaca_mulatta|CCL	Q8HYQ1	CCL5_MACMU	CCL5	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	91	68
+Q8HYP9|CCL17|Macaca_mulatta|CCL	Q8HYP9	CCL17_MACMU	CCL17	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	2.0	23	94	71
+A0A5F8A5C7|CX3CL1|Macaca_mulatta|CX3CL	A0A5F8A5C7	A0A5F8A5C7_MACMU	CX3CL1	Macaca_mulatta	9544	placental	CX3CL	gene_name		unreviewed	5.0	24	407	383
+A0A1D5QJ91|CXCL13|Macaca_mulatta|CXCL	A0A1D5QJ91	A0A1D5QJ91_MACMU	CXCL13	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	22	109	87
+Q8HYP7|NA|Macaca_mulatta|CCL	Q8HYP7	Q8HYP7_MACMU		Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	4.0	21	98	77
+G7MT32|PF4|Macaca_mulatta|CXCL	G7MT32	G7MT32_MACMU	PF4	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	27	101	74
+A0A5F8AHH9|CXCL16|Macaca_mulatta|CXCL	A0A5F8AHH9	A0A5F8AHH9_MACMU	CXCL16	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	260	260
+F7E098|CXCL12|Macaca_mulatta|CXCL	F7E098	F7E098_MACMU	CXCL12	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	140	119
+F7HJN0|CCL28|Macaca_mulatta|CCL	F7HJN0	F7HJN0_MACMU	CCL28	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	22	127	105
+F6Y1K4|CCL8|Macaca_mulatta|CCL	F6Y1K4	F6Y1K4_MACMU	CCL8	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	33	109	76
+F6Y1Q0|CCL7|Macaca_mulatta|CCL	F6Y1Q0	F6Y1Q0_MACMU	CCL7	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	99	76
+F6Y1J3|CCL13|Macaca_mulatta|CCL	F6Y1J3	F6Y1J3_MACMU	CCL13	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	98	75
+A0A5K1UBV0|CCL1|Macaca_mulatta|CCL	A0A5K1UBV0	A0A5K1UBV0_MACMU	CCL1	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	96	73
+F6S7Q8|CCL26|Macaca_mulatta|CCL	F6S7Q8	F6S7Q8_MACMU	CCL26	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	94	71
+A0A5F8ABM4|CCL25|Macaca_mulatta|CCL	A0A5F8ABM4	A0A5F8ABM4_MACMU	CCL25	Macaca_mulatta	9544	placental	CCL	gene_name		unreviewed	2.0	0	207	207
+A0A1D5QAH1|CXCL9|Macaca_mulatta|CXCL	A0A1D5QAH1	A0A1D5QAH1_MACMU	CXCL9	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	201	201
+A0A5F7ZCA2|XCL1|Macaca_mulatta|XCL	A0A5F7ZCA2	A0A5F7ZCA2_MACMU	XCL1	Macaca_mulatta	9544	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	0	157	157
+A0A5F8A951|CCL20|Macaca_mulatta|CCL	A0A5F8A951	A0A5F8A951_MACMU	CCL20	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	162	136
+Q8HYP3|NA|Macaca_mulatta|CCL	Q8HYP3	Q8HYP3_MACMU		Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	149	126
+F7H9Z6|CCL27|Macaca_mulatta|CCL	F7H9Z6	F7H9Z6_MACMU	CCL27	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	112	112
+Q8MIZ2|NA|Macaca_mulatta|CXCL	Q8MIZ2	Q8MIZ2_MACMU		Macaca_mulatta	9544	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	125	103
+F6SCP6|PPBP|Macaca_mulatta|CXCL	F6SCP6	F6SCP6_MACMU	PPBP	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	128	94
+F6SZS4|LOC100423131|Macaca_mulatta|XCL	F6SZS4	F6SZS4_MACMU	LOC100423131	Macaca_mulatta	9544	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	21	114	93
+A0A1D5Q1P3|CCL16|Macaca_mulatta|CCL	A0A1D5Q1P3	A0A1D5Q1P3_MACMU	CCL16	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	112	90
+F7HGY4|CCL15|Macaca_mulatta|CCL	F7HGY4	F7HGY4_MACMU	CCL15	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	111	90
+A0A1D5QA65|CCL14|Macaca_mulatta|CCL	A0A1D5QA65	A0A1D5QA65_MACMU	CCL14	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	19	108	89
+A0A5F7ZFG9|CXCL6|Macaca_mulatta|CXCL	A0A5F7ZFG9	A0A5F7ZFG9_MACMU	CXCL6	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	37	123	86
+F6SLL1|CXCL14|Macaca_mulatta|CXCL	F6SLL1	F6SLL1_MACMU	CXCL14	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	119	85
+F7DVN0|LOC701946|Macaca_mulatta|CXCL	F7DVN0	F7DVN0_MACMU	LOC701946	Macaca_mulatta	9544	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	36	114	78
+Q8HXZ4|NA|Macaca_mulatta|CXCL	Q8HXZ4	Q8HXZ4_MACMU		Macaca_mulatta	9544	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	107	73
+Q8MIZ0|NA|Macaca_mulatta|CXCL	Q8MIZ0	Q8MIZ0_MACMU		Macaca_mulatta	9544	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	94	73
+Q8HXZ3|NA|Macaca_mulatta|CXCL	Q8HXZ3	Q8HXZ3_MACMU		Macaca_mulatta	9544	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	107	73
+F7BNX5|PF4V1|Macaca_mulatta|CXCL	F7BNX5	F7BNX5_MACMU	PF4V1	Macaca_mulatta	9544	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	31	101	70
+A0A1D5QET2|LOC100423954|Macaca_mulatta|CCL	A0A1D5QET2	A0A1D5QET2_MACMU	LOC100423954	Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	93	70
+Q8HYP6|NA|Macaca_mulatta|CCL	Q8HYP6	Q8HYP6_MACMU		Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	96	70
+A0A5F8ACP1|CCL22|Macaca_mulatta|CCL	A0A5F8ACP1	A0A5F8ACP1_MACMU	CCL22	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+F7HIT3|LOC100430627|Macaca_mulatta|CCL	F7HIT3	F7HIT3_MACMU	LOC100430627	Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	92	69
+A0A1D5R6J3|LOC100426537|Macaca_mulatta|CCL	A0A1D5R6J3	A0A1D5R6J3_MACMU	LOC100426537	Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	67	67
+H9H490|LOC114673087|Macaca_mulatta|CCL	H9H490	H9H490_MACMU	LOC114673087	Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	67	67
+A0A5F8AG75|LOC100424064|Macaca_mulatta|unclassified	A0A5F8AG75	A0A5F8AG75_MACMU	LOC100424064	Macaca_mulatta	9544	placental	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	318	318
+A0A5F7ZSE0|LOC703390|Macaca_mulatta|unclassified	A0A5F7ZSE0	A0A5F7ZSE0_MACMU	LOC703390	Macaca_mulatta	9544	placental	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	198	198
+F6TX08|CCL24|Macaca_mulatta|CCL	F6TX08	F6TX08_MACMU	CCL24	Macaca_mulatta	9544	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	119	119
+Q8HYP2|NA|Macaca_mulatta|CCL	Q8HYP2	Q8HYP2_MACMU		Macaca_mulatta	9544	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	25	113	88
+O35188|Cx3cl1|Mus_musculus|CX3CL	O35188	X3CL1_MOUSE	Cx3cl1	Mus_musculus	10090	placental	CX3CL	uniprot_family	Intercrine delta family	reviewed	5.0	24	395	371
+Q8BSU2|Cxcl16|Mus_musculus|CXCL	Q8BSU2	CXL16_MOUSE	Cxcl16	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	26	246	220
+Q9WVL7|Cxcl15|Mus_musculus|CXCL	Q9WVL7	CXL15_MOUSE	Cxcl15	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	25	167	142
+P10148|Ccl2|Mus_musculus|CCL	P10148	CCL2_MOUSE	Ccl2	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	148	125
+O35903|Ccl25|Mus_musculus|CCL	O35903	CCL25_MOUSE	Ccl25	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	144	121
+P84444|Ccl21a|Mus_musculus|CCL	P84444	CC21A_MOUSE	Ccl21a	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	133	110
+P18340|Cxcl9|Mus_musculus|CXCL	P18340	CXCL9_MOUSE	Cxcl9	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	126	105
+P51670|Ccl9|Mus_musculus|CCL	P51670	CCL9_MOUSE	Ccl9	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	21	122	101
+Q5UW37|Cxcl17|Mus_musculus|CXCL	Q5UW37	CXL17_MOUSE	Cxcl17	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	22	119	97
+Q9Z1X0|Ccl27|Mus_musculus|CCL	Q9Z1X0	CCL27_MOUSE	Ccl27	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	25	120	95
+P27784|Ccl6|Mus_musculus|CCL	P27784	CCL6_MOUSE	Ccl6	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	21	116	95
+Q9JKC0|Ccl24|Mus_musculus|CCL	Q9JKC0	CCL24_MOUSE	Ccl24	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	26	119	93
+P47993|Xcl1|Mus_musculus|XCL	P47993	XCL1_MOUSE	Xcl1	Mus_musculus	10090	placental	XCL	uniprot_family	Intercrine gamma family	reviewed	5.0	21	114	93
+P50228|Cxcl5|Mus_musculus|CXCL	P50228	CXCL5_MOUSE	Cxcl5	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	40	132	92
+O55038|Cxcl13|Mus_musculus|CXCL	O55038	CXL13_MOUSE	Cxcl13	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	109	88
+O70460|Ccl19|Mus_musculus|CCL	O70460	CCL19_MOUSE	Ccl19	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	25	108	83
+Q62401|Ccl12|Mus_musculus|CCL	Q62401	CCL12_MOUSE	Ccl12	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	22	104	82
+P17515|Cxcl10|Mus_musculus|CXCL	P17515	CXL10_MOUSE	Cxcl10	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	98	77
+Q9WUQ5|Cxcl14|Mus_musculus|CXCL	Q9WUQ5	CXL14_MOUSE	Cxcl14	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	22	99	77
+Q9Z126|Pf4|Mus_musculus|CXCL	Q9Z126	PLF4_MOUSE	Pf4	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	29	105	76
+P48298|Ccl11|Mus_musculus|CCL	P48298	CCL11_MOUSE	Ccl11	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	97	74
+Q03366|Ccl7|Mus_musculus|CCL	Q03366	CCL7_MOUSE	Ccl7	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	97	74
+Q9Z121|Ccl8|Mus_musculus|CCL	Q9Z121	CCL8_MOUSE	Ccl8	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	97	74
+P10889|Cxcl2|Mus_musculus|CXCL	P10889	CXCL2_MOUSE	Cxcl2	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	27	100	73
+P12850|Cxcl1|Mus_musculus|CXCL	P12850	GROA_MOUSE	Cxcl1	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	24	96	72
+P40224|Cxcl12|Mus_musculus|CXCL	P40224	SDF1_MOUSE	Cxcl12	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	93	72
+O89093|Ccl20|Mus_musculus|CCL	O89093	CCL20_MOUSE	Ccl20	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	27	97	70
+Q9WUZ6|Ccl17|Mus_musculus|CCL	Q9WUZ6	CCL17_MOUSE	Ccl17	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	93	70
+P10146|Ccl1|Mus_musculus|CCL	P10146	CCL1_MOUSE	Ccl1	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	92	69
+P10855|Ccl3|Mus_musculus|CCL	P10855	CCL3_MOUSE	Ccl3	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	92	69
+P14097|Ccl4|Mus_musculus|CCL	P14097	CCL4_MOUSE	Ccl4	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	92	69
+P30882|Ccl5|Mus_musculus|CCL	P30882	CCL5_MOUSE	Ccl5	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	91	68
+Q9JIL2|Ccl28|Mus_musculus|CCL	Q9JIL2	CCL28_MOUSE	Ccl28	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	16	130	114
+Q9JHH5|Cxcl11|Mus_musculus|CXCL	Q9JHH5	CXL11_MOUSE	Cxcl11	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	4.0	21	100	79
+Q6W5C0|Cxcl3|Mus_musculus|CXCL	Q6W5C0	CXCL3_MOUSE	Cxcl3	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	4.0	31	100	69
+O88430|Ccl22|Mus_musculus|CCL	O88430	CCL22_MOUSE	Ccl22	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	24	92	68
+Q9EQI5|Ppbp|Mus_musculus|CXCL	Q9EQI5	Q9EQI5_MOUSE	Ppbp	Mus_musculus	10090	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	39	113	74
+F8VQM2|Ccl26|Mus_musculus|CCL	F8VQM2	F8VQM2_MOUSE	Ccl26	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	22	93	71
+A2AMS7|Ccl27a|Mus_musculus|CCL	A2AMS7	A2AMS7_MOUSE	Ccl27a	Mus_musculus	10090	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	164	164
+O55145|Cx3cl1|Rattus_norvegicus|CX3CL	O55145	X3CL1_RAT	Cx3cl1	Rattus_norvegicus	10116	placental	CX3CL	uniprot_family	Intercrine delta family	reviewed	5.0	24	393	369
+P14844|Ccl2|Rattus_norvegicus|CCL	P14844	CCL2_RAT	Ccl2	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	148	125
+P97885|Cxcl5|Rattus_norvegicus|CXCL	P97885	CXCL5_RAT	Cxcl5	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	37	130	93
+P51672|Xcl1|Rattus_norvegicus|XCL	P51672	XCL1_RAT	Xcl1	Rattus_norvegicus	10116	placental	XCL	uniprot_family	Intercrine gamma family	reviewed	5.0	21	114	93
+P48973|Cxcl10|Rattus_norvegicus|CXCL	P48973	CXL10_RAT	Cxcl10	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	98	77
+P06765|Pf4|Rattus_norvegicus|CXCL	P06765	PLF4_RAT	Pf4	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	29	105	76
+P97545|Ccl11|Rattus_norvegicus|CCL	P97545	CCL11_RAT	Ccl11	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	97	74
+Q9QXY8|Ccl7|Rattus_norvegicus|CCL	Q9QXY8	CCL7_RAT	Ccl7	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	97	74
+P14095|Cxcl1|Rattus_norvegicus|CXCL	P14095	GROA_RAT	Cxcl1	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	24	96	72
+P97884|Ccl20|Rattus_norvegicus|CCL	P97884	CCL20_RAT	Ccl20	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	26	96	70
+Q10746|Cxcl3|Rattus_norvegicus|CXCL	Q10746	CXCL3_RAT	Cxcl3	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	32	101	69
+P30348|Cxcl2|Rattus_norvegicus|CXCL	P30348	CXCL2_RAT	Cxcl2	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	31	100	69
+P50230|Ccl4|Rattus_norvegicus|CCL	P50230	CCL4_RAT	Ccl4	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	92	69
+P50229|Ccl3|Rattus_norvegicus|CCL	P50229	CCL3_RAT	Ccl3	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	92	69
+Q6AXU5|Cxcl16|Rattus_norvegicus|CXCL	Q6AXU5	CXL16_RAT	Cxcl16	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	4.0	26	247	221
+Q68FP3|Ccl6|Rattus_norvegicus|CCL	Q68FP3	CCL6_RAT	Ccl6	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	21	115	94
+Q9ERE0|Ccl17|Rattus_norvegicus|CCL	Q9ERE0	CCL17_RAT	Ccl17	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	93	70
+A0ABK0L8G2|Ccl19|Rattus_norvegicus|CCL	A0ABK0L8G2	A0ABK0L8G2_RAT	Ccl19	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	0	212	212
+A6IIY7|Ccl21|Rattus_norvegicus|CCL	A6IIY7	A6IIY7_RAT	Ccl21	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	133	110
+Q80YV8|Cxcl12|Rattus_norvegicus|CXCL	Q80YV8	Q80YV8_RAT	Cxcl12	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	5.0	21	119	98
+F7F7W7|Cxcl13|Rattus_norvegicus|CXCL	F7F7W7	F7F7W7_RAT	Cxcl13	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	0	109	109
+Q8K4B1|Cxcl9|Rattus_norvegicus|CXCL	Q8K4B1	Q8K4B1_RAT	Cxcl9	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	21	125	104
+D4ABS1|Ccl12|Rattus_norvegicus|CCL	D4ABS1	D4ABS1_RAT	Ccl12	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	22	98	76
+A6KQ79|Ccl25|Rattus_norvegicus|CCL	A6KQ79	A6KQ79_RAT	Ccl25	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	147	124
+G3V896|Ccl28|Rattus_norvegicus|CCL	G3V896	G3V896_RAT	Ccl28	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	22	135	113
+Q7TNL0|Cxcl11|Rattus_norvegicus|CXCL	Q7TNL0	Q7TNL0_RAT	Cxcl11	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	100	100
+Q5PPP2|Ccl24|Rattus_norvegicus|CCL	Q5PPP2	Q5PPP2_RAT	Ccl24	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	20	119	99
+D3ZDY4|Ccl1|Rattus_norvegicus|CCL	D3ZDY4	D3ZDY4_RAT	Ccl1	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	92	69
+D4AAL6|Ccl27|Rattus_norvegicus|CCL	D4AAL6	D4AAL6_RAT	Ccl27	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	164	164
+G3V6C8|Cxcl6|Rattus_norvegicus|CXCL	G3V6C8	G3V6C8_RAT	Cxcl6	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	130	130
+Q5FVN3|Ccl9|Rattus_norvegicus|CCL	Q5FVN3	Q5FVN3_RAT	Ccl9	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	117	91
+Q3T1I7|Cxcl14|Rattus_norvegicus|CXCL	Q3T1I7	Q3T1I7_RAT	Cxcl14	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	99	77
+A6KKE5|Ppbp|Rattus_norvegicus|CXCL	A6KKE5	A6KKE5_RAT	Ppbp	Rattus_norvegicus	10116	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	37	111	74
+Q91ZH5|Ccl22|Rattus_norvegicus|CCL	Q91ZH5	Q91ZH5_RAT	Ccl22	Rattus_norvegicus	10116	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	92	68
+P19874|CXCL8|Oryctolagus_cuniculus|CXCL	P19874	IL8_RABIT	CXCL8	Oryctolagus_cuniculus	9986	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	22	101	79
+P28292|CCL2|Oryctolagus_cuniculus|CCL	P28292	CCL2_RABIT	CCL2	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	125	102
+P82535|NA|Oryctolagus_cuniculus|CXCL	P82535	AMC_RABIT		Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	reviewed	4.0	0	76	76
+P46632|CCL4|Oryctolagus_cuniculus|CCL	P46632	CCL4_RABIT	CCL4	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	92	69
+P47854|NA|Oryctolagus_cuniculus|CXCL	P47854	GRO2_RABIT		Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	reviewed	2.0	31	104	73
+G1ST53|CX3CL1|Oryctolagus_cuniculus|CX3CL	G1ST53	G1ST53_RABIT	CX3CL1	Oryctolagus_cuniculus	9986	placental	CX3CL	gene_name		unreviewed	5.0	24	404	380
+G1TUK2|CCL21|Oryctolagus_cuniculus|CCL	G1TUK2	G1TUK2_RABIT	CCL21	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	131	108
+G1SE13|LOC100348776|Oryctolagus_cuniculus|CCL	G1SE13	G1SE13_RABIT	LOC100348776	Oryctolagus_cuniculus	9986	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	93	70
+G1SIG1|CCL5|Oryctolagus_cuniculus|CCL	G1SIG1	G1SIG1_RABIT	CCL5	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	91	68
+G1T4F1|LOC100349255|Oryctolagus_cuniculus|XCL	G1T4F1	G1T4F1_RABIT	LOC100349255	Oryctolagus_cuniculus	9986	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	4.0	21	114	93
+A0A5F9CYC5|CCL19|Oryctolagus_cuniculus|CCL	A0A5F9CYC5	A0A5F9CYC5_RABIT	CCL19	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	25	109	84
+G1TBA6|CXCL10|Oryctolagus_cuniculus|CXCL	G1TBA6	G1TBA6_RABIT	CXCL10	Oryctolagus_cuniculus	9986	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	21	98	77
+G1TJ63|NA|Oryctolagus_cuniculus|CXCL	G1TJ63	G1TJ63_RABIT		Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	26	227	201
+G1TR38|CXCL13|Oryctolagus_cuniculus|CXCL	G1TR38	G1TR38_RABIT	CXCL13	Oryctolagus_cuniculus	9986	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	105	83
+G1SPZ3|CCL11|Oryctolagus_cuniculus|CCL	G1SPZ3	G1SPZ3_RABIT	CCL11	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	96	73
+G1SF03|CCL27|Oryctolagus_cuniculus|CCL	G1SF03	G1SF03_RABIT	CCL27	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	257	257
+A0A5F9CUV2|CCL7|Oryctolagus_cuniculus|CCL	A0A5F9CUV2	A0A5F9CUV2_RABIT	CCL7	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	204	204
+G1T5C6|CCL1|Oryctolagus_cuniculus|CCL	G1T5C6	G1T5C6_RABIT	CCL1	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	19	190	171
+U3KNX2|CXCL9|Oryctolagus_cuniculus|CXCL	U3KNX2	U3KNX2_RABIT	CXCL9	Oryctolagus_cuniculus	9986	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	153	153
+G1TRZ0|CCL25|Oryctolagus_cuniculus|CCL	G1TRZ0	G1TRZ0_RABIT	CCL25	Oryctolagus_cuniculus	9986	placental	CCL	gene_name		unreviewed	2.0	23	155	132
+A0A5F9C4A6|CXCL5|Oryctolagus_cuniculus|CXCL	A0A5F9C4A6	A0A5F9C4A6_RABIT	CXCL5	Oryctolagus_cuniculus	9986	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	36	148	112
+G1SYX0|LOC103349663|Oryctolagus_cuniculus|CCL	G1SYX0	G1SYX0_RABIT	LOC103349663	Oryctolagus_cuniculus	9986	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	130	108
+A0A5F9DK47|NA|Oryctolagus_cuniculus|CCL	A0A5F9DK47	A0A5F9DK47_RABIT		Oryctolagus_cuniculus	9986	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	16	119	103
+G1TN23|NA|Oryctolagus_cuniculus|CCL	G1TN23	G1TN23_RABIT		Oryctolagus_cuniculus	9986	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	116	90
+A0A5F9DU99|CXCL11|Oryctolagus_cuniculus|CXCL	A0A5F9DU99	A0A5F9DU99_RABIT	CXCL11	Oryctolagus_cuniculus	9986	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	110	89
+G1SCU3|CCL24|Oryctolagus_cuniculus|CCL	G1SCU3	G1SCU3_RABIT	CCL24	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	113	87
+Q5VI85|NA|Oryctolagus_cuniculus|CXCL	Q5VI85	Q5VI85_RABIT		Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	32	106	74
+A0A5F9D5U6|LOC100008921|Oryctolagus_cuniculus|CXCL	A0A5F9D5U6	A0A5F9D5U6_RABIT	LOC100008921	Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	32	105	73
+G1U5Q6|GRO-B|Oryctolagus_cuniculus|CXCL	G1U5Q6	G1U5Q6_RABIT	GRO-B	Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	108	73
+Q28724|NA|Oryctolagus_cuniculus|CXCL	Q28724	Q28724_RABIT		Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	108	73
+G1TNR8|CCL14|Oryctolagus_cuniculus|CCL	G1TNR8	G1TNR8_RABIT	CCL14	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	94	73
+G1T5C3|LOC103351517|Oryctolagus_cuniculus|CCL	G1T5C3	G1T5C3_RABIT	LOC103351517	Oryctolagus_cuniculus	9986	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	95	72
+G1SE89|CCL20|Oryctolagus_cuniculus|CCL	G1SE89	G1SE89_RABIT	CCL20	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	96	70
+G1TET1|NA|Oryctolagus_cuniculus|CXCL	G1TET1	G1TET1_RABIT		Oryctolagus_cuniculus	9986	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	103	69
+G1T9I5|CCL22|Oryctolagus_cuniculus|CCL	G1T9I5	G1T9I5_RABIT	CCL22	Oryctolagus_cuniculus	9986	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+G1SU40|NA|Oryctolagus_cuniculus|unclassified	G1SU40	G1SU40_RABIT		Oryctolagus_cuniculus	9986	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	129	129
+A0A5F9C5M3|NA|Oryctolagus_cuniculus|unclassified	A0A5F9C5M3	A0A5F9C5M3_RABIT		Oryctolagus_cuniculus	9986	placental	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	111	111
+G1SDU7|NA|Oryctolagus_cuniculus|unclassified	G1SDU7	G1SDU7_RABIT		Oryctolagus_cuniculus	9986	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	104	104
+G1TQN0|NA|Oryctolagus_cuniculus|CCL	G1TQN0	G1TQN0_RABIT		Oryctolagus_cuniculus	9986	placental	CCL	motif		unreviewed	1.0	33	106	73
+A0A5F9C8I4|NA|Oryctolagus_cuniculus|unclassified	A0A5F9C8I4	A0A5F9C8I4_RABIT		Oryctolagus_cuniculus	9986	placental	unclassified	none		unreviewed	1.0	0	104	104
+Q5KSV9|CXCL10|Canis_lupus_familiaris|CXCL	Q5KSV9	CXL10_CANLF	CXCL10	Canis_lupus_familiaris	9615	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	98	77
+Q68A92|CCL3|Canis_lupus_familiaris|CCL	Q68A92	CCL3_CANLF	CCL3	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	19	92	73
+P52203|CCL2|Canis_lupus_familiaris|CCL	P52203	CCL2_CANLF	CCL2	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	101	78
+Q68AY9|CCL8|Canis_lupus_familiaris|CCL	Q68AY9	CCL8_CANLF	CCL8	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	99	76
+Q64H35|CCL26|Canis_lupus_familiaris|CCL	Q64H35	CCL26_CANLF	CCL26	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	94	71
+Q68A93|CCL25|Canis_lupus_familiaris|CCL	Q68A93	CCL25_CANLF	CCL25	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	22	151	129
+Q68A91|CCL28|Canis_lupus_familiaris|CCL	Q68A91	CCL28_CANLF	CCL28	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	24	128	104
+Q68Y86|CCL24|Canis_lupus_familiaris|CCL	Q68Y86	CCL24_CANLF	CCL24	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	26	119	93
+P41324|CXCL8|Canis_lupus_familiaris|CXCL	P41324	IL8_CANLF	CXCL8	Canis_lupus_familiaris	9615	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	22	101	79
+Q95N01|CCL17|Canis_lupus_familiaris|CCL	Q95N01	CCL17_CANLF	CCL17	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	99	76
+Q68Y88|CCL13|Canis_lupus_familiaris|CCL	Q68Y88	CCL13_CANLF	CCL13	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	98	75
+Q68AZ0|CCL4|Canis_lupus_familiaris|CCL	Q68AZ0	CCL4_CANLF	CCL4	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	92	69
+Q8HYS0|CCL5|Canis_lupus_familiaris|CCL	Q8HYS0	CCL5_CANLF	CCL5	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	91	68
+E2RTH0|cx3cl1|Canis_lupus_familiaris|CX3CL	E2RTH0	E2RTH0_CANLF	cx3cl1	Canis_lupus_familiaris	9615	placental	CX3CL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	24	437	413
+A0A8I3MNU9|CCL21|Canis_lupus_familiaris|CCL	A0A8I3MNU9	A0A8I3MNU9_CANLF	CCL21	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	0	142	142
+A0A8I3RSK6|CCL19|Canis_lupus_familiaris|CCL	A0A8I3RSK6	A0A8I3RSK6_CANLF	CCL19	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	23	115	92
+A0A8I3NNT7|CXCL16|Canis_lupus_familiaris|CXCL	A0A8I3NNT7	A0A8I3NNT7_CANLF	CXCL16	Canis_lupus_familiaris	9615	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	442	442
+A0A8I3PX81|CXCL12|Canis_lupus_familiaris|CXCL	A0A8I3PX81	A0A8I3PX81_CANLF	CXCL12	Canis_lupus_familiaris	9615	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	119	98
+A0A8I3NMN5|CXCL13|Canis_lupus_familiaris|CXCL	A0A8I3NMN5	A0A8I3NMN5_CANLF	CXCL13	Canis_lupus_familiaris	9615	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	110	88
+A0A8I3NHL1|CCL7|Canis_lupus_familiaris|CCL	A0A8I3NHL1	A0A8I3NHL1_CANLF	CCL7	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	162	162
+A0A8I3NRM1|CCL20|Canis_lupus_familiaris|CCL	A0A8I3NRM1	A0A8I3NRM1_CANLF	CCL20	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	113	113
+A0A8I3RXT5|CXCL14|Canis_lupus_familiaris|CXCL	A0A8I3RXT5	A0A8I3RXT5_CANLF	CXCL14	Canis_lupus_familiaris	9615	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	134	112
+A0A8I3N5K9|CCL23|Canis_lupus_familiaris|CCL	A0A8I3N5K9	A0A8I3N5K9_CANLF	CCL23	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	18	119	101
+A0A8I3NA82|LOC480601|Canis_lupus_familiaris|CCL	A0A8I3NA82	A0A8I3NA82_CANLF	LOC480601	Canis_lupus_familiaris	9615	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	94	94
+A0A8I3Q8T3|CXCL11|Canis_lupus_familiaris|CXCL	A0A8I3Q8T3	A0A8I3Q8T3_CANLF	CXCL11	Canis_lupus_familiaris	9615	placental	CXCL	gene_name		unreviewed	2.0	0	92	92
+A0A8I3RT91|NA|Canis_lupus_familiaris|CXCL	A0A8I3RT91	A0A8I3RT91_CANLF		Canis_lupus_familiaris	9615	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	40	125	85
+A0A8I3NDZ2|PPBP|Canis_lupus_familiaris|CXCL	A0A8I3NDZ2	A0A8I3NDZ2_CANLF	PPBP	Canis_lupus_familiaris	9615	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	38	118	80
+Q5I6F8|NA|Canis_lupus_familiaris|CCL	Q5I6F8	Q5I6F8_CANLF		Canis_lupus_familiaris	9615	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	99	76
+A0A8I3NHX2|CCL1|Canis_lupus_familiaris|CCL	A0A8I3NHX2	A0A8I3NHX2_CANLF	CCL1	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	95	74
+A0A8I3NLR4|LOC480600|Canis_lupus_familiaris|CCL	A0A8I3NLR4	A0A8I3NLR4_CANLF	LOC480600	Canis_lupus_familiaris	9615	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	93	70
+A0A8I3MLU3|CCL22|Canis_lupus_familiaris|CCL	A0A8I3MLU3	A0A8I3MLU3_CANLF	CCL22	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+Q5XNN9|NA|Canis_lupus_familiaris|CXCL	Q5XNN9	Q5XNN9_CANLF		Canis_lupus_familiaris	9615	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	89	68
+A0A8I3MYF9|LOC106557449|Canis_lupus_familiaris|unclassified	A0A8I3MYF9	A0A8I3MYF9_CANLF	LOC106557449	Canis_lupus_familiaris	9615	placental	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	116	116
+D2K841|NA|Canis_lupus_familiaris|unclassified	D2K841	D2K841_CANLF		Canis_lupus_familiaris	9615	placental	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	38	118	80
+A0A8I3MLK4|TBX19|Canis_lupus_familiaris|XCL	A0A8I3MLK4	A0A8I3MLK4_CANLF	TBX19	Canis_lupus_familiaris	9615	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	1.0	0	283	283
+A0A8I3N166|CCL16|Canis_lupus_familiaris|CCL	A0A8I3N166	A0A8I3N166_CANLF	CCL16	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	136	136
+A0A8I3NM26|CCL14|Canis_lupus_familiaris|CCL	A0A8I3NM26	A0A8I3NM26_CANLF	CCL14	Canis_lupus_familiaris	9615	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	134	134
+Q68Y87|CTACK|Canis_lupus_familiaris|CCL	Q68Y87	Q68Y87_CANLF	CTACK	Canis_lupus_familiaris	9615	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	24	119	95
+P02777|PF4|Bos_taurus|CXCL	P02777	PLF4_BOVIN	PF4	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	0	88	88
+Q2KIQ8|CXCL10|Bos_taurus|CXCL	Q2KIQ8	CXL10_BOVIN	CXCL10	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	19	102	83
+P79255|CXCL8|Bos_taurus|CXCL	P79255	IL8_BOVIN	CXCL8	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	22	101	79
+P80221|CXCL6|Bos_taurus|CXCL	P80221	CXCL6_BOVIN	CXCL6	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	36	112	76
+P28291|CCL2|Bos_taurus|CCL	P28291	CCL2_BOVIN	CCL2	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	99	76
+Q8SQA6|CCL3|Bos_taurus|CCL	Q8SQA6	CCL3_BOVIN	CCL3	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	24	93	69
+O97919|CCL5|Bos_taurus|CCL	O97919	CCL5_BOVIN	CCL5	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	91	68
+Q09141|CCL8|Bos_taurus|CCL	Q09141	CCL8_BOVIN	CCL8	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	99	76
+Q9TTS6|CCL11|Bos_taurus|CCL	Q9TTS6	CCL11_BOVIN	CCL11	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	97	74
+Q29RT9|CXCL16|Bos_taurus|CXCL	Q29RT9	CXL16_BOVIN	CXCL16	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	25	252	227
+A9QWP9|CXCL9|Bos_taurus|CXCL	A9QWP9	CXCL9_BOVIN	CXCL9	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	21	125	104
+A4IFR0|CXCL17|Bos_taurus|CXCL	A4IFR0	CXL17_BOVIN	CXCL17	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	22	118	96
+A9QWQ1|CXCL11|Bos_taurus|CXCL	A9QWQ1	CXL11_BOVIN	CXCL11	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	21	100	79
+P82943|NA|Bos_taurus|CCL	P82943	REG1_BOVIN		Bos_taurus	9913	placental	CCL	motif	Intercrine beta (chemokine CC) family	reviewed	3.0	21	92	71
+Q8SQB1|CCL20|Bos_taurus|CCL	Q8SQB1	CCL20_BOVIN	CCL20	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	26	96	70
+Q17QA1|CCL4|Bos_taurus|CCL	Q17QA1	CCL4_BOVIN	CCL4	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	92	69
+O46676|NA|Bos_taurus|CXCL	O46676	GROA_BOVIN		Bos_taurus	9913	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	reviewed	2.0	30	104	74
+O46675|NA|Bos_taurus|CXCL	O46675	GROG_BOVIN		Bos_taurus	9913	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	reviewed	2.0	29	98	69
+A0AAA9T1C5|CCL21|Bos_taurus|CCL	A0AAA9T1C5	A0AAA9T1C5_BOVIN	CCL21	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	25	153	128
+Q3ZBN3|CCL19|Bos_taurus|CCL	Q3ZBN3	Q3ZBN3_BOVIN	CCL19	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	23	102	79
+Q1RMQ0|CCL25|Bos_taurus|CCL	Q1RMQ0	Q1RMQ0_BOVIN	CCL25	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	149	126
+A0ABI0P786|CXCL12|Bos_taurus|CXCL	A0ABI0P786	A0ABI0P786_BOVIN	CXCL12	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	119	98
+Q2KIR3|CCL24|Bos_taurus|CCL	Q2KIR3	Q2KIR3_BOVIN	CCL24	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	116	93
+Q56JW7|CXCL13|Bos_taurus|CXCL	Q56JW7	Q56JW7_BOVIN	CXCL13	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	109	87
+A0A3Q1M5V9|CCL26|Bos_taurus|CCL	A0A3Q1M5V9	A0A3Q1M5V9_BOVIN	CCL26	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	94	71
+A0A3Q1NB11|LOC100297044|Bos_taurus|XCL	A0A3Q1NB11	A0A3Q1NB11_BOVIN	LOC100297044	Bos_taurus	9913	placental	XCL	uniprot_family	Intercrine beta (chemokine CC) family; Intercrine gamma family	unreviewed	3.0	19	89	70
+F1N6Z2|CX3CL1|Bos_taurus|CX3CL	F1N6Z2	F1N6Z2_BOVIN	CX3CL1	Bos_taurus	9913	placental	CX3CL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	433	409
+F1MD83|PPBP|Bos_taurus|CXCL	F1MD83	F1MD83_BOVIN	PPBP	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	295	295
+A0ABI0NYI2|CCL28|Bos_taurus|CCL	A0ABI0NYI2	A0ABI0NYI2_BOVIN	CCL28	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	176	176
+A0A3Q1LTV3|LOC508666|Bos_taurus|CCL	A0A3Q1LTV3	A0A3Q1LTV3_BOVIN	LOC508666	Bos_taurus	9913	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	17	146	129
+A0AAA9TXT1|CCL16|Bos_taurus|CCL	A0AAA9TXT1	A0AAA9TXT1_BOVIN	CCL16	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	146	125
+E1BH62|XCL2|Bos_taurus|XCL	E1BH62	E1BH62_BOVIN	XCL2	Bos_taurus	9913	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	15	112	97
+F1MZ86|CCL27|Bos_taurus|CCL	F1MZ86	F1MZ86_BOVIN	CCL27	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	119	95
+Q9BDJ2|NA|Bos_taurus|XCL	Q9BDJ2	Q9BDJ2_BOVIN		Bos_taurus	9913	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	15	97	82
+F6RBQ1|CXCL14|Bos_taurus|CXCL	F6RBQ1	F6RBQ1_BOVIN	CXCL14	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	18	99	81
+A0AAA9SZQ8|CCL17|Bos_taurus|CCL	A0AAA9SZQ8	A0AAA9SZQ8_BOVIN	CCL17	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	102	79
+Q2KIE5|CXCL2|Bos_taurus|CXCL	Q2KIE5	Q2KIE5_BOVIN	CXCL2	Bos_taurus	9913	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	31	104	73
+A0AAA9SM65|CCL1|Bos_taurus|CCL	A0AAA9SM65	A0AAA9SM65_BOVIN	CCL1	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	96	73
+Q29RR9|CCL14|Bos_taurus|CCL	Q29RR9	Q29RR9_BOVIN	CCL14	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	94	73
+Q32L58|LOC504773|Bos_taurus|CCL	Q32L58	Q32L58_BOVIN	LOC504773	Bos_taurus	9913	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	92	71
+A5PKF1|CCL22|Bos_taurus|CCL	A5PKF1	A5PKF1_BOVIN	CCL22	Bos_taurus	9913	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+E1BGB8|LOC616364|Bos_taurus|CCL	E1BGB8	E1BGB8_BOVIN	LOC616364	Bos_taurus	9913	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+A0AAF6YZS1|NA|Bos_taurus|unclassified	A0AAF6YZS1	A0AAF6YZS1_BOVIN		Bos_taurus	9913	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	139	139
+A0AAA9S2L4|NA|Bos_taurus|unclassified	A0AAA9S2L4	A0AAA9S2L4_BOVIN		Bos_taurus	9913	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	96	72
+P30034|PF4|Sus_scrofa|CXCL	P30034	PLF4_PIG	PF4	Sus_scrofa	9823	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	0	90	90
+P26894|CXCL8|Sus_scrofa|CXCL	P26894	IL8_PIG	CXCL8	Sus_scrofa	9823	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	25	103	78
+P42831|CCL2|Sus_scrofa|CCL	P42831	CCL2_PIG	CCL2	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	5.0	23	99	76
+P43030|PPBP|Sus_scrofa|CXCL	P43030	CXCL7_PIG	PPBP	Sus_scrofa	9823	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	4.0	33	119	86
+P22952|NA|Sus_scrofa|CXCL	P22952	AMC2_PIG		Sus_scrofa	9823	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	reviewed	4.0	36	117	81
+P49873|CCL8|Sus_scrofa|CCL	P49873	CCL8_PIG	CCL8	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	99	76
+Q9GKE2|CXCL16|Sus_scrofa|CXCL	Q9GKE2	CXL16_PIG	CXCL16	Sus_scrofa	9823	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	24	250	226
+Q4PR21|CCL25|Sus_scrofa|CCL	Q4PR21	CCL25_PIG	CCL25	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	151	128
+Q711P4|CCL4|Sus_scrofa|CCL	Q711P4	CCL4_PIG	CCL4	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	92	69
+F1S1A1|CCL3L1|Sus_scrofa|CCL	F1S1A1	F1S1A1_PIG	CCL3L1	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	93	70
+Q2EN89|NA|Sus_scrofa|CCL	Q2EN89	Q2EN89_PIG		Sus_scrofa	9823	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	91	68
+Q5K4L1|CCL21|Sus_scrofa|CCL	Q5K4L1	Q5K4L1_PIG	CCL21	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	23	134	111
+A0A5G2QQD0|CXCL12|Sus_scrofa|CXCL	A0A5G2QQD0	A0A5G2QQD0_PIG	CXCL12	Sus_scrofa	9823	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	19	119	100
+Q5S1S3|NA|Sus_scrofa|CXCL	Q5S1S3	Q5S1S3_PIG		Sus_scrofa	9823	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	21	104	83
+A0A4X1UQX9|CCL19|Sus_scrofa|CCL	A0A4X1UQX9	A0A4X1UQX9_PIG	CCL19	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	23	100	77
+B0FYK2|NA|Sus_scrofa|CXCL	B0FYK2	B0FYK2_PIG		Sus_scrofa	9823	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	126	104
+F1RPV4|XCL1|Sus_scrofa|XCL	F1RPV4	F1RPV4_PIG	XCL1	Sus_scrofa	9823	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	3.0	21	110	89
+A0A4X1SX03|CXCL11|Sus_scrofa|CXCL	A0A4X1SX03	A0A4X1SX03_PIG	CXCL11	Sus_scrofa	9823	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	100	79
+A0A4X1T9Y7|CCL11|Sus_scrofa|CCL	A0A4X1T9Y7	A0A4X1T9Y7_PIG	CCL11	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	97	74
+A0A287BN00|CCL26|Sus_scrofa|CCL	A0A287BN00	A0A287BN00_PIG	CCL26	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	94	71
+A0A8D1YDH7|CCL28|Sus_scrofa|CCL	A0A8D1YDH7	A0A8D1YDH7_PIG	CCL28	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	170	170
+A0A286ZXS6|LOC100516039|Sus_scrofa|CCL	A0A286ZXS6	A0A286ZXS6_PIG	LOC100516039	Sus_scrofa	9823	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	17	129	112
+Q58NT0|NA|Sus_scrofa|CCL	Q58NT0	Q58NT0_PIG		Sus_scrofa	9823	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	127	105
+A0A4X1T574|CCL16|Sus_scrofa|CCL	A0A4X1T574	A0A4X1T574_PIG	CCL16	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	120	100
+A0A5G2R804|CCL17|Sus_scrofa|CCL	A0A5G2R804	A0A5G2R804_PIG	CCL17	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	99	99
+A0A287A706|NA|Sus_scrofa|CXCL	A0A287A706	A0A287A706_PIG		Sus_scrofa	9823	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	111	88
+F1S3U3|CCL27|Sus_scrofa|CCL	F1S3U3	F1S3U3_PIG	CCL27	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	107	83
+A0A287AV32|NA|Sus_scrofa|CXCL	A0A287AV32	A0A287AV32_PIG		Sus_scrofa	9823	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	107	73
+Q6PUJ1|NA|Sus_scrofa|CXCL	Q6PUJ1	Q6PUJ1_PIG		Sus_scrofa	9823	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	107	73
+A0A287BFR1|NA|Sus_scrofa|CXCL	A0A287BFR1	A0A287BFR1_PIG		Sus_scrofa	9823	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	107	73
+G8XRI3|CCL14|Sus_scrofa|CCL	G8XRI3	G8XRI3_PIG	CCL14	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	99	73
+D0EM41|CCL1|Sus_scrofa|CCL	D0EM41	D0EM41_PIG	CCL1	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	94	71
+Q5K4L9|CCL20|Sus_scrofa|CCL	Q5K4L9	Q5K4L9_PIG	CCL20	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	96	70
+G8XRI5|CCL22|Sus_scrofa|CCL	G8XRI5	G8XRI5_PIG	CCL22	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+A0A286ZLI4|CCL24|Sus_scrofa|CCL	A0A286ZLI4	A0A286ZLI4_PIG	CCL24	Sus_scrofa	9823	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	163	163
+Q0N2S9|NA|Sus_scrofa|CCL	Q0N2S9	Q0N2S9_PIG		Sus_scrofa	9823	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	26	119	93
+A0A286ZQ00|NA|Sus_scrofa|CCL	A0A286ZQ00	A0A286ZQ00_PIG		Sus_scrofa	9823	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	92	92
+O62812|CXCL8|Equus_caballus|CXCL	O62812	IL8_HORSE	CXCL8	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	4.0	22	101	79
+Q9TTQ3|CCL2|Equus_caballus|CCL	Q9TTQ3	CCL2_HORSE	CCL2	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	4.0	23	99	76
+Q8MIN2|CXCL6|Equus_caballus|CXCL	Q8MIN2	CXCL6_HORSE	CXCL6	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	36	113	77
+Q9TTQ4|CCL11|Equus_caballus|CCL	Q9TTQ4	CCL11_HORSE	CCL11	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	100	77
+Q8MKD0|CCL5|Equus_caballus|CCL	Q8MKD0	CCL5_HORSE	CCL5	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	23	91	68
+B1AB88|NA|Equus_caballus|CCL	B1AB88	B1AB88_HORSE		Equus_caballus	9796	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	93	70
+F7CTX0|CXCL16|Equus_caballus|CXCL	F7CTX0	F7CTX0_HORSE	CXCL16	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	25	248	223
+F7CSX2|CXCL9|Equus_caballus|CXCL	F7CSX2	F7CSX2_HORSE	CXCL9	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	150	150
+A0A9L0T9P5|CXCL12|Equus_caballus|CXCL	A0A9L0T9P5	A0A9L0T9P5_HORSE	CXCL12	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	119	98
+F6ZX45|CXCL13|Equus_caballus|CXCL	F6ZX45	F6ZX45_HORSE	CXCL13	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	110	88
+A0A3Q2KVU7|CCL24|Equus_caballus|CCL	A0A3Q2KVU7	A0A3Q2KVU7_HORSE	CCL24	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	27	109	82
+F6ZD18|CCL26|Equus_caballus|CCL	F6ZD18	F6ZD18_HORSE	CCL26	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	94	71
+F6QHU4|CXCL11|Equus_caballus|CXCL	F6QHU4	F6QHU4_HORSE	CXCL11	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	24	94	70
+F7DC55|CCL25|Equus_caballus|CCL	F7DC55	F7DC55_HORSE	CCL25	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	308	285
+F7A287|NA|Equus_caballus|CCL	F7A287	F7A287_HORSE		Equus_caballus	9796	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	262	239
+A0A3Q2I5C4|NA|Equus_caballus|CXCL	A0A3Q2I5C4	A0A3Q2I5C4_HORSE		Equus_caballus	9796	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	18	237	219
+A0A9L0RAR0|CCL16|Equus_caballus|CCL	A0A9L0RAR0	A0A9L0RAR0_HORSE	CCL16	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	164	164
+F6VV22|CCL20|Equus_caballus|CCL	F6VV22	F6VV22_HORSE	CCL20	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	153	153
+A0A9L0SSB8|MIP-2BETA|Equus_caballus|CXCL	A0A9L0SSB8	A0A9L0SSB8_HORSE	MIP-2BETA	Equus_caballus	9796	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	151	151
+A0A9L0SH37|NA|Equus_caballus|CCL	A0A9L0SH37	A0A9L0SH37_HORSE		Equus_caballus	9796	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	155	132
+F6VWX6|CCL28|Equus_caballus|CCL	F6VWX6	F6VWX6_HORSE	CCL28	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	129	105
+F6Q841|PPBP|Equus_caballus|CXCL	F6Q841	F6Q841_HORSE	PPBP	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	36	140	104
+A0A3Q2IDW7|NA|Equus_caballus|XCL	A0A3Q2IDW7	A0A3Q2IDW7_HORSE		Equus_caballus	9796	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	21	112	91
+B1AB90|CXCL10|Equus_caballus|CXCL	B1AB90	B1AB90_HORSE	CXCL10	Equus_caballus	9796	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	104	83
+A0A5F5PZB4|NA|Equus_caballus|CXCL	A0A5F5PZB4	A0A5F5PZB4_HORSE		Equus_caballus	9796	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	30	111	81
+A0A5F5Q0J6|CCL22|Equus_caballus|CCL	A0A5F5Q0J6	A0A5F5Q0J6_HORSE	CCL22	Equus_caballus	9796	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	104	80
+F6RMK1|NA|Equus_caballus|CXCL	F6RMK1	F6RMK1_HORSE		Equus_caballus	9796	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	111	76
+F6YD73|LOC100071714|Equus_caballus|CCL	F6YD73	F6YD73_HORSE	LOC100071714	Equus_caballus	9796	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	99	76
+B7UBX3|MIP-2alpha|Equus_caballus|CXCL	B7UBX3	B7UBX3_HORSE	MIP-2alpha	Equus_caballus	9796	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	34	107	73
+F6TC33|NA|Equus_caballus|CCL	F6TC33	F6TC33_HORSE		Equus_caballus	9796	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	95	72
+A0A3Q2HK92|NA|Equus_caballus|CCL	A0A3Q2HK92	A0A3Q2HK92_HORSE		Equus_caballus	9796	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	94	71
+A0A088C578|SDF1|Equus_caballus|CXCL	A0A088C578	A0A088C578_HORSE	SDF1	Equus_caballus	9796	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	89	68
+A0A9L0T6Y2|NA|Equus_caballus|unclassified	A0A9L0T6Y2	A0A9L0T6Y2_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	201	201
+F6R6W0|NA|Equus_caballus|unclassified	F6R6W0	F6R6W0_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	156	156
+A0A9L0RLQ5|NA|Equus_caballus|unclassified	A0A9L0RLQ5	A0A9L0RLQ5_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	148	148
+F6PYM2|NA|Equus_caballus|unclassified	F6PYM2	F6PYM2_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	142	121
+F7AEZ0|NA|Equus_caballus|XCL	F7AEZ0	F7AEZ0_HORSE		Equus_caballus	9796	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	1.0	0	169	169
+A0A9L0TA13|NA|Equus_caballus|CXCL	A0A9L0TA13	A0A9L0TA13_HORSE		Equus_caballus	9796	placental	CXCL	motif		unreviewed	1.0	22	142	120
+Q8MKC8|NA|Equus_caballus|CCL	Q8MKC8	Q8MKC8_HORSE		Equus_caballus	9796	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	18	99	81
+A0A9L0RRK3|NA|Equus_caballus|CXCL	A0A9L0RRK3	A0A9L0RRK3_HORSE		Equus_caballus	9796	placental	CXCL	motif		unreviewed	1.0	18	96	78
+A0A5F5PR44|NA|Equus_caballus|CCL	A0A5F5PR44	A0A5F5PR44_HORSE		Equus_caballus	9796	placental	CCL	motif		unreviewed	1.0	23	80	57
+A0A5F5Q0I8|NA|Equus_caballus|CCL	A0A5F5Q0I8	A0A5F5Q0I8_HORSE		Equus_caballus	9796	placental	CCL	motif		unreviewed	1.0	23	64	41
+F6PYR5|NA|Equus_caballus|unclassified	F6PYR5	F6PYR5_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	168	168
+F6RLX6|NA|Equus_caballus|unclassified	F6RLX6	F6RLX6_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	163	163
+A0A9L0R7I8|NA|Equus_caballus|unclassified	A0A9L0R7I8	A0A9L0R7I8_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	140	140
+A0A5F5PT78|NA|Equus_caballus|unclassified	A0A5F5PT78	A0A5F5PT78_HORSE		Equus_caballus	9796	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	98	98
+G1NYW4|LOC102437330|Myotis_lucifugus|CCL	G1NYW4	G1NYW4_MYOLU	LOC102437330	Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	93	70
+G1NYW3|CCL5|Myotis_lucifugus|CCL	G1NYW3	G1NYW3_MYOLU	CCL5	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	91	68
+G1P3E5|CXCL8|Myotis_lucifugus|CXCL	G1P3E5	G1P3E5_MYOLU	CXCL8	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	22	101	79
+G1P4G3|CXCL10|Myotis_lucifugus|CXCL	G1P4G3	G1P4G3_MYOLU	CXCL10	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	21	98	77
+G1PI38|CCL2|Myotis_lucifugus|CCL	G1PI38	G1PI38_MYOLU	CCL2	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	33	109	76
+G1NY39|CXCL16|Myotis_lucifugus|CXCL	G1NY39	G1NY39_MYOLU	CXCL16	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	237	237
+G1PAR3|CCL25|Myotis_lucifugus|CCL	G1PAR3	G1PAR3_MYOLU	CCL25	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	148	125
+G1P865|CXCL9|Myotis_lucifugus|CXCL	G1P865	G1P865_MYOLU	CXCL9	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	127	105
+G1PJF5|LOC102423013|Myotis_lucifugus|XCL	G1PJF5	G1PJF5_MYOLU	LOC102423013	Myotis_lucifugus	59463	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	3.0	21	112	91
+G1NZC0|CCL19|Myotis_lucifugus|CCL	G1NZC0	G1NZC0_MYOLU	CCL19	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	19	101	82
+G1P4G5|CXCL11|Myotis_lucifugus|CXCL	G1P4G5	G1P4G5_MYOLU	CXCL11	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	100	79
+G1NSR8|CCL11|Myotis_lucifugus|CCL	G1NSR8	G1NSR8_MYOLU	CCL11	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	99	76
+G1NUD3|CCL8|Myotis_lucifugus|CCL	G1NUD3	G1NUD3_MYOLU	CCL8	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	24	100	76
+G1PU67|CCL26|Myotis_lucifugus|CCL	G1PU67	G1PU67_MYOLU	CCL26	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	20	93	73
+G1PGJ6|CXCL12|Myotis_lucifugus|CXCL	G1PGJ6	G1PGJ6_MYOLU	CXCL12	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	147	126
+G1Q322|NA|Myotis_lucifugus|CXCL	G1Q322	G1Q322_MYOLU		Myotis_lucifugus	59463	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	157	122
+G1NZC3|LOC102421604|Myotis_lucifugus|CCL	G1NZC3	G1NZC3_MYOLU	LOC102421604	Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	17	130	113
+G1QB57|LOC102434811|Myotis_lucifugus|CCL	G1QB57	G1QB57_MYOLU	LOC102434811	Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	130	107
+G1PZV9|LOC102421302|Myotis_lucifugus|CCL	G1PZV9	G1PZV9_MYOLU	LOC102421302	Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	130	107
+G1PFR3|CCL28|Myotis_lucifugus|CCL	G1PFR3	G1PFR3_MYOLU	CCL28	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	118	96
+G1QFE8|NA|Myotis_lucifugus|CCL	G1QFE8	G1QFE8_MYOLU		Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	121	95
+G1Q4B7|NA|Myotis_lucifugus|CCL	G1Q4B7	G1Q4B7_MYOLU		Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	117	94
+G1QF78|NA|Myotis_lucifugus|CCL	G1QF78	G1QF78_MYOLU		Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	119	93
+G1NZB5|CCL27|Myotis_lucifugus|CCL	G1NZB5	G1NZB5_MYOLU	CCL27	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	115	91
+L7N166|NA|Myotis_lucifugus|CXCL	L7N166	L7N166_MYOLU		Myotis_lucifugus	59463	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	32	121	89
+G1P3B2|CCL16|Myotis_lucifugus|CCL	G1P3B2	G1P3B2_MYOLU	CCL16	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	19	108	89
+G1PDM5|NA|Myotis_lucifugus|CCL	G1PDM5	G1PDM5_MYOLU		Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	114	88
+G1NYW9|NA|Myotis_lucifugus|CCL	G1NYW9	G1NYW9_MYOLU		Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	110	87
+G1Q3X8|NA|Myotis_lucifugus|CXCL	G1Q3X8	G1Q3X8_MYOLU		Myotis_lucifugus	59463	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	24	110	86
+G1NSR3|CXCL6|Myotis_lucifugus|CXCL	G1NSR3	G1NSR3_MYOLU	CXCL6	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	36	117	81
+G1PY17|LOC102440500|Myotis_lucifugus|CXCL	G1PY17	G1PY17_MYOLU	LOC102440500	Myotis_lucifugus	59463	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	32	112	80
+G1P2R0|CXCL14|Myotis_lucifugus|CXCL	G1P2R0	G1P2R0_MYOLU	CXCL14	Myotis_lucifugus	59463	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	37	114	77
+G1QCF2|NA|Myotis_lucifugus|CXCL	G1QCF2	G1QCF2_MYOLU		Myotis_lucifugus	59463	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	77	77
+G1QFM9|LOC102427544|Myotis_lucifugus|CXCL	G1QFM9	G1QFM9_MYOLU	LOC102427544	Myotis_lucifugus	59463	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	108	73
+G1QBU7|NA|Myotis_lucifugus|CXCL	G1QBU7	G1QBU7_MYOLU		Myotis_lucifugus	59463	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	36	108	72
+G1P5E2|CCL20|Myotis_lucifugus|CCL	G1P5E2	G1P5E2_MYOLU	CCL20	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	27	97	70
+G1NYW7|LOC102437023|Myotis_lucifugus|CCL	G1NYW7	G1NYW7_MYOLU	LOC102437023	Myotis_lucifugus	59463	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	92	69
+G1PT49|CCL22|Myotis_lucifugus|CCL	G1PT49	G1PT49_MYOLU	CCL22	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+G1Q3W2|NA|Myotis_lucifugus|unclassified	G1Q3W2	G1Q3W2_MYOLU		Myotis_lucifugus	59463	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	109	109
+G1PZP7|NA|Myotis_lucifugus|unclassified	G1PZP7	G1PZP7_MYOLU		Myotis_lucifugus	59463	placental	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	121	95
+G1PT51|CCL17|Myotis_lucifugus|CCL	G1PT51	G1PT51_MYOLU	CCL17	Myotis_lucifugus	59463	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	23	102	79
+G1PGV1|LOC102420821|Myotis_lucifugus|CCL	G1PGV1	G1PGV1_MYOLU	LOC102420821	Myotis_lucifugus	59463	placental	CCL	motif		unreviewed	1.0	23	95	72
+G3TNC5|CX3CL1|Loxodonta_africana|CX3CL	G3TNC5	G3TNC5_LOXAF	CX3CL1	Loxodonta_africana	9785	placental	CX3CL	gene_name		unreviewed	4.0	0	393	393
+G3SUT4|CCL2|Loxodonta_africana|CCL	G3SUT4	G3SUT4_LOXAF	CCL2	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	23	133	110
+G3SLT4|CXCL8|Loxodonta_africana|CXCL	G3SLT4	G3SLT4_LOXAF	CXCL8	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	22	109	87
+G3UFV0|CXCL16|Loxodonta_africana|CXCL	G3UFV0	G3UFV0_LOXAF	CXCL16	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	26	233	207
+G3TJJ5|XCL1|Loxodonta_africana|XCL	G3TJJ5	G3TJJ5_LOXAF	XCL1	Loxodonta_africana	9785	placental	XCL	uniprot_family	Intercrine gamma family	unreviewed	3.0	15	114	99
+G3U2Z0|CXCL12|Loxodonta_africana|CXCL	G3U2Z0	G3U2Z0_LOXAF	CXCL12	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	119	98
+G3T4V5|CXCL13|Loxodonta_africana|CXCL	G3T4V5	G3T4V5_LOXAF	CXCL13	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	110	88
+G3UCE9|CCL19|Loxodonta_africana|CCL	G3UCE9	G3UCE9_LOXAF	CCL19	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	103	80
+G3ULG2|CXCL11|Loxodonta_africana|CXCL	G3ULG2	G3ULG2_LOXAF	CXCL11	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	100	79
+G3T0V9|CXCL10|Loxodonta_africana|CXCL	G3T0V9	G3T0V9_LOXAF	CXCL10	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	98	77
+G3TAQ9|CCL8|Loxodonta_africana|CCL	G3TAQ9	G3TAQ9_LOXAF	CCL8	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	23	95	72
+G3TNV8|NA|Loxodonta_africana|CCL	G3TNV8	G3TNV8_LOXAF		Loxodonta_africana	9785	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	136	113
+G3TPL8|NA|Loxodonta_africana|CCL	G3TPL8	G3TPL8_LOXAF		Loxodonta_africana	9785	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	110	110
+G3UCR9|CCL28|Loxodonta_africana|CCL	G3UCR9	G3UCR9_LOXAF	CCL28	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	106	106
+G3UBF8|CXCL9|Loxodonta_africana|CXCL	G3UBF8	G3UBF8_LOXAF	CXCL9	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	126	104
+G3T9H3|CCL24|Loxodonta_africana|CCL	G3T9H3	G3T9H3_LOXAF	CCL24	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	119	99
+G3T244|NA|Loxodonta_africana|CCL	G3T244	G3T244_LOXAF		Loxodonta_africana	9785	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	18	108	90
+G3SQC1|NA|Loxodonta_africana|CCL	G3SQC1	G3SQC1_LOXAF		Loxodonta_africana	9785	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	103	80
+G3UDQ5|PPBP|Loxodonta_africana|CXCL	G3UDQ5	G3UDQ5_LOXAF	PPBP	Loxodonta_africana	9785	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	38	115	77
+G3TM71|CCL14|Loxodonta_africana|CCL	G3TM71	G3TM71_LOXAF	CCL14	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	18	92	74
+G3T6U7|LOC100663246|Loxodonta_africana|CXCL	G3T6U7	G3T6U7_LOXAF	LOC100663246	Loxodonta_africana	9785	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	108	73
+G3TMI2|NA|Loxodonta_africana|CXCL	G3TMI2	G3TMI2_LOXAF		Loxodonta_africana	9785	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	39	111	72
+G3U0E4|CCL5|Loxodonta_africana|CCL	G3U0E4	G3U0E4_LOXAF	CCL5	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	95	72
+G3SPV8|CCL17|Loxodonta_africana|CCL	G3SPV8	G3SPV8_LOXAF	CCL17	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	33	103	70
+G3TUH8|LOC100655463|Loxodonta_africana|CCL	G3TUH8	G3TUH8_LOXAF	LOC100655463	Loxodonta_africana	9785	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+G3T8B2|LOC100673788|Loxodonta_africana|CCL	G3T8B2	G3T8B2_LOXAF	LOC100673788	Loxodonta_africana	9785	placental	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	92	69
+G3TBM7|CCL22|Loxodonta_africana|CCL	G3TBM7	G3TBM7_LOXAF	CCL22	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	92	68
+G3TJZ3|NA|Loxodonta_africana|CXCL	G3TJZ3	G3TJZ3_LOXAF		Loxodonta_africana	9785	placental	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	115	115
+G3T4P3|CCL27|Loxodonta_africana|CCL	G3T4P3	G3T4P3_LOXAF	CCL27	Loxodonta_africana	9785	placental	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	24	102	78
+Q102R3|CXCL8|Dasypus_novemcinctus|CXCL	Q102R3	IL8_DASNO	CXCL8	Dasypus_novemcinctus	9361	placental	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	22	96	74
+F7EV62|CCL5|Monodelphis_domestica|CCL	F7EV62	F7EV62_MONDO	CCL5	Monodelphis_domestica	13616	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	21	91	70
+F7EBE9|CCL21|Monodelphis_domestica|CCL	F7EBE9	F7EBE9_MONDO	CCL21	Monodelphis_domestica	13616	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	18	138	120
+F7AWM0|CXCL8|Monodelphis_domestica|CXCL	F7AWM0	F7AWM0_MONDO	CXCL8	Monodelphis_domestica	13616	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	17	101	84
+F6QYE4|CCL19|Monodelphis_domestica|CCL	F6QYE4	F6QYE4_MONDO	CCL19	Monodelphis_domestica	13616	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	20	96	76
+F6Y7V7|CXCL12|Monodelphis_domestica|CXCL	F6Y7V7	F6Y7V7_MONDO	CXCL12	Monodelphis_domestica	13616	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	21	89	68
+A0A5F8HK03|CXCL16|Monodelphis_domestica|CXCL	A0A5F8HK03	A0A5F8HK03_MONDO	CXCL16	Monodelphis_domestica	13616	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	279	279
+F7D761|NA|Monodelphis_domestica|CX3CL	F7D761	F7D761_MONDO		Monodelphis_domestica	13616	marsupial	CX3CL	motif		unreviewed	2.0	24	409	385
+F7BK46|NA|Monodelphis_domestica|CCL	F7BK46	F7BK46_MONDO		Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	226	203
+A0A5F8G4G3|CCL28|Monodelphis_domestica|CCL	A0A5F8G4G3	A0A5F8G4G3_MONDO	CCL28	Monodelphis_domestica	13616	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	172	172
+A0A5F8GSF8|LOC100021456|Monodelphis_domestica|CCL	A0A5F8GSF8	A0A5F8GSF8_MONDO	LOC100021456	Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	19	154	135
+K7DZR3|NA|Monodelphis_domestica|CXCL	K7DZR3	K7DZR3_MONDO		Monodelphis_domestica	13616	marsupial	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	123	101
+A0A5F8GRZ9|NA|Monodelphis_domestica|CCL	A0A5F8GRZ9	A0A5F8GRZ9_MONDO		Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	121	101
+F6PM94|LOC100018887|Monodelphis_domestica|XCL	F6PM94	F6PM94_MONDO	LOC100018887	Monodelphis_domestica	13616	marsupial	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	21	120	99
+A0A5F8GSS6|CXCL13|Monodelphis_domestica|CXCL	A0A5F8GSS6	A0A5F8GSS6_MONDO	CXCL13	Monodelphis_domestica	13616	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	111	89
+K7E1S4|NA|Monodelphis_domestica|XCL	K7E1S4	K7E1S4_MONDO		Monodelphis_domestica	13616	marsupial	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	16	103	87
+A0A5F8GZJ9|NA|Monodelphis_domestica|CCL	A0A5F8GZJ9	A0A5F8GZJ9_MONDO		Monodelphis_domestica	13616	marsupial	CCL	motif		unreviewed	2.0	41	128	87
+F7BK23|LOC103093843|Monodelphis_domestica|CCL	F7BK23	F7BK23_MONDO	LOC103093843	Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	105	82
+A0A5F8G849|NA|Monodelphis_domestica|CCL	A0A5F8G849	A0A5F8G849_MONDO		Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	80	80
+K7E218|LOC100020928|Monodelphis_domestica|CCL	K7E218	K7E218_MONDO	LOC100020928	Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	98	78
+F7BJR8|LOC100022317|Monodelphis_domestica|CCL	F7BJR8	F7BJR8_MONDO	LOC100022317	Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	99	76
+F7AWK0|LOC100618318|Monodelphis_domestica|CXCL	F7AWK0	F7AWK0_MONDO	LOC100618318	Monodelphis_domestica	13616	marsupial	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	110	75
+A0A5F8G3R6|NA|Monodelphis_domestica|CCL	A0A5F8G3R6	A0A5F8G3R6_MONDO		Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	97	75
+F7F990|NA|Monodelphis_domestica|CCL	F7F990	F7F990_MONDO		Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	95	75
+K7E0V8|CCL20|Monodelphis_domestica|CCL	K7E0V8	K7E0V8_MONDO	CCL20	Monodelphis_domestica	13616	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	28	102	74
+A0A5F8HF86|LOC100017328|Monodelphis_domestica|CCL	A0A5F8HF86	A0A5F8HF86_MONDO	LOC100017328	Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+F6TJJ4|LOC100017283|Monodelphis_domestica|CCL	F6TJJ4	F6TJJ4_MONDO	LOC100017283	Monodelphis_domestica	13616	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A5F8HEY2|CXCL11|Monodelphis_domestica|CXCL	A0A5F8HEY2	A0A5F8HEY2_MONDO	CXCL11	Monodelphis_domestica	13616	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	87	66
+F7EV69|LOC100020842|Monodelphis_domestica|unclassified	F7EV69	F7EV69_MONDO	LOC100020842	Monodelphis_domestica	13616	marsupial	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	156	156
+F7AQZ1|LOC130455120|Monodelphis_domestica|unclassified	F7AQZ1	F7AQZ1_MONDO	LOC130455120	Monodelphis_domestica	13616	marsupial	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	144	144
+F7A9K2|LOC100023783|Monodelphis_domestica|unclassified	F7A9K2	F7A9K2_MONDO	LOC100023783	Monodelphis_domestica	13616	marsupial	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	130	130
+K7E609|NA|Monodelphis_domestica|unclassified	K7E609	K7E609_MONDO		Monodelphis_domestica	13616	marsupial	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	109	109
+K7E087|NA|Monodelphis_domestica|CCL	K7E087	K7E087_MONDO		Monodelphis_domestica	13616	marsupial	CCL	motif		unreviewed	1.0	19	138	119
+G3WY31|CCL21|Sarcophilus_harrisii|CCL	G3WY31	G3WY31_SARHA	CCL21	Sarcophilus_harrisii	9305	marsupial	CCL	gene_name		unreviewed	4.0	21	137	116
+G3WTP6|CXCL8|Sarcophilus_harrisii|CXCL	G3WTP6	G3WTP6_SARHA	CXCL8	Sarcophilus_harrisii	9305	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	4.0	22	101	79
+A0A7N4PTB5|CXCL16|Sarcophilus_harrisii|CXCL	A0A7N4PTB5	A0A7N4PTB5_SARHA	CXCL16	Sarcophilus_harrisii	9305	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	34	246	212
+A0A7N4V065|CXCL12|Sarcophilus_harrisii|CXCL	A0A7N4V065	A0A7N4V065_SARHA	CXCL12	Sarcophilus_harrisii	9305	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	119	98
+G5EA71|LOC100914986|Sarcophilus_harrisii|XCL	G5EA71	G5EA71_SARHA	LOC100914986	Sarcophilus_harrisii	9305	marsupial	XCL	uniprot_family	Intercrine gamma family	unreviewed	3.0	20	117	97
+G3WQJ0|CX3CL1|Sarcophilus_harrisii|CX3CL	G3WQJ0	G3WQJ0_SARHA	CX3CL1	Sarcophilus_harrisii	9305	marsupial	CX3CL	gene_name		unreviewed	2.0	24	417	393
+A0A7N4UY47|CCL19|Sarcophilus_harrisii|CCL	A0A7N4UY47	A0A7N4UY47_SARHA	CCL19	Sarcophilus_harrisii	9305	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	222	222
+G3VNJ0|NA|Sarcophilus_harrisii|XCL	G3VNJ0	G3VNJ0_SARHA		Sarcophilus_harrisii	9305	marsupial	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	0	113	113
+G3WR43|CCL17|Sarcophilus_harrisii|CCL	G3WR43	G3WR43_SARHA	CCL17	Sarcophilus_harrisii	9305	marsupial	CCL	gene_name		unreviewed	2.0	23	136	113
+G3VMQ7|CXCL9|Sarcophilus_harrisii|CXCL	G3VMQ7	G3VMQ7_SARHA	CXCL9	Sarcophilus_harrisii	9305	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	125	103
+A0A7N4PNM3|NA|Sarcophilus_harrisii|CCL	A0A7N4PNM3	A0A7N4PNM3_SARHA		Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	121	98
+A0A7N4V3Y9|LOC100917781|Sarcophilus_harrisii|CCL	A0A7N4V3Y9	A0A7N4V3Y9_SARHA	LOC100917781	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	18	109	91
+A0A7N4P3L2|LOC100919171|Sarcophilus_harrisii|CCL	A0A7N4P3L2	A0A7N4P3L2_SARHA	LOC100919171	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	112	89
+A0A7N4NL31|LOC116423443|Sarcophilus_harrisii|CCL	A0A7N4NL31	A0A7N4NL31_SARHA	LOC116423443	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	15	100	85
+A0A7N4NWD6|CXCL13|Sarcophilus_harrisii|CXCL	A0A7N4NWD6	A0A7N4NWD6_SARHA	CXCL13	Sarcophilus_harrisii	9305	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	104	81
+A0A7N4P020|CXCL10|Sarcophilus_harrisii|CXCL	A0A7N4P020	A0A7N4P020_SARHA	CXCL10	Sarcophilus_harrisii	9305	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	25	105	80
+A0A7N4NQV3|NA|Sarcophilus_harrisii|CCL	A0A7N4NQV3	A0A7N4NQV3_SARHA		Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	100	77
+G3WLV4|LOC105750536|Sarcophilus_harrisii|CCL	G3WLV4	G3WLV4_SARHA	LOC105750536	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	100	77
+A0A7N4V141|NA|Sarcophilus_harrisii|CCL	A0A7N4V141	A0A7N4V141_SARHA		Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	100	77
+G3WUB0|LOC100915180|Sarcophilus_harrisii|CXCL	G3WUB0	G3WUB0_SARHA	LOC100915180	Sarcophilus_harrisii	9305	marsupial	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	110	75
+G3WLP6|LOC105750535|Sarcophilus_harrisii|CCL	G3WLP6	G3WLP6_SARHA	LOC105750535	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	98	75
+G3WKN3|LOC111720800|Sarcophilus_harrisii|CCL	G3WKN3	G3WKN3_SARHA	LOC111720800	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	98	75
+A0A7N4V6X9|NA|Sarcophilus_harrisii|CCL	A0A7N4V6X9	A0A7N4V6X9_SARHA		Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	94	72
+G3VBF4|LOC100915784|Sarcophilus_harrisii|CCL	G3VBF4	G3VBF4_SARHA	LOC100915784	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	91	71
+A0A7N4NVI2|LOC116423445|Sarcophilus_harrisii|CCL	A0A7N4NVI2	A0A7N4NVI2_SARHA	LOC116423445	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A7N4PFV9|LOC100916478|Sarcophilus_harrisii|CCL	A0A7N4PFV9	A0A7N4PFV9_SARHA	LOC100916478	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+G3VFV7|LOC100916737|Sarcophilus_harrisii|CCL	G3VFV7	G3VFV7_SARHA	LOC100916737	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A7N4PVP6|LOC100918041|Sarcophilus_harrisii|CCL	A0A7N4PVP6	A0A7N4PVP6_SARHA	LOC100918041	Sarcophilus_harrisii	9305	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	90	67
+A0A7N4P2A8|LOC100915440|Sarcophilus_harrisii|unclassified	A0A7N4P2A8	A0A7N4P2A8_SARHA	LOC100915440	Sarcophilus_harrisii	9305	marsupial	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	160	160
+G3WKU6|LOC100918907|Sarcophilus_harrisii|unclassified	G3WKU6	G3WKU6_SARHA	LOC100918907	Sarcophilus_harrisii	9305	marsupial	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	143	143
+A0A7N4P936|LOC116423764|Sarcophilus_harrisii|unclassified	A0A7N4P936	A0A7N4P936_SARHA	LOC116423764	Sarcophilus_harrisii	9305	marsupial	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	131	131
+A0A7N4PQF9|LOC116423442|Sarcophilus_harrisii|unclassified	A0A7N4PQF9	A0A7N4PQF9_SARHA	LOC116423442	Sarcophilus_harrisii	9305	marsupial	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	116	116
+A0A7N4PZ16|LOC100917003|Sarcophilus_harrisii|unclassified	A0A7N4PZ16	A0A7N4PZ16_SARHA	LOC100917003	Sarcophilus_harrisii	9305	marsupial	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	116	116
+A0A7N4V6F8|CCL25|Sarcophilus_harrisii|CCL	A0A7N4V6F8	A0A7N4V6F8_SARHA	CCL25	Sarcophilus_harrisii	9305	marsupial	CCL	gene_name		unreviewed	1.0	19	175	156
+A0A7N4V7T6|LOC100921581|Sarcophilus_harrisii|CCL	A0A7N4V7T6	A0A7N4V7T6_SARHA	LOC100921581	Sarcophilus_harrisii	9305	marsupial	CCL	motif		unreviewed	1.0	22	108	86
+G3W5K3|CCL20|Sarcophilus_harrisii|CCL	G3W5K3	G3W5K3_SARHA	CCL20	Sarcophilus_harrisii	9305	marsupial	CCL	gene_name		unreviewed	1.0	42	114	72
+A0A6P5LS92|LOC110221290|Phascolarctos_cinereus|CCL	A0A6P5LS92	A0A6P5LS92_PHACI	LOC110221290	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	5.0	23	91	68
+A0A6P5IKX3|CCL21|Phascolarctos_cinereus|CCL	A0A6P5IKX3	A0A6P5IKX3_PHACI	CCL21	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	4.0	21	137	116
+A0A6P5IJF4|CXCL16|Phascolarctos_cinereus|CXCL	A0A6P5IJF4	A0A6P5IJF4_PHACI	CXCL16	Phascolarctos_cinereus	38626	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	279	279
+A0A6P5KXS3|CXCL12|Phascolarctos_cinereus|CXCL	A0A6P5KXS3	A0A6P5KXS3_PHACI	CXCL12	Phascolarctos_cinereus	38626	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	119	98
+A0A6P5IH45|CX3CL1|Phascolarctos_cinereus|CX3CL	A0A6P5IH45	A0A6P5IH45_PHACI	CX3CL1	Phascolarctos_cinereus	38626	marsupial	CX3CL	gene_name		unreviewed	2.0	24	410	386
+A0A6P5L9I7|CCL28|Phascolarctos_cinereus|CCL	A0A6P5L9I7	A0A6P5L9I7_PHACI	CCL28	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	129	107
+A0A6P5KEY8|CXCL9|Phascolarctos_cinereus|CXCL	A0A6P5KEY8	A0A6P5KEY8_PHACI	CXCL9	Phascolarctos_cinereus	38626	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	126	104
+A0A6P5LSE7|CCL24|Phascolarctos_cinereus|CCL	A0A6P5LSE7	A0A6P5LSE7_PHACI	CCL24	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	121	98
+A0A6P5LS26|LOC110221252|Phascolarctos_cinereus|CCL	A0A6P5LS26	A0A6P5LS26_PHACI	LOC110221252	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	18	115	97
+A0A6P5JGU0|LOC110199728|Phascolarctos_cinereus|XCL	A0A6P5JGU0	A0A6P5JGU0_PHACI	LOC110199728	Phascolarctos_cinereus	38626	marsupial	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	18	115	97
+A0A6P5J7R9|LOC110199757|Phascolarctos_cinereus|XCL	A0A6P5J7R9	A0A6P5J7R9_PHACI	LOC110199757	Phascolarctos_cinereus	38626	marsupial	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	24	118	94
+A0A6P5KHU5|CXCL13|Phascolarctos_cinereus|CXCL	A0A6P5KHU5	A0A6P5KHU5_PHACI	CXCL13	Phascolarctos_cinereus	38626	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	111	88
+A0A6P5IAJ8|LOC110192261|Phascolarctos_cinereus|CCL	A0A6P5IAJ8	A0A6P5IAJ8_PHACI	LOC110192261	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	110	87
+A0A6P5KI05|CXCL10|Phascolarctos_cinereus|CXCL	A0A6P5KI05	A0A6P5KI05_PHACI	CXCL10	Phascolarctos_cinereus	38626	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	25	105	80
+A0A6P5KHP6|LOC110209794|Phascolarctos_cinereus|CXCL	A0A6P5KHP6	A0A6P5KHP6_PHACI	LOC110209794	Phascolarctos_cinereus	38626	marsupial	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	101	79
+A0A6P5LZQ4|CCL26|Phascolarctos_cinereus|CCL	A0A6P5LZQ4	A0A6P5LZQ4_PHACI	CCL26	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	17	95	78
+A0A6P5IKJ3|CCL19|Phascolarctos_cinereus|CCL	A0A6P5IKJ3	A0A6P5IKJ3_PHACI	CCL19	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	97	77
+A0A6P5ICQ6|LOC110192269|Phascolarctos_cinereus|CCL	A0A6P5ICQ6	A0A6P5ICQ6_PHACI	LOC110192269	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	97	76
+A0A6P5IJD3|LOC110192234|Phascolarctos_cinereus|CCL	A0A6P5IJD3	A0A6P5IJD3_PHACI	LOC110192234	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	99	76
+A0A6P5KI32|LOC110209791|Phascolarctos_cinereus|CXCL	A0A6P5KI32	A0A6P5KI32_PHACI	LOC110209791	Phascolarctos_cinereus	38626	marsupial	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	35	110	75
+A0A6P5IJR3|LOC110192260|Phascolarctos_cinereus|CCL	A0A6P5IJR3	A0A6P5IJR3_PHACI	LOC110192260	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	98	75
+A0A6P5LS71|LOC110221274|Phascolarctos_cinereus|CCL	A0A6P5LS71	A0A6P5LS71_PHACI	LOC110221274	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	94	74
+A0A6P5LRP1|LOC110221176|Phascolarctos_cinereus|CCL	A0A6P5LRP1	A0A6P5LRP1_PHACI	LOC110221176	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	96	74
+A0A6P5J602|CCL20|Phascolarctos_cinereus|CCL	A0A6P5J602	A0A6P5J602_PHACI	CCL20	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	28	99	71
+A0A6P5IS54|CCL22|Phascolarctos_cinereus|CCL	A0A6P5IS54	A0A6P5IS54_PHACI	CCL22	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name		unreviewed	2.0	23	94	71
+A0A6P5LRP6|LOC110221185|Phascolarctos_cinereus|CCL	A0A6P5LRP6	A0A6P5LRP6_PHACI	LOC110221185	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LS68|LOC110221243|Phascolarctos_cinereus|CCL	A0A6P5LS68	A0A6P5LS68_PHACI	LOC110221243	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LZ37|LOC110221231|Phascolarctos_cinereus|CCL	A0A6P5LZ37	A0A6P5LZ37_PHACI	LOC110221231	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LGL4|LOC110217010|Phascolarctos_cinereus|CCL	A0A6P5LGL4	A0A6P5LGL4_PHACI	LOC110217010	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LYY0|LOC110221203|Phascolarctos_cinereus|CCL	A0A6P5LYY0	A0A6P5LYY0_PHACI	LOC110221203	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LVQ5|LOC110221206|Phascolarctos_cinereus|CCL	A0A6P5LVQ5	A0A6P5LVQ5_PHACI	LOC110221206	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LYQ1|LOC110221238|Phascolarctos_cinereus|CCL	A0A6P5LYQ1	A0A6P5LYQ1_PHACI	LOC110221238	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LZ10|LOC110221212|Phascolarctos_cinereus|CCL	A0A6P5LZ10	A0A6P5LZ10_PHACI	LOC110221212	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A6P5LA45|LOC110217016|Phascolarctos_cinereus|CCL	A0A6P5LA45	A0A6P5LA45_PHACI	LOC110217016	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	90	67
+A0A6P5LS35|LOC110221256|Phascolarctos_cinereus|CCL	A0A6P5LS35	A0A6P5LS35_PHACI	LOC110221256	Phascolarctos_cinereus	38626	marsupial	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	25	90	65
+A0A6P5ICR1|LOC110192271|Phascolarctos_cinereus|unclassified	A0A6P5ICR1	A0A6P5ICR1_PHACI	LOC110192271	Phascolarctos_cinereus	38626	marsupial	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	144	144
+A0A6P5KF11|LOC110209790|Phascolarctos_cinereus|unclassified	A0A6P5KF11	A0A6P5KF11_PHACI	LOC110209790	Phascolarctos_cinereus	38626	marsupial	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	132	132
+A0A6P5JHW9|CCL25|Phascolarctos_cinereus|CCL	A0A6P5JHW9	A0A6P5JHW9_PHACI	CCL25	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name		unreviewed	1.0	19	154	135
+A0A6P5IQY4|CCL17|Phascolarctos_cinereus|CCL	A0A6P5IQY4	A0A6P5IQY4_PHACI	CCL17	Phascolarctos_cinereus	38626	marsupial	CCL	gene_name		unreviewed	1.0	23	154	131
+A0A6P5KGG5|LOC110209774|Phascolarctos_cinereus|CXCL	A0A6P5KGG5	A0A6P5KGG5_PHACI	LOC110209774	Phascolarctos_cinereus	38626	marsupial	CXCL	motif		unreviewed	1.0	20	94	74
+A0A6P5KF02|CXCL11|Phascolarctos_cinereus|CXCL	A0A6P5KF02	A0A6P5KF02_PHACI	CXCL11	Phascolarctos_cinereus	38626	marsupial	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	94	73
+A0A6P5INF2|LOC110194570|Phascolarctos_cinereus|unclassified	A0A6P5INF2	A0A6P5INF2_PHACI	LOC110194570	Phascolarctos_cinereus	38626	marsupial	unclassified	none		unreviewed	1.0	0	258	258
+F6QWA8|CXCL16|Ornithorhynchus_anatinus|CXCL	F6QWA8	F6QWA8_ORNAN	CXCL16	Ornithorhynchus_anatinus	9258	monotreme	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	19	262	243
+F6RGS8|CXCL12|Ornithorhynchus_anatinus|CXCL	F6RGS8	F6RGS8_ORNAN	CXCL12	Ornithorhynchus_anatinus	9258	monotreme	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	113	113
+A0A6I8NKD6|CCL19|Ornithorhynchus_anatinus|CCL	A0A6I8NKD6	A0A6I8NKD6_ORNAN	CCL19	Ornithorhynchus_anatinus	9258	monotreme	CCL	gene_name		unreviewed	2.0	0	151	151
+A0A6I8PG54|CCL4|Ornithorhynchus_anatinus|CCL	A0A6I8PG54	A0A6I8PG54_ORNAN	CCL4	Ornithorhynchus_anatinus	9258	monotreme	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	150	150
+A0A6I8PJ29|LOC103170562|Ornithorhynchus_anatinus|CXCL	A0A6I8PJ29	A0A6I8PJ29_ORNAN	LOC103170562	Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	149	126
+F7B2B3|NA|Ornithorhynchus_anatinus|CCL	F7B2B3	F7B2B3_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	135	115
+F7EHS9|LOC103170563|Ornithorhynchus_anatinus|CXCL	F7EHS9	F7EHS9_ORNAN	LOC103170563	Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	27	137	110
+A0A6I8NJG0|NA|Ornithorhynchus_anatinus|CXCL	A0A6I8NJG0	A0A6I8NJG0_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	103	103
+K7EGD3|NA|Ornithorhynchus_anatinus|CCL	K7EGD3	K7EGD3_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CCL	motif		unreviewed	2.0	23	124	101
+A0A6I8PA82|NA|Ornithorhynchus_anatinus|CXCL	A0A6I8PA82	A0A6I8PA82_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	100	100
+F7A481|LOC100083475|Ornithorhynchus_anatinus|XCL	F7A481	F7A481_ORNAN	LOC100083475	Ornithorhynchus_anatinus	9258	monotreme	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	21	120	99
+F7B2K3|NA|Ornithorhynchus_anatinus|CCL	F7B2K3	F7B2K3_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	108	88
+F7F4F5|NA|Ornithorhynchus_anatinus|CCL	F7F4F5	F7F4F5_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	107	81
+F7EQX0|LOC103170567|Ornithorhynchus_anatinus|CXCL	F7EQX0	F7EQX0_ORNAN	LOC103170567	Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	102	80
+F7FU65|CXCL14|Ornithorhynchus_anatinus|CXCL	F7FU65	F7FU65_ORNAN	CXCL14	Ornithorhynchus_anatinus	9258	monotreme	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	99	77
+F7EQQ1|LOC100080367|Ornithorhynchus_anatinus|CXCL	F7EQQ1	F7EQQ1_ORNAN	LOC100080367	Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	44	118	74
+F7GC54|LOC100089603|Ornithorhynchus_anatinus|CCL	F7GC54	F7GC54_ORNAN	LOC100089603	Ornithorhynchus_anatinus	9258	monotreme	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	25	98	73
+F7B281|NA|Ornithorhynchus_anatinus|CCL	F7B281	F7B281_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	71	71
+A0A6I8PDT0|NA|Ornithorhynchus_anatinus|unclassified	A0A6I8PDT0	A0A6I8PDT0_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	unclassified	none		unreviewed	2.0	0	397	397
+A0A6I8NS81|NA|Ornithorhynchus_anatinus|unclassified	A0A6I8NS81	A0A6I8NS81_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	165	165
+A0A6I8P984|NA|Ornithorhynchus_anatinus|CXCL	A0A6I8P984	A0A6I8P984_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	119	119
+A0A6I8NMB8|NA|Ornithorhynchus_anatinus|CCL	A0A6I8NMB8	A0A6I8NMB8_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CCL	motif		unreviewed	1.0	0	98	98
+A0A6I8NS61|NA|Ornithorhynchus_anatinus|CXCL	A0A6I8NS61	A0A6I8NS61_ORNAN		Ornithorhynchus_anatinus	9258	monotreme	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	94	94
+F6PNA7|CCL20|Ornithorhynchus_anatinus|CCL	F6PNA7	F6PNA7_ORNAN	CCL20	Ornithorhynchus_anatinus	9258	monotreme	CCL	gene_name		unreviewed	1.0	28	103	75
+P08317|CXCL8|Gallus_gallus|CXCL	P08317	IL8_CHICK	CXCL8	Gallus_gallus	9031	bird	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	16	103	87
+Q90826|CCL4|Gallus_gallus|CCL	Q90826	CCL4_CHICK	CCL4	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	reviewed	3.0	21	90	69
+A0A8V0ZMY6|CXCL12|Gallus_gallus|CXCL	A0A8V0ZMY6	A0A8V0ZMY6_CHICK	CXCL12	Gallus_gallus	9031	bird	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	167	146
+Q6T7B9|NA|Gallus_gallus|CXCL	Q6T7B9	Q6T7B9_CHICK		Gallus_gallus	9031	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	131	110
+Q6T7C0|SDF1|Gallus_gallus|CXCL	Q6T7C0	Q6T7C0_CHICK	SDF1	Gallus_gallus	9031	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	89	68
+Q0JRI2|CX3CL1|Gallus_gallus|CX3CL	Q0JRI2	Q0JRI2_CHICK	CX3CL1	Gallus_gallus	9031	bird	CX3CL	gene_name		unreviewed	2.0	23	441	418
+E1BSX8|CCLI5|Gallus_gallus|CCL	E1BSX8	E1BSX8_CHICK	CCLI5	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	239	239
+A0A8V1AL34|CCL5|Gallus_gallus|CCL	A0A8V1AL34	A0A8V1AL34_CHICK	CCL5	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	199	199
+A0A1L1RZN8|CXCL13|Gallus_gallus|CXCL	A0A1L1RZN8	A0A1L1RZN8_CHICK	CXCL13	Gallus_gallus	9031	bird	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	119	119
+A0A3Q2U125|LOC100857191|Gallus_gallus|CCL	A0A3Q2U125	A0A3Q2U125_CHICK	LOC100857191	Gallus_gallus	9031	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	108	85
+O73912|k60|Gallus_gallus|CXCL	O73912	O73912_CHICK	k60	Gallus_gallus	9031	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	104	84
+A0A8V0XLQ2|LOC422654|Gallus_gallus|CXCL	A0A8V0XLQ2	A0A8V0XLQ2_CHICK	LOC422654	Gallus_gallus	9031	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	95	75
+A0A8V0Y0L7|CXCL13L3|Gallus_gallus|CXCL	A0A8V0Y0L7	A0A8V0Y0L7_CHICK	CXCL13L3	Gallus_gallus	9031	bird	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	31	106	75
+Q5IEZ5|NA|Gallus_gallus|CCL	Q5IEZ5	Q5IEZ5_CHICK		Gallus_gallus	9031	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	95	73
+A0A8V0ZM98|CCL17|Gallus_gallus|CCL	A0A8V0ZM98	A0A8V0ZM98_CHICK	CCL17	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	94	72
+Q8QG55|CCL20|Gallus_gallus|CCL	Q8QG55	Q8QG55_CHICK	CCL20	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	28	100	72
+A0A8V1ALD3|CCLI8|Gallus_gallus|CCL	A0A8V1ALD3	A0A8V1ALD3_CHICK	CCLI8	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A8V1AJN8|LOC121106433|Gallus_gallus|CCL	A0A8V1AJN8	A0A8V1AJN8_CHICK	LOC121106433	Gallus_gallus	9031	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+Q8QG57|NA|Gallus_gallus|CCL	Q8QG57	Q8QG57_CHICK		Gallus_gallus	9031	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	91	68
+Q9I8E0|K203|Gallus_gallus|CCL	Q9I8E0	Q9I8E0_CHICK	K203	Gallus_gallus	9031	bird	CCL	motif		unreviewed	2.0	21	89	68
+Q4KS30|NA|Gallus_gallus|unclassified	Q4KS30	Q4KS30_CHICK		Gallus_gallus	9031	bird	unclassified	none		unreviewed	2.0	0	89	89
+A0A8V1ALC5|CCL26|Gallus_gallus|CCL	A0A8V1ALC5	A0A8V1ALC5_CHICK	CCL26	Gallus_gallus	9031	bird	CCL	gene_name		unreviewed	1.0	0	250	250
+A0A8V0YID3|CXCL14|Gallus_gallus|CXCL	A0A8V0YID3	A0A8V0YID3_CHICK	CXCL14	Gallus_gallus	9031	bird	CXCL	gene_name		unreviewed	1.0	0	228	228
+A0A8V0Y6W8|CCL19|Gallus_gallus|CCL	A0A8V0Y6W8	A0A8V0Y6W8_CHICK	CCL19	Gallus_gallus	9031	bird	CCL	gene_name		unreviewed	1.0	22	171	149
+A0A8V0XNC9|XCL1|Gallus_gallus|XCL	A0A8V0XNC9	A0A8V0XNC9_CHICK	XCL1	Gallus_gallus	9031	bird	XCL	uniprot_family	Intercrine gamma family	unreviewed	1.0	0	135	135
+A0A8V0Y544|CXCL13L2|Gallus_gallus|CXCL	A0A8V0Y544	A0A8V0Y544_CHICK	CXCL13L2	Gallus_gallus	9031	bird	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	138	117
+F1P167|CCLi6|Gallus_gallus|CCL	F1P167	F1P167_CHICK	CCLi6	Gallus_gallus	9031	bird	CCL	gene_name		unreviewed	1.0	0	96	96
+F1P166|CCLi7|Gallus_gallus|CCL	F1P166	F1P166_CHICK	CCLi7	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	91	91
+F1P147|CCLi9|Gallus_gallus|CCL	F1P147	F1P147_CHICK	CCLi9	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	91	91
+O57411|NA|Gallus_gallus|XCL	O57411	O57411_CHICK		Gallus_gallus	9031	bird	XCL	uniprot_family	Intercrine gamma family	unreviewed	1.0	18	97	79
+Q9DGL8|JSC|Gallus_gallus|CXCL	Q9DGL8	Q9DGL8_CHICK	JSC	Gallus_gallus	9031	bird	CXCL	motif		unreviewed	1.0	22	98	76
+G4U4M2|CCLi10|Gallus_gallus|CCL	G4U4M2	G4U4M2_CHICK	CCLi10	Gallus_gallus	9031	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	22	94	72
+Q8QG56|NA|Gallus_gallus|CCL	Q8QG56	Q8QG56_CHICK		Gallus_gallus	9031	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	22	91	69
+A0A8V0YVQ4|NA|Gallus_gallus|unclassified	A0A8V0YVQ4	A0A8V0YVQ4_CHICK		Gallus_gallus	9031	bird	unclassified	none		unreviewed	1.0	0	154	154
+Q90825|NA|Gallus_gallus|unclassified	Q90825	Q90825_CHICK		Gallus_gallus	9031	bird	unclassified	none		unreviewed	1.0	22	96	74
+A0A674HIG7|CX3CL1|Taeniopygia_guttata|CX3CL	A0A674HIG7	A0A674HIG7_TAEGU	CX3CL1	Taeniopygia_guttata	59729	bird	CX3CL	gene_name		unreviewed	2.0	24	429	405
+A0A674G783|CXCL12|Taeniopygia_guttata|CXCL	A0A674G783	A0A674G783_TAEGU	CXCL12	Taeniopygia_guttata	59729	bird	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	203	203
+A0A674HKE6|LOC115495109|Taeniopygia_guttata|CXCL	A0A674HKE6	A0A674HKE6_TAEGU	LOC115495109	Taeniopygia_guttata	59729	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	184	163
+A0A674HEI3|CCL20|Taeniopygia_guttata|CCL	A0A674HEI3	A0A674HEI3_TAEGU	CCL20	Taeniopygia_guttata	59729	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	34	150	116
+A0A674HTI4|LOC100221351|Taeniopygia_guttata|CCL	A0A674HTI4	A0A674HTI4_TAEGU	LOC100221351	Taeniopygia_guttata	59729	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	127	105
+H0YTH8|LOC100222345|Taeniopygia_guttata|CXCL	H0YTH8	H0YTH8_TAEGU	LOC100222345	Taeniopygia_guttata	59729	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	103	82
+H0ZJ81|LOC100229516|Taeniopygia_guttata|CCL	H0ZJ81	H0ZJ81_TAEGU	LOC100229516	Taeniopygia_guttata	59729	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	101	79
+A0A674H725|LOC101233529|Taeniopygia_guttata|CXCL	A0A674H725	A0A674H725_TAEGU	LOC101233529	Taeniopygia_guttata	59729	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	96	74
+H0YTH4|LOC100223328|Taeniopygia_guttata|CXCL	H0YTH4	H0YTH4_TAEGU	LOC100223328	Taeniopygia_guttata	59729	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	95	73
+H0Z3L9|LOC115497720|Taeniopygia_guttata|CCL	H0Z3L9	H0Z3L9_TAEGU	LOC115497720	Taeniopygia_guttata	59729	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+B5FX95|NA|Taeniopygia_guttata|CXCL	B5FX95	B5FX95_TAEGU		Taeniopygia_guttata	59729	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	89	68
+A0A674HSH6|LOC105759181|Taeniopygia_guttata|unclassified	A0A674HSH6	A0A674HSH6_TAEGU	LOC105759181	Taeniopygia_guttata	59729	bird	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	102	102
+A0A674HKE0|NA|Taeniopygia_guttata|CCL	A0A674HKE0	A0A674HKE0_TAEGU		Taeniopygia_guttata	59729	bird	CCL	motif		unreviewed	1.0	23	159	136
+A0A674H737|CCL19|Taeniopygia_guttata|CCL	A0A674H737	A0A674H737_TAEGU	CCL19	Taeniopygia_guttata	59729	bird	CCL	gene_name		unreviewed	1.0	22	152	130
+H0YU12|LOC101233771|Taeniopygia_guttata|CXCL	H0YU12	H0YU12_TAEGU	LOC101233771	Taeniopygia_guttata	59729	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	26	107	81
+H1A3P4|CXCL14|Taeniopygia_guttata|CXCL	H1A3P4	H1A3P4_TAEGU	CXCL14	Taeniopygia_guttata	59729	bird	CXCL	gene_name		unreviewed	1.0	20	98	78
+H0ZT85|LOC100227529|Taeniopygia_guttata|XCL	H0ZT85	H0ZT85_TAEGU	LOC100227529	Taeniopygia_guttata	59729	bird	XCL	uniprot_family	Intercrine gamma family	unreviewed	1.0	24	101	77
+A0A674HNR9|NA|Taeniopygia_guttata|unclassified	A0A674HNR9	A0A674HNR9_TAEGU		Taeniopygia_guttata	59729	bird	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	103	103
+A0A674HRK9|NA|Taeniopygia_guttata|unclassified	A0A674HRK9	A0A674HRK9_TAEGU		Taeniopygia_guttata	59729	bird	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	102	102
+Q0WZB5|Anpl-IL*08-03|Anas_platyrhynchos|CXCL	Q0WZB5	Q0WZB5_ANAPL	Anpl-IL*08-03	Anas_platyrhynchos	8839	bird	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	21	103	82
+R0L9Y5|NA|Anas_platyrhynchos|CCL	R0L9Y5	R0L9Y5_ANAPL		Anas_platyrhynchos	8839	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	129	103
+G3CUK1|CCL21|Anas_platyrhynchos|CCL	G3CUK1	G3CUK1_ANAPL	CCL21	Anas_platyrhynchos	8839	bird	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	111	88
+A7E1T0|NA|Anas_platyrhynchos|CCL	A7E1T0	A7E1T0_ANAPL		Anas_platyrhynchos	8839	bird	CCL	motif		unreviewed	2.0	22	99	77
+Q4VSK4|NA|Anas_platyrhynchos|CCL	Q4VSK4	Q4VSK4_ANAPL		Anas_platyrhynchos	8839	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	90	69
+Q4VSK6|NA|Anas_platyrhynchos|CCL	Q4VSK6	Q4VSK6_ANAPL		Anas_platyrhynchos	8839	bird	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	90	68
+R0L0H4|NA|Anas_platyrhynchos|CCL	R0L0H4	R0L0H4_ANAPL		Anas_platyrhynchos	8839	bird	CCL	motif		unreviewed	1.0	23	112	89
+Q4VSK5|NA|Anas_platyrhynchos|CCL	Q4VSK5	Q4VSK5_ANAPL		Anas_platyrhynchos	8839	bird	CCL	motif		unreviewed	1.0	21	91	70
+R0LQJ6|NA|Anas_platyrhynchos|unclassified	R0LQJ6	R0LQJ6_ANAPL		Anas_platyrhynchos	8839	bird	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	290	290
+A0A803SMD1|CXCL13|Anolis_carolinensis|CXCL	A0A803SMD1	A0A803SMD1_ANOCA	CXCL13	Anolis_carolinensis	28377	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	22	96	74
+H9GI17|cxcl12|Anolis_carolinensis|CXCL	H9GI17	H9GI17_ANOCA	cxcl12	Anolis_carolinensis	28377	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	158	158
+H9GHH5|LOC100563503|Anolis_carolinensis|CXCL	H9GHH5	H9GHH5_ANOCA	LOC100563503	Anolis_carolinensis	28377	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	100	78
+A0A803TBM9|LOC103279059|Anolis_carolinensis|CXCL	A0A803TBM9	A0A803TBM9_ANOCA	LOC103279059	Anolis_carolinensis	28377	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	97	77
+R4G9F3|CCL20|Anolis_carolinensis|CCL	R4G9F3	R4G9F3_ANOCA	CCL20	Anolis_carolinensis	28377	reptile	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	102	76
+A0A803T9I6|LOC100553449|Anolis_carolinensis|CXCL	A0A803T9I6	A0A803T9I6_ANOCA	LOC100553449	Anolis_carolinensis	28377	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	30	105	75
+A0A803TY50|NA|Anolis_carolinensis|CCL	A0A803TY50	A0A803TY50_ANOCA		Anolis_carolinensis	28377	reptile	CCL	motif		unreviewed	1.0	15	114	99
+A0A803U136|CXCL14|Anolis_carolinensis|CXCL	A0A803U136	A0A803U136_ANOCA	CXCL14	Anolis_carolinensis	28377	reptile	CXCL	gene_name		unreviewed	1.0	22	98	76
+A0A8C3FTG5|CCL5|Chrysemys_picta_bellii|CCL	A0A8C3FTG5	A0A8C3FTG5_CHRPI	CCL5	Chrysemys_picta_bellii	8478	reptile	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	5.0	0	136	136
+A0A8C3I450|CXCL8|Chrysemys_picta_bellii|CXCL	A0A8C3I450	A0A8C3I450_CHRPI	CXCL8	Chrysemys_picta_bellii	8478	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	104	104
+A0A8C3HY95|CCL19|Chrysemys_picta_bellii|CCL	A0A8C3HY95	A0A8C3HY95_CHRPI	CCL19	Chrysemys_picta_bellii	8478	reptile	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	25	115	90
+A0A8C3HFR6|CXCL12|Chrysemys_picta_bellii|CXCL	A0A8C3HFR6	A0A8C3HFR6_CHRPI	CXCL12	Chrysemys_picta_bellii	8478	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	0	89	89
+A0A8C3HYZ0|LOC101944353|Chrysemys_picta_bellii|CCL	A0A8C3HYZ0	A0A8C3HYZ0_CHRPI	LOC101944353	Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	18	116	98
+A0A8C3F9M1|LOC101938916|Chrysemys_picta_bellii|XCL	A0A8C3F9M1	A0A8C3F9M1_CHRPI	LOC101938916	Chrysemys_picta_bellii	8478	reptile	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	24	116	92
+A0A8C3FKF7|NA|Chrysemys_picta_bellii|XCL	A0A8C3FKF7	A0A8C3FKF7_CHRPI		Chrysemys_picta_bellii	8478	reptile	XCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	106	86
+A0A8C3I303|LOC101945137|Chrysemys_picta_bellii|CXCL	A0A8C3I303	A0A8C3I303_CHRPI	LOC101945137	Chrysemys_picta_bellii	8478	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	100	79
+A0A8C3I5T4|LOC135972066|Chrysemys_picta_bellii|CXCL	A0A8C3I5T4	A0A8C3I5T4_CHRPI	LOC135972066	Chrysemys_picta_bellii	8478	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	100	79
+A0A8C3FCG5|LOC101949207|Chrysemys_picta_bellii|CCL	A0A8C3FCG5	A0A8C3FCG5_CHRPI	LOC101949207	Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	97	74
+A0A8C3FSE8|LOC101935650|Chrysemys_picta_bellii|CCL	A0A8C3FSE8	A0A8C3FSE8_CHRPI	LOC101935650	Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	94	72
+A0A8C3H6S6|NA|Chrysemys_picta_bellii|CCL	A0A8C3H6S6	A0A8C3H6S6_CHRPI		Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	93	70
+A0A8C3H9B3|LOC101944098|Chrysemys_picta_bellii|CCL	A0A8C3H9B3	A0A8C3H9B3_CHRPI	LOC101944098	Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A8C3FW31|LOC101935089|Chrysemys_picta_bellii|CCL	A0A8C3FW31	A0A8C3FW31_CHRPI	LOC101935089	Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A8C3FT57|LOC101935370|Chrysemys_picta_bellii|CCL	A0A8C3FT57	A0A8C3FT57_CHRPI	LOC101935370	Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	89	67
+A0A8C3I378|NA|Chrysemys_picta_bellii|CCL	A0A8C3I378	A0A8C3I378_CHRPI		Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	90	64
+A0A8C3FK32|LOC101943654|Chrysemys_picta_bellii|XCL	A0A8C3FK32	A0A8C3FK32_CHRPI	LOC101943654	Chrysemys_picta_bellii	8478	reptile	XCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	85	63
+A0A8C3HV09|LOC101939348|Chrysemys_picta_bellii|unclassified	A0A8C3HV09	A0A8C3HV09_CHRPI	LOC101939348	Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	154	154
+A0A8C3HSH4|NA|Chrysemys_picta_bellii|unclassified	A0A8C3HSH4	A0A8C3HSH4_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	144	144
+A0A8C3HT01|NA|Chrysemys_picta_bellii|unclassified	A0A8C3HT01	A0A8C3HT01_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	127	127
+A0A8C3HTT3|NA|Chrysemys_picta_bellii|CXCL	A0A8C3HTT3	A0A8C3HTT3_CHRPI		Chrysemys_picta_bellii	8478	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	107	107
+A0A8C3I4D9|CXCL13|Chrysemys_picta_bellii|CXCL	A0A8C3I4D9	A0A8C3I4D9_CHRPI	CXCL13	Chrysemys_picta_bellii	8478	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	104	104
+A0A8C3F720|NA|Chrysemys_picta_bellii|CCL	A0A8C3F720	A0A8C3F720_CHRPI		Chrysemys_picta_bellii	8478	reptile	CCL	motif		unreviewed	1.0	0	100	100
+A0A8C3FQV9|CXCL14|Chrysemys_picta_bellii|CXCL	A0A8C3FQV9	A0A8C3FQV9_CHRPI	CXCL14	Chrysemys_picta_bellii	8478	reptile	CXCL	gene_name		unreviewed	1.0	0	98	98
+A0A8C3I4X1|NA|Chrysemys_picta_bellii|CXCL	A0A8C3I4X1	A0A8C3I4X1_CHRPI		Chrysemys_picta_bellii	8478	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	96	96
+A0A8C3HTX2|NA|Chrysemys_picta_bellii|CXCL	A0A8C3HTX2	A0A8C3HTX2_CHRPI		Chrysemys_picta_bellii	8478	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	94	94
+A0A8C3HTD0|NA|Chrysemys_picta_bellii|CXCL	A0A8C3HTD0	A0A8C3HTD0_CHRPI		Chrysemys_picta_bellii	8478	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	93	93
+A0A8C3I3F7|NA|Chrysemys_picta_bellii|CCL	A0A8C3I3F7	A0A8C3I3F7_CHRPI		Chrysemys_picta_bellii	8478	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	86	86
+A0A8C3HV00|NA|Chrysemys_picta_bellii|unclassified	A0A8C3HV00	A0A8C3HV00_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	145	145
+A0A8C3HTL5|NA|Chrysemys_picta_bellii|unclassified	A0A8C3HTL5	A0A8C3HTL5_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	127	127
+A0A8C3HI07|NA|Chrysemys_picta_bellii|unclassified	A0A8C3HI07	A0A8C3HI07_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	112	112
+A0A8C3HTF8|NA|Chrysemys_picta_bellii|unclassified	A0A8C3HTF8	A0A8C3HTF8_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	111	111
+A0A8C3I337|NA|Chrysemys_picta_bellii|unclassified	A0A8C3I337	A0A8C3I337_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	109	109
+A0A8C3FJI4|NA|Chrysemys_picta_bellii|unclassified	A0A8C3FJI4	A0A8C3FJI4_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none		unreviewed	1.0	20	123	103
+A0A8C3I3K3|NA|Chrysemys_picta_bellii|unclassified	A0A8C3I3K3	A0A8C3I3K3_CHRPI		Chrysemys_picta_bellii	8478	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	90	90
+A0A151MR85|CCL17|Alligator_mississippiensis|CCL	A0A151MR85	A0A151MR85_ALLMI	CCL17	Alligator_mississippiensis	8496	reptile	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	137	137
+A0A151NTX1|NA|Alligator_mississippiensis|CCL	A0A151NTX1	A0A151NTX1_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	102	102
+A0A151MRK4|CX3CL1|Alligator_mississippiensis|CX3CL	A0A151MRK4	A0A151MRK4_ALLMI	CX3CL1	Alligator_mississippiensis	8496	reptile	CX3CL	gene_name		unreviewed	2.0	24	118	94
+A0A151N550|CXCL11|Alligator_mississippiensis|CXCL	A0A151N550	A0A151N550_ALLMI	CXCL11	Alligator_mississippiensis	8496	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	83	83
+A0A151NAV7|NA|Alligator_mississippiensis|CCL	A0A151NAV7	A0A151NAV7_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	102	76
+A0A151N7F8|CCL1|Alligator_mississippiensis|CCL	A0A151N7F8	A0A151N7F8_ALLMI	CCL1	Alligator_mississippiensis	8496	reptile	CCL	gene_name		unreviewed	2.0	22	96	74
+A0A151MLD2|CXCL12|Alligator_mississippiensis|CXCL	A0A151MLD2	A0A151MLD2_ALLMI	CXCL12	Alligator_mississippiensis	8496	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	93	72
+A0A151NAR5|CCL20|Alligator_mississippiensis|CCL	A0A151NAR5	A0A151NAR5_ALLMI	CCL20	Alligator_mississippiensis	8496	reptile	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	16	86	70
+A0A151NU53|NA|Alligator_mississippiensis|CCL	A0A151NU53	A0A151NU53_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A151NT95|CCL4|Alligator_mississippiensis|CCL	A0A151NT95	A0A151NT95_ALLMI	CCL4	Alligator_mississippiensis	8496	reptile	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+A0A151N6V2|NA|Alligator_mississippiensis|CCL	A0A151N6V2	A0A151N6V2_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	90	68
+A0A151N700|NA|Alligator_mississippiensis|CCL	A0A151N700	A0A151N700_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	90	68
+A0A151M7B4|NA|Alligator_mississippiensis|unclassified	A0A151M7B4	A0A151M7B4_ALLMI		Alligator_mississippiensis	8496	reptile	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	166	166
+A0A151NT91|NA|Alligator_mississippiensis|unclassified	A0A151NT91	A0A151NT91_ALLMI		Alligator_mississippiensis	8496	reptile	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	83	83
+A0A151MD84|XCL1|Alligator_mississippiensis|XCL	A0A151MD84	A0A151MD84_ALLMI	XCL1	Alligator_mississippiensis	8496	reptile	XCL	uniprot_family	Intercrine gamma family	unreviewed	1.0	0	192	192
+A0A151MX26|CCL28|Alligator_mississippiensis|CCL	A0A151MX26	A0A151MX26_ALLMI	CCL28	Alligator_mississippiensis	8496	reptile	CCL	gene_name		unreviewed	1.0	22	124	102
+A0A151MPY9|NA|Alligator_mississippiensis|CXCL	A0A151MPY9	A0A151MPY9_ALLMI		Alligator_mississippiensis	8496	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	22	109	87
+A0A151N5W1|IL8L1|Alligator_mississippiensis|CXCL	A0A151N5W1	A0A151N5W1_ALLMI	IL8L1	Alligator_mississippiensis	8496	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	17	101	84
+A0A151N547|CXCL8|Alligator_mississippiensis|CXCL	A0A151N547	A0A151N547_ALLMI	CXCL8	Alligator_mississippiensis	8496	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	22	104	82
+A0A151MMZ1|NA|Alligator_mississippiensis|CXCL	A0A151MMZ1	A0A151MMZ1_ALLMI		Alligator_mississippiensis	8496	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	100	79
+A0A151MMY7|CXCL10|Alligator_mississippiensis|CXCL	A0A151MMY7	A0A151MMY7_ALLMI	CXCL10	Alligator_mississippiensis	8496	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	99	78
+A0A151MPV6|CXCL13|Alligator_mississippiensis|CXCL	A0A151MPV6	A0A151MPV6_ALLMI	CXCL13	Alligator_mississippiensis	8496	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	26	101	75
+A0A151M725|CXCL14|Alligator_mississippiensis|CXCL	A0A151M725	A0A151M725_ALLMI	CXCL14	Alligator_mississippiensis	8496	reptile	CXCL	gene_name		unreviewed	1.0	22	97	75
+A0A151P1Y5|NA|Alligator_mississippiensis|CXCL	A0A151P1Y5	A0A151P1Y5_ALLMI		Alligator_mississippiensis	8496	reptile	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	22	95	73
+A0A151N545|CXCL8A|Alligator_mississippiensis|CXCL	A0A151N545	A0A151N545_ALLMI	CXCL8A	Alligator_mississippiensis	8496	reptile	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	93	72
+A0A151P5C2|NA|Alligator_mississippiensis|CCL	A0A151P5C2	A0A151P5C2_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif		unreviewed	1.0	0	72	72
+A0A151MZF8|NA|Alligator_mississippiensis|CCL	A0A151MZF8	A0A151MZF8_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif		unreviewed	1.0	0	71	71
+A0A151N8H2|NA|Alligator_mississippiensis|CCL	A0A151N8H2	A0A151N8H2_ALLMI		Alligator_mississippiensis	8496	reptile	CCL	motif		unreviewed	1.0	24	93	69
+Q5EBF6|cxcl12|Xenopus_tropicalis|CXCL	Q5EBF6	SDF1_XENTR	cxcl12	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	21	93	72
+A0A8J0R8C1|cxcl16|Xenopus_tropicalis|CXCL	A0A8J0R8C1	A0A8J0R8C1_XENTR	cxcl16	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	23	264	241
+A0A8J0T226|ccl14|Xenopus_tropicalis|CCL	A0A8J0T226	A0A8J0T226_XENTR	ccl14	Xenopus_tropicalis	8364	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	258	236
+A0A803JAM7|cxcl8a|Xenopus_tropicalis|CXCL	A0A803JAM7	A0A803JAM7_XENTR	cxcl8a	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	130	130
+A0A8J0QZG4|ccl28|Xenopus_tropicalis|CCL	A0A8J0QZG4	A0A8J0QZG4_XENTR	ccl28	Xenopus_tropicalis	8364	amphibian	CCL	gene_name		unreviewed	2.0	23	150	127
+A0A6I8SFK3|ccl19|Xenopus_tropicalis|CCL	A0A6I8SFK3	A0A6I8SFK3_XENTR	ccl19	Xenopus_tropicalis	8364	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	120	97
+A0A6I8SI97|ccl5|Xenopus_tropicalis|CCL	A0A6I8SI97	A0A6I8SI97_XENTR	ccl5	Xenopus_tropicalis	8364	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	117	95
+A0A8J0QRI6|xcl1|Xenopus_tropicalis|XCL	A0A8J0QRI6	A0A8J0QRI6_XENTR	xcl1	Xenopus_tropicalis	8364	amphibian	XCL	gene_name		unreviewed	2.0	23	115	92
+A0A1B8Y8K7|cxcl8b.2|Xenopus_tropicalis|CXCL	A0A1B8Y8K7	A0A1B8Y8K7_XENTR	cxcl8b.2	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	108	86
+A0A1B8Y8P4|cxcl8a.2|Xenopus_tropicalis|CXCL	A0A1B8Y8P4	A0A1B8Y8P4_XENTR	cxcl8a.2	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	105	82
+A0A8J0Q8G0|cxcl14|Xenopus_tropicalis|CXCL	A0A8J0Q8G0	A0A8J0Q8G0_XENTR	cxcl14	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name		unreviewed	2.0	22	99	77
+A0A1B8Y8M9|cxcl2|Xenopus_tropicalis|CXCL	A0A1B8Y8M9	A0A1B8Y8M9_XENTR	cxcl2	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	26	101	75
+A0A7D9NM09|cxcl9|Xenopus_tropicalis|CXCL	A0A7D9NM09	A0A7D9NM09_XENTR	cxcl9	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	96	74
+A0A8J1J1C9|LOC100490971|Xenopus_tropicalis|CCL	A0A8J1J1C9	A0A8J1J1C9_XENTR	LOC100490971	Xenopus_tropicalis	8364	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	97	74
+A0A8J0T1A8|ccl20|Xenopus_tropicalis|CCL	A0A8J0T1A8	A0A8J0T1A8_XENTR	ccl20	Xenopus_tropicalis	8364	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	100	74
+A0A8J0SG44|LOC105946710|Xenopus_tropicalis|CCL	A0A8J0SG44	A0A8J0SG44_XENTR	LOC105946710	Xenopus_tropicalis	8364	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	90	68
+A0A8J0QRG6|ccl4|Xenopus_tropicalis|CCL	A0A8J0QRG6	A0A8J0QRG6_XENTR	ccl4	Xenopus_tropicalis	8364	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	89	67
+A0A8J0QVZ0|LOC100491460|Xenopus_tropicalis|CXCL	A0A8J0QVZ0	A0A8J0QVZ0_XENTR	LOC100491460	Xenopus_tropicalis	8364	amphibian	CXCL	motif		unreviewed	1.0	24	123	99
+A0A8J0QKG3|ccl20a|Xenopus_tropicalis|CCL	A0A8J0QKG3	A0A8J0QKG3_XENTR	ccl20a	Xenopus_tropicalis	8364	amphibian	CCL	gene_name		unreviewed	1.0	28	126	98
+A0A8J0QVR6|ccl20.2|Xenopus_tropicalis|CCL	A0A8J0QVR6	A0A8J0QVR6_XENTR	ccl20.2	Xenopus_tropicalis	8364	amphibian	CCL	gene_name		unreviewed	1.0	28	125	97
+A0A8J1JWM9|ccl25|Xenopus_tropicalis|CCL	A0A8J1JWM9	A0A8J1JWM9_XENTR	ccl25	Xenopus_tropicalis	8364	amphibian	CCL	gene_name		unreviewed	1.0	0	89	89
+A0A1B8Y8M3|cxcl11|Xenopus_tropicalis|CXCL	A0A1B8Y8M3	A0A1B8Y8M3_XENTR	cxcl11	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name		unreviewed	1.0	22	100	78
+A0A8J0QXD8|cxcl10|Xenopus_tropicalis|CXCL	A0A8J0QXD8	A0A8J0QXD8_XENTR	cxcl10	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	22	99	77
+A0A8J1IZC8|cxcl13|Xenopus_tropicalis|CXCL	A0A8J1IZC8	A0A8J1IZC8_XENTR	cxcl13	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	22	98	76
+A0A8J0QTL0|LOC100493779|Xenopus_tropicalis|CCL	A0A8J0QTL0	A0A8J0QTL0_XENTR	LOC100493779	Xenopus_tropicalis	8364	amphibian	CCL	motif		unreviewed	1.0	22	96	74
+A0A1B8Y8M8|cxcl8b|Xenopus_tropicalis|CXCL	A0A1B8Y8M8	A0A1B8Y8M8_XENTR	cxcl8b	Xenopus_tropicalis	8364	amphibian	CXCL	gene_name		unreviewed	1.0	22	95	73
+A0A8J1IYX8|ccl27|Xenopus_tropicalis|CCL	A0A8J1IYX8	A0A8J1IYX8_XENTR	ccl27	Xenopus_tropicalis	8364	amphibian	CCL	gene_name		unreviewed	1.0	23	95	72
+A0A8J0R4S6|LOC101733569|Xenopus_tropicalis|unclassified	A0A8J0R4S6	A0A8J0R4S6_XENTR	LOC101733569	Xenopus_tropicalis	8364	amphibian	unclassified	none		unreviewed	1.0	21	145	124
+Q8UUJ9|cxcl12|Xenopus_laevis|CXCL	Q8UUJ9	SDF1_XENLA	cxcl12	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	5.0	21	94	73
+A0A8J0TUQ0|LOC108703506|Xenopus_laevis|CCL	A0A8J0TUQ0	A0A8J0TUQ0_XENLA	LOC108703506	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	20	252	232
+A0A1L8H354|LOC108711734|Xenopus_laevis|CCL	A0A1L8H354	A0A1L8H354_XENLA	LOC108711734	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	20	251	231
+A0A1L8HMH9|cxcl8a.S|Xenopus_laevis|CXCL	A0A1L8HMH9	A0A1L8HMH9_XENLA	cxcl8a.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	130	130
+A0A1L8H655|ccl5.S|Xenopus_laevis|CCL	A0A1L8H655	A0A1L8H655_XENLA	ccl5.S	Xenopus_laevis	8355	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	142	120
+A0A8J0TC96|cxcl12.S|Xenopus_laevis|CXCL	A0A8J0TC96	A0A8J0TC96_XENLA	cxcl12.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	115	115
+A0A1L8HS92|LOC108707360|Xenopus_laevis|CCL	A0A1L8HS92	A0A1L8HS92_XENLA	LOC108707360	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	18	116	98
+A0A1L8I3Q5|LOC108718818|Xenopus_laevis|CCL	A0A1L8I3Q5	A0A1L8I3Q5_XENLA	LOC108718818	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	120	97
+A0A1L8HDW4|ccl5.L|Xenopus_laevis|CCL	A0A1L8HDW4	A0A1L8HDW4_XENLA	ccl5.L	Xenopus_laevis	8355	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	93	93
+A0A1L8G536|LOC108717597|Xenopus_laevis|XCL	A0A1L8G536	A0A1L8G536_XENLA	LOC108717597	Xenopus_laevis	8355	amphibian	XCL	uniprot_family	Intercrine gamma family	unreviewed	2.0	23	115	92
+A1L3G5|cxcl8b.2.L|Xenopus_laevis|CXCL	A1L3G5	A1L3G5_XENLA	cxcl8b.2.L	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	107	85
+A0A1L8HMI3|cxcl8a.2.S|Xenopus_laevis|CXCL	A0A1L8HMI3	A0A1L8HMI3_XENLA	cxcl8a.2.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	105	82
+A0A1L8HVC3|cxcl8a.2.L|Xenopus_laevis|CXCL	A0A1L8HVC3	A0A1L8HVC3_XENLA	cxcl8a.2.L	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	105	82
+A0A8J1L498|cxcl12.L|Xenopus_laevis|CXCL	A0A8J1L498	A0A8J1L498_XENLA	cxcl12.L	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	103	82
+A0A1L8HVE2|cxcl13.L|Xenopus_laevis|CXCL	A0A1L8HVE2	A0A1L8HVE2_XENLA	cxcl13.L	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	104	81
+A0A8J0Q467|cxcl8.L|Xenopus_laevis|CXCL	A0A8J0Q467	A0A8J0Q467_XENLA	cxcl8.L	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	103	80
+A0A1L8HMG8|cxcl2.S|Xenopus_laevis|CXCL	A0A1L8HMG8	A0A1L8HMG8_XENLA	cxcl2.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	26	101	75
+A0A8J1MYI1|cxcl2.L|Xenopus_laevis|CXCL	A0A8J1MYI1	A0A8J1MYI1_XENLA	cxcl2.L	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	26	101	75
+A0A1L8G509|ccl20.S|Xenopus_laevis|CCL	A0A1L8G509	A0A1L8G509_XENLA	ccl20.S	Xenopus_laevis	8355	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	100	74
+A0A1L8I2Z5|LOC108718829|Xenopus_laevis|CCL	A0A1L8I2Z5	A0A1L8I2Z5_XENLA	LOC108718829	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	97	74
+A0A1L8HGB3|LOC108708329|Xenopus_laevis|CCL	A0A1L8HGB3	A0A1L8HGB3_XENLA	LOC108708329	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	95	73
+A0A1L8GBB5|ccl20.L|Xenopus_laevis|CCL	A0A1L8GBB5	A0A1L8GBB5_XENLA	ccl20.L	Xenopus_laevis	8355	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	98	72
+A0A1L8HMG0|cxcl8b.S|Xenopus_laevis|CXCL	A0A1L8HMG0	A0A1L8HMG0_XENLA	cxcl8b.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	91	69
+A0A1L8HG64|ccl4.L|Xenopus_laevis|CCL	A0A1L8HG64	A0A1L8HG64_XENLA	ccl4.L	Xenopus_laevis	8355	amphibian	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	89	67
+A0A8J0UKV0|LOC108709640|Xenopus_laevis|CCL	A0A8J0UKV0	A0A8J0UKV0_XENLA	LOC108709640	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	87	65
+A0A8J1L680|LOC108696348|Xenopus_laevis|CXCL	A0A8J1L680	A0A8J1L680_XENLA	LOC108696348	Xenopus_laevis	8355	amphibian	CXCL	motif		unreviewed	1.0	18	164	146
+A0A1L8G5B4|LOC108718219|Xenopus_laevis|CCL	A0A1L8G5B4	A0A1L8G5B4_XENLA	LOC108718219	Xenopus_laevis	8355	amphibian	CCL	motif		unreviewed	1.0	0	122	122
+A0A1L8G510|LOC108718220|Xenopus_laevis|CCL	A0A1L8G510	A0A1L8G510_XENLA	LOC108718220	Xenopus_laevis	8355	amphibian	CCL	motif		unreviewed	1.0	26	144	118
+A0A1L8I2F9|LOC108718397|Xenopus_laevis|CCL	A0A1L8I2F9	A0A1L8I2F9_XENLA	LOC108718397	Xenopus_laevis	8355	amphibian	CCL	motif		unreviewed	1.0	21	139	118
+A0A8J0U7K8|cxcl11.S|Xenopus_laevis|CXCL	A0A8J0U7K8	A0A8J0U7K8_XENLA	cxcl11.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name		unreviewed	1.0	0	117	117
+A0A8J0V9H2|LOC108717158|Xenopus_laevis|CCL	A0A8J0V9H2	A0A8J0V9H2_XENLA	LOC108717158	Xenopus_laevis	8355	amphibian	CCL	motif		unreviewed	1.0	26	142	116
+A0A1L8HML5|cxcl13.S|Xenopus_laevis|CXCL	A0A1L8HML5	A0A1L8HML5_XENLA	cxcl13.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	111	111
+A0A1L8HWU7|LOC121393510|Xenopus_laevis|CXCL	A0A1L8HWU7	A0A1L8HWU7_XENLA	LOC121393510	Xenopus_laevis	8355	amphibian	CXCL	motif		unreviewed	1.0	0	102	102
+A0A1L8HMH1|cxcl10.S|Xenopus_laevis|CXCL	A0A1L8HMH1	A0A1L8HMH1_XENLA	cxcl10.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	99	99
+A0A1L8HVA1|cxcl10.L|Xenopus_laevis|CXCL	A0A1L8HVA1	A0A1L8HVA1_XENLA	cxcl10.L	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	99	99
+A0A1L8H871|LOC121400353|Xenopus_laevis|CCL	A0A1L8H871	A0A1L8H871_XENLA	LOC121400353	Xenopus_laevis	8355	amphibian	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	98	98
+A0A1L8HMH0|cxcl9.S|Xenopus_laevis|CXCL	A0A1L8HMH0	A0A1L8HMH0_XENLA	cxcl9.S	Xenopus_laevis	8355	amphibian	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	96	96
+A0A1L8GB71|LOC108717157|Xenopus_laevis|CCL	A0A1L8GB71	A0A1L8GB71_XENLA	LOC108717157	Xenopus_laevis	8355	amphibian	CCL	motif		unreviewed	1.0	24	119	95
+A0A1L8I399|LOC121396001|Xenopus_laevis|CCL	A0A1L8I399	A0A1L8I399_XENLA	LOC121396001	Xenopus_laevis	8355	amphibian	CCL	motif		unreviewed	1.0	19	100	81
+A0A1L8HVH5|LOC121403335|Xenopus_laevis|CXCL	A0A1L8HVH5	A0A1L8HVH5_XENLA	LOC121403335	Xenopus_laevis	8355	amphibian	CXCL	motif		unreviewed	1.0	21	99	78
+A0A1L8HVB3|LOC108711093|Xenopus_laevis|CXCL	A0A1L8HVB3	A0A1L8HVB3_XENLA	LOC108711093	Xenopus_laevis	8355	amphibian	CXCL	motif		unreviewed	1.0	22	98	76
+A0A1L8FFB4|LOC121396379|Xenopus_laevis|unclassified	A0A1L8FFB4	A0A1L8FFB4_XENLA	LOC121396379	Xenopus_laevis	8355	amphibian	unclassified	none		unreviewed	1.0	0	131	131
+A0A1L8G540|LOC108717487|Xenopus_laevis|unclassified	A0A1L8G540	A0A1L8G540_XENLA	LOC108717487	Xenopus_laevis	8355	amphibian	unclassified	none		unreviewed	1.0	0	113	113
+A0A1L8HVJ6|LOC108711250|Xenopus_laevis|unclassified	A0A1L8HVJ6	A0A1L8HVJ6_XENLA	LOC108711250	Xenopus_laevis	8355	amphibian	unclassified	none		unreviewed	1.0	0	102	102
+A0A1L8HS54|LOC108707361|Xenopus_laevis|unclassified	A0A1L8HS54	A0A1L8HS54_XENLA	LOC108707361	Xenopus_laevis	8355	amphibian	unclassified	none		unreviewed	1.0	0	97	97
+A0A1L8GBF7|LOC108716243|Xenopus_laevis|unclassified	A0A1L8GBF7	A0A1L8GBF7_XENLA	LOC108716243	Xenopus_laevis	8355	amphibian	unclassified	none		unreviewed	1.0	23	113	90
+A0A8J1MGL4|LOC121400787|Xenopus_laevis|unclassified	A0A8J1MGL4	A0A8J1MGL4_XENLA	LOC121400787	Xenopus_laevis	8355	amphibian	unclassified	none		unreviewed	1.0	37	113	76
+B0R191|cxcl11.6|Danio_rerio|CXCL	B0R191	CX116_DANRE	cxcl11.6	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	20	121	101
+A0A0R4INB9|cxcl11.1|Danio_rerio|CXCL	A0A0R4INB9	CX111_DANRE	cxcl11.1	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	reviewed	3.0	19	94	75
+A0A0G2KYH9|cxcl8a|Danio_rerio|CXCL	A0A0G2KYH9	A0A0G2KYH9_DANRE	cxcl8a	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	5.0	22	98	76
+Q8AV10|cxcl12a|Danio_rerio|CXCL	Q8AV10	Q8AV10_DANRE	cxcl12a	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	5.0	23	99	76
+N0GW19|cxcl8b.1|Danio_rerio|CXCL	N0GW19	N0GW19_DANRE	cxcl8b.1	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	26	118	92
+F1QBE9|ccl25b|Danio_rerio|CCL	F1QBE9	F1QBE9_DANRE	ccl25b	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	3.0	29	106	77
+A0AB32TC07|ccl38a.3|Danio_rerio|CCL	A0AB32TC07	A0AB32TC07_DANRE	ccl38a.3	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	190	190
+A0A8M1RFY0|LOC100538242|Danio_rerio|CCL	A0A8M1RFY0	A0A8M1RFY0_DANRE	LOC100538242	Danio_rerio	7955	bony_fish	CCL	motif		unreviewed	2.0	21	201	180
+A9ZPF6|cxcl20|Danio_rerio|CXCL	A9ZPF6	A9ZPF6_DANRE	cxcl20	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	147	147
+A0AC58I5Z8|LOC137488600|Danio_rerio|CCL	A0AC58I5Z8	A0AC58I5Z8_DANRE	LOC137488600	Danio_rerio	7955	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	19	163	144
+A0A8M9Q1N9|cxcl13|Danio_rerio|CXCL	A0A8M9Q1N9	A0A8M9Q1N9_DANRE	cxcl13	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	125	125
+A0A8M1NH65|ccl33.2|Danio_rerio|CCL	A0A8M1NH65	A0A8M1NH65_DANRE	ccl33.2	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	2.0	0	118	118
+A0AB32TC92|ccl38.1|Danio_rerio|CCL	A0AB32TC92	A0AB32TC92_DANRE	ccl38.1	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	136	115
+B3DGJ7|ccl34a.4|Danio_rerio|CCL	B3DGJ7	B3DGJ7_DANRE	ccl34a.4	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	2.0	27	138	111
+A0A0G2KWZ2|cxcl11.3|Danio_rerio|CXCL	A0A0G2KWZ2	A0A0G2KWZ2_DANRE	cxcl11.3	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	121	101
+A0A8M1NHW3|cxcl8b.3|Danio_rerio|CXCL	A0A8M1NHW3	A0A8M1NHW3_DANRE	cxcl8b.3	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	117	95
+A0AC58JL29|ccl19a.1|Danio_rerio|CCL	A0AC58JL29	A0AC58JL29_DANRE	ccl19a.1	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	27	119	92
+A0A8M1P631|ccl19b|Danio_rerio|CCL	A0A8M1P631	A0A8M1P631_DANRE	ccl19b	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	2.0	25	114	89
+A9ZPF8|cxcl18b|Danio_rerio|CXCL	A9ZPF8	A9ZPF8_DANRE	cxcl18b	Danio_rerio	7955	bony_fish	CXCL	gene_name		unreviewed	2.0	25	114	89
+A2BHJ6|cxcl11.8|Danio_rerio|CXCL	A2BHJ6	A2BHJ6_DANRE	cxcl11.8	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	102	82
+Q5TYQ0|ccl38a.5|Danio_rerio|CCL	Q5TYQ0	Q5TYQ0_DANRE	ccl38a.5	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	103	82
+A9ZPF1|cxcl19|Danio_rerio|CXCL	A9ZPF1	A9ZPF1_DANRE	cxcl19	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	101	81
+Q5TYP6|ccl38.6|Danio_rerio|CCL	Q5TYP6	Q5TYP6_DANRE	ccl38.6	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	103	81
+Q5TYP9|ccl38a.4|Danio_rerio|CCL	Q5TYP9	Q5TYP9_DANRE	ccl38a.4	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	101	80
+A0ACM8QEZ5|ccl20b|Danio_rerio|CCL	A0ACM8QEZ5	A0ACM8QEZ5_DANRE	ccl20b	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	102	79
+A0A0G2KM47|cxcl11.4|Danio_rerio|CXCL	A0A0G2KM47	A0A0G2KM47_DANRE	cxcl11.4	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	96	76
+A0A8M1P303|cxcl12b|Danio_rerio|CXCL	A0A8M1P303	A0A8M1P303_DANRE	cxcl12b	Danio_rerio	7955	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	97	74
+B3DGM0|ccl20a.3|Danio_rerio|CCL	B3DGM0	B3DGM0_DANRE	ccl20a.3	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	25	99	74
+F1QP63|ccl34b.4|Danio_rerio|CCL	F1QP63	F1QP63_DANRE	ccl34b.4	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	2.0	25	98	73
+A0A8M9PJ26|ccl20a.4|Danio_rerio|CCL	A0A8M9PJ26	A0A8M9PJ26_DANRE	ccl20a.4	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	25	94	69
+A0A0G2L2I4|ccl36.1|Danio_rerio|CCL	A0A0G2L2I4	A0A0G2L2I4_DANRE	ccl36.1	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	93	69
+A0A0R4IRX2|ccl27a|Danio_rerio|CCL	A0A0R4IRX2	A0A0R4IRX2_DANRE	ccl27a	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	94	68
+A0A0R4ISV2|ccl39.2|Danio_rerio|CCL	A0A0R4ISV2	A0A0R4ISV2_DANRE	ccl39.2	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	2.0	22	87	65
+A0A8M1NW16|ccl33.3|Danio_rerio|CCL	A0A8M1NW16	A0A8M1NW16_DANRE	ccl33.3	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	2.0	22	85	63
+A0AC58IT23|LOC141380791|Danio_rerio|CXCL	A0AC58IT23	A0AC58IT23_DANRE	LOC141380791	Danio_rerio	7955	bony_fish	CXCL	motif		unreviewed	1.0	18	320	302
+A0AC58IRV3|LOC137489252|Danio_rerio|CCL	A0AC58IRV3	A0AC58IRV3_DANRE	LOC137489252	Danio_rerio	7955	bony_fish	CCL	motif		unreviewed	1.0	27	274	247
+A0A8M1NGH1|cxcl32b.1|Danio_rerio|CXCL	A0A8M1NGH1	A0A8M1NGH1_DANRE	cxcl32b.1	Danio_rerio	7955	bony_fish	CXCL	gene_name		unreviewed	1.0	20	159	139
+F1Q6N2|ccl34b.9|Danio_rerio|CCL	F1Q6N2	F1Q6N2_DANRE	ccl34b.9	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	0	115	115
+A0AB13A3H4|LOC100002392|Danio_rerio|CCL	A0AB13A3H4	A0AB13A3H4_DANRE	LOC100002392	Danio_rerio	7955	bony_fish	CCL	motif		unreviewed	1.0	26	141	115
+A0AC58I5B5|LOC141379250|Danio_rerio|CCL	A0AC58I5B5	A0AC58I5B5_DANRE	LOC141379250	Danio_rerio	7955	bony_fish	CCL	motif		unreviewed	1.0	22	130	108
+A9ZPF3|ccl44|Danio_rerio|CCL	A9ZPF3	A9ZPF3_DANRE	ccl44	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	21	126	105
+A0A8M2BIN2|ccl20l|Danio_rerio|CCL	A0A8M2BIN2	A0A8M2BIN2_DANRE	ccl20l	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	23	120	97
+A0AB40EBF4|cxcl-c13b|Danio_rerio|CXCL	A0AB40EBF4	A0AB40EBF4_DANRE	cxcl-c13b	Danio_rerio	7955	bony_fish	CXCL	gene_name		unreviewed	1.0	24	119	95
+A0AC58IPA1|ccl34b.8|Danio_rerio|CCL	A0AC58IPA1	A0AC58IPA1_DANRE	ccl34b.8	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	26	119	93
+A0AB13A8L3|ccl32b.3|Danio_rerio|CCL	A0AB13A8L3	A0AB13A8L3_DANRE	ccl32b.3	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	23	115	92
+A0AC58IS06|LOC100141478|Danio_rerio|CCL	A0AC58IS06	A0AC58IS06_DANRE	LOC100141478	Danio_rerio	7955	bony_fish	CCL	motif		unreviewed	1.0	19	111	92
+A0A2R8Q8Y8|cxcl18a.1|Danio_rerio|CXCL	A0A2R8Q8Y8	A0A2R8Q8Y8_DANRE	cxcl18a.1	Danio_rerio	7955	bony_fish	CXCL	gene_name		unreviewed	1.0	30	120	90
+A0A8M1NI09|ccl34a.3|Danio_rerio|CCL	A0A8M1NI09	A0A8M1NI09_DANRE	ccl34a.3	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	27	111	84
+A0ACD6B7Z9|ccl25a|Danio_rerio|CCL	A0ACD6B7Z9	A0ACD6B7Z9_DANRE	ccl25a	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	20	102	82
+A0A8M1P694|cxcl14|Danio_rerio|CXCL	A0A8M1P694	A0A8M1P694_DANRE	cxcl14	Danio_rerio	7955	bony_fish	CXCL	gene_name		unreviewed	1.0	23	100	77
+A0A2R8QTH6|ccl19a.2|Danio_rerio|CCL	A0A2R8QTH6	A0A2R8QTH6_DANRE	ccl19a.2	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	21	96	75
+A0A8N7UZ54|ccl35.2|Danio_rerio|CCL	A0A8N7UZ54	A0A8N7UZ54_DANRE	ccl35.2	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	24	98	74
+A9ZPF4|ccl27b|Danio_rerio|CCL	A9ZPF4	A9ZPF4_DANRE	ccl27b	Danio_rerio	7955	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	17	91	74
+A0AC58IXU6|ccl39.6|Danio_rerio|CCL	A0AC58IXU6	A0AC58IXU6_DANRE	ccl39.6	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	25	99	74
+A0ACM8QEY8|ccl39.1|Danio_rerio|CCL	A0ACM8QEY8	A0ACM8QEY8_DANRE	ccl39.1	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	22	94	72
+A9ZPD6|ccl39.3|Danio_rerio|CCL	A9ZPD6	A9ZPD6_DANRE	ccl39.3	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	22	94	72
+A0A0R4IPJ5|ccl34b.1|Danio_rerio|CCL	A0A0R4IPJ5	A0A0R4IPJ5_DANRE	ccl34b.1	Danio_rerio	7955	bony_fish	CCL	gene_name		unreviewed	1.0	27	97	70
+A0A8M1NSP1|LOC100216314|Danio_rerio|CCL	A0A8M1NSP1	A0A8M1NSP1_DANRE	LOC100216314	Danio_rerio	7955	bony_fish	CCL	motif		unreviewed	1.0	22	86	64
+A0AB32TVF2|LOC108190774|Danio_rerio|unclassified	A0AB32TVF2	A0AB32TVF2_DANRE	LOC108190774	Danio_rerio	7955	bony_fish	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	17	148	131
+A0A8M9PKN2|LOC101886833|Danio_rerio|unclassified	A0A8M9PKN2	A0A8M9PKN2_DANRE	LOC101886833	Danio_rerio	7955	bony_fish	unclassified	none		unreviewed	1.0	0	126	126
+A0AB13A9A2|cxl34c|Danio_rerio|unclassified	A0AB13A9A2	A0AB13A9A2_DANRE	cxl34c	Danio_rerio	7955	bony_fish	unclassified	none		unreviewed	1.0	26	118	92
+A0A8M1NHV6|cxl34b.11|Danio_rerio|unclassified	A0A8M1NHV6	A0A8M1NHV6_DANRE	cxl34b.11	Danio_rerio	7955	bony_fish	unclassified	none		unreviewed	1.0	34	115	81
+B3KYI4|a-Sdf1a|Oryzias_latipes|CXCL	B3KYI4	B3KYI4_ORYLA	a-Sdf1a	Oryzias_latipes	8090	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	3.0	23	98	75
+A0A3B3HZZ0|NA|Oryzias_latipes|CXCL	A0A3B3HZZ0	A0A3B3HZZ0_ORYLA		Oryzias_latipes	8090	bony_fish	CXCL	motif		unreviewed	2.0	25	228	203
+A0A3B3H2G4|LOC105357410|Oryzias_latipes|CCL	A0A3B3H2G4	A0A3B3H2G4_ORYLA	LOC105357410	Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	2.0	26	205	179
+A0A3B3HKU6|LOC101171052|Oryzias_latipes|CCL	A0A3B3HKU6	A0A3B3HKU6_ORYLA	LOC101171052	Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	2.0	26	205	179
+A0A3B3IEA4|ccl20a.3|Oryzias_latipes|CCL	A0A3B3IEA4	A0A3B3IEA4_ORYLA	ccl20a.3	Oryzias_latipes	8090	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	146	146
+A0A3B3HD78|LOC101160023|Oryzias_latipes|CCL	A0A3B3HD78	A0A3B3HD78_ORYLA	LOC101160023	Oryzias_latipes	8090	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	134	108
+H2LZ09|LOC101168980|Oryzias_latipes|CXCL	H2LZ09	H2LZ09_ORYLA	LOC101168980	Oryzias_latipes	8090	bony_fish	CXCL	motif		unreviewed	2.0	28	136	108
+A0A3B3HBM7|NA|Oryzias_latipes|CXCL	A0A3B3HBM7	A0A3B3HBM7_ORYLA		Oryzias_latipes	8090	bony_fish	CXCL	motif		unreviewed	2.0	19	123	104
+A0A3B3HLZ8|NA|Oryzias_latipes|CXCL	A0A3B3HLZ8	A0A3B3HLZ8_ORYLA		Oryzias_latipes	8090	bony_fish	CXCL	motif		unreviewed	2.0	22	121	99
+H2LK41|LOC101157707|Oryzias_latipes|CXCL	H2LK41	H2LK41_ORYLA	LOC101157707	Oryzias_latipes	8090	bony_fish	CXCL	motif		unreviewed	2.0	20	113	93
+A0A3B3HUL4|cxcl19|Oryzias_latipes|CXCL	A0A3B3HUL4	A0A3B3HUL4_ORYLA	cxcl19	Oryzias_latipes	8090	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	18	104	86
+A0A3B3HY37|NA|Oryzias_latipes|XCL	A0A3B3HY37	A0A3B3HY37_ORYLA		Oryzias_latipes	8090	bony_fish	XCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	25	109	84
+A0A3B3H685|LOC105356475|Oryzias_latipes|CCL	A0A3B3H685	A0A3B3H685_ORYLA	LOC105356475	Oryzias_latipes	8090	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	104	82
+Q1XHL4|sdf1a|Oryzias_latipes|CXCL	Q1XHL4	Q1XHL4_ORYLA	sdf1a	Oryzias_latipes	8090	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	102	79
+A0A3B3IBY0|NA|Oryzias_latipes|CCL	A0A3B3IBY0	A0A3B3IBY0_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	2.0	22	100	78
+A0A3B3IPA3|LOC101163143|Oryzias_latipes|CXCL	A0A3B3IPA3	A0A3B3IPA3_ORYLA	LOC101163143	Oryzias_latipes	8090	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	96	76
+H2LK78|LOC101162901|Oryzias_latipes|CXCL	H2LK78	H2LK78_ORYLA	LOC101162901	Oryzias_latipes	8090	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	97	75
+A0A3B3H316|NA|Oryzias_latipes|CCL	A0A3B3H316	A0A3B3H316_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	90	66
+A0A3B3HAT5|LOC111949233|Oryzias_latipes|CCL	A0A3B3HAT5	A0A3B3HAT5_ORYLA	LOC111949233	Oryzias_latipes	8090	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	25	91	66
+A0A3B3HMK6|NA|Oryzias_latipes|CXCL	A0A3B3HMK6	A0A3B3HMK6_ORYLA		Oryzias_latipes	8090	bony_fish	CXCL	motif		unreviewed	2.0	25	91	66
+A0A3B3HJI2|NA|Oryzias_latipes|unclassified	A0A3B3HJI2	A0A3B3HJI2_ORYLA		Oryzias_latipes	8090	bony_fish	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	103	103
+A0A3B3IEF9|LOC111946680|Oryzias_latipes|unclassified	A0A3B3IEF9	A0A3B3IEF9_ORYLA	LOC111946680	Oryzias_latipes	8090	bony_fish	unclassified	none		unreviewed	2.0	27	128	101
+A0A3B3HE30|LOC101160820|Oryzias_latipes|CCL	A0A3B3HE30	A0A3B3HE30_ORYLA	LOC101160820	Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	18	131	113
+A0A3B3HKM7|NA|Oryzias_latipes|CCL	A0A3B3HKM7	A0A3B3HKM7_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	0	110	110
+H2MRH9|ccl44|Oryzias_latipes|CCL	H2MRH9	H2MRH9_ORYLA	ccl44	Oryzias_latipes	8090	bony_fish	CCL	gene_name		unreviewed	1.0	22	126	104
+A0A3B3H537|NA|Oryzias_latipes|CCL	A0A3B3H537	A0A3B3H537_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	0	100	100
+A0A3B3I7T0|NA|Oryzias_latipes|CCL	A0A3B3I7T0	A0A3B3I7T0_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	29	122	93
+H2MUW3|ccl25a|Oryzias_latipes|CCL	H2MUW3	H2MUW3_ORYLA	ccl25a	Oryzias_latipes	8090	bony_fish	CCL	gene_name		unreviewed	1.0	18	108	90
+A0A3B3I0H3|cxcl18a.1|Oryzias_latipes|CXCL	A0A3B3I0H3	A0A3B3I0H3_ORYLA	cxcl18a.1	Oryzias_latipes	8090	bony_fish	CXCL	gene_name		unreviewed	1.0	25	110	85
+A0A3B3HJF2|LOC111946265|Oryzias_latipes|CCL	A0A3B3HJF2	A0A3B3HJF2_ORYLA	LOC111946265	Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	22	101	79
+H2MKE8|NA|Oryzias_latipes|CCL	H2MKE8	H2MKE8_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	19	98	79
+H2L3C2|cxcl14|Oryzias_latipes|CXCL	H2L3C2	H2L3C2_ORYLA	cxcl14	Oryzias_latipes	8090	bony_fish	CXCL	gene_name		unreviewed	1.0	22	99	77
+H2MHZ6|NA|Oryzias_latipes|CCL	H2MHZ6	H2MHZ6_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	24	101	77
+A0A3B3IKJ3|ccl25b|Oryzias_latipes|CCL	A0A3B3IKJ3	A0A3B3IKJ3_ORYLA	ccl25b	Oryzias_latipes	8090	bony_fish	CCL	gene_name		unreviewed	1.0	20	96	76
+A0A3B3IH01|NA|Oryzias_latipes|CCL	A0A3B3IH01	A0A3B3IH01_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	21	95	74
+A0A3B3I6Y5|LOC101170597|Oryzias_latipes|CCL	A0A3B3I6Y5	A0A3B3I6Y5_ORYLA	LOC101170597	Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	21	94	73
+A0A3B3HWP0|LOC101170161|Oryzias_latipes|CCL	A0A3B3HWP0	A0A3B3HWP0_ORYLA	LOC101170161	Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	23	96	73
+A0A3B3HYF0|NA|Oryzias_latipes|CCL	A0A3B3HYF0	A0A3B3HYF0_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	0	63	63
+A0A3B3I7F5|NA|Oryzias_latipes|CCL	A0A3B3I7F5	A0A3B3I7F5_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	22	82	60
+A0A3B3HBF7|NA|Oryzias_latipes|XCL	A0A3B3HBF7	A0A3B3HBF7_ORYLA		Oryzias_latipes	8090	bony_fish	XCL	motif		unreviewed	1.0	18	73	55
+H2MKE9|NA|Oryzias_latipes|CCL	H2MKE9	H2MKE9_ORYLA		Oryzias_latipes	8090	bony_fish	CCL	motif		unreviewed	1.0	20	69	49
+A0A674MZR6|cxcl8a|Takifugu_rubripes|CXCL	A0A674MZR6	A0A674MZR6_TAKRU	cxcl8a	Takifugu_rubripes	31033	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	165	165
+A0A674MN11|cxcl11|Takifugu_rubripes|CXCL	A0A674MN11	A0A674MN11_TAKRU	cxcl11	Takifugu_rubripes	31033	bony_fish	CXCL	gene_name		unreviewed	2.0	26	135	109
+A0A674PMW3|LOC105418180|Takifugu_rubripes|CXCL	A0A674PMW3	A0A674PMW3_TAKRU	LOC105418180	Takifugu_rubripes	31033	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	18	103	85
+H2SS98|cxcl12b|Takifugu_rubripes|CXCL	H2SS98	H2SS98_TAKRU	cxcl12b	Takifugu_rubripes	31033	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	100	79
+E5RMA7|CXCL13|Takifugu_rubripes|CXCL	E5RMA7	E5RMA7_TAKRU	CXCL13	Takifugu_rubripes	31033	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	101	78
+Q6F4N2|IL-8|Takifugu_rubripes|CXCL	Q6F4N2	Q6F4N2_TAKRU	IL-8	Takifugu_rubripes	31033	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	98	76
+A0A3B5K1D9|cxcl14|Takifugu_rubripes|CXCL	A0A3B5K1D9	A0A3B5K1D9_TAKRU	cxcl14	Takifugu_rubripes	31033	bony_fish	CXCL	gene_name		unreviewed	1.0	0	217	217
+A0A3B5K3S3|ccl19l1|Takifugu_rubripes|CCL	A0A3B5K3S3	A0A3B5K3S3_TAKRU	ccl19l1	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	0	180	180
+A0A3B5JW76|CXCL12|Takifugu_rubripes|CXCL	A0A3B5JW76	A0A3B5JW76_TAKRU	CXCL12	Takifugu_rubripes	31033	bony_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	126	126
+A0A3B5KKD6|ccl27b|Takifugu_rubripes|CCL	A0A3B5KKD6	A0A3B5KKD6_TAKRU	ccl27b	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	0	122	122
+A0A3B5K9N1|ccl44|Takifugu_rubripes|CCL	A0A3B5K9N1	A0A3B5K9N1_TAKRU	ccl44	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	22	126	104
+A0A3B5K3P8|ccl19|Takifugu_rubripes|CCL	A0A3B5K3P8	A0A3B5K3P8_TAKRU	ccl19	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	26	113	87
+A0A3B5K6V2|NA|Takifugu_rubripes|CCL	A0A3B5K6V2	A0A3B5K6V2_TAKRU		Takifugu_rubripes	31033	bony_fish	CCL	motif		unreviewed	1.0	0	87	87
+A0A3B5K3K8|ccl25a|Takifugu_rubripes|CCL	A0A3B5K3K8	A0A3B5K3K8_TAKRU	ccl25a	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	20	102	82
+A0A3B5KLU2|LOC105417375|Takifugu_rubripes|CXCL	A0A3B5KLU2	A0A3B5KLU2_TAKRU	LOC105417375	Takifugu_rubripes	31033	bony_fish	CXCL	motif		unreviewed	1.0	20	102	82
+A0A3B5KLT3|ccl25b|Takifugu_rubripes|CCL	A0A3B5KLT3	A0A3B5KLT3_TAKRU	ccl25b	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	20	100	80
+A0A3B5K9B1|ccl20a.3|Takifugu_rubripes|CCL	A0A3B5K9B1	A0A3B5K9B1_TAKRU	ccl20a.3	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	26	105	79
+G9M4M3|CCL28|Takifugu_rubripes|CCL	G9M4M3	G9M4M3_TAKRU	CCL28	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	22	99	77
+A0A3B5KN56|LOC101065036|Takifugu_rubripes|CCL	A0A3B5KN56	A0A3B5KN56_TAKRU	LOC101065036	Takifugu_rubripes	31033	bony_fish	CCL	motif		unreviewed	1.0	23	100	77
+A0A3B5JVK4|ccl20|Takifugu_rubripes|CCL	A0A3B5JVK4	A0A3B5JVK4_TAKRU	ccl20	Takifugu_rubripes	31033	bony_fish	CCL	gene_name		unreviewed	1.0	23	99	76
+H2SKD3|NA|Takifugu_rubripes|CCL	H2SKD3	H2SKD3_TAKRU		Takifugu_rubripes	31033	bony_fish	CCL	motif		unreviewed	1.0	18	90	72
+A0A674MK38|ccl36.1|Takifugu_rubripes|CCL	A0A674MK38	A0A674MK38_TAKRU	ccl36.1	Takifugu_rubripes	31033	bony_fish	CCL	gene_name	Intercrine beta (chemokine CC) family	unreviewed	1.0	22	91	69
+A0A674NUI3|NA|Takifugu_rubripes|unclassified	A0A674NUI3	A0A674NUI3_TAKRU		Takifugu_rubripes	31033	bony_fish	unclassified	none		unreviewed	1.0	0	230	230
+A0A3B5K533|NA|Takifugu_rubripes|unclassified	A0A3B5K533	A0A3B5K533_TAKRU		Takifugu_rubripes	31033	bony_fish	unclassified	none		unreviewed	1.0	0	193	193
+A0A3B5K6T7|NA|Takifugu_rubripes|unclassified	A0A3B5K6T7	A0A3B5K6T7_TAKRU		Takifugu_rubripes	31033	bony_fish	unclassified	none		unreviewed	1.0	0	131	131
+Q8AV25|fCL1|Takifugu_rubripes|unclassified	Q8AV25	Q8AV25_TAKRU	fCL1	Takifugu_rubripes	31033	bony_fish	unclassified	none		unreviewed	1.0	0	98	98
+W5MIW2|NA|Lepisosteus_oculatus|CCL	W5MIW2	W5MIW2_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	115	93
+W5MIT7|NA|Lepisosteus_oculatus|CCL	W5MIT7	W5MIT7_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	110	90
+W5MAW2|NA|Lepisosteus_oculatus|CCL	W5MAW2	W5MAW2_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	21	107	86
+W5N760|NA|Lepisosteus_oculatus|CXCL	W5N760	W5N760_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	104	82
+W5N755|NA|Lepisosteus_oculatus|CXCL	W5N755	W5N755_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	98	76
+W5MJ41|NA|Lepisosteus_oculatus|CCL	W5MJ41	W5MJ41_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	24	100	76
+W5MJ25|NA|Lepisosteus_oculatus|CCL	W5MJ25	W5MJ25_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	26	100	74
+W5M671|NA|Lepisosteus_oculatus|CXCL	W5M671	W5M671_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	92	70
+W5MVN6|NA|Lepisosteus_oculatus|CCL	W5MVN6	W5MVN6_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	91	69
+W5N751|NA|Lepisosteus_oculatus|unclassified	W5N751	W5N751_LEPOC		Lepisosteus_oculatus	7918	bony_fish	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	143	143
+W5N747|NA|Lepisosteus_oculatus|unclassified	W5N747	W5N747_LEPOC		Lepisosteus_oculatus	7918	bony_fish	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	113	113
+W5N741|NA|Lepisosteus_oculatus|unclassified	W5N741	W5N741_LEPOC		Lepisosteus_oculatus	7918	bony_fish	unclassified	none	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	99	99
+W5M6D3|NA|Lepisosteus_oculatus|CCL	W5M6D3	W5M6D3_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif		unreviewed	1.0	21	115	94
+W5MIY6|NA|Lepisosteus_oculatus|CCL	W5MIY6	W5MIY6_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif		unreviewed	1.0	26	113	87
+W5N367|NA|Lepisosteus_oculatus|CXCL	W5N367	W5N367_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CXCL	motif		unreviewed	1.0	26	103	77
+W5M6H7|NA|Lepisosteus_oculatus|CCL	W5M6H7	W5M6H7_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif		unreviewed	1.0	25	99	74
+W5MIX4|NA|Lepisosteus_oculatus|CCL	W5MIX4	W5MIX4_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif		unreviewed	1.0	27	98	71
+W5M9E7|NA|Lepisosteus_oculatus|CXCL	W5M9E7	W5M9E7_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	0	68	68
+W5MJ01|NA|Lepisosteus_oculatus|CCL	W5MJ01	W5MJ01_LEPOC		Lepisosteus_oculatus	7918	bony_fish	CCL	motif		unreviewed	1.0	27	91	64
+W5MAU7|NA|Lepisosteus_oculatus|unclassified	W5MAU7	W5MAU7_LEPOC		Lepisosteus_oculatus	7918	bony_fish	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	114	114
+W5MAS9|NA|Lepisosteus_oculatus|unclassified	W5MAS9	W5MAS9_LEPOC		Lepisosteus_oculatus	7918	bony_fish	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	113	113
+M3XLA1|NA|Latimeria_chalumnae|CCL	M3XLA1	M3XLA1_LATCH		Latimeria_chalumnae	7897	lobe_finned_fish	CCL	motif		unreviewed	2.0	22	118	96
+H3AJ96|CXCL12|Latimeria_chalumnae|CXCL	H3AJ96	H3AJ96_LATCH	CXCL12	Latimeria_chalumnae	7897	lobe_finned_fish	CXCL	gene_name	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	0	76	76
+H3A6K4|LOC102363090|Latimeria_chalumnae|CXCL	H3A6K4	H3A6K4_LATCH	LOC102363090	Latimeria_chalumnae	7897	lobe_finned_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	97	74
+M3XGQ4|LOC102352351|Latimeria_chalumnae|CCL	M3XGQ4	M3XGQ4_LATCH	LOC102352351	Latimeria_chalumnae	7897	lobe_finned_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	22	88	66
+M3XJG7|LOC102360069|Latimeria_chalumnae|CCL	M3XJG7	M3XJG7_LATCH	LOC102360069	Latimeria_chalumnae	7897	lobe_finned_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	23	88	65
+M3XL12|LOC102359803|Latimeria_chalumnae|CCL	M3XL12	M3XL12_LATCH	LOC102359803	Latimeria_chalumnae	7897	lobe_finned_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	0	62	62
+H3AKD2|NA|Latimeria_chalumnae|CCL	H3AKD2	H3AKD2_LATCH		Latimeria_chalumnae	7897	lobe_finned_fish	CCL	motif		unreviewed	1.0	0	100	100
+M3XK18|CXCL14|Latimeria_chalumnae|CXCL	M3XK18	M3XK18_LATCH	CXCL14	Latimeria_chalumnae	7897	lobe_finned_fish	CXCL	gene_name		unreviewed	1.0	22	98	76
+H3AKD3|NA|Latimeria_chalumnae|CCL	H3AKD3	H3AKD3_LATCH		Latimeria_chalumnae	7897	lobe_finned_fish	CCL	motif		unreviewed	1.0	19	95	76
+A0A4W3HXV7|LOC103188309|Callorhinchus_milii|CXCL	A0A4W3HXV7	A0A4W3HXV7_CALMI	LOC103188309	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	155	134
+A0A4W3HQE2|LOC103191009|Callorhinchus_milii|CXCL	A0A4W3HQE2	A0A4W3HQE2_CALMI	LOC103191009	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	20	114	94
+A0A4W3I1V2|LOC103180888|Callorhinchus_milii|CXCL	A0A4W3I1V2	A0A4W3I1V2_CALMI	LOC103180888	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	21	107	86
+A0A4W3GQS4|NA|Callorhinchus_milii|CXCL	A0A4W3GQS4	A0A4W3GQS4_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	99	79
+A0A4W3H5W4|LOC103177361|Callorhinchus_milii|CXCL	A0A4W3H5W4	A0A4W3H5W4_CALMI	LOC103177361	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	20	99	79
+V9L9W2|NA|Callorhinchus_milii|CXCL	V9L9W2	V9L9W2_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	101	79
+A0A4W3ICJ0|LOC103191142|Callorhinchus_milii|CXCL	A0A4W3ICJ0	A0A4W3ICJ0_CALMI	LOC103191142	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	22	100	78
+V9LIZ6|NA|Callorhinchus_milii|CCL	V9LIZ6	V9LIZ6_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif	Intercrine beta (chemokine CC) family	unreviewed	2.0	19	95	76
+A0A4W3I6K0|LOC103184514|Callorhinchus_milii|CCL	A0A4W3I6K0	A0A4W3I6K0_CALMI	LOC103184514	Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	23	135	112
+A0A4W3I0D3|NA|Callorhinchus_milii|CXCL	A0A4W3I0D3	A0A4W3I0D3_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	26	134	108
+V9LBF0|NA|Callorhinchus_milii|CXCL	V9LBF0	V9LBF0_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	26	134	108
+K4G0A6|NA|Callorhinchus_milii|CCL	K4G0A6	K4G0A6_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	33	126	93
+V9LJU5|NA|Callorhinchus_milii|CCL	V9LJU5	V9LJU5_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	0	89	89
+A0A4W3GHR6|NA|Callorhinchus_milii|CCL	A0A4W3GHR6	A0A4W3GHR6_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	0	88	88
+A0A4W3HU49|LOC103182137|Callorhinchus_milii|CXCL	A0A4W3HU49	A0A4W3HU49_CALMI	LOC103182137	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	25	112	87
+A0A4W3J5K8|NA|Callorhinchus_milii|CCL	A0A4W3J5K8	A0A4W3J5K8_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	23	109	86
+A0A4W3GQQ2|LOC103177357|Callorhinchus_milii|CXCL	A0A4W3GQQ2	A0A4W3GQQ2_CALMI	LOC103177357	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	103	82
+A0A4W3IW97|LOC103174742|Callorhinchus_milii|CCL	A0A4W3IW97	A0A4W3IW97_CALMI	LOC103174742	Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	20	102	82
+K4FTE7|NA|Callorhinchus_milii|CXCL	K4FTE7	K4FTE7_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	20	99	79
+V9LGL3|NA|Callorhinchus_milii|CXCL	V9LGL3	V9LGL3_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	23	100	77
+V9LIZ5|NA|Callorhinchus_milii|CXCL	V9LIZ5	V9LIZ5_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	97	76
+A0A4W3HDP4|LOC103183737|Callorhinchus_milii|CXCL	A0A4W3HDP4	A0A4W3HDP4_CALMI	LOC103183737	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	22	97	75
+V9L6I8|NA|Callorhinchus_milii|CXCL	V9L6I8	V9L6I8_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	22	96	74
+A0A4W3IZ79|LOC103174810|Callorhinchus_milii|CCL	A0A4W3IZ79	A0A4W3IZ79_CALMI	LOC103174810	Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	27	101	74
+V9LFA9|NA|Callorhinchus_milii|CCL	V9LFA9	V9LFA9_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	25	98	73
+A0A4W3IN74|LOC103191143|Callorhinchus_milii|CXCL	A0A4W3IN74	A0A4W3IN74_CALMI	LOC103191143	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	93	72
+K4FU67|NA|Callorhinchus_milii|CCL	K4FU67	K4FU67_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	25	97	72
+A0A4W3HU59|cxcl12a|Callorhinchus_milii|CXCL	A0A4W3HU59	A0A4W3HU59_CALMI	cxcl12a	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	gene_name		unreviewed	1.0	22	93	71
+A0A4W3JS99|LOC103174731|Callorhinchus_milii|CCL	A0A4W3JS99	A0A4W3JS99_CALMI	LOC103174731	Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	20	90	70
+K4FUX3|NA|Callorhinchus_milii|CXCL	K4FUX3	K4FUX3_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	21	91	70
+A0A4W3GE07|LOC121852507|Callorhinchus_milii|CCL	A0A4W3GE07	A0A4W3GE07_CALMI	LOC121852507	Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	22	92	70
+A0A4W3IU83|LOC103185683|Callorhinchus_milii|CXCL	A0A4W3IU83	A0A4W3IU83_CALMI	LOC103185683	Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif		unreviewed	1.0	22	92	70
+V9LIX5|NA|Callorhinchus_milii|CCL	V9LIX5	V9LIX5_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	22	92	70
+K4FXX9|NA|Callorhinchus_milii|CXCL	K4FXX9	K4FXX9_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	22	91	69
+V9LAU7|NA|Callorhinchus_milii|CCL	V9LAU7	V9LAU7_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	CCL	motif		unreviewed	1.0	20	89	69
+K4FU51|NA|Callorhinchus_milii|unclassified	K4FU51	K4FU51_CALMI		Callorhinchus_milii	7868	cartilaginous_fish	unclassified	none	Intercrine beta (chemokine CC) family	unreviewed	1.0	0	116	116
+A0A4W3JSB9|LOC103174787|Callorhinchus_milii|unclassified	A0A4W3JSB9	A0A4W3JSB9_CALMI	LOC103174787	Callorhinchus_milii	7868	cartilaginous_fish	unclassified	none		unreviewed	1.0	0	104	104
+A0AAJ7XAV2|LOC116952577|Petromyzon_marinus|CXCL	A0AAJ7XAV2	A0AAJ7XAV2_PETMA	LOC116952577	Petromyzon_marinus	7757	jawless	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	2.0	23	123	100
+A0AAJ7UHP9|LOC116958105|Petromyzon_marinus|CXCL	A0AAJ7UHP9	A0AAJ7UHP9_PETMA	LOC116958105	Petromyzon_marinus	7757	jawless	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	26	112	86
+A0AAJ7SNC6|LOC116938609|Petromyzon_marinus|CXCL	A0AAJ7SNC6	A0AAJ7SNC6_PETMA	LOC116938609	Petromyzon_marinus	7757	jawless	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	23	102	79
+A0AAJ7SMJ0|LOC116938608|Petromyzon_marinus|CXCL	A0AAJ7SMJ0	A0AAJ7SMJ0_PETMA	LOC116938608	Petromyzon_marinus	7757	jawless	CXCL	motif	Intercrine alpha (chemokine CxC) family	unreviewed	1.0	21	98	77
+A0AAJ7TW51|LOC116951061|Petromyzon_marinus|CXCL	A0AAJ7TW51	A0AAJ7TW51_PETMA	LOC116951061	Petromyzon_marinus	7757	jawless	CXCL	motif		unreviewed	1.0	27	104	77
+A0AAJ7SWN5|LOC116940348|Petromyzon_marinus|CXCL	A0AAJ7SWN5	A0AAJ7SWN5_PETMA	LOC116940348	Petromyzon_marinus	7757	jawless	CXCL	motif		unreviewed	1.0	22	88	66
