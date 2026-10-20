@@ -96,6 +96,15 @@ ALL_METHODS = ["AF2", "ESM", "MSAT", "CCMpred", "DDG"]
 # Statistic computation
 # ---------------------------------------------------------------------------
 
+# DDG is in kcal/mol, not on the TM-score scale; it gets its own threshold
+# (set from --delta-ddg; same default as the survey and the correction).
+DELTA_DDG = 2.0
+
+
+def _delta_for(method: str, delta: float) -> float:
+    return DELTA_DDG if method == "DDG" else delta
+
+
 def _classify_centered(tmdiff_centered: np.ndarray, delta: float) -> np.ndarray:
     """Vectorized analog of the ``pref_centered`` block in
     ``_apply_centered_classification``: F1 if > delta, F2 if < -delta, Amb
@@ -199,7 +208,7 @@ def _aggregate_stats(
 
     # has_both_folds_centered (per-method, any)
     classified = {
-        m: _classify_centered(np.asarray(v, dtype=float), delta)
+        m: _classify_centered(np.asarray(v, dtype=float), _delta_for(m, delta))
         for m, v in centered_values_by_method.items()
     }
     diversity = _has_both_folds_centered(classified)
@@ -245,7 +254,7 @@ def _build_pair_inputs(detail_rows: pd.DataFrame, delta: float):
                 "method": method,
                 "TMdiff_max": float(tdv) if not pd.isna(r["TMdiff_max"]) else float("nan"),
             })
-        _apply_centered_classification(rows, delta)
+        _apply_centered_classification(rows, _delta_for(method, delta))
 
         # Keep only ShallowMsa rows with finite centered values for permutation.
         cl, cv, rv = [], [], []
@@ -580,7 +589,7 @@ def _submit_self_sbatch(args, script_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main():
-    global ALL_METHODS
+    global ALL_METHODS, DELTA_DDG
     parser = argparse.ArgumentParser(
         description="Permutation-null test for fold_diversity_survey concordance. "
                     "--mode raw uses TMdiff_centered (pre-correction); "
@@ -627,6 +636,11 @@ def main():
              "default: 0.05; matches fold_diversity_survey.py)"
     )
     parser.add_argument(
+        "--delta-ddg", type=float, default=2.0,
+        help="kcal/mol threshold for DDG F1/F2/Amb classification (raw mode "
+             "only; default 2.0; matches fold_diversity_survey.py)"
+    )
+    parser.add_argument(
         "--seed", type=int, default=12345,
         help="Base random seed (default: 12345)"
     )
@@ -654,6 +668,7 @@ def main():
     # _run_corrected_mode) sees the requested methods. Mirrors the --methods
     # flag in scripts/seq_divergence_correction.py.
     ALL_METHODS = [m.strip() for m in args.methods.split(",") if m.strip()]
+    DELTA_DDG = float(args.delta_ddg)
 
     # sbatch self-submission (pass methods through verbatim)
     if args.run_job_mode == "sbatch":
