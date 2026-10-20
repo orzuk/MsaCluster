@@ -73,6 +73,7 @@ Runs in seconds-to-minutes on 93 pairs * 1000 permutations.
 from __future__ import annotations
 
 import argparse
+import zlib
 import os
 import sys
 from itertools import combinations
@@ -331,14 +332,15 @@ def permute_pair(
             if v is not None and v[3] >= obs_pct:
                 geq_pairwise[k] += 1
 
-    perm_mean_p = geq_mean / n_perm if not np.isnan(obs_mean) else float("nan")
+    # (k + 1) / (n + 1): an empirical p-value is never exactly 0
+    perm_mean_p = (geq_mean + 1) / (n_perm + 1) if not np.isnan(obs_mean) else float("nan")
     if obs_diversity:
-        perm_diversity_p = geq_diversity / n_perm
+        perm_diversity_p = (geq_diversity + 1) / (n_perm + 1)
     else:
         # Permutations cannot make a False call "more extreme"; report 1.0
         # to indicate non-significant.
         perm_diversity_p = 1.0
-    perm_pairwise_p = {k: geq_pairwise[k] / n_perm for k in obs_pairwise_pct}
+    perm_pairwise_p = {k: (geq_pairwise[k] + 1) / (n_perm + 1) for k in obs_pairwise_pct}
 
     return _format_row(
         pair_id, cluster_ids, observed,
@@ -424,23 +426,20 @@ def bh_adjust(pvals: np.ndarray) -> np.ndarray:
     return out
 
 
-def _mean_concordance_from_residuals(per_method: dict) -> tuple:
+def _mean_concordance_from_residuals(signs: np.ndarray) -> tuple:
     """Mean pairwise sign-agreement across method-pairs on the residual scale.
+
+    ``signs`` is a (cluster x method) matrix of residual signs, with 0 where a
+    method has no value (or an exact 0) for that cluster. Each method pair is
+    compared only on the clusters where BOTH have a non-zero sign, so methods
+    with partial cluster coverage are matched by cluster, not by row position.
 
     Returns (mean_A, mean_n_overlap_clusters).
     """
-    present = [m for m in ALL_METHODS if m in per_method and len(per_method[m]) > 0]
-    if len(present) < 2:
-        return float("nan"), 0
     agreements: list = []
     ns: list = []
-    for a, b in combinations(present, 2):
-        va, vb = per_method[a], per_method[b]
-        n = min(len(va), len(vb))
-        if n < 1:
-            continue
-        sa = np.sign(va[:n])
-        sb = np.sign(vb[:n])
+    for a, b in combinations(range(signs.shape[1]), 2):
+        sa, sb = signs[:, a], signs[:, b]
         mask = (sa != 0) & (sb != 0)
         if mask.sum() < 1:
             continue
@@ -473,23 +472,30 @@ def _run_corrected_mode(args) -> None:
     rng = np.random.default_rng(args.seed)
     rows = []
     for pid, sub in df.groupby("pair_id"):
-        per_method_obs: dict = {}
-        for m in ALL_METHODS:
-            ms = sub[sub["method"] == m]
-            vals = ms["TMdiff_residual"].dropna().to_numpy(dtype=float)
-            if len(vals):
-                per_method_obs[m] = vals
-        if len(per_method_obs) < 2:
+        # cluster x method residual table (methods in ALL_METHODS order)
+        wide = (sub[sub["method"].isin(ALL_METHODS)]
+                .dropna(subset=["TMdiff_residual"])
+                .pivot_table(index=cluster_col, columns="method",
+                             values="TMdiff_residual", aggfunc="first"))
+        present = [m for m in ALL_METHODS if m in wide.columns]
+        if len(present) < 2:
             continue
-        obs_mean, obs_n = _mean_concordance_from_residuals(per_method_obs)
+        vals = wide[present].to_numpy(dtype=float)
+        signs = np.nan_to_num(np.sign(vals), nan=0.0)
+        has_val = ~np.isnan(vals)
+        obs_mean, obs_n = _mean_concordance_from_residuals(signs)
         if np.isnan(obs_mean):
             continue
-        n_clusters = max(len(v) for v in per_method_obs.values())
+        n_clusters = int(has_val.sum(axis=0).max())
 
+        # Null: shuffle each method's residuals among the clusters it covers.
+        col_rows = [np.flatnonzero(has_val[:, j]) for j in range(len(present))]
         n_ge = 0
+        perm = signs.copy()
         for _ in range(args.n_perm):
-            permuted = {m: rng.permutation(v) for m, v in per_method_obs.items()}
-            perm_mean, _ = _mean_concordance_from_residuals(permuted)
+            for j, rows_j in enumerate(col_rows):
+                perm[rows_j, j] = rng.permutation(signs[rows_j, j])
+            perm_mean, _ = _mean_concordance_from_residuals(perm)
             if not np.isnan(perm_mean) and perm_mean >= obs_mean:
                 n_ge += 1
         p_emp = (n_ge + 1) / (args.n_perm + 1)
@@ -497,7 +503,7 @@ def _run_corrected_mode(args) -> None:
         rows.append({
             "pair_id": pid,
             "n_clusters": int(n_clusters),
-            "n_methods_present": len(per_method_obs),
+            "n_methods_present": len(present),
             "observed_mean_concordance_corrected": obs_mean,
             "observed_mean_n_clusters": obs_n,
             "n_perm": args.n_perm,
@@ -689,7 +695,8 @@ def main():
     out_rows = []
     for i, pid in enumerate(pair_ids, 1):
         sub = df[df["pair_id"] == pid]
-        seed = args.seed + abs(hash(pid)) % 10000
+        # zlib.crc32 is stable across runs (str hash() is salted per process)
+        seed = args.seed + zlib.crc32(pid.encode()) % 10000
         row = permute_pair(pid, sub, args.delta, args.n_perm, seed)
         out_rows.append(row)
         if i % 10 == 0 or i == len(pair_ids):

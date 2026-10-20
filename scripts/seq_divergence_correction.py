@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 from itertools import combinations
 
@@ -155,19 +156,16 @@ def _build_F1_F2_column_map(seq_F1_ungap: str, seq_F2_ungap: str
         aligner.open_gap_score = -10
         aligner.extend_gap_score = -1
         alignment = aligner.align(seq_F1_ungap, seq_F2_ungap)[0]
-        s1, s2 = str(alignment).strip().split("\n")[0], \
-                 str(alignment).strip().split("\n")[2]
-        mapping: list[int | None] = []
-        f1_pos = f2_pos = -1
-        for c1, c2 in zip(s1, s2):
-            if c1 != "-":
-                f1_pos += 1
-            if c2 != "-":
-                f2_pos += 1
-            if c1 != "-":
-                mapping.append(f2_pos if c2 != "-" else None)
+        # Use the aligned coordinate blocks, not str(alignment): in Biopython
+        # >= 1.80 the printed form carries labels/coordinates, and parsing it
+        # silently produced an empty map (-> no PID-to-F2 predictor at all).
+        mapping: list[int | None] = [None] * len(seq_F1_ungap)
+        for (a0, a1), (b0, b1) in zip(*alignment.aligned):
+            for k in range(a1 - a0):
+                mapping[a0 + k] = b0 + k
         return mapping
-    except Exception:
+    except Exception as e:
+        print(f"[warn] F1->F2 alignment failed: {e}", file=sys.stderr)
         return []
 
 

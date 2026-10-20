@@ -18,6 +18,7 @@ weak positive correlation but the inflation is small.
 from __future__ import annotations
 
 from typing import Dict
+import zlib
 
 import numpy as np
 import pandas as pd
@@ -190,7 +191,7 @@ def per_method_jonckheere(
                          "class_order": present_order})
             continue
         # Use a fresh RNG slice per method to keep results reproducible per call
-        method_rng = np.random.default_rng(seed + abs(hash(method)) % 10_000)
+        method_rng = np.random.default_rng(seed + zlib.crc32(method.encode()) % 10_000)
         J, p = jonckheere_terpstra_p(samples, n_perm=n_perm, rng=method_rng)
         rows.append({"method": method, "J": J, "p_jt": p,
                      "class_order": present_order})
