@@ -132,46 +132,62 @@ def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
             f.write(partner_block)
 
 
+def _score_cluster_pdbs(pdbs, pair_id, tag, truth1, chain1, truth2, chain2,
+                        pred_chain, partner_yaml):
+    """One row per predicted PDB: TM vs both truth chains (truth-length
+    normalised, ``safe_tm_vs_truth``)."""
+    rows = []
+    for i, pdb in enumerate(pdbs):
+        tm1 = safe_tm_vs_truth(pdb, truth1, chain1, pred_chain)
+        tm2 = safe_tm_vs_truth(pdb, truth2, chain2, pred_chain)
+        rows.append({
+            "pair_id": pair_id, "cluster": tag, "rank": i,
+            "tm_fold1": tm1, "tm_fold2": tm2,
+            "TMdiff": (tm1 - tm2) if (tm1 == tm1 and tm2 == tm2) else float("nan"),
+            "pdb_path": str(pdb),
+            "partner_yaml": partner_yaml or "",
+        })
+    return rows
+
+
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, partner_yaml,
                     ligand_ccds: Optional[List[str]] = None,
                     n_copies: int = 1,
                     force_rerun: bool = False,
-                    holo: bool = False):
+                    holo: bool = False,
+                    rescore_only: bool = False):
     tag = cluster_a3m.stem
     # Holo runs get their own tree so the apo skip-check below never picks up
     # apo PDBs (and vice versa).
     out_root = pair_dir / ("output_boltz2_holo" if holo else "output_boltz2") / tag
     pred_chain = "A" if holo else None
-    out_root.mkdir(parents=True, exist_ok=True)
+    if not rescore_only:
+        out_root.mkdir(parents=True, exist_ok=True)
     truth1 = truth_chain_pdb(pair_dir, pdbid1, chain1)
     truth2 = truth_chain_pdb(pair_dir, pdbid2, chain2)
 
     # Skip if we already have a valid rank_001 PDB for this cluster.
     # An empty manifest.csv or zero-PDB output is treated as a failed
     # previous attempt and re-run.
-    existing_rank1 = sorted(out_root.rglob("*rank_001*.pdb"))
-    if not existing_rank1:
-        existing_rank1 = sorted(out_root.rglob("*.pdb"))
-    if existing_rank1 and not force_rerun:
-        # Check the PDB has nonzero content (filters out zero-byte files
-        # from sbatch failures)
-        if any(p.stat().st_size > 100 for p in existing_rank1):
-            print(f"  [boltz2] {tag}: skipping ({len(existing_rank1)} PDB(s) on disk)")
-            # Still emit rows from the on-disk PDBs so the summary CSV
-            # picks them up.
-            rows = []
-            for i, pdb in enumerate(existing_rank1):
-                tm1 = safe_tm_vs_truth(pdb, truth1, chain1, pred_chain)
-                tm2 = safe_tm_vs_truth(pdb, truth2, chain2, pred_chain)
-                rows.append({
-                    "pair_id": pair_id, "cluster": tag, "rank": i,
-                    "tm_fold1": tm1, "tm_fold2": tm2,
-                    "TMdiff": (tm1 - tm2) if (tm1 == tm1 and tm2 == tm2) else float("nan"),
-                    "pdb_path": str(pdb),
-                    "partner_yaml": partner_yaml or "",
-                })
-            return rows
+    existing_rank1 = []
+    if out_root.is_dir():
+        existing_rank1 = sorted(out_root.rglob("*rank_001*.pdb"))
+        if not existing_rank1:
+            existing_rank1 = sorted(out_root.rglob("*.pdb"))
+    # Check the PDB has nonzero content (filters out zero-byte files
+    # from sbatch failures)
+    has_valid = any(p.stat().st_size > 100 for p in existing_rank1)
+    if rescore_only and not has_valid:
+        print(f"  [boltz2] {tag}: rescore_only, no prediction on disk -- skip")
+        return []
+    if has_valid and (rescore_only or not force_rerun):
+        print(f"  [boltz2] {tag}: {'re-scoring' if rescore_only else 'skipping'} "
+              f"({len(existing_rank1)} PDB(s) on disk)")
+        # Still emit rows from the on-disk PDBs so the summary CSV
+        # picks them up.
+        return _score_cluster_pdbs(existing_rank1, pair_id, tag, truth1, chain1,
+                                   truth2, chain2, pred_chain, partner_yaml)
 
     # v2 methodology: use medoid (the cluster's central member) as the
     # query, matching what AF2/AF3 use. Was 'consensus' previously.
@@ -205,17 +221,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
     pdbs = sorted(out_root.rglob("*rank_001*.pdb"))
     if not pdbs:
         pdbs = sorted(out_root.rglob("*.pdb"))
-    rows = []
-    for i, pdb in enumerate(pdbs):
-        tm1 = safe_tm_vs_truth(pdb, truth1, chain1, pred_chain)
-        tm2 = safe_tm_vs_truth(pdb, truth2, chain2, pred_chain)
-        rows.append({
-            "pair_id": pair_id, "cluster": tag, "rank": i,
-            "tm_fold1": tm1, "tm_fold2": tm2,
-            "TMdiff": (tm1 - tm2) if (tm1 == tm1 and tm2 == tm2) else float("nan"),
-            "pdb_path": str(pdb),
-            "partner_yaml": partner_yaml or "",
-        })
+    rows = _score_cluster_pdbs(pdbs, pair_id, tag, truth1, chain1,
+                               truth2, chain2, pred_chain, partner_yaml)
     if rows:
         with open(out_root / "manifest.csv", "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
@@ -273,6 +280,11 @@ def main():
                          "chain counts, falling back to 2 (dimer) when the "
                          "CSV does not record the stoichiometry. Ignored in "
                          "apo mode.")
+    ap.add_argument("--rescore_only", action="store_true",
+                    help="Never run Boltz-2: re-score the PDBs already on disk "
+                         "(TM vs both truth chains) and rewrite the per-pair "
+                         "CSVs as a normal run would. Clusters with no "
+                         "prediction are skipped. CPU-only.")
     args = ap.parse_args()
 
     pair_id = args.input
@@ -288,7 +300,7 @@ def main():
         print(f"[error] no clusters under {pair_dir}", file=sys.stderr)
         sys.exit(2)
 
-    if not os.path.isfile(SH_WRAPPER):
+    if not args.rescore_only and not os.path.isfile(SH_WRAPPER):
         print(f"[error] missing shell wrapper {SH_WRAPPER}", file=sys.stderr)
         sys.exit(2)
 
@@ -348,7 +360,8 @@ def main():
                                pair_dir, args.partner_yaml,
                                ligand_ccds=ligand_ccds if effective_mode == "holo" else None,
                                n_copies=n_copies if effective_mode == "holo" else 1,
-                               holo=(effective_mode == "holo"))
+                               holo=(effective_mode == "holo"),
+                               rescore_only=args.rescore_only)
         # Record which mode produced these rows
         for r in rows:
             r["mode"] = effective_mode
@@ -366,6 +379,9 @@ def main():
             w = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
             w.writeheader()
             w.writerows(all_rows)
+    elif args.rescore_only:
+        print(f"[boltz2] {pair_id}: rescore_only found no predictions on disk; "
+              f"{ana / raw_fn} left untouched")
     summary = summarize(all_rows)
     if summary:
         # add mode/ligand cols to summary too

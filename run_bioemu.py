@@ -114,15 +114,26 @@ def _query_len(a3m_path) -> int:
 
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, num_samples, query_type="medoid", msa_top_n=10,
-                    max_len=0, min_samples=0, force_rerun=False):
+                    max_len=0, min_samples=0, force_rerun=False,
+                    rescore_only=False):
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_bioemu" / tag
+    if rescore_only and not out_root.is_dir():
+        print(f"  [bioemu] {tag}: rescore_only, no output dir -- skip", flush=True)
+        return []
     out_root.mkdir(parents=True, exist_ok=True)
     truth1 = truth_chain_pdb(pair_dir, pdbid1, chain1)
     truth2 = truth_chain_pdb(pair_dir, pdbid2, chain2)
 
+    # Reuses samples/frame_*.pdb when present; otherwise splits an existing
+    # topology.pdb + samples.xtc (needs mdtraj). Never samples.
     frames = _split_ensemble_to_pdbs(out_root)
-    need_sample = force_rerun or not any(p.stat().st_size > 100 for p in frames)
+    has_frames = any(p.stat().st_size > 100 for p in frames)
+    if rescore_only and not has_frames:
+        print(f"  [bioemu] {tag}: rescore_only, no sample frames on disk -- skip",
+              flush=True)
+        return []
+    need_sample = (force_rerun and not rescore_only) or not has_frames
     if need_sample:
         # Build BioEmu's input A3M with the SAME builder AF2/AF3 use: query_type
         # selects the row-1 query (default 'medoid' = variant-as-query, written
@@ -179,7 +190,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
             return []
         frames = _split_ensemble_to_pdbs(out_root)
     else:
-        print(f"  [bioemu] {tag}: skipping ({len(frames)} samples on disk)", flush=True)
+        print(f"  [bioemu] {tag}: {'re-scoring' if rescore_only else 'skipping'} "
+              f"({len(frames)} samples on disk)", flush=True)
 
     rows = []
     for i, pdb in enumerate(frames):
@@ -251,6 +263,12 @@ def main():
                     help="Enable adaptive sampling: scale n_samples down ~1/L "
                          "(num * 50/L) for longer chains, floored at this value "
                          "(0 = off, always use --num_samples).")
+    ap.add_argument("--rescore_only", action="store_true",
+                    help="Never sample: re-score the sample frames already on "
+                         "disk (TM vs both truth chains) and rewrite "
+                         "df_bioemu_raw.csv / df_bioemu.csv as a normal run "
+                         "would. Clusters with no samples are skipped. Does not "
+                         "call RunBioEmu.sh, so no bioemu-venv / GPU needed.")
     args = ap.parse_args()
 
     pair_id = args.input
@@ -266,7 +284,7 @@ def main():
     if not cluster_a3ms:
         print(f"[error] no clusters under {pair_dir}", file=sys.stderr)
         sys.exit(2)
-    if not os.path.isfile(SH_WRAPPER):
+    if not args.rescore_only and not os.path.isfile(SH_WRAPPER):
         print(f"[error] missing shell wrapper {SH_WRAPPER}", file=sys.stderr)
         sys.exit(2)
 
@@ -290,7 +308,8 @@ def main():
                                         query_type=args.query_type,
                                         msa_top_n=args.af_msa_top_n,
                                         max_len=args.max_len,
-                                        min_samples=args.min_samples))
+                                        min_samples=args.min_samples,
+                                        rescore_only=args.rescore_only))
 
     ana = pair_dir / "Analysis"
     ana.mkdir(parents=True, exist_ok=True)
@@ -299,6 +318,9 @@ def main():
             w = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
             w.writeheader()
             w.writerows(all_rows)
+    elif args.rescore_only:
+        print(f"[bioemu] {pair_id}: rescore_only found no samples on disk; "
+              f"{ana / 'df_bioemu_raw.csv'} left untouched", flush=True)
     summary = summarize(all_rows)
     if summary:
         with open(ana / "df_bioemu.csv", "w", newline="") as f:

@@ -417,6 +417,16 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         gres = None
     # else: GPU-needing mode that's not run_esmfold (e.g. run_ddg, run_AF) — keep gres as-is
 
+    # Re-scoring existing Boltz-2 / BioEmu outputs is TM-align only: no GPU,
+    # modest CPU job (fits a CPU partition such as glacier).
+    rescore_only = (run_mode in ("run_boltz2", "run_bioemu")
+                    and _bool_from_tf(getattr(args, "rescore_only", "FALSE")))
+    if rescore_only:
+        gres = None
+        cpus = 2
+        mem = "8G"
+        time = "02:00:00" if run_mode == "run_boltz2" else "04:00:00"
+
     inner = [
         shlex.quote(sys.executable),
         "run_foldswitch_pipeline.py",
@@ -437,6 +447,8 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
         copies = int(getattr(args, "boltz2_copies", 0) or 0)
         if copies:
             inner += ["--boltz2_copies", str(copies)]
+    if rescore_only:
+        inner += ["--rescore_only", "TRUE"]
     if run_mode == "run_bioemu":
         nsamp = getattr(args, "bioemu_num_samples", None)
         if nsamp:
@@ -532,6 +544,11 @@ def _submit_pair_job(run_mode: str, pair_id: str, args: argparse.Namespace, extr
             print(f"[submitted] {run_mode} {pair_id} → job {jobid}", flush=True)
         else:
             raise
+    # Optionally record the job id (e.g. for an afterany dependency).
+    jobid_file = getattr(args, "sbatch_jobid_file", None)
+    if jobid_file and jobid:
+        with open(jobid_file, "a") as fh:
+            fh.write(jobid.split(";")[0] + "\n")
 
 
 def _submit_msaclust_pair_job(pair_id: str, args: argparse.Namespace) -> None:
@@ -2081,6 +2098,8 @@ def task_boltz2(pair_id: str, args: argparse.Namespace) -> None:
         cmd += f" --partner_yaml {shlex.quote(partner)}"
     if copies:
         cmd += f" --copies {copies}"
+    if _bool_from_tf(getattr(args, "rescore_only", "FALSE")):
+        cmd += " --rescore_only"
     _run(cmd, args.run_job_mode)
 
 
@@ -2108,6 +2127,8 @@ def task_bioemu(pair_id: str, args: argparse.Namespace) -> None:
     # Same query source + shallow-MSA subsample as AF2/AF3 (shared flags).
     cmd += f" --query_type {getattr(args, 'query_type', 'medoid')}"
     cmd += f" --af_msa_top_n {int(getattr(args, 'af_msa_top_n', 10))}"
+    if _bool_from_tf(getattr(args, "rescore_only", "FALSE")):
+        cmd += " --rescore_only"
     _run(cmd, args.run_job_mode)
 
 
@@ -3066,6 +3087,12 @@ def main():
                         "(num * 50/L) for longer chains, floored here (0 = off). "
                         "E.g. --bioemu_num_samples 100 --bioemu_min_samples 10 "
                         "-> 100 at L<=50, 10 at L>=500.")
+    p.add_argument("--rescore_only", default="FALSE", choices=["TRUE", "FALSE"],
+                   help="run_boltz2 / run_bioemu: never predict or sample; "
+                        "re-score the outputs already on disk vs both truth "
+                        "chains and rewrite the per-pair CSVs. Clusters with "
+                        "no outputs are skipped. With --run_job_mode sbatch "
+                        "the per-pair jobs request no GPU (CPU partition OK).")
 
     # --- S4PRED (8th method: secondary-structure prediction) options ---
     p.add_argument("--s4pred_dir", default=None,
@@ -3327,6 +3354,9 @@ def main():
                     "have a broken NFS prologue or other infrastructure "
                     "issues that cause jobs to fail in 2-3 sec without "
                     "writing any log.")
+    p.add_argument("--sbatch_jobid_file", default=None,
+                   help="If set, append each submitted per-pair job id to this "
+                        "file (one per line), e.g. to build a dependency.")
     p.add_argument("--sbatch_gres_heavy", default="gpu:l40s:1",
                    help="Slurm --gres to use automatically when chain length >= threshold (default: gpu:l40s:1).")
 
