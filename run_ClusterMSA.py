@@ -740,7 +740,11 @@ def cluster_tree_monophyletic(headers: List[str], seqs: List[str], args
         name_to_idx[_norm(h)] = i
 
     tree = Phylo.read(args.tree_path, "newick")
-    min_size = int(args.min_output_size)
+    # Minimum leaves per emitted clade. Defaults to --min_output_size (legacy),
+    # but can be set independently with --tree_mono_min_clade_size so that the
+    # postprocess tiny-merge (which is PID-based and would break monophyly) can
+    # be disabled with --min_output_size 1 while clades still have a floor.
+    min_size = int(getattr(args, "tree_mono_min_clade_size", 0) or args.min_output_size)
     max_clusters = int(args.max_clusters)
     K = int(getattr(args, "tree_min_num_clusters", 5)) or max_clusters
     K_target = min(K, max_clusters) if max_clusters > 0 else K
@@ -762,24 +766,85 @@ def cluster_tree_monophyletic(headers: List[str], seqs: List[str], args
             print("[TREE-MONO] no tree leaves map to MSA headers; empty result.")
         return {}
 
-    def can_split(clade) -> bool:
-        if clade.is_terminal():
-            return False
-        kids = [c for c in clade.clades if node_idxs[c]]
+    def kids_of(clade) -> List[object]:
+        return [] if clade.is_terminal() else [c for c in clade.clades if node_idxs[c]]
+
+    def can_split_clean(clade) -> bool:
+        """Balanced split: every child is a clade of at least min_size leaves."""
+        kids = kids_of(clade)
         return len(kids) >= 2 and all(len(node_idxs[c]) >= min_size for c in kids)
 
-    # Greedily split the largest splittable clade until K_target clusters. Only
-    # whole clades are ever emitted, so every cluster is monophyletic.
+    def can_peel(clade) -> bool:
+        """Split that peels small outlier clades off a large one. Real trees of
+        a gene family almost always hang singletons / doubletons directly off
+        the deep nodes, and requiring ALL children to reach min_size then makes
+        the root unsplittable and the whole MSA one cluster. Peeling keeps every
+        emitted cluster a clade (monophyly holds); only the small peeled clades
+        fall below min_size."""
+        kids = kids_of(clade)
+        return len(kids) >= 2 and any(len(node_idxs[c]) >= min_size for c in kids)
+
+    # Greedily split the largest splittable clade until K_target clusters,
+    # preferring balanced splits and peeling outliers only when no balanced
+    # split is left. Only whole clades are ever emitted, so every cluster is
+    # monophyletic.
+    # Clades smaller than min_size do NOT count towards K_target (otherwise a
+    # handful of peeled outliers would exhaust the budget and leave one giant
+    # cluster); a hard cap keeps the loop finite.
     cut = [tree.root]
-    while len(cut) < K_target:
-        cands = [c for c in cut if can_split(c)]
+    hard_cap = max(4 * K_target, K_target + 50)
+    n_clean = n_peel = 0
+    while len(cut) < hard_cap:
+        if sum(1 for c in cut if len(node_idxs[c]) >= min_size) >= K_target:
+            break
+        cands = [c for c in cut if can_split_clean(c)]
+        clean = bool(cands)
+        if not cands:
+            cands = [c for c in cut if can_peel(c)]
         if not cands:
             break
         c = max(cands, key=lambda x: len(node_idxs[x]))
         cut.remove(c)
-        cut.extend(ch for ch in c.clades if node_idxs[ch])
+        cut.extend(kids_of(c))
+        n_clean += clean
+        n_peel += (not clean)
 
-    accepted = [sorted(set(node_idxs[c])) for c in cut]
+    # Re-absorb the peeled sub-min_size clades into their closest relative in
+    # the tree (the cut node with the deepest shared ancestor), smallest first.
+    # Those few clusters are then a clade plus a nearby outlier clade rather
+    # than a strict clade; everything else stays monophyletic, and no sequence
+    # is lost (which capping at max_clusters would do).
+    paths = {id(c): [id(x) for x in tree.get_path(c)] for c in cut}
+    members = {id(c): list(node_idxs[c]) for c in cut}
+    order = sorted(cut, key=lambda c: len(node_idxs[c]))
+    absorbed = 0
+    alive = {id(c): c for c in cut}
+    for c in order:
+        if id(c) not in alive or len(members[id(c)]) >= min_size:
+            continue
+        if len(alive) <= 1:
+            break
+        pc = paths[id(c)]
+
+        def shared(o) -> int:
+            po = paths[id(o)]
+            k = 0
+            while k < min(len(pc), len(po)) and pc[k] == po[k]:
+                k += 1
+            return k
+
+        host = max((o for o in alive.values() if id(o) != id(c)),
+                   key=lambda o: (shared(o), len(members[id(o)])))
+        members[id(host)].extend(members[id(c)])
+        del alive[id(c)]
+        absorbed += 1
+
+    accepted = [sorted(set(members[id(c)])) for c in alive.values()]
+    accepted.sort(key=len, reverse=True)
+    if verbose:
+        print(f"[TREE-MONO] splits: {n_clean} balanced, {n_peel} outlier-peeling; "
+              f"{absorbed} sub-min clade(s) absorbed into their nearest relative "
+              f"(min clade size={min_size})")
     if verbose:
         szs = sorted(len(g) for g in accepted)
         print(f"[TREE-MONO] {len(accepted)} monophyletic clusters "
@@ -1051,6 +1116,11 @@ def build_argparser() -> argparse.ArgumentParser:
                         "If that would give clusters smaller than min_output_size, size cap is disabled.")
     p.add_argument("--tree_assign_missing", type=int, default=1,
                    help="If 1, assign sequences not present in the tree to nearest cluster representative (default: 1).")
+    p.add_argument("--tree_mono_min_clade_size", type=int, default=0,
+                   help="--cluster_alg tree_mono: minimum leaves per emitted clade "
+                        "(0 = use --min_output_size). Set this (and --min_output_size 1) "
+                        "to keep clusters strictly monophyletic, i.e. skip the PID-based "
+                        "tiny-merge.")
     p.add_argument("--tree_rep_cap", type=int, default=200,
                    help="Max sequences to use when computing a cluster representative/medoid (default: 200).")
 

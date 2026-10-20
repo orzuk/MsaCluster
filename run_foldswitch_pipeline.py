@@ -1667,13 +1667,16 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
                              k_target: int, k_cap: int,
                              min_output_size: int, min_neff: int):
         tree_min_arg = f"--tree_min_num_clusters {k_target} " if k_target else ""
+        mono_min = int(getattr(args, "cluster_tree_mono_min_clade", 0) or 0)
+        mono_arg = (f"--tree_mono_min_clade_size {mono_min} "
+                    if (mono_min and alg == "tree_mono") else "")
         cmd = (
             f"bash -lc 'cd {FOLDPAIRS_REL}/{pid} && "
             f"{py} {_repo_root()}/run_ClusterMSA.py "
             f"--keyword {shlex.quote(keyword)} "
             f"--a3m output_get_msa/DeepMsa.a3m "
             f"-o {shlex.quote(outdir)} "
-            f"--cluster_alg {shlex.quote(alg)} {tree_arg}{tree_min_arg}"
+            f"--cluster_alg {shlex.quote(alg)} {tree_arg}{tree_min_arg}{mono_arg}"
             f"--max_clusters {k_cap} "
             f"--min_output_size {min_output_size} "
             f"--min_neff {min_neff} "
@@ -3146,6 +3149,11 @@ def main():
                         "Set to e.g. 'output_msa_cluster_treek40' to write a "
                         "parallel re-clustering without overwriting the existing "
                         "default-cluster output.")
+    p.add_argument("--cluster_tree_mono_min_clade", type=int, default=0,
+                   help="--cluster_alg tree_mono: minimum sequences per emitted clade "
+                        "(0 = use --cluster_min_output_size). Pass this together with "
+                        "--cluster_min_output_size 1 to keep clusters strictly "
+                        "monophyletic (no PID-based tiny-merge).")
     p.add_argument("--cluster_tree_min_num_clusters", type=int, default=0,
                    help="For --cluster_alg tree: target MINIMUM number of "
                         "clusters (sets a per-cluster size cap of total_n/K). "
@@ -3551,6 +3559,9 @@ def main():
                     extras += [f"--cluster_tree_path {args.cluster_tree_path}"]
                 if getattr(args, "cluster_outdir", None):
                     extras += [f"--cluster_outdir {shlex.quote(args.cluster_outdir)}"]
+                if getattr(args, "cluster_tree_mono_min_clade", 0):
+                    extras += [(f"--cluster_tree_mono_min_clade "
+                                f"{int(args.cluster_tree_mono_min_clade)}")]
                 if getattr(args, "cluster_tree_min_num_clusters", 0):
                     extras += [(f"--cluster_tree_min_num_clusters "
                                 f"{int(args.cluster_tree_min_num_clusters)}")]
