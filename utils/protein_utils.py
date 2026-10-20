@@ -12,8 +12,6 @@ from scipy.spatial.distance import squareform, pdist, cdist
 from typing import List, Tuple, Optional, Dict, NamedTuple, Union, Callable
 # import matplotlib.pyplot as plt
 import Bio
-import Bio.PDB
-import Bio.SeqRecord
 from Bio import SeqIO, PDB, AlignIO
 from Bio.PDB import *
 from Bio.PDB.MMCIFParser import MMCIFParser
@@ -21,7 +19,6 @@ from Bio.PDB.MMCIFParser import MMCIFParser
 from pathlib import Path
 import subprocess, re, pickle, os, sys
 # import urllib
-import mdtraj as md
 # import biotite.structure as bs
 
 # Biotite provides a mapping of residue codes to single-letter amino acid codes
@@ -148,26 +145,6 @@ def aa3_to_1(resname: str) -> str:
     r = NONSTD_TO_STD.get(r, r)            # normalize non-standard (e.g., MSE->MET)
     return aa_long_short.get(r, "X")       # MET -> M, etc.
 
-def seq3_to_1(resnames):
-    """
-    Convert an iterable of 3-letter residue names to a string of 1-letter codes.
-    """
-    return "".join(aa3_to_1(r) for r in resnames)
-
-
-def remove_nonstandard_residues(pdb_file, residue="GTP"):
-    new_pdb = pdb_file[:-4] + f"_no{residue}.pdb"
-    with open(pdb_file, "r") as fin, open(new_pdb, "w") as fout:
-        for line in fin:
-            # If the line defines a heteroatom with the specified residue, skip it.
-            # (Adjust the condition if needed for your PDB format.)
-            if line.startswith("HETATM") and line[17:20].strip() == residue:
-                continue
-            fout.write(line)
-    return new_pdb
-
-
-
 # Get all the possible amino acids that we get with a single point mutation
 # for a specific codon
 def point_mutation_to_aa(codon, genetic_code_dict):
@@ -264,36 +241,6 @@ def extract_protein_sequence(
     except Exception:
         return seq
 
-
-def convert_atomarray_to_recarray(atom_array):
-    """
-    Convert a Biotite AtomArray (which may not be a recarray with a dtype)
-    into a proper NumPy recarray with the following fields:
-      - chain_id: Unicode string (length 1)
-      - res_id: 32-bit integer
-      - res_name: Unicode string (length 3)
-      - atom_name: Unicode string (length 4)
-      - ins_code: Unicode string (length 1)
-      - coord: 3-element float32 array
-    """
-    n = len(atom_array)
-    rec_dtype = np.dtype([
-        ("chain_id", "U1"),
-        ("res_id", "i4"),
-        ("res_name", "U3"),
-        ("atom_name", "U4"),
-        ("ins_code", "U1"),
-        ("coord", "f4", (3,))
-    ])
-    rec = np.empty(n, dtype=rec_dtype)
-    rec["chain_id"] = atom_array.chain_id
-    rec["res_id"] = atom_array.res_id
-    rec["res_name"] = atom_array.res_name
-    rec["atom_name"] = atom_array.atom_name
-    rec["ins_code"] = atom_array.ins_code
-    rec["coord"] = atom_array.coord
-    # Convert to a recarray so fields can be accessed as attributes:
-    return np.rec.array(rec)
 
 def load_cmap_and_idx(path):
     """
@@ -460,31 +407,6 @@ def read_seq_coord_contacts_from_pdb(
     contacts = (dist < distance_threshold).astype(int)
 
     return dist, contacts, pdb_seq, good_res_ids, CA_coords
-
-
-class CustomAtomArray:
-    def __init__(self, chain_id, atom_name, coord, res_id, res_name, ins_code):
-        self.chain_id = chain_id  # numpy array of chain IDs (strings)
-        self.atom_name = atom_name  # numpy array of atom names (strings)
-        self.coord = coord  # numpy array of coordinates (n_atoms x 3)
-        self.res_id = res_id  # numpy array of residue IDs
-        self.res_name = res_name  # numpy array of residue names (strings)
-        self.ins_code = ins_code  # numpy array of insertion codes (strings)
-
-    def __getitem__(self, key):
-        # Enable boolean indexing/filtering, e.g.:
-        # filtered_array = atom_array[atom_array.chain_id == chain]
-        return AtomArray(
-            chain_id=self.chain_id[key],
-            atom_name=self.atom_name[key],
-            coord=self.coord[key],
-            res_id=self.res_id[key],
-            res_name=self.res_name[key],
-            ins_code=self.ins_code[key]
-        )
-
-    def __len__(self):
-        return len(self.coord)
 
 
 ###############################################################
@@ -693,17 +615,6 @@ def compute_precisions(
     return {"AUC": auc, "P@L": pl, "P@L2": pl2, "P@L5": pl5}
 
 
-# General utility for dictionary of unique values
-def unique_values_dict(original_dict):
-    # Invert the dictionary. This will discard duplicate values.
-    inverted_dict = {v: k for k, v in original_dict.items()}
-
-    # Invert the dictionary again to get unique values.
-    unique_dict = {v: k for k, v in inverted_dict.items()}
-
-    return unique_dict
-
-
 # Score the predictions
 def evaluate_prediction(
         predictions: torch.Tensor,
@@ -755,51 +666,6 @@ def greedy_select(msa: List[Tuple[str, str]], num_seqs: int, mode: str = "max") 
         indices.append(index)
     indices = sorted(indices)
     return [msa[idx] for idx in indices]
-
-
-
-# Functions below are from András Aszódi:
-# https://stackoverflow.com/questions/10324674/parsing-a-pdb-file-in-python
-def read_pdb(pdbcode, pdbfilenm):
-    """
-    Read a PDB structure from a file.
-    :param pdbcode: A PDB ID string
-    :param pdbfilenm: The PDB file
-    :return: a Bio.PDB.Structure object or None if something went wrong
-    """
-    try:
-        pdbparser = Bio.PDB.PDBParser(QUIET=True)  # suppress PDBConstructionWarning
-        struct = pdbparser.get_structure(pdbcode, pdbfilenm)
-        return struct
-    except Exception as err:
-        print(str(err), file=sys.stderr)
-        return None
-
-
-
-
-
-
-def Calculate_RMSD(structure_1: str, structure_2: str, structure_1_index: List[int], structure_2_index: List[int]) -> int:
-    """
-    calculate the RMSD between two structures using MDtraj library
-    this script will fail if mdtraj is not loaded in your python environment
-    recommend python 3.10
-    """
-
-    #with warnings.catch_warnings(action="ignore"):
-    #    turn_off_warnings()
-    #load structure information in mdtraj
-    pdb = md.load(structure_1)
-    pdb_ca = pdb.atom_slice(structure_1_index) #select only CA atoms
-
-    #load structure information in mdtraj
-    reference = md.load(structure_2)
-    reference_ca = reference.atom_slice(structure_2_index) #select only CA atoms
-
-    # Calculate RMSD of CA atoms
-    pdb_ca.superpose(reference_ca)
-    return md.rmsd(pdb_ca, reference_ca, frame=0)
 
 
 

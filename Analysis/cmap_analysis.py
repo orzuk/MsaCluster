@@ -129,16 +129,6 @@ def seed_residue_indices(seed_a3m_path: str, tag: str, fallback_index: int | Non
     return idx
 
 
-def get_only_cmaps(cmap1,cmap2):
-    diff_folds = cmap1 - cmap2
-    only_fold1 = diff_folds.copy()
-    only_fold1[only_fold1 == -1] = 0
-    only_fold2 = diff_folds.copy()
-    only_fold2[only_fold2 == 1] = 0
-    only_fold2[only_fold2 == -1] = 1
-    return only_fold1,only_fold2
-
-
 # Evaluate a predicted contact map against 2 ground truth contact maps
 def evaluate_pred_cmap(
     pred_map: np.ndarray,

@@ -1,5 +1,5 @@
-from Bio import SeqIO, AlignIO, pairwise2
-from Bio.Align import substitution_matrices, PairwiseAligner
+from Bio import SeqIO, pairwise2
+from Bio.Align import substitution_matrices
 
 
 try:
@@ -9,8 +9,6 @@ except ImportError:
     parasail = None  # type: ignore[assignment]
     _HAS_PARASAIL = False
 
-import requests
-from io import StringIO
 from typing import List, Tuple, Dict
 import re, os
 import numpy as np
@@ -180,42 +178,6 @@ def get_align_indexes(
 
 # utils/seq_utils.py (or utils/protein_utils.py)
 
-def sequence_identity_percent(seq1: str, seq2: str) -> float:
-    """
-    Global alignment identity in percent, counting exact matches over aligned (non-gap) positions.
-    Returns a float in [0, 100].
-    """
-    aligner = PairwiseAligner()
-    # Needleman–Wunsch style global alignment
-    aligner.mode = "global"
-    # Simple DNA/protein-ish scoring that measures identity, not similarity
-    aligner.match_score = 1.0
-    aligner.mismatch_score = 0.0
-    # Penalize gaps so we don't collapse; modest affine-like penalties
-    aligner.open_gap_score = -1.0
-    aligner.extend_gap_score = -0.5
-
-    aln = aligner.align(seq1, seq2)[0]
-    a = aln.aligned  # tuple (list of blocks for seq1, list of blocks for seq2)
-    # Build aligned strings to count matches cleanly
-    s1_aln, s2_aln = aln.format().splitlines()[1], aln.format().splitlines()[3]  # formatted 3-line block
-    # If format() changes in your Biopython version, fallback:
-    # s1_aln = str(aln).splitlines()[1]
-    # s2_aln = str(aln).splitlines()[3]
-
-    matches = 0
-    aligned = 0
-    for c1, c2 in zip(s1_aln, s2_aln):
-        if c1 == '-' or c2 == '-':
-            continue
-        aligned += 1
-        if c1 == c2:
-            matches += 1
-    if aligned == 0:
-        return 0.0
-    return 100.0 * matches / aligned
-
-
 def trim_a3m_for_pair_union(a3m_path, out_path, s1_tokens, s2_tokens, max_len=None):
     """
     Keep columns where S1 OR S2 has a residue; optionally cap to max_len (e.g., 1024).
@@ -295,36 +257,6 @@ def clean_a3m_line(s: str) -> str:
 
 # --- ADD to msa_utils.py ---
 
-def read_first_two_a3m_rows(a3m_path: str) -> tuple[str, str]:
-    """
-    Return the first two aligned (gapped) sequences from an A3M/FASTA file,
-    cleaned with clean_a3m_line(). Assumes your two query sequences are first.
-    """
-    rows = []
-    with open(a3m_path, "r") as fh:
-        name = None
-        buf = []
-        for line in fh:
-            line = line.rstrip("\n")
-            if line.startswith(">"):
-                if name is not None:
-                    rows.append(clean_a3m_line("".join(buf)))
-                    if len(rows) == 2:
-                        break
-                name = line[1:].strip()
-                buf = []
-            else:
-                buf.append(line)
-        if name is not None and len(rows) < 2:
-            rows.append(clean_a3m_line("".join(buf)))
-
-    if len(rows) < 2:
-        raise ValueError(f"{a3m_path}: expected ≥2 sequences, found {len(rows)}")
-    if len(rows[0]) != len(rows[1]):
-        raise ValueError("First two A3M rows differ in aligned length.")
-    return rows[0], rows[1]
-
-
 def msa_row_to_residx(aln_seq: str) -> np.ndarray:
     """
     Map a single aligned (gapped) A3M row to residue indices:
@@ -386,11 +318,6 @@ def find_two_query_rows_in_a3m(a3m_path: str, keyA: str | None, keyB: str | None
     return alnA, alnB
 
 
-def lprint(string, f):
-    print(string)
-    f.write(string + '\n')
-
-
 def load_fasta(fil):
     seqs, IDs = [], []
     with open(fil) as handle:
@@ -405,33 +332,6 @@ def write_fasta(names, seqs, outfile='tmp.fasta'):
     with open(outfile, 'w') as f:
         for nm, seq in list(zip(names, seqs)):
             f.write(">%s\n%s\n" % (nm, seq))
-
-
-def download_and_parse_pfam_msa(pfam_id, alignment_type="seed"):
-    """
-    Downloads and parses a Pfam MSA using the REST API (SEED only).
-
-    Parameters:
-        pfam_id (str): Pfam family ID (e.g., 'PF00069')
-        alignment_type (str): Only 'seed' is supported currently
-
-    Returns:
-        MultipleSeqAlignment: Parsed MSA object from Biopython
-    """
-    if alignment_type != "seed":
-        raise NotImplementedError("Only 'seed' alignment is available via the Pfam REST API")
-
-    url = f"https://www.ebi.ac.uk/interpro/api/pfam/entry/pfam/{pfam_id}/alignment/seed/stockholm/"
-
-    response = requests.get(url)
-    if response.status_code != 200:
-        raise Exception(f"Download failed with status code {response.status_code}: {url}")
-
-    sto_text = response.text
-    msa_io = StringIO(sto_text)
-    alignment = AlignIO.read(msa_io, "stockholm")
-
-    return alignment
 
 
 # --- NEW: write a simple A3M and build a 2-seq seed alignment from a pair ---
@@ -476,10 +376,6 @@ def parse_a3m_records(a3m_lines, strip_inserts=True):
 
 def project_columns(seqs, keep_idx):
     return ["".join(s[j] for j in keep_idx) for s in seqs]
-
-def keep_mask_union(seq_a, seq_b):
-    """Columns where either S1 or S2 has a residue."""
-    return [j for j, (a, b) in enumerate(zip(seq_a, seq_b)) if (a != '-' or b != '-')]
 
 def keep_mask_query(seq_q):
     """Columns where the query has a residue (for AF)."""

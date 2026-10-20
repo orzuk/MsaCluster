@@ -221,19 +221,6 @@ def read_energy_tuples(file_path):
     return energy_tuples
 
 
-def remove_ssbond_records(pdb_in, pdb_out):
-    """
-    Reads a PDB file and writes a new version without SSBOND records.
-    """
-    with open(pdb_in, 'r') as fin:
-        lines = fin.readlines()
-    # Filter out SSBOND records
-    new_lines = [line for line in lines if not line.startswith("SSBOND")]
-    with open(pdb_out, 'w') as fout:
-        fout.writelines(new_lines)
-    return pdb_out
-
-
 def compute_deltaG_and_residue_energies(pdb_path: str):
     # Use a full-atom scorefunction (Ref2015 weights by default in recent PyRosetta)
     scorefxn = pyrosetta.get_fa_scorefxn()
@@ -301,51 +288,6 @@ def compute_deltaG_and_residue_energies(pdb_path: str):
             "energy": res_energy
         })
     return total_energy, residue_energies, chain_count
-
-
-def plot_residue_energy_differences(residue_comparison, pdb_id_1, pdb_id_2, top_n=5, save_path=None):
-    """
-    Plot and optionally save per-residue energy differences between two structures.
-
-    Parameters:
-    - residue_comparison (list of tuples): [(residue_name, residue_index, energy1, energy2, difference)].
-    - pdb_id_1: PDB ID of the first structure.
-    - pdb_id_2: PDB ID of the second structure.
-    - top_n (int): Number of largest differences to highlight.
-    - save_path (str): File path to save the plot. If None, the plot is only displayed.
-    """
-    indices = [x[1] for x in residue_comparison]
-    diffs = [x[4] for x in residue_comparison]
-    labels = [x[0] for x in residue_comparison]
-
-    sorted_by_diff = sorted(residue_comparison, key=lambda x: abs(x[4]), reverse=True)
-    top_residues = sorted_by_diff[:top_n]
-
-    plt.figure(figsize=(12, 6))
-    bars = plt.bar(indices, diffs, color="blue", edgecolor="black", alpha=0.7)
-
-    for residue in top_residues:
-        index = residue[1]
-        diff = residue[4]
-        label = f"{residue[0]}{index}"
-
-        bars[indices.index(index)].set_color("red")
-        bars[indices.index(index)].set_alpha(0.9)
-        plt.text(index, diff, label, fontsize=9, ha="center", va="bottom" if diff > 0 else "top")
-
-    plt.axhline(0, color="black", linewidth=0.8, linestyle="--")
-    plt.xlabel("Residue Index", fontsize=12)
-#    plt.ylabel("Energy Difference (kcal/mol)", fontsize=12)
-#    plt.title("Per-Residue Energy Differences", fontsize=14)
-    plt.ylabel("ΔΔG (kcal/mol)")  # Use Greek delta for the axis label
-    plt.title(f"Per-Residue ΔG({pdb_id_1})- ΔG({pdb_id_2})")
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path)
-        print(f"Plot saved to: {save_path}")
-    else:
-        plt.show()
 
 
 def align_and_compare_residues(
@@ -485,45 +427,3 @@ def _compute_deltaG_internal(pdb_path: str):
         return pdb_path, None, None
 
 
-def run_compute_deltaG_with_output(pdb_pair_files, foldpair_ids, output_file="/deltaG_pairs.csv"):
-    """
-    Compute ΔG for a list of PDB files and save results to a file.
-
-    Parameters:
-    - pdb_files (list): List of PDB file paths.
-    - output_file (str): Path to save the results.
-    """
-    results = []
-
-    for pdb_pair_file, foldpair_id in zip(pdb_pair_files, foldpair_ids):
-        print(f"Computing ΔG for {pdb_pair_file}  pair using PyRosetta...")
-        for fold in range(2):
-            log_file_path = os.path.join(ENERGY_DIR, "pyrosetta_" + foldpair_ids[fold] + ".log")
-            print("Rosetta Log file: ", log_file_path)
-            pdb_path, deltaG, additional_info = compute_deltaG_with_pyrosetta(pdb_pair_file[fold], log_file_path)
-
-            if deltaG is not None:
-                print(f"Computed ΔG for {pdb_pair_file[fold]}: {deltaG:.2f} kcal/mol")
-                results.append({
-                    "Pair": foldpair_id,
-                    "PDB_ID": pdb_pair_file[fold][-8:-4],
-                    "Delta_G": deltaG,
-                    **additional_info  # Add additional outputs as columns
-                })
-            else:
-                print(f"Failed to compute ΔG for {pdb_pair_file[fold]}.")
-                results.append({
-                    "Pair": foldpair_id,
-                    "PDB_ID": pdb_pair_file[fold][-8:-4],
-                    "Delta_G": "ERROR",
-                    "residue_count": "N/A",
-                    "chain_count": "N/A"
-                })
-
-    # Write results to a file
-    with open(output_file, "w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=results[0].keys(), delimiter="\t")
-        writer.writeheader()
-        writer.writerows(results)
-
-    print(f"Results saved to {output_file}")

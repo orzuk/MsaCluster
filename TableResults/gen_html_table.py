@@ -94,48 +94,6 @@ def _ensure_unified_csvs(force_rerun: bool = False):
             print(f"[gen_html] WARN: could not build unified CSVs automatically: {e}")
 
 
-def _append_mean_std_row(df: pd.DataFrame, label_col: str, label_text: str = "Averages") -> pd.DataFrame:
-    out = df.copy()
-    means = {}
-    for c in out.columns:
-        if c == label_col:
-            means[c] = label_text
-            continue
-        if c == TRIPLET_COL:
-            triples = []
-            for v in out[c]:
-                if pd.isna(v): continue
-                parts = [p.strip() for p in str(v).split(";")]
-                if len(parts) != 3: continue
-                nums = []
-                for p in parts:
-                    m = NUM_RE.match(p)
-                    nums.append(float(m.group(1)) if m else float("nan"))
-                if all(pd.notna(nums)):
-                    triples.append(nums)
-            if triples:
-                import numpy as _np
-                mu = _np.nanmean(_np.array(triples, dtype=float), axis=0)
-                means[c] = f"{mu[0]:.2f}; {mu[1]:.2f}; {mu[2]:.2f}"
-            else:
-                means[c] = "-"
-            continue
-
-        s = out[c]
-        if s.dtype.kind in "biufc":
-            x = pd.to_numeric(s, errors="coerce")
-        else:
-            x = pd.to_numeric(s.apply(numeric_part), errors="coerce")
-        if x.notna().any():
-            mu = float(x.mean())
-            sd = float(x.std(ddof=1)) if x.count() > 1 else 0.0
-            means[c] = f"{mu:.2f} ({sd:.2f})"
-        else:
-            means[c] = "-"
-    out = pd.concat([out, pd.DataFrame([means])], ignore_index=True)
-    return out
-
-
 def numeric_part(cell) -> str:
     if pd.isna(cell):
         return ""
@@ -308,9 +266,6 @@ def gen_html_from_summary_table(
             cluster_col = c
             break
     cluster_col = "MSA: DEPTH; #RES; #Clusters" if "MSA: DEPTH; #RES; #Clusters" in df.columns else None
-
-    # Helper to parse "(N)" from the “MSA DEPTH (#Clusters)” cell
-    _paren = re.compile(r"\((\d+)\)")
 
     def _clusters_in_row(row) -> int | None:
         if cluster_col is None:

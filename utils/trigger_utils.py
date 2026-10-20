@@ -9,13 +9,14 @@ codes, chain counts, etc.).
 
 Typical usage
 -------------
-    from utils.trigger_utils import get_trigger_info, is_ligand_triggered
+    from utils.trigger_utils import (get_trigger_info, get_trigger_class,
+                                     ligand_codes_for_holo)
 
     info = get_trigger_info("1zk9A_3jv6A")
     # -> {"trigger_class": "protein_binding",
     #     "ligands_pdb1": "", "ligands_pdb2": "", ...}
 
-    if is_ligand_triggered("4qhhA_4qhfA"):
+    if get_trigger_class("4qhhA_4qhfA") == "ligand":
         ligand_codes = ligand_codes_for_holo("4qhhA_4qhfA")
         # Use ligand_codes (PDB chemical-component IDs) to compose a
         # holo Boltz-2 YAML.
@@ -107,26 +108,6 @@ def pairs_in_class(trigger_class: str,
     else:
         wanted = {trigger_class}
     return [pid for pid, r in table.items() if r.get("trigger_class") in wanted]
-
-
-def is_ligand_triggered(pair_id: str,
-                        csv_path: Optional[str] = None) -> bool:
-    return get_trigger_class(pair_id, csv_path) == "ligand"
-
-
-def is_protein_binding_triggered(pair_id: str,
-                                 csv_path: Optional[str] = None) -> bool:
-    return get_trigger_class(pair_id, csv_path) == "protein_binding"
-
-
-def is_oligomerization_triggered(pair_id: str,
-                                 csv_path: Optional[str] = None) -> bool:
-    return get_trigger_class(pair_id, csv_path) == "oligomerization"
-
-
-def is_mutation_triggered(pair_id: str,
-                          csv_path: Optional[str] = None) -> bool:
-    return get_trigger_class(pair_id, csv_path) == "mutation"
 
 
 def ligand_codes_for_holo(pair_id: str,

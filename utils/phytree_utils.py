@@ -24,7 +24,7 @@ from pylab import *
 
 # Use ete3 package for visualization
 # from ete3 import Tree, TreeStyle, TextFace, RectFace, NodeStyle
-from ete3 import Tree, TreeStyle, NodeStyle, faces, AttrFace, TextFace, RectFace
+from ete3 import Tree, TreeStyle, NodeStyle, faces, RectFace
 import os
 os.environ["XDG_RUNTIME_DIR"] = "/tmp"
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen") # os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -491,64 +491,12 @@ def convert_biopython_to_ete3(biopy_tree, parent_ete_node=None):
     return ete_tree
 
 
-# Read tree and strip quotes from node names
-def read_tree_ete(phytree_file):
-    ete_tree = Tree(phytree_file, format=1)
-    for node in ete_tree.traverse():
-        node.name = node.name.strip("'")
-        node.name = node.name.strip("\"")
-    return ete_tree
-
-
 # Define a dictionary to map numerical values to colors
 value_to_color = {
     "Leaf_1": (0.2, 0.4, 0.6),  # Replace "Leaf_1" with the actual leaf name
     "Leaf_2": (0.8, 0.1, 0.3),  # Replace "Leaf_2" with the actual leaf name
     # Add more entries for other leaf nodes as needed
 }
-
-
-def write_newick_with_quotes(tree, file_path):
-    def format_clade(clade):
-        if clade.is_terminal():
-            return f"'{clade.name}':{clade.branch_length}" if clade.name else ''
-        else:
-            subtrees = ','.join(format_clade(sub_clade) for sub_clade in clade)
-            return f"({subtrees}){'' if clade.name is None else f'{clade.name}'}:{clade.branch_length}"
-
-    newick_str = format_clade(tree.root) + ';'
-    with open(file_path, 'w') as f:
-        f.write(newick_str)
-
-
-# Induced subtree for an ete3 tree
-# keep only the input leaves appearing in 'leaf_names'
-def extract_induced_subtree(tree, leaf_names):
-    """
-    Extracts the induced subtree that includes only the specified leaves and their ancestral nodes.
-
-    Args:
-    tree (ete3.Tree): The original tree from which to extract the subtree.
-    leaf_names (list): A list of leaf names to include in the subtree.
-
-    Returns:
-    ete3.Tree: The induced subtree containing only the specified leaves and their ancestors.
-    """
-    if type(tree) == str: # extract tree from file
-        print("Read tree from file: " + tree)
-        bio_tree = Phylo.read(tree, "newick")  # This is different from write_newick_with_quotes !!!!
-        tree = convert_biopython_to_ete3(bio_tree)
-
-    # Copy the tree to avoid modifying the original
-    subtree = tree.copy(method='deepcopy')
-
-    # Prune the subtree to keep only the leaves specified
-    leaves_to_keep = set(leaf_names)
-    for leaf in subtree.iter_leaves():
-        if leaf.name not in leaves_to_keep:
-            leaf.delete()
-
-    return subtree
 
 
 def visualize_tree_with_heatmap(
@@ -679,15 +627,6 @@ def visualize_tree_with_heatmap(
     plt.close(fig)
 
 
-def calculate_tree_width(rendered_tree_path):
-    """
-    Calculate the width of the rendered tree from the temporary file.
-    """
-    from PIL import Image
-    with Image.open(rendered_tree_path) as img:
-        return img.size[0]  # Returns the width of the image
-
-
 def add_figure_title(image_path, title, title_x_offset=None, title_y_offset=20,
                      font_size=30, extra_space_ratio=0.05):
     from PIL import Image, ImageDraw, ImageFont
@@ -729,127 +668,6 @@ def add_figure_title(image_path, title, title_x_offset=None, title_y_offset=20,
 
     # Save the updated image
     new_img.save(image_path)
-
-
-def add_figure_title_working(image_path, title,
-                             title_x_offset=None, title_y_offset=20,
-                             font_size=30):
-    from PIL import Image, ImageDraw, ImageFont
-
-    # Open the image
-    img = Image.open(image_path)
-    img_width, img_height = img.size
-
-    # Use a default font that supports resizing
-    try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
-    except IOError:
-        print("DejaVu Sans font not found. Using PIL's default font (no size customization).")
-        font = ImageFont.load_default()  # Fallback font
-
-    # Calculate text dimensions using getbbox()
-    draw = ImageDraw.Draw(img)
-    text_bbox = draw.textbbox((0, 0), title, font=font)  # Returns (x0, y0, x1, y1)
-    text_width = text_bbox[2] - text_bbox[0]
-    text_height = text_bbox[3] - text_bbox[1]
-
-    # Center the title horizontally if no offset provided
-    if title_x_offset is None:
-        title_x_offset = (img_width - text_width) // 2
-
-    text_x = title_x_offset
-    text_y = img_height - title_y_offset - text_height  # Position near the bottom
-
-    # Draw the title
-    draw.text((text_x, text_y), title, fill="black", font=font)
-
-    # Save the updated image
-    img.save(image_path)
-
-
-def render_tree_to_png(
-    ete_tree,
-    out_png: str,
-    *,
-    width_px: int = 1400,
-    height_px: int = 2000,
-    leaf_fontsize: int = 10,
-    show_scale: bool = False,
-    margin: int = 20,
-):
-    """
-    Use ETE3's renderer to export the tree to a PNG. We then place this PNG
-    inside a Matplotlib figure so layout with the heatmap is trivial & robust.
-    """
-    if not ETE_TREEVIEW_AVAILABLE:
-        print("[phytree] skipping tree from msa render: PyQt5/Qt not available")
-        return
-
-
-    ts = TreeStyle()
-    ts.show_leaf_name = True
-    ts.scale =  120  # making branches visible; tweak if needed
-    ts.show_scale = show_scale
-    ts.margin_left = ts.margin_right = ts.margin_top = ts.margin_bottom = margin
-    ts.title.add_face(TextFace("", fsize=1), column=0)
-
-    # leaf font
-    def _style_node(n):
-        ns = NodeStyle()
-        ns["hz_line_width"] = 1
-        ns["vt_line_width"] = 1
-        n.set_style(ns)
-        if n.is_leaf():
-            n.add_face(AttrFace("name", fsize=leaf_fontsize), column=0, position="aligned")
-    for n in ete_tree.traverse():
-        _style_node(n)
-
-    ete_tree.render(out_png, tree_style=ts, w=width_px, h=height_px)
-    return out_png
-
-
-def draw_grouped_heatmap(
-    ax_hm, df_leaf, col_groups,
-    *, group_titles=None, nan_rgba=(0.92,0.92,0.92,1.0),
-    x_tick_rotation=90, x_tick_fontsize=8, y_tick_fontsize=7,
-    cmap_name="viridis", return_group_scalars=False
-):
-    import numpy as np, matplotlib as mpl
-
-    cols = [c for g in col_groups for c in g if c in df_leaf.columns]
-    M = df_leaf[cols].to_numpy(dtype=float)
-
-    cmap = mpl.cm.get_cmap(cmap_name).copy()
-    cmap.set_bad(nan_rgba)
-
-    im = ax_hm.imshow(M, aspect="auto", interpolation="nearest", cmap=cmap)
-    ax_hm.set_yticks(np.arange(df_leaf.shape[0]))
-    ax_hm.set_yticklabels(df_leaf.index, fontsize=y_tick_fontsize)
-
-    ax_hm.set_xticks(np.arange(len(cols)))
-    ax_hm.set_xticklabels(cols, rotation=x_tick_rotation, ha="right", fontsize=x_tick_fontsize)
-    ax_hm.tick_params(axis="x", pad=6)
-
-    col_start, group_scalars = 0, []
-    for gi, grp in enumerate(col_groups):
-        gcols = [c for c in grp if c in df_leaf.columns]
-        if not gcols:
-            continue
-        gsize = len(gcols)
-        ax_hm.axvline(col_start - 0.5, color="k", lw=0.5, alpha=0.25)
-        ax_hm.axvline(col_start + gsize - 0.5, color="k", lw=0.5, alpha=0.25)
-
-        gdat = M[:, col_start:col_start + gsize]
-        if np.isnan(gdat).all():
-            vmin, vmax = 0.0, 1.0
-        else:
-            vmin, vmax = np.nanmin(gdat), np.nanmax(gdat)
-            if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmin == vmax:
-                vmin, vmax = 0.0, 1.0
-        group_scalars.append((vmin, vmax))
-        col_start += gsize
-
-    return (cmap, group_scalars) if return_group_scalars else None
 
 
 def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
@@ -1476,147 +1294,3 @@ def compose_tree_and_heatmap(
     fig.savefig(out_png, dpi=200)
     plt.close(fig)
     return out_png
-
-
-def compose_tree_and_heatmap_old(
-    ete_tree,
-    df_leaf,                 # index = leaf names (already pruned/ordered)
-    col_groups,
-    output_file,
-    *,
-    group_titles=None,
-    base_figsize=(22, 12),
-    cbar_width_ratio=0.22,   # fixed slim column for stacked colorbars
-    x_tick_rotation=90, x_tick_fontsize=8, y_tick_fontsize=7,
-    nan_rgba=(0.92,0.92,0.92,1.0),
-    ylabels_override=None,    # if provided, replaces df_leaf.index on the heatmap
-    lock_scales_to_unit=False
-):
-    import numpy as np, matplotlib.pyplot as plt, matplotlib as mpl
-    from matplotlib.gridspec import GridSpecFromSubplotSpec
-
-    # ----- compute dynamic widths -----
-    n_cols = sum(len([c for c in g if c in df_leaf.columns]) for g in col_groups)
-    heatmap_ratio = 0.06 + 0.03 * n_cols
-    # keep right column fixed for stacked colorbars
-    tree_ratio = max(0.01, 1.0 - heatmap_ratio - 0.04)  # leave ~4% margin
-    width_ratios = [tree_ratio, heatmap_ratio, 0.04]     # last small gap column
-    # colorbars stacked in a nested gridspec inside the gap column, with fixed width later
-
-    # scale figsize so it looks nice regardless of ratios (keep height)
-    fig = plt.figure(figsize=base_figsize)
-    gs = fig.add_gridspec(
-        nrows=1, ncols=3, width_ratios=width_ratios,
-        left=0.035, right=0.985, bottom=0.10, top=0.98, wspace=0.06
-    )
-    ax_tree = fig.add_subplot(gs[0, 0])
-    ax_hm   = fig.add_subplot(gs[0, 1])
-    gap_ax  = fig.add_subplot(gs[0, 2])
-    gap_ax.axis("off")
-
-    # stacked colorbars within the right margin (fixed physical width)
-    # we make a new inset_axes inside gap_ax using axes coordinates
-    # stacked colorbars within the right margin (fixed physical width)
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-    n_cb = len(col_groups) if col_groups else 0
-    cbar_axes = []
-    if n_cb > 0:
-        total_h = 0.94
-        pad = 0.02
-        cbar_h = (total_h - (n_cb - 1) * pad) / max(1, n_cb)
-        y0 = (1 - total_h) / 2.0
-        for i in range(n_cb):
-            ax_c = inset_axes(
-                gap_ax, width="80%", height=f"{cbar_h*100:.1f}%",
-                bbox_to_anchor=(0.10, y0 + i*(cbar_h+pad), 0.80, cbar_h),
-                bbox_transform=gap_ax.transAxes, borderpad=0
-            )
-            cbar_axes.append(ax_c)
-
-    # ----- ensure heatmap y-labels are cluster numbers -----
-    if ylabels_override is not None:
-        df_plot = df_leaf.copy()
-        df_plot.index = ylabels_override
-    else:
-        df_plot = df_leaf
-
-    # ----- draw heatmap (get group scalars & cmap) -----
-    cmap, group_scalars = draw_grouped_heatmap(
-        ax_hm, df_plot, col_groups,
-        group_titles=group_titles,
-        nan_rgba=nan_rgba,
-        x_tick_rotation=x_tick_rotation,
-        x_tick_fontsize=x_tick_fontsize,
-        y_tick_fontsize=y_tick_fontsize,
-        return_group_scalars=True
-    )
-
-    # ----- draw tree aligned to SAME y-coordinates -----
-    # Use the original leaf order (df_leaf.index order) for alignment
-    draw_tree_aligned(ax_tree, ete_tree, leaf_order=list(df_leaf.index))
-
-    # ----- colorbars -----
-    cols = [c for g in col_groups for c in g if c in df_leaf.columns]
-    M = df_leaf[cols].to_numpy(dtype=float)
-    col_start = 0
-    for gi, grp in enumerate(col_groups):
-        gcols = [c for c in grp if c in df_leaf.columns]
-        if not gcols:
-            continue
-        gsize = len(gcols)
-        if lock_scales_to_unit:
-            vmin, vmax = 0.0, 1.0
-        else:
-            vmin, vmax = group_scalars[gi]
-        sm = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=vmin, vmax=vmax), cmap=cmap)
-        if gi < len(cbar_axes):
-            cb = plt.colorbar(sm, cax=cbar_axes[gi])
-            title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
-            cbar_axes[gi].set_title(title, fontsize=11, pad=4)
-            cb.ax.tick_params(labelsize=8)
-        col_start += gsize
-
-    out_png = output_file if output_file.lower().endswith(".png") else output_file + ".png"
-    fig.savefig(out_png, dpi=200)
-    plt.close(fig)
-    return out_png
-
-
-
-# Perform ancestral reconstruction of sequences in the phylogenetic tree
-# Input:
-# tree_file - file with the phylogenetic tree
-# alignment_file - file with the multiple sequence alignment
-# output_file - where to save the ancestral sequences
-def reconstruct_ancestral_sequences(tree_file, alignment_file, output_file):
-    # Read the tree
-    tree = Phylo.read(tree_file, 'newick')
-
-    # Read the multiple sequence alignment
-    seqs_IDs, seqs = load_fasta(alignment_file)
-    seqs = [''.join([x for x in s if x.isupper() or x == '-']) for s in seqs]  # remove lowercase letters in alignment
-
-    seq_records = [SeqRecord(Seq(seqs[i]), id=seqs_IDs[i]) for i in range(len(seqs))]  # Here must give correct names to sequences!
-
-    # Create a MultipleSeqAlignment object from the SeqRecord objects
-    alignment = MultipleSeqAlignment(seq_records)
-#    alignment = AlignIO.read(alignment_file, 'fasta') # a3m file not all are of the same length !!
-
-
-    # Perform the parsimony reconstruction
-    scorer = ParsimonyScorer()
-    searcher = NNITreeSearcher(scorer)
-    constructor = ParsimonyTreeConstructor(searcher, alignment)
-    print("Alignment:")
-    print(alignment)
-    print("Tree:")
-    print(tree)
-    parsimony_tree = constructor.build_tree(tree)
-
-    # Print to file the reconstructed sequences for the internal nodes
-    with open(output_file, 'w') as f:
-        for clade in parsimony_tree.get_nonterminals():
-            f.write(f"{clade.name}: {clade.confidences[0]}\n")
-
-# Example usage
-# reconstruct_ancestral_sequences('path/to/tree_file.newick', 'path/to/alignment_file.fasta', 'output.txt')
