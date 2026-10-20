@@ -21,7 +21,7 @@ from Bio import Align
 from glob import glob
 
 from config import FIGURE_RES_DIR, PER_PAIR_PUBLISH_SUBDIR
-from utils.utils import load_csv_or_none, pick, find_max_keys
+from utils.utils import find_max_keys
 from utils.protein_utils import read_msa, compute_precisions, load_cmap_and_idx
 from utils.align_utils import align_truth_and_preds_via_msa_first2
 from utils.phytree_utils import (
@@ -120,87 +120,6 @@ def _cluster_short_disp(tag: str) -> str:
 
 def _pair_analysis_dir(pair_id: str) -> str:
     return os.path.join("Pipeline", "FoldPairs", pair_id, "Analysis")
-
-
-def _load_pair_csvs(pair_id: str):
-    """Load per-pair analysis CSVs; return (df_af, df_esm, df_cmap) or None if missing."""
-    anal = _pair_analysis_dir(pair_id)
-    df_af   = load_csv_or_none(os.path.join(anal, "df_af.csv"))
-    df_esm  = load_csv_or_none(os.path.join(anal, "df_esm.csv"))
-    df_cmap = load_csv_or_none(os.path.join(anal, "df_cmap.csv"))
-    return df_af, df_esm, df_cmap
-
-
-def _build_tmscores_from_pair_csvs(df_af, df_esm, cluster_index: list[str]) -> pd.DataFrame:
-    """Build columns: TM-AF1, TM-AF2, TM-ESM1, TM-ESM2."""
-    out = pd.DataFrame(index=cluster_index)
-
-    def _pick(df, prefix):
-        if df is None or df.empty:
-            return
-        d = df.copy()
-        if "cluster_num" not in d.columns and "cluster" in d.columns:
-            d = d.rename(columns={"cluster": "cluster_num"})
-        d["_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
-        t1 = pd.to_numeric(d["TMscore_fold1"], errors="coerce")
-        t2 = pd.to_numeric(d["TMscore_fold2"], errors="coerce")
-        agg = d.assign(TM1=t1, TM2=t2).groupby("_tag")[["TM1","TM2"]].max()
-        out[f"TM-{prefix}1"] = agg.reindex(out.index).TM1
-        out[f"TM-{prefix}2"] = agg.reindex(out.index).TM2
-
-    _pick(df_af,  "AF")
-    _pick(df_esm, "ESM")
-    keep = [c for c in ["TM-AF1","TM-AF2","TM-ESM1","TM-ESM2"] if c in out.columns]
-    return out[keep]
-
-
-def _build_msat_metrics_from_df_cmap(df_cmap, cluster_index: list[str]) -> pd.DataFrame:
-    """Build the MSAT block from df_cmap.csv."""
-    out = pd.DataFrame(index=cluster_index)
-    if df_cmap is None or df_cmap.empty:
-        return out
-
-    d = df_cmap.copy()
-
-    if "cluster_num" in d.columns:
-        d["_tag"] = d["cluster_num"].astype(str).map(_normalize_cluster_tag)
-    elif "cluster" in d.columns:
-        d["_tag"] = d["cluster"].astype(str).map(_normalize_cluster_tag)
-    else:
-        return out
-
-    cand_cols = {
-        "RE-MSAT-COM": ["common_mcc", "common_f1", "common_recall", "common_jaccard"],
-        "RE-MSAT1":    ["uniq1_mcc", "t1_mcc", "t1_f1", "t1_recall", "uniq1_recall", "t1_jaccard"],
-        "RE-MSAT2":    ["uniq2_mcc", "t2_mcc", "t2_f1", "t2_recall", "uniq2_recall", "t2_jaccard"],
-    }
-    if not any(any(c in d.columns for c in cols) for cols in cand_cols.values()):
-        return out
-
-    cols = {k: pick(d, v) for k, v in cand_cols.items()}
-    dd = pd.DataFrame(cols)
-    dd["_tag"] = d["_tag"]
-
-    agg = dd.groupby("_tag").max()
-
-    keep = [c for c in ["RE-MSAT-COM","RE-MSAT1","RE-MSAT2"] if c in agg.columns]
-    out_df = agg.reindex(cluster_index)[keep]
-    out_df = out_df.dropna(axis=1, how="all")
-    return out_df
-
-
-def _cluster_short_label_from_leaf(leaf_name, ete_leaves_cluster_ids):
-    """Return a compact cluster label (e.g., '3' for ShallowMsa_003, 'D' for Deep)."""
-    raw = ete_leaves_cluster_ids.get(leaf_name)
-    if not raw or raw == 'p':
-        return ""
-    tag = _normalize_cluster_tag(raw)
-    if tag.lower().startswith("deep"):
-        return "D"
-    m = re.search(r"(\d+)$", tag)
-    if m:
-        return str(int(m.group(1)))
-    return tag
 
 
 def _cluster_tag_from_leaf(leaf_name, ete_leaves_cluster_ids):
@@ -321,33 +240,6 @@ def _consensus_fold_preference(df_centered: pd.DataFrame,
     return out
 
 
-def _load_af2_raw_tms_from_survey(foldpair_id: str) -> dict:
-    """Return {cluster_tag: (TM1_max, TM2_max)} for the pair's AF2 rows.
-
-    Used for the right-edge F1/F2/Amb fold-preference strip, which needs
-    absolute TM-scores (not the normalized signed Δ used by the heatmap).
-    """
-    csv_path = os.path.join("docs", "fold_diversity_survey.csv")
-    if not os.path.isfile(csv_path):
-        return {}
-    try:
-        survey = pd.read_csv(csv_path)
-    except Exception:
-        return {}
-    sub = survey[(survey["pair_id"] == foldpair_id) & (survey["method"] == "AF2")]
-    out = {}
-    for _, r in sub.iterrows():
-        cl = str(r.get("cluster", ""))
-        tag = "DeepMsa" if cl.lower().startswith("deep") else _normalize_cluster_tag(cl)
-        try:
-            tm1 = float(r["TM1_max"]); tm2 = float(r["TM2_max"])
-        except (KeyError, ValueError, TypeError):
-            continue
-        if tag:
-            out[tag] = (tm1, tm2)
-    return out
-
-
 def _build_unified_method_preference(foldpair_id: str, cluster_index: list[str]):
     """Per-method signed preference toward F1, one column per method.
 
@@ -445,33 +337,6 @@ def _prepare_tree_heatmap_inputs(foldpair_id, ete_tree, ete_leaves_cluster_ids,
     df = df.apply(pd.to_numeric, errors="coerce")
     cols = list(df.columns)
     return df, [cols], ["Method preference (F2 ← → F1)"], deep_row
-
-
-def _resolve_cluster_key(raw_key: str, cluster_node_values: dict) -> str | None:
-    """Map ete leaves to cluster metrics; accept several cluster-key aliases."""
-    cands = []
-    k = str(raw_key)
-
-    cands.append(k)
-
-    m = re.fullmatch(r"\d+", k)
-    if m:
-        cands.append(f"ShallowMsa_{int(k):03d}")
-
-    if "deep" in k.lower():
-        cands.extend(["DeepMsa", "MSA_deep"])
-
-    if k.lower().startswith("shallow") and not k.lower().startswith("shallowmsa_"):
-        nn = re.sub(r"(?i)^shallow(msa)?_?", "ShallowMsa_", k)
-        nn = re.sub(r"(\D)(\d{1,3})$", lambda m: f"{m.group(1)}{int(m.group(2)):03d}", nn)
-        cands.append(nn)
-
-    cands.append(k.replace("msa_t__", ""))
-
-    for c in cands:
-        if c in cluster_node_values:
-            return c
-    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════

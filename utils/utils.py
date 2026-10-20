@@ -5,7 +5,6 @@ import sys, warnings, re
 if any(a in ("-h", "--help") for a in sys.argv) or ("--run_mode" in sys.argv and "help" in sys.argv):
     warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^Bio\.pairwise2$")
 
-from Bio.SeqUtils import seq1
 from Bio.PDB import PDBParser, PDBIO, Select
 from Bio import SeqIO
 import matplotlib.pyplot as plt
@@ -82,35 +81,6 @@ def pdb_to_contact_map(
     return cmap, dist_mat
 
 _NUM = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
-
-def numify(s):
-    if pd.isna(s): return np.nan
-    if isinstance(s, (int, float)): return float(s)
-    m = _NUM.match(str(s))
-    return float(m.group(1)) if m else np.nan
-
-
-# Extract the protein sequence from a pdb file
-# Write the sequence into a fasta file
-def get_fasta_chain_seq(pdb_file, fold_name, output_dir):
-    # Create a PDB parser
-    parser = PDBParser()
-
-    print("Load parser for pdb file:", pdb_file)
-    # Parse the structure
-    structure = parser.get_structure('PDB_structure', pdb_file)
-    # Extract the sequence
-    for model in structure:
-        for chain in model:
-            sequence = ""
-            for residue in chain:
-                if residue.id[0] == ' ' and 'CA' in residue:  # <-- match pdb_to_contact_map selection
-                    sequence += seq1(residue.resname)
-
-    with open(f"./{output_dir}/fasta_chain_files/{fold_name}.fasta", "w") as output_handle:
-        output_handle.write('>'+'\n'+sequence)
-
-
 
 def save_org_cmaps(chain_pdb_file_path,fold):
     import mdtraj as md
@@ -221,131 +191,3 @@ def pick(d: pd.DataFrame, colnames):
         if c in d.columns:
             return pd.to_numeric(d[c], errors="coerce")
     return pd.Series(index=d.index, dtype=float)
-
-
-# For pipeline running:
-def write_pair_pipeline_script(pair_id: str, args: argparse.Namespace) -> str:
-    """
-    Create Pipeline/<pair>/jobs/msaclust_pipeline_<pair>.sh that runs
-    all steps sequentially in one Slurm job, logging stages.
-    Uses absolute repo & python paths so Slurm CWD never matters.
-    """
-    # Absolute paths (no guessing inside the SBATCH job)
-    repo_dir = MAIN_DIR  # os.path.abspath(os.path.dirname(__file__))     # repo root (dir of this file)
-    py_exec  = sys.executable                                 # same python as caller
-
-    pair_dir = f"Pipeline/FoldPairs/{pair_id}"
-    jobs_dir = os.path.join(pair_dir, "jobs")
-    logs_dir = os.path.join(pair_dir, "logs")
-    ensure_dir(jobs_dir); ensure_dir(logs_dir)
-
-    script_path = os.path.join(jobs_dir, f"msaclust_pipeline_{pair_id}.sh")
-    log_path    = os.path.join(logs_dir, f"msaclust_pipeline_{pair_id}.out")
-    status_path = os.path.join(logs_dir, f"msaclust_pipeline_{pair_id}.status")
-
-    cluster_sample_n = getattr(args, "cluster_sample_n", 10) or 10
-    esm_device       = getattr(args, "esm_device", "auto") or "auto"
-
-    sb = f"""#!/bin/bash
-#SBATCH --job-name=pipe_{pair_id}
-#SBATCH --time=24:00:00
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=40G
-#SBATCH --gres=gpu:a100:1
-# #SBATCH --partition=a100
-# #SBATCH --constraint=a100
-#SBATCH -o {log_path}
-
-set -euo pipefail
-export QT_QPA_PLATFORM=offscreen
-
-
-# --- absolute locations (filled in by Python) ---
-REPO_DIR="{repo_dir}"
-PY="{py_exec}"
-
-cd "${{REPO_DIR}}"
-
-PAIR_ID="{pair_id}"
-PAIR_DIR="Pipeline/FoldPairs/{pair_id}"
-LOG="{log_path}"
-STATUS="{status_path}"
-
-mkdir -p "$(dirname "${{LOG}}")"
-mkdir -p "${{PAIR_DIR}}/output_get_msa" "${{PAIR_DIR}}/output_msa_cluster" \\
-         "${{PAIR_DIR}}/output_cmaps/msa_transformer" "${{PAIR_DIR}}/output_AF/AF2" \\
-         "${{PAIR_DIR}}/output_esm_fold/esm2" "${{PAIR_DIR}}/output_esm_fold/esm3" \\
-         "${{PAIR_DIR}}/fasta_chain_files"
-
-# optional: activate env (export this before sbatch if you need it)
-#   export COLABFOLD_ENV_ACTIVATE=/path/to/colabfold_env/bin/activate
-if [[ -n "${{COLABFOLD_ENV_ACTIVATE:-}}" && -f "${{COLABFOLD_ENV_ACTIVATE}}" ]]; then
-  # shellcheck disable=SC1090
-  source "${{COLABFOLD_ENV_ACTIVATE}}"
-fi
-
-# capture all output to the log as well
-exec > >(stdbuf -oL tee -a "${{LOG}}") 2>&1
-
-# --- status helpers ---
-STAGE=""
-mark() {{  # $1=stage $2=STATUS (START|OK|FAIL)
-  local now; now="$(date '+%Y-%m-%d %H:%M:%S')"
-  echo "${{now}} [{pair_id}] $1 $2" | tee -a "${{STATUS}}"
-  if [[ "$2" == "OK" ]]; then touch "${{PAIR_DIR}}/.stage_$1.ok"; fi
-  if [[ "$2" == "FAIL" ]]; then touch "${{PAIR_DIR}}/.stage_$1.fail"; fi
-}}
-start() {{ STAGE="$1"; mark "$1" "START"; }}
-ok()    {{ mark "$STAGE" "OK"; }}
-fail()  {{ mark "$STAGE" "FAIL"; }}
-
-trap 'fail; exit 1' ERR
-
-CLUSTER_SAMPLE_N="{cluster_sample_n}"
-ESM_DEVICE="{esm_device}"
-
-# ----------------- STAGES -----------------
-
-start load
-"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode load --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
-ok
-
-start get_msa
-"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode get_msa --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
-ok
-
-start cluster_msa
-"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode cluster_msa --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
-ok
-
-start run_AF
-"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_AF --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
-ok
-
-start run_cmap_esm
-"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_cmap_esm --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline
-ok
-
-start run_esmfold_esm2
-"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_esmfold --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline --esm_model esm2 --cluster_sample_n "${{CLUSTER_SAMPLE_N}}" --esm_device "${{ESM_DEVICE}}"
-ok
-
-start run_esmfold_esm3
-"$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode run_esmfold --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline --esm_model esm3 --cluster_sample_n "${{CLUSTER_SAMPLE_N}}" --esm_device "${{ESM_DEVICE}}"
-ok
-
-start plot_pair
-if "$PY" "{os.path.join(repo_dir, 'run_foldswitch_pipeline.py')}" --run_mode plot --foldpair_ids "${{PAIR_ID}}" --run_job_mode inline; then
-  ok
-else
-  echo "[plot] skipped or failed (PyMOL not available?)"
-  touch "${{PAIR_DIR}}/.stage_plot_pair.skipped"
-fi
-
-echo "ALL DONE for {pair_id}"
-"""
-
-    with open(script_path, "w") as f:
-        f.write(sb)
-    os.chmod(script_path, 0o755)
-    return script_path

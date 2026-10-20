@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
-from utils.align_utils import compute_tmscore_align
+from utils.score_against_folds import tm_vs_truth
 from utils.utils import list_protein_pairs
 from config import DATA_DIR
 from tqdm import tqdm
@@ -70,8 +70,8 @@ def compute_df_esm(fold_pair: str, write: bool = True) -> pd.DataFrame:
         for name, pred_pdb in _iter_preds(model_tag):
             # TM vs each truth (chain1 refers to TRUTH chain we compare to)
             print("[esm_tm] ", fold_pair, model_tag, name)
-            TM1 = compute_tmscore_align(str(truth1), pred_pdb, chain1=ch1)
-            TM2 = compute_tmscore_align(str(truth2), pred_pdb, chain1=ch2)
+            TM1 = tm_vs_truth(pred_pdb, truth1, ch1)
+            TM2 = tm_vs_truth(pred_pdb, truth2, ch2)
             rows.append({
                 "fold_pair": fold_pair,
                 "model": model_tag,

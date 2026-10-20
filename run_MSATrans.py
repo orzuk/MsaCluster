@@ -20,11 +20,6 @@ def _a3m_cols(seq: str):
     """Return A3M 'columns' (uppercase AA or '-') for a raw a3m row."""
     return [c for c in seq if c.isupper() or c == '-']
 
-def _ungapped_seed_indices(seq: str):
-    """Indices (0..L_seed-1) of columns where this row has a residue (uppercase)."""
-    cols = _a3m_cols(seq)
-    return [i for i, c in enumerate(cols) if c.isupper()]
-
 def _least_gappy_first(rows):
     """
     rows: list[(header, sequence_str)]

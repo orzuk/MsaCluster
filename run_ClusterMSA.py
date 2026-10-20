@@ -139,37 +139,12 @@ def gapaware_pid(a: str, b: str) -> float:
 def gapaware_hamming(a: str, b: str) -> float:
     return 1.0 - gapaware_pid(a, b)
 
-def condensed_from_square(D: np.ndarray) -> np.ndarray:
-    """Square (n,n) -> condensed (n*(n-1)/2,) for SciPy linkage."""
-    n = D.shape[0]
-    out = np.empty(n*(n-1)//2, dtype=float)
-    k = 0
-    for i in range(n-1):
-        for j in range(i+1, n):
-            out[k] = D[i, j]; k += 1
-    return out
-
 def medoid_index(D: np.ndarray, idxs: np.ndarray) -> int:
     """Return index (from idxs) of the medoid (min avg distance)."""
     subD = D[np.ix_(idxs, idxs)]
     s = subD.sum(axis=1)
     rel = int(idxs[int(np.argmin(s))])
     return rel
-
-def compute_neff(seqs: List[str], id_thresh: float = 0.8) -> float:
-    """Meff with identity threshold id_thresh (simple O(n^2) for cluster sizes ~1e3 ok)."""
-    n = len(seqs)
-    if n == 0: return 0.0
-    weights = np.zeros(n, dtype=float)
-    for i in range(n):
-        cnt = 0
-        for j in range(n):
-            if gapaware_pid(seqs[i], seqs[j]) >= id_thresh:
-                cnt += 1
-        weights[i] = 1.0 / float(cnt)
-    return float(weights.sum())
-
-
 
 # ------------- HDBSCAN path (reuse your existing behavior) -------------
 def cluster_hdbscan(headers: List[str], seqs: List[str], args) -> Dict[int, List[int]]:
@@ -925,20 +900,6 @@ def postprocess_and_write(assigns: Dict[int, List[int]],
             return None
         s_from = _rep_seq(c_from)  # <-- reuse the cached representative
         best, best_d = None, float("inf")
-        for cj in cand:
-            d = gapaware_hamming(s_from, _rep_seq(cj))
-            if d < best_d:
-                best_d = d
-                best = cj
-        return best
-
-        # distance by tree representatives if available, else by gap-aware Hamming of medoids
-        def _rep_seq(ci):
-            # reuse any representative you cache; else pick a quick medoid
-            ids = assigns[ci]
-            return seqs[ids[0]] if len(ids) == 1 else seqs[medoid_of_rows(np.array(ids, dtype=int), seqs)]
-
-        s_from = _rep_seq(c_from)
         for cj in cand:
             d = gapaware_hamming(s_from, _rep_seq(cj))
             if d < best_d:

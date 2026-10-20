@@ -170,53 +170,6 @@ def _chain_of_tag(tag: str):
     return t[4:] if len(t) > 4 else None
 
 
-def _trigger_class(pair_id: str) -> str:
-    """trigger_class for a pair from docs/triggers_from_pdb.csv ('' if unknown).
-
-    Used so that oligomerization switchers (where the fold change IS the
-    monomer<->multimer transition) keep their full assembly, while every other
-    class is reduced to the single fold-switching chain for a clean comparison.
-    """
-    try:
-        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        import csv
-        with open(os.path.join(repo, "docs", "triggers_from_pdb.csv"),
-                  encoding="utf-8", errors="replace") as fh:
-            for row in csv.DictReader(fh):
-                if row.get("pair_id") == pair_id:
-                    return (row.get("trigger_class") or "").strip()
-    except Exception:
-        pass
-    return ""
-
-
-def _find_super_pdb(pair_id, fig_dir, which):
-    """Locate the PyMOL-superposed single-chain PDB for the aligned overlay.
-
-    plot_3d.py writes `<pair>_super_fold{1,2}.pdb` (fold1 = reference frame,
-    fold2 moved onto it) next to the other figures. Check the published fig dir
-    and the Pipeline output_figs dir. Returns a path or None.
-    """
-    name = f"{pair_id}_super_fold{which}.pdb"
-    cands = []
-    try:
-        if fig_dir:
-            cands.append(os.path.join(str(fig_dir), name))
-    except Exception:
-        pass
-    try:
-        cands.append(os.path.join(_data_dir(), pair_id, "output_figs", name))
-    except Exception:
-        pass
-    for c in cands:
-        try:
-            if os.path.isfile(c) and os.path.getsize(c) > 0:
-                return c
-        except Exception:
-            continue
-    return None
-
-
 def _assembly_ss_from_text(text, chain_id):
     """Assembly-context SS for one chain of a multi-chain structure TEXT, or None.
 
@@ -420,46 +373,6 @@ def _superpose_overlay(text1, text2, ss1_override=None, ss2_override=None):
     except Exception as e:
         print(f"[structure] overlay superposition failed: {e}")
         return None
-
-
-def _structure_caption(pair_id):
-    """One-line context for the 3D figures from docs/triggers_from_pdb.csv:
-    trigger class, per-fold chain counts (monomer/dimer/...), ligands."""
-    try:
-        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        import csv
-        with open(os.path.join(repo, "docs", "triggers_from_pdb.csv"),
-                  encoding="utf-8", errors="replace") as fh:
-            for row in csv.DictReader(fh):
-                if row.get("pair_id") != pair_id:
-                    continue
-                bits = []
-                tc = (row.get("trigger_class") or "").strip()
-                if tc:
-                    bits.append(f"trigger class: <b>{_html.escape(tc)}</b>")
-                n1 = (row.get("n_unique_chains_pdb1") or "").strip()
-                n2 = (row.get("n_unique_chains_pdb2") or "").strip()
-
-                def _olig(nch):
-                    try:
-                        k = int(nch)
-                    except Exception:
-                        return ""
-                    return {1: "monomer", 2: "dimer", 3: "trimer",
-                            4: "tetramer"}.get(k, f"{k}-mer")
-                o1, o2 = _olig(n1), _olig(n2)
-                if o1 or o2:
-                    bits.append(f"deposited assembly: fold1 {o1 or '?'} / fold2 {o2 or '?'}")
-                lig = ((row.get("ligands_pdb1") or "") + (row.get("ligands_pdb2") or "")).strip()
-                if lig:
-                    bits.append(f"ligand(s): {_html.escape(lig)}")
-                bits.append("showing the single fold-switching chain of each fold, "
-                            "Kabsch-superposed (waters/ligands hidden)")
-                return " &middot; ".join(bits)
-    except Exception:
-        pass
-    return ("showing the single fold-switching chain of each fold, "
-            "Kabsch-superposed (waters/ligands hidden)")
 
 
 def _structure_meta(pair_id):

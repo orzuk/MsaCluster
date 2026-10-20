@@ -4,10 +4,9 @@ Everything that needs a protein name / organism for a fold-switch pair -- figure
 HTML tables, the paper -- should read it from here, which loads the ONE canonical
 table docs/pair_protein_names.csv (built by scripts/fetch_pair_protein_names.py).
 
-    from utils.pair_labels import pair_display, pair_organism, pair_label
+    from utils.pair_labels import pair_display, pair_organism
     pair_display("2n54B_2hdmA")  -> "XCL1"
     pair_organism("2n54B_2hdmA") -> "Homo sapiens"
-    pair_label("2n54B_2hdmA")    -> "XCL1 (2n54B_2hdmA)"
 """
 import os
 import functools
@@ -35,13 +34,3 @@ def pair_display(pair_id: str) -> str:
 def pair_organism(pair_id: str) -> str:
     """Source organism(s) for a pair; '' if unknown."""
     return str(_table().get(str(pair_id), {}).get("organism", "") or "")
-
-
-def pair_label(pair_id: str, with_id: bool = True) -> str:
-    """Display name plus the pair code, e.g. 'XCL1 (2n54B_2hdmA)'.
-
-    Falls back to just the id when no name is known."""
-    name = pair_display(pair_id)
-    if not name:
-        return str(pair_id)
-    return f"{name} ({pair_id})" if with_id else name

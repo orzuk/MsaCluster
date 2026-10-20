@@ -61,7 +61,7 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR  # noqa: E402
-from utils.align_utils import compute_tmscore_align  # noqa: E402
+from utils.score_against_folds import safe_tm_vs_truth, truth_chain_pdb  # noqa: E402
 
 
 def _parse_depths(s: str) -> List[Tuple[int, int]]:
@@ -74,19 +74,6 @@ def _parse_depths(s: str) -> List[Tuple[int, int]]:
         a, b = tok.split(":")
         out.append((int(a), int(b)))
     return out
-
-
-def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
-    """Best-effort path to truth PDB for one fold's reference chain."""
-    cand = [
-        pair_dir / f"{pdbid}.pdb",
-        pair_dir / "chain_pdb_files" / f"{pdbid}{chain}.pdb",
-        pair_dir / f"{pdbid}_cif.pdb",
-    ]
-    for c in cand:
-        if c.is_file():
-            return str(c)
-    return ""
 
 
 _AF2_WRAPPER = os.path.join(
@@ -141,18 +128,6 @@ def _mean_plddt(pdb_path: Path) -> float:
     return float(np.mean(vals)) if vals else float("nan")
 
 
-def _safe_tm(pred_pdb: Path, truth_pdb: str) -> float:
-    if not truth_pdb or not pred_pdb or not Path(pred_pdb).is_file():
-        return float("nan")
-    try:
-        tm = compute_tmscore_align(str(pred_pdb), str(truth_pdb))
-        if isinstance(tm, (list, tuple)):
-            tm = float(tm[0])
-        return float(tm)
-    except Exception:
-        return float("nan")
-
-
 def run_one_cluster(pair_id: str, cluster_a3m: Path, pdbid1: str, chain1: str,
                     pdbid2: str, chain2: str, n_samples: int,
                     depths: List[Tuple[int, int]], pair_dir: Path,
@@ -163,8 +138,8 @@ def run_one_cluster(pair_id: str, cluster_a3m: Path, pdbid1: str, chain1: str,
     out_root = pair_dir / "output_cfrandom" / tag
     out_root.mkdir(parents=True, exist_ok=True)
 
-    truth1 = _truth_chain_pdb(pair_dir, pdbid1, chain1)
-    truth2 = _truth_chain_pdb(pair_dir, pdbid2, chain2)
+    truth1 = truth_chain_pdb(pair_dir, pdbid1, chain1)
+    truth2 = truth_chain_pdb(pair_dir, pdbid2, chain2)
 
     rows = []
     print(f"  [cfrandom] {tag}: {n_samples} samples")
@@ -178,8 +153,8 @@ def run_one_cluster(pair_id: str, cluster_a3m: Path, pdbid1: str, chain1: str,
         if not pdb:
             continue
         plddt = _mean_plddt(pdb)
-        tm1 = _safe_tm(pdb, truth1)
-        tm2 = _safe_tm(pdb, truth2)
+        tm1 = safe_tm_vs_truth(pdb, truth1, chain1)
+        tm2 = safe_tm_vs_truth(pdb, truth2, chain2)
         rows.append({
             "pair_id": pair_id,
             "cluster": tag,

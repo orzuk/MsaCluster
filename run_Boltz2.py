@@ -48,7 +48,7 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR, MAIN_DIR  # noqa: E402
-from utils.align_utils import compute_tmscore_align  # noqa: E402
+from utils.score_against_folds import safe_tm_vs_truth, truth_chain_pdb  # noqa: E402
 from utils.trigger_utils import condition_spec  # noqa: E402
 
 
@@ -67,36 +67,6 @@ def _representative_from_a3m(a3m: Path, method: str = "medoid") -> str:
     from utils.cluster_representative import get_cluster_representative
     _hdr, seq = get_cluster_representative(a3m, method=method)
     return seq or ""
-
-
-def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
-    """Truth-fold PDB for (pdbid, chain): the chain-sliced file if present,
-    else the full deposited PDB. Callers must also pass ``chain`` to the TM
-    call -- the full file can hold both folds' chains (same-PDB pairs)."""
-    for c in (pair_dir / "chain_pdb_files" / f"{pdbid}{chain}.pdb",
-              pair_dir / f"{pdbid}.pdb",
-              pair_dir / f"{pdbid}_cif.pdb"):
-        if c.is_file():
-            return str(c)
-    return ""
-
-
-def _safe_tm(pred_pdb, truth_pdb, truth_chain: Optional[str] = None,
-             pred_chain: Optional[str] = None):
-    """TM-score of a prediction against one truth chain, normalised by the
-    truth length (same convention as the AF2/AF3 scoring in
-    Analysis/postprocess_unified.py). pred_chain restricts the prediction to
-    one chain (holo outputs are complexes; the protein copy is chain A)."""
-    if not truth_pdb or not pred_pdb or not Path(pred_pdb).is_file():
-        return float("nan")
-    try:
-        tm = compute_tmscore_align(str(truth_pdb), str(pred_pdb),
-                                   chain1=truth_chain, chain2=pred_chain)
-        if isinstance(tm, (list, tuple)):
-            tm = float(tm[0])
-        return float(tm)
-    except Exception:
-        return float("nan")
 
 
 def _write_boltz_yaml(tag: str, sequence: str, partner_yaml: str,
@@ -174,8 +144,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
     out_root = pair_dir / ("output_boltz2_holo" if holo else "output_boltz2") / tag
     pred_chain = "A" if holo else None
     out_root.mkdir(parents=True, exist_ok=True)
-    truth1 = _truth_chain_pdb(pair_dir, pdbid1, chain1)
-    truth2 = _truth_chain_pdb(pair_dir, pdbid2, chain2)
+    truth1 = truth_chain_pdb(pair_dir, pdbid1, chain1)
+    truth2 = truth_chain_pdb(pair_dir, pdbid2, chain2)
 
     # Skip if we already have a valid rank_001 PDB for this cluster.
     # An empty manifest.csv or zero-PDB output is treated as a failed
@@ -192,8 +162,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
             # picks them up.
             rows = []
             for i, pdb in enumerate(existing_rank1):
-                tm1 = _safe_tm(pdb, truth1, chain1, pred_chain)
-                tm2 = _safe_tm(pdb, truth2, chain2, pred_chain)
+                tm1 = safe_tm_vs_truth(pdb, truth1, chain1, pred_chain)
+                tm2 = safe_tm_vs_truth(pdb, truth2, chain2, pred_chain)
                 rows.append({
                     "pair_id": pair_id, "cluster": tag, "rank": i,
                     "tm_fold1": tm1, "tm_fold2": tm2,
@@ -237,8 +207,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
         pdbs = sorted(out_root.rglob("*.pdb"))
     rows = []
     for i, pdb in enumerate(pdbs):
-        tm1 = _safe_tm(pdb, truth1, chain1, pred_chain)
-        tm2 = _safe_tm(pdb, truth2, chain2, pred_chain)
+        tm1 = safe_tm_vs_truth(pdb, truth1, chain1, pred_chain)
+        tm2 = safe_tm_vs_truth(pdb, truth2, chain2, pred_chain)
         rows.append({
             "pair_id": pair_id, "cluster": tag, "rank": i,
             "tm_fold1": tm1, "tm_fold2": tm2,

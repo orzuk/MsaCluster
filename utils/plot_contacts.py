@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap, BoundaryNorm
+from matplotlib.colors import ListedColormap
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
@@ -351,67 +351,6 @@ def plot_array_contacts_and_predictions(
 
 
 """Adapted from: https://github.com/rmrao/evo/blob/main/evo/visualize.py"""
-def plot_contacts_and_predictions(
-        predictions,
-        contacts,
-        ax=None,
-        cmap: str = "Blues",
-        ms: float = 0.5,
-        title=True,
-        animated: bool = False,
-) -> None:
-    from typing import Union, Optional, Callable
-
-    if isinstance(predictions, torch.Tensor):
-        predictions = predictions.detach().cpu().numpy()
-    if isinstance(contacts, torch.Tensor):
-        contacts = contacts.detach().cpu().numpy()
-    if ax is None:
-        ax = plt.gca()
-
-    seqlen = contacts.shape[0]
-    relative_distance = np.add.outer(-np.arange(seqlen), np.arange(seqlen))
-    bottom_mask = relative_distance < 0
-    masked_image = np.ma.masked_where(bottom_mask, predictions)
-    invalid_mask = np.abs(np.add.outer(np.arange(seqlen), -np.arange(seqlen))) < 6
-    predictions = predictions.copy()
-    predictions[invalid_mask] = float("-inf")
-
-    # Sparse top-L predicted contacts at |i-j| >= 6 (see select_topl_contacts:
-    # the old ``predictions >= sort()[-L]`` rule produced a dense lattice on
-    # constant/saturated score maps).
-    pred_contacts = select_topl_contacts(predictions, num_contacts=seqlen, min_sep=6)
-    contacts = np.asarray(contacts, dtype=bool)
-    true_positives = contacts & pred_contacts & ~bottom_mask
-    false_positives = ~contacts & pred_contacts & ~bottom_mask
-    other_contacts = contacts & ~pred_contacts & ~bottom_mask
-
-    if isinstance(title, str):
-        title_text = title
-    elif title:
-        long_range_pl = compute_precisions(predictions, contacts, minsep=24)["P@L"].item()
-        if callable(title):
-            title_text = title(long_range_pl)
-        else:
-            title_text = f"Long Range P@L: {100 * long_range_pl:0.1f}"
-    else:
-        title_text = None
-
-    img = ax.imshow(masked_image, cmap=cmap, animated=animated)
-    oc = ax.plot(*np.where(other_contacts), "o", c="grey", ms=ms, label="other")[0]
-    fp = ax.plot(*np.where(false_positives), "o", c="r", ms=ms, label="FP")[0]
-    tp = ax.plot(*np.where(true_positives), "o", c="b", ms=ms, label="TP")[0]
-    ti = ax.set_title(title_text) if title_text is not None else None
-
-    ax.legend(loc="upper left")
-    ax.axis("square")
-    ax.set_xlim([0, seqlen])
-    ax.set_ylim([0, seqlen])
-    save_flag = False
-    if save_flag:
-        plt.savefig('%s.pdf' % title, bbox_inches='tight')
-
-
 def select_topl_contacts(score_map, num_contacts=None, min_sep=6, topk_factor=1.0):
     """Select a SPARSE set of predicted contacts from a continuous score matrix.
 
@@ -693,37 +632,3 @@ def plot_foldswitch_contacts_and_predictions(
     return recall
 
 
-def plot_viz_cmap(file, legend_plot):
-    """Used in making notebooks."""
-    if not file or not os.path.isfile(file):
-        print(f"[skip] viz cmap (missing): {file}")
-        return
-    try:
-        visualization_map = np.load(file)
-    except Exception as e:
-        print(f"[skip] np.load failed: {e}")
-        return
-
-    size = visualization_map.shape[0]
-
-    colors = ['grey', 'lightblue', 'purple', 'blue', 'magenta']
-    bounds = [0, 0.99, 1.24, 1.49, 1.74, 2]
-    cmap = ListedColormap(colors)
-    norm = BoundaryNorm(bounds, cmap.N)
-
-    plt.figure(figsize=(10, 8))
-    im = plt.imshow(visualization_map, cmap=cmap, norm=norm, interpolation='nearest', origin='lower')
-
-    legend_elements = [
-        Patch(facecolor='lightblue', edgecolor='black', label='Experiment contact'),
-        Patch(facecolor='purple', edgecolor='black', label='Unique State Experiment contact'),
-        Patch(facecolor='blue', edgecolor='black', label='Experiment contact predicted'),
-        Patch(facecolor='magenta', edgecolor='black', label='Unique State Experiment contact predicted')
-    ]
-
-    plt.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.title(legend_plot)
-    plt.xlabel('Residue Index')
-    plt.ylabel('Residue Index')
-    plt.tight_layout()
-    plt.show()

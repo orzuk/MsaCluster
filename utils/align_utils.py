@@ -176,51 +176,6 @@ def _run_tmalign_binary(pdb1, pdb2, chain1, chain2) -> Dict[str, Any]:
 
 
 def _run_tmtools_python(pdb1, pdb2, chain1, chain2) -> dict:
-    def _coords_seq_from_any(local_pdb: str, chain: str | None):
-        """
-        Get (CA_coords, seq) robustly:
-        - If we get a true Biotite AtomArray -> use your read_seq_coord_contacts_from_pdb()
-        - If we get a NumPy recarray -> derive (coords, seq) from its fields
-        """
-        atom_array = load_structure_to_atom_array(local_pdb)  # your loader
-
-        # Case 1: true AtomArray (has array_length method) → use your function
-        if hasattr(atom_array, "array_length"):
-            _, _, seq, _, ca_coords = read_seq_coord_contacts_from_pdb(atom_array, chain=chain)
-            return ca_coords, seq
-
-        # Case 2: recarray (no array_length) → build (coords, seq) ourselves
-        arr = atom_array  # expected fields: chain_id, res_name, atom_name, coord, res_id, ins_code
-        mask = np.ones(len(arr), dtype=bool)
-        if chain is not None:
-            mask &= (arr.chain_id == chain)
-
-        # keep amino acids we know how to map
-        valid_res = np.isin(arr.res_name, np.array(list(aa_long_short.keys())))
-        mask &= valid_res
-
-        # CA-only (TM-align convention)
-        mask &= (arr.atom_name == "CA")
-        sub = arr[mask]
-
-        if len(sub) == 0:
-            raise ValueError("No CA atoms found after filtering (check chain id and input).")
-
-        # ensure stable residue order
-        order = np.lexsort((sub.ins_code, sub.res_id, sub.chain_id))
-        sub = sub[order]
-
-        coords = np.asarray(sub.coord, dtype=float)
-        seq = "".join(aa_long_short.get(res, "X") for res in sub.res_name)
-        return coords, seq
-
-#    def _coords_and_seq(pdb_or_path: str, chain: str | None):
-#        local_pdb, _ = _ensure_local_pdb(pdb_or_path)
-#        return _coords_seq_from_any(local_pdb, chain)
-
-#    coords1, seq1 = _coords_and_seq(pdb1, chain1)
-#    coords2, seq2 = _coords_and_seq(pdb2, chain2)
-
     coords1, seq1 = _coords_seq_from_pdb(pdb1, chain1)
     coords2, seq2 = _coords_seq_from_pdb(pdb2, chain2)
 
@@ -305,14 +260,6 @@ def seq_identity_for_pair(pair_id: str) -> float:
     return seq_identity_from_seed_msa(msa_path, keyA, keyB)
 
 
-# ---------------- public API ---------------- #
-def debug_check_ca_coords(pdb_path: str, chain: str | None = None):
-    coords, seq = _extract_ca_coords_and_seq(pdb_path, chain)  # whatever your internal parser is named
-    n = 0 if coords is None else coords.shape[0] if getattr(coords, "ndim", 0) == 2 else 0
-    print(f"[debug] {pdb_path} chain={chain} CA residues: {n}")
-    return n
-
-
 def get_or_compute_true_tm(
     pair_dir: str,
     pdbA_path: str,
@@ -394,32 +341,6 @@ def compute_tmscore_align(
         return float(max(vals)) if vals else float(res["tm_by_1"])
     raise ValueError("norm must be one of: 'by_1', 'by_2', 'max'")
 
-
-
-def align_cmaps_by_sequence(
-    cmap1: np.ndarray, seq1: str,
-    cmap2: np.ndarray, seq2: str,
-    mode: str = "blosum",       # choose "blosum" by default; or "standard"
-    gap_open: int = 11,
-    gap_extend: int = 1) -> Tuple[np.ndarray, np.ndarray, Tuple[List[int], List[int]]]:
-    """
-    Build residue mapping from sequences, then slice both contact maps to matched positions.
-    Returns (aligned_cmap1, aligned_cmap2, (idx1, idx2)).
-    """
-    idx1, idx2 = get_align_indexes(seq1, seq2, mode=mode, gap_open=gap_open, gap_extend=gap_extend)
-    if not idx1:
-        raise ValueError("No matched residues found from sequence alignment.")
-    print("Finished pairwise-sequence alignment with " + mode + " mode; Now to cmaps")
-
-    n1, n2 = cmap1.shape[0], cmap2.shape[0]
-    paired = [(i, j) for i, j in zip(idx1, idx2) if i < n1 and j < n2]
-    if not paired:
-        raise ValueError("Matched indices exceed cmap sizes; ensure sequences match how maps were built (e.g., CA-only).")
-    i_sel, j_sel = map(np.array, zip(*paired))
-
-    cm1 = cmap1[np.ix_(i_sel, i_sel)]
-    cm2 = cmap2[np.ix_(j_sel, j_sel)]
-    return cm1, cm2, (i_sel.tolist(), j_sel.tolist())
 
 
 def align_truth_and_preds_via_msa_first2(
@@ -516,47 +437,4 @@ def align_truth_and_preds_via_msa_first2(
 
     return match_true, match_pred, pred_truth_slices
 
-
-# Match between cmaps, get only aligned indices
-def get_matching_indices_two_cmaps(pairwise_alignment, true_cmap, pred_cmap):
-    """
-       Match between cmaps, get only aligned indices
-
-       Parameters:
-       - pairwise_alignment: Object with alignment of two sequences .
-       - true_cmap : Matrix representing first contact map .
-       - pred_cmap : Matrix representing second contact map .
-       """
-    #    n_true = len(true_cmap)  # always 2 !!
-    #    n_pred = len(pred_cmap)  # variable number !!
-
-#    print("Pairwise alignment: ")
-#    print(pairwise_alignment)
-    print("Inside get_matching_indices_two_cmaps: Cmap sizes: ", len(true_cmap), len(pred_cmap))
-    print("Inside true_cmaps sizes: ", [cmap.shape for cmap in true_cmap.values()])
-    print("inside pred_cmaps sizes: ", [cmap.shape for cmap in pred_cmap.values()])
-    match_true_cmap = {}  # [None]*2
-    match_pred_cmap = {}  # [None]*n_pred
-
-    to_idx = lambda blocks: np.concatenate([np.arange(s, e) for s, e in blocks]).astype(int) if len(
-        blocks) else np.empty(0, int)
-    idxs = [to_idx(blocks) for blocks in pairwise_alignment[0].aligned]  # [idxA, idxB]
-
-    ctr = 0
-    for (fold, cmap), idx in zip(true_cmap.items(), idxs):
-        print("Set true_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
-        ctr += 1
-        match_true_cmap[fold] = cmap[np.ix_(idx, idx)]
-
-    ctr = 0
-    for (fold, cmap), idx in zip(pred_cmap.items(), idxs):
-        print("Set pred_cmap: ctr=", ctr, " fold=", fold, " idx=", idx)
-        ctr += 1
-        match_pred_cmap[fold] = cmap[np.ix_(idx, idx)]
-
-
-    print("Inside match_true_cmaps sizes: ", [cmap.shape for cmap in match_true_cmap.values()])
-    print("inside match_pred_cmaps sizes: ", [cmap.shape for cmap in match_pred_cmap.values()])
-
-    return match_true_cmap, match_pred_cmap
 

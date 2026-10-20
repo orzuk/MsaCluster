@@ -20,7 +20,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT)
 
 from config import *
-from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, write_pair_pipeline_script, str2bool
+from utils.utils import pair_str_to_tuple, ensure_dir, list_protein_pairs, str2bool
 from utils.msa_utils import *
 from utils.align_utils import get_or_compute_true_tm
 try:
@@ -261,19 +261,6 @@ def _renumber_kept_clusters(pair_id: str) -> bool:
 
     return True
 
-def _truth_pdb_paths_for_pair(pair_id: str) -> tuple[str, str]:
-    # Prefer chain-sliced files if present
-    from utils.utils import pair_str_to_tuple
-    pair_dir = Path("Pipeline/FoldPairs") / pair_id
-    a, b = pair_str_to_tuple(pair_id)  # e.g., ("2qqjA","4qdsA")
-    c1, c2 = a[-1], b[-1]
-    cand1 = pair_dir / "chain_pdb_files" / f"{a}.pdb"
-    cand2 = pair_dir / "chain_pdb_files" / f"{b}.pdb"
-    pdb1 = str(cand1 if cand1.is_file() else (pair_dir / f"{a[:-1]}.pdb"))
-    pdb2 = str(cand2 if cand2.is_file() else (pair_dir / f"{b[:-1]}.pdb"))
-    return pdb1, pdb2
-
-
 def _prepare_pairtrim_msas(pair_id: str, cap_1024: bool = True,
                             cluster_subdir: str = "output_msa_cluster",
                             cluster_pattern: str = "ShallowMsa_*.a3m",
@@ -384,19 +371,6 @@ def _jupyter_env_for_scratch(base: str | None = None) -> dict[str, str]:
     env.setdefault("JUPYTER_KERNEL_NAME", "python3")
 
     return env
-
-
-# --- helper: APC (Average Product Correction) ---
-def _apc(x: np.ndarray) -> np.ndarray:
-    r = x.mean(axis=1, keepdims=True)
-    c = x.mean(axis=0, keepdims=True)
-    t = x.mean()
-    return x - r @ c / max(t, 1e-8)
-
-def _load_a3m_strip_lower(a3m_path: str) -> list[str]:
-    # reuse your utils to read & de-insert A3M rows
-    entries = read_msa(a3m_path)     # -> [(id, seq), ...] (already strips insertions/lowercase)
-    return [s for _, s in entries]
 
 
 def _repo_root() -> str:
@@ -936,25 +910,6 @@ def _has_cluster_msas(pair_id: str) -> bool:
     return bool(list(Path(f"Pipeline/FoldPairs/{pair_id}/output_msa_cluster").glob("ShallowMsa_*.a3m")))
 
 
-def _has_cmaps(pair_id: str) -> bool:
-    p = Path(f"Pipeline/FoldPairs/{pair_id}/output_cmaps/msa_transformer")
-    return any(p.glob("*.npz")) or any(p.glob("*.npy"))
-
-
-def _has_esm_model(pair_id: str, model: str) -> bool:
-    d = Path(f"Pipeline/FoldPairs/{pair_id}/output_esm_fold/{model}")
-    if not d.is_dir():
-        return False
-    tsv = d / "samples_index.tsv"
-    if tsv.is_file() and tsv.stat().st_size > 0:
-        try:
-            return len(pd.read_csv(tsv, sep="\t")) > 0
-        except Exception:
-            pass
-    # fallback: any PDBs written by ESM
-    return bool(list(d.glob("*.pdb")))
-
-
 def _sample_to_tmp_fastas(pair_id: str, sample_n: int, include_deep: bool = False) -> List[str]:
     """
     For each cluster, sample up to sample_n sequences into:
@@ -1406,31 +1361,6 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
     write_masked(out_path, _ungap_upper(chain_aln), base_entries, keep, skip_ungap=_ungap_upper(chain_aln))
     print(f"[a3m] wrote {out_path}  (DeepMsa mask keep={sum(keep)})")
     return True
-
-def _submit_notebook_job(pair_id: str, kernel: str, args: argparse.Namespace) -> None:
-    out = Path(f"Pipeline/FoldPairs/{pair_id}/jobs")
-    out.mkdir(parents=True, exist_ok=True)
-    log = out / f"nb_{pair_id}.out"
-    cpus = getattr(args, "html_cpus", 2)
-    mem  = getattr(args, "html_mem",  "4G")
-    time = getattr(args, "html_time", "02:00:00")
-    part = getattr(args, "html_partition", None)
-
-    cmd = f"{shlex.quote(sys.executable)} Analysis/NotebookGen/generate_notebooks.py {shlex.quote(pair_id)} --kernel {shlex.quote(kernel)}"
-    sbatch = [
-        "sbatch",
-        f"--job-name=nb_{pair_id}",
-        f"--cpus-per-task={cpus}",
-        f"--mem={mem}",
-        f"--time={time}",
-        f"--output={log}",
-        "--parsable",
-        "--wrap", shlex.quote(cmd),
-    ]
-    if part: sbatch.insert(1, f"--partition={part}")
-
-    subprocess.run(" ".join(sbatch), shell=True, check=True, env=_jupyter_env_for_scratch())
-
 
 # ------------------------- tasks -------------------------
 # add imports at file top if missing

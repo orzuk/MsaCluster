@@ -183,26 +183,6 @@ def load_esmfold(device="cuda"):
         model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").to(device).eval()
         return ("hf-esmfold", model)
 
-# --------------------------------------------------------------------------------------
-# ESM2 runner (ESMFold)
-# --------------------------------------------------------------------------------------
-# --- add this helper anywhere near your ESM2 runner (top-level, not inside a function): ---
-def _detect_esm2_checkpoint() -> str | None:
-    """
-    Try to point to where ESMFold weights live. fair-esm uses torch.hub cache.
-    """
-    try:
-        hub = Path(os.environ.get("TORCH_HOME", Path.home() / ".cache" / "torch"))
-        for d in [hub / "hub" / "checkpoints", hub / "checkpoints"]:
-            if d.exists():
-                hits = sorted(d.glob("*esm*fold*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
-                if hits:
-                    return str(hits[0])
-    except Exception:
-        pass
-    return None
-
-
 def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, outdir=None, model_tag="esm2"):
     backend, model = load_esmfold(device)
     if device != "cpu":
@@ -289,71 +269,6 @@ def run_esm2_fold(seqs, device, chunk_size=32, num_recycles=1, amp_dtype=None, o
 # --------------------------------------------------------------------------------------
 # ESM3 runner (subprocess to your local ESM repo script)
 # --------------------------------------------------------------------------------------
-
-def run_esm3_fold(seqs: List[Tuple[str, str]], device: str) -> Dict:
-    """
-    Call a local ESM3 inference script that prints PDB to stdout.
-    Expected CLI (adjust your script accordingly):
-        python <ESM_PATH>/<ESM3_INFER_SCRIPT> --sequence "ACDE..." --device <cpu|cuda|mps>
-    """
-    if not ESM_PATH:
-        raise RuntimeError("ESM_PATH is not set in config.py or environment.")
-    script = Path(ESM_PATH) / ESM3_INFER_SCRIPT
-    if not script.exists():
-        raise FileNotFoundError(f"ESM3 inference script not found: {script}")
-
-    outputs = []
-    for name, seq in seqs:
-        print(f"[esm3] predicting {name} (len={len(seq)}) via {script} …", flush=True)
-
-        # 1) sanitize (removes '-', whitespace, non-ACDEFGHIKLMNPQRSTVWY)
-        orig_len = len(seq)
-        seq = process_sequence(seq)
-        if not seq:
-            print(f"[esm3] skip {name}: empty after sanitization (was {orig_len} aa)")
-            continue
-        if len(seq) != orig_len:
-            print(f"[esm3] {name}: sanitized length {orig_len} -> {len(seq)}")
-
-        # 2) write a tiny temp FASTA (safer than pushing the sequence via argv)
-        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
-            tf.write(f">{name}\n{seq}\n")
-            fasta_path = tf.name
-
-        try:
-            # 3) run from the ESM repo folder; pass --fasta
-            env = os.environ.copy()
-            # keep your current PYTHONPATH trick (if your infer script needs MsaCluster utils)
-            repo_root = Path(__file__).resolve().parent
-            env["PYTHONPATH"] = f"{repo_root}:{env.get('PYTHONPATH', '')}"
-
-            # Allow ESM3 to live in a separate venv (e.g. torch2-venv).
-            # Set ESM3_PYTHON to that venv's python3 if so.
-            esm3_python = os.environ.get("ESM3_PYTHON", sys.executable)
-            cmd = [esm3_python, str(script), "--fasta", fasta_path, "--device", device]
-            res = subprocess.run(
-                cmd, capture_output=True, text=True,
-                cwd=str(Path(script).parent),  # <— run inside the ESM repo
-                env=env
-            )
-            if res.returncode != 0:
-                raise RuntimeError(f"ESM3 subprocess failed: {res.stderr[:500]}")
-
-            pdb_str = res.stdout
-            outputs.append({
-                "name": name,
-                "pdb": pdb_str,
-                "plddt": None,
-                "pae": None,
-                "residue_index": list(range(1, len(seq) + 1)),
-            })
-        finally:
-            try:
-                os.unlink(fasta_path)
-            except Exception:
-                pass
-    return {"backend": "esm3-subprocess", "chains": outputs}
-
 
 def run_esm3_fold_streaming(seqs: List[Tuple[str, str]], device: str, outdir: Path, model_tag: str) -> Dict:
     if not ESM_PATH:

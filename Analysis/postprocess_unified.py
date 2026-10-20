@@ -17,6 +17,7 @@ from config import DATA_DIR, PIPELINE_DIR, DOCS_DIR, SUMMARY_RESULTS_TABLE, DETA
 from utils.utils import list_protein_pairs, pair_str_to_tuple, pick
 from utils.protein_utils import pair_max_len_from_truth, pair_id2dir, truth_pdbs
 from utils.align_utils import compute_tmscore_align, get_or_compute_true_tm, seq_identity_for_pair
+from utils.score_against_folds import tm_vs_truth
 from utils.cache_utils import get_from_pair_cache
 from Analysis.cmap_analysis import compute_cmap_metrics_for_pair
 
@@ -431,8 +432,8 @@ def _score_af_canonical_dir(pair_id: str, subdir: str, model: str,
         cluster = m.group(1) if m else "UNK"
 
         print(f"Compute TM-scores for AF: {subdir} {cluster} {name}")
-        tm1 = compute_tmscore_align(pdb1, str(pred), chain1=c1, chain2=pred_chain)
-        tm2 = compute_tmscore_align(pdb2, str(pred), chain1=c2, chain2=pred_chain)
+        tm1 = tm_vs_truth(pred, pdb1, c1, pred_chain=pred_chain)
+        tm2 = tm_vs_truth(pred, pdb2, c2, pred_chain=pred_chain)
 
         rows.append({
             "pair_id": pair_id, "model": model,
@@ -501,8 +502,8 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
 
                 try:
                     print(f"Compute TM-scores for AF: AF2 {cluster} {stem}")
-                    tm1 = compute_tmscore_align(pdb1, pred_path, chain1=c1, chain2=None)
-                    tm2 = compute_tmscore_align(pdb2, pred_path, chain1=c2, chain2=None)
+                    tm1 = tm_vs_truth(pred_path, pdb1, c1)
+                    tm2 = tm_vs_truth(pred_path, pdb2, c2)
                     rows.append({
                         "pair_id": pair_id, "model": "AF2",
                         "cluster_num": cluster, "name": stem,

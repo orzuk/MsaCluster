@@ -52,7 +52,7 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR  # noqa: E402
-from utils.align_utils import compute_tmscore_align  # noqa: E402
+from utils.score_against_folds import safe_tm_vs_truth, truth_chain_pdb  # noqa: E402
 
 
 def _read_a3m(path: Path) -> List[tuple]:
@@ -160,27 +160,6 @@ def _mean_plddt(pdb_path: Path) -> float:
     return float(np.mean(vals)) if vals else float("nan")
 
 
-def _safe_tm(pred_pdb, truth_pdb):
-    if not truth_pdb or not pred_pdb or not Path(pred_pdb).is_file():
-        return float("nan")
-    try:
-        tm = compute_tmscore_align(str(pred_pdb), str(truth_pdb))
-        if isinstance(tm, (list, tuple)):
-            tm = float(tm[0])
-        return float(tm)
-    except Exception:
-        return float("nan")
-
-
-def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
-    for c in (pair_dir / f"{pdbid}.pdb",
-              pair_dir / "chain_pdb_files" / f"{pdbid}{chain}.pdb",
-              pair_dir / f"{pdbid}_cif.pdb"):
-        if c.is_file():
-            return str(c)
-    return ""
-
-
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     n_perturbations, mask_window, mask_fraction, pair_dir,
                     seed):
@@ -188,8 +167,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_speachaf" / tag
     out_root.mkdir(parents=True, exist_ok=True)
-    truth1 = _truth_chain_pdb(pair_dir, pdbid1, chain1)
-    truth2 = _truth_chain_pdb(pair_dir, pdbid2, chain2)
+    truth1 = truth_chain_pdb(pair_dir, pdbid1, chain1)
+    truth2 = truth_chain_pdb(pair_dir, pdbid2, chain2)
 
     entries = _read_a3m(cluster_a3m)
     if len(entries) < 2:
@@ -209,8 +188,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
         pdb = _run_colabfold(perturbed_a3m, sub_out)
         if not pdb:
             continue
-        tm1 = _safe_tm(pdb, truth1)
-        tm2 = _safe_tm(pdb, truth2)
+        tm1 = safe_tm_vs_truth(pdb, truth1, chain1)
+        tm2 = safe_tm_vs_truth(pdb, truth2, chain2)
         rows.append({
             "pair_id": pair_id, "cluster": tag, "perturb_idx": i,
             "mask_window": mask_window, "mask_fraction": mask_fraction,
