@@ -23,7 +23,8 @@
 set -euo pipefail
 source /sci/labs/orzuk/orzuk/venvs/my-python-venv/bin/activate
 
-METHOD="${1:?usage: run_rescore_batch.sbatch {boltz2|bioemu} <pairs...|ALL>}"
+METHOD="${1:-}"
+[[ -n "$METHOD" ]] || { echo "usage: run_rescore_batch.sbatch boltz2|bioemu <pairs...|ALL>"; exit 2; }
 shift
 case "$METHOD" in boltz2|bioemu) ;; *) echo "unknown method $METHOD"; exit 2 ;; esac
 

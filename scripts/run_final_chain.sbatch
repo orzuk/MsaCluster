@@ -82,7 +82,8 @@ echo "[final-chain] methods=$ALL9 delta_tm=$DELTA_TM delta_ddg=$DELTA_DDG"
 step "0: back up docs/*.csv"
 BACKUP=docs/backup_$(date +%Y%m%d_%H%M%S)
 mkdir -p "$BACKUP"
-cp -p docs/*.csv "$BACKUP"/
+# files only: docs/ also holds a directory whose name ends in .csv
+find docs -maxdepth 1 -type f -name "*.csv" -exec cp -p {} "$BACKUP"/ \;
 echo "backed up $(ls "$BACKUP" | wc -l) CSVs to $BACKUP"
 
 step "a: ESMFold2 re-score (truth-length TM; no --skip_existing => every pair re-scored)"
