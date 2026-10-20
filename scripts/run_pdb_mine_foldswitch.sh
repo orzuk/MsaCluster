@@ -48,7 +48,7 @@
 #   head data/pdb_mining_candidates.new_only.csv
 # ============================================================================
 #SBATCH -J pdb_mine_foldswitch
-#SBATCH --account=course-52017-25
+#SBATCH --account=orzuk
 #SBATCH -c 16
 #SBATCH --mem=32G
 #SBATCH -t 06:00:00

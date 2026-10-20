@@ -7,14 +7,14 @@
 # `glacier` partition, no GPU.
 #
 # Usage (from repo root):
-#   sbatch -A course-52017-25 -p glacier \
+#   sbatch -A orzuk -p glacier \
 #          -J pp_PorterIDP \
 #          --output Pipeline/Controls/jobs/postprocess_PorterIDP.out \
 #          scripts/run_controls_postprocess.sh PorterIDP
 #
 #   # All three control types in parallel:
 #   for ct in RandomSingleFold PorterIDP MatchedSingleFold; do
-#     sbatch -A course-52017-25 -p glacier \
+#     sbatch -A orzuk -p glacier \
 #            -J pp_$ct \
 #            --output "Pipeline/Controls/jobs/postprocess_${ct}.out" \
 #            scripts/run_controls_postprocess.sh "$ct"

@@ -5,7 +5,7 @@
 # Usage (from repo root):
 #   sbatch -J pp_PorterIDP_Q9NZC2 \
 #          -c 2 --mem=8G -t 02:00:00 \
-#          -A course-52017-25 -p glacier \
+#          -A orzuk -p glacier \
 #          --output Pipeline/Controls/PorterIDP/jobs/postprocess_Q9NZC2.out \
 #          scripts/run_controls_postprocess_one.sh PorterIDP Q9NZC2
 #

@@ -794,7 +794,7 @@ def main():
     p.add_argument("--sbatch_partition", default=None)
     p.add_argument("--sbatch_constraint", default=None)
     p.add_argument("--sbatch_account", default=None,
-                   help="Slurm account (e.g., course-52017-25 to use higher fair-share).")
+                   help="Slurm account (e.g., orzuk).")
 
     args = p.parse_args()
 

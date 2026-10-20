@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=v2_analysis
-#SBATCH --account=course-52017-25
+#SBATCH --account=orzuk
 #SBATCH --partition=glacier
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
