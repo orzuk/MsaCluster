@@ -51,7 +51,7 @@ PAIRS="${PAIRS:-$PAIRS_DEFAULT}"
 # ---- paths + slurm ---------------------------------------------------------
 REPO_DIR="/sci/labs/orzuk/orzuk/github/MsaCluster"
 VENV_DIR="/sci/labs/orzuk/orzuk/venvs/my-python-venv"
-ACCOUNT="course-52017-25"
+ACCOUNT="orzuk"
 PARTITION="salmon"
 GRES="gpu:l40s:1"
 CPUS=8

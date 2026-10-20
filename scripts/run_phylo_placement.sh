@@ -14,7 +14,7 @@
 #   - docs/figs/phylo_placement_<pair>_<method>.png  (top-N hits, per method)
 #
 # Usage (from repo root):
-#   sbatch -A course-52017-25 -p glacier \
+#   sbatch -A orzuk -p glacier \
 #          -J phylo_placement \
 #          --output Pipeline/FoldPairs/jobs/phylo_placement.out \
 #          scripts/run_phylo_placement.sh

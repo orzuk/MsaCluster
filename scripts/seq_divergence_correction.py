@@ -542,7 +542,7 @@ def main() -> None:
     global METHODS, OUT_SURVEY, OUT_CONCORD
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--rebuild-pid-cache", action="store_true",
-                    help="rebuild docs/per_cluster_pid_to_query.csv from a3m files")
+                    help="rebuild docs/per_cluster_pid_symmetric.csv (PID to F1 and F2) from a3m files")
     ap.add_argument("--delta", type=float, default=0.05,
                     help="classification threshold on TM-score residual (default 0.05)")
     ap.add_argument("--delta-ddg", type=float, default=2.0,

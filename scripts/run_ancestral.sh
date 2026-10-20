@@ -23,7 +23,7 @@
 #   - Pipeline/FoldPairs/<pair>/output_phytree/ancestral_tree.png (per pair)
 #
 # Usage (from repo root):
-#   sbatch -A course-52017-25 -p glacier \
+#   sbatch -A orzuk -p glacier \
 #          -J ancestral \
 #          --output Pipeline/FoldPairs/jobs/ancestral.out \
 #          scripts/run_ancestral.sh

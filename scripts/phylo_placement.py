@@ -220,7 +220,7 @@ def load_fold_value(survey_csv: str, value_col: str
 
 
 def load_fold_pref(survey_csv: str, delta_tm: float = 0.05,
-                   delta_ddg: float = 1.0
+                   delta_ddg: float = 2.0
                    ) -> Dict[Tuple[str, str, str], str]:
     """Build (pair, method, cluster) -> centered preference (F1/F2/Amb).
 
@@ -1054,7 +1054,9 @@ def main():
     p.add_argument("--n-perm", type=int, default=1000)
     p.add_argument("--seed", type=int, default=12345)
     p.add_argument("--delta-tm", type=float, default=0.05)
-    p.add_argument("--delta-ddg", type=float, default=1.0)
+    p.add_argument("--delta-ddg", type=float, default=2.0,
+                   help="kcal/mol threshold for discrete DDG labels (default 2.0, "
+                        "matching the survey and the correction)")
     p.add_argument("--no-d-statistic", action="store_true",
                    help="Skip D statistic (slowest stat)")
     p.add_argument("--discrete-perms", action="store_true",

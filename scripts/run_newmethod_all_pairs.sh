@@ -82,7 +82,7 @@ done
 REPO_DIR="/sci/labs/orzuk/orzuk/github/MsaCluster"
 VENV_DIR="/sci/labs/orzuk/orzuk/venvs/my-python-venv"
 ESMFOLD2_VENV="/sci/labs/orzuk/orzuk/venvs/esmfold2-venv"
-ACCOUNT="course-52017-25"
+ACCOUNT="orzuk"
 PARTITION="salmon"
 GRES_GPU="gpu:l40s:1"
 

@@ -51,7 +51,7 @@ DEFAULT_EXPLANATIONS = {
     "MSATrans_CMAP_PR2": "Maximum precision vs Fold2 truth (same settings).",
     "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
     "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
-    "CONCORD": "AGGREGATE: cross-method per-cluster sign concordance, sequence-divergence-corrected, averaged over the 28 method-pairs of the 8 point-estimate methods (shuffle null ~0.50; higher = orthogonal methods agree more on each cluster's fold preference). Source: docs/fold_diversity_concordance_corrected_perm_8method_bh.csv.",
+    "CONCORD": "AGGREGATE: cross-method per-cluster sign concordance, sequence-divergence-corrected, averaged over the 36 method-pairs of the 9 methods (shuffle null ~0.50; higher = orthogonal methods agree more on each cluster's fold preference). Source: docs/fold_diversity_concordance_corrected_perm_9method_bh.csv.",
     "CONCORD_pBH": "AGGREGATE: Benjamini-Hochberg-adjusted permutation p-value for CONCORD over the full pool of pairs (<=0.05 = significant cross-method concordance). Same source.",
     "MORANS_I": "AGGREGATE (clade-preference): strongest positive Moran's I of per-cluster fold preference across the methods (on the cluster tree, inverse-patristic weights). Effect size of phylogenetic clade structure; ~0 = no clade structure, larger = fold-preferring clusters form clades. Source: docs/phylo_placement_corrected.csv.",
     "MORANS_Inorm": "AGGREGATE (clade-preference): Moran's I normalised by the maximum achievable on each pair's tree (0 = null, 1 = maximal clade segregation). Rank clade structure by this, not by the BH p-value (the test is over-powered at ~100 clusters). Same source.",
@@ -200,8 +200,8 @@ def gen_html_from_summary_table(
     #     phylogenetic clade-preference (Moran's I). These are the per-pair
     #     summary statistics, kept in their own column group on the right. ---
     _docs_dir = os.path.dirname(summary_csv)
-    # (1) Corrected full-pool concordance perm-BH (8 point-estimate methods)
-    _conc_csv = os.path.join(_docs_dir, "fold_diversity_concordance_corrected_perm_8method_bh.csv")
+    # (1) Corrected full-pool concordance perm-BH (all 9 methods; config)
+    _conc_csv = os.path.join(_docs_dir, os.path.basename(CONCORD_CORRECTED_PERM_BH_CSV))
     if os.path.isfile(_conc_csv):
         try:
             _c = pd.read_csv(_conc_csv)

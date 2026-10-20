@@ -17,7 +17,7 @@
 # ============================================================================
 set -euo pipefail
 
-ACCOUNT="course-52017-25"
+ACCOUNT="orzuk"
 PARTITION="salmon"
 GRES="gpu:l40s:1"
 VENV="/sci/labs/orzuk/orzuk/venvs/esmfold2-venv"

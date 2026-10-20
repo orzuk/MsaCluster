@@ -57,10 +57,7 @@
 #     positional index.
 #
 # Account / fair-share:
-#   - The orzuk personal account has low FairShare (~0.04) due to high recent
-#     usage; jobs queue for hours-to-days. The course-52017-25 account has
-#     FairShare ~0.95 and gets jobs scheduled in seconds. Use it for bursty
-#     submissions like this 93-pair batch.
+#   - Use the orzuk account (the former course account no longer exists).
 #
 # Time / resources:
 #   - 00:30:00 wall is plenty (per-pair runtime: 10s with cached matrices, up
@@ -82,7 +79,7 @@ THERMOMPNN_DIR="/sci/labs/orzuk/orzuk/github/ThermoMPNN"
 # ---- SLURM submission knobs (the proven combination) -----------------------
 PARTITION="salmon"
 GRES="gpu:l40s:1"
-ACCOUNT="course-52017-25"
+ACCOUNT="orzuk"
 CPUS="2"
 MEM="16G"
 TIME="00:30:00"

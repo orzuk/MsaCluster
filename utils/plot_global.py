@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from config import TABLES_RES
+from config import (CONCORD_CORRECTED_PERM_BH_CSV, CONCORD_RAW_PERM_BH_CSV,
+                    TABLES_RES)
 from utils.method_labels import METHOD_ORDER, disp, order_methods, metric_label
 
 SURVEY_CSV = os.path.join(TABLES_RES, "fold_diversity_survey.csv")
@@ -387,7 +388,7 @@ def plot_concordance_volcano(output_dir: str) -> None:
     y = -log10 permutation p. Full-pool BH-significant pairs are ringed; the four
     experimentally validated fold-switchers are labelled.
     """
-    f = os.path.join(TABLES_RES, "fold_diversity_concordance_corrected_perm_bh.csv")
+    f = CONCORD_CORRECTED_PERM_BH_CSV
     if not os.path.isfile(f):
         print(f"[global] no {f}; skipping concordance volcano."); return
     d = pd.read_csv(f)
@@ -432,8 +433,8 @@ def plot_raw_vs_corrected(output_dir: str) -> None:
     only corrected (REVEAL, false negative unmasked). XCL1/SOD1/RelB are the
     canonical preserve/filter/reveal cases.
     """
-    fr = os.path.join(TABLES_RES, "fold_diversity_concordance_perm_bh.csv")
-    fc = os.path.join(TABLES_RES, "fold_diversity_concordance_corrected_perm_bh.csv")
+    fr = CONCORD_RAW_PERM_BH_CSV
+    fc = CONCORD_CORRECTED_PERM_BH_CSV
     if not (os.path.isfile(fr) and os.path.isfile(fc)):
         print("[global] missing concordance perm_bh CSV(s); skipping raw-vs-corrected.")
         return
@@ -481,7 +482,7 @@ def plot_trigger_stratification(output_dir: str) -> None:
     (the stratified-BH axis), with the validated positives labelled in their
     classes (XCL1 → mutation, RelB → protein_binding, SOD1 → oligomerization).
     """
-    fc = os.path.join(TABLES_RES, "fold_diversity_concordance_corrected_perm_bh.csv")
+    fc = CONCORD_CORRECTED_PERM_BH_CSV
     ft = os.path.join(TABLES_RES, "triggers_from_pdb.csv")
     if not (os.path.isfile(fc) and os.path.isfile(ft)):
         print("[global] missing concordance or triggers CSV; skipping trigger plot.")
@@ -576,8 +577,8 @@ def write_global_html(output_html: str = os.path.join("docs", "pairs_global_anal
 </head>
 <body>
 <h1>{_html.escape(title)}</h1>
-<p class="intro">Cross-pair summary of the 8-method fold-switch analysis
-(AF2, AF3, ESMFold2, Boltz-2, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
+<p class="intro">Cross-pair summary of the 9-method fold-switch analysis
+(AF2, AF3, ESMFold2, Boltz-2, BioEmu, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
 fold-switching pair set. Each figure is described above it.</p>
 {body}
 </body>

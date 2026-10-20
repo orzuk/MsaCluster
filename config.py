@@ -85,6 +85,12 @@ DETAILED_RESULTS_TABLE = TABLES_RES + '/detailed_final_res_all_pairs_df.csv' #  
 SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
 ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
 ANCESTRAL_SUMMARY_FILE = TABLES_RES + '/ancestral_summary.csv'
+# Canonical concordance permutation results read by the global plots and the
+# summary HTML table (all 9 methods; written by permutation_null_concordance.py
+# --out-suffix _9method, raw BH by bh_correct_concordance_p.py).
+CONCORDANCE_METHOD_SUFFIX = '_9method'
+CONCORD_CORRECTED_PERM_BH_CSV = TABLES_RES + f'/fold_diversity_concordance_corrected_perm{CONCORDANCE_METHOD_SUFFIX}_bh.csv'
+CONCORD_RAW_PERM_BH_CSV = TABLES_RES + f'/fold_diversity_concordance_perm{CONCORDANCE_METHOD_SUFFIX}_bh.csv'
 ENERGY_DIR = PIPELINE_BASE_DIR + '/output_deltaG'
 ENERGY_FILE = ENERGY_DIR + '/deltaG_results.txt'
 

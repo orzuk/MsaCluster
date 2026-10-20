@@ -9,7 +9,7 @@
 # controls. Output: docs/foldpair_intra_diversity.csv (one row per pair).
 #
 # Usage (from repo root):
-#   sbatch -A course-52017-25 -p glacier \
+#   sbatch -A orzuk -p glacier \
 #          -J pair_diversity \
 #          --output Pipeline/FoldPairs/jobs/pair_diversity.out \
 #          scripts/run_pair_intra_diversity.sh
