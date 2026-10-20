@@ -22,7 +22,7 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
-from utils.align_utils import compute_tmscore_align, tmalign_unified
+from utils.align_utils import compute_tmscore_align
 
 
 def truth_chain_pdb(pair_dir, pdbid: str, chain: str) -> str:
@@ -109,10 +109,10 @@ def find_truth_pdbs(pair_id: str, pair_dir: Path
 
 
 def _tm_pair(pred_pdb: Path, truth_pdb: Path, truth_chain: str) -> float:
-    """Run TM-align and return max(by_1, by_2). Returns nan on failure."""
-    res = tmalign_unified(str(pred_pdb), str(truth_pdb),
-                         chain1=None, chain2=truth_chain)
-    return max(res.get("tm_by_1") or 0.0, res.get("tm_by_2") or 0.0)
+    """TM-score of a prediction vs one truth chain, normalised by the truth
+    length (``tm_vs_truth``). Raises on failure; the caller records the
+    error in the row."""
+    return tm_vs_truth(pred_pdb, truth_pdb, truth_chain)
 
 
 def score_predictions_vs_truth(
