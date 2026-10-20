@@ -70,22 +70,28 @@ def _representative_from_a3m(a3m: Path, method: str = "medoid") -> str:
 
 
 def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
-    for c in (pair_dir / f"{pdbid}.pdb",
-              pair_dir / "chain_pdb_files" / f"{pdbid}{chain}.pdb",
+    """Truth-fold PDB for (pdbid, chain): the chain-sliced file if present,
+    else the full deposited PDB. Callers must also pass ``chain`` to the TM
+    call -- the full file can hold both folds' chains (same-PDB pairs)."""
+    for c in (pair_dir / "chain_pdb_files" / f"{pdbid}{chain}.pdb",
+              pair_dir / f"{pdbid}.pdb",
               pair_dir / f"{pdbid}_cif.pdb"):
         if c.is_file():
             return str(c)
     return ""
 
 
-def _safe_tm(pred_pdb, truth_pdb, pred_chain: Optional[str] = None):
-    # pred_chain: restrict the prediction to one chain (holo outputs are
-    # complexes -- protein copies + ligands; only chain A is scored against
-    # the single-chain truth fold).
+def _safe_tm(pred_pdb, truth_pdb, truth_chain: Optional[str] = None,
+             pred_chain: Optional[str] = None):
+    """TM-score of a prediction against one truth chain, normalised by the
+    truth length (same convention as the AF2/AF3 scoring in
+    Analysis/postprocess_unified.py). pred_chain restricts the prediction to
+    one chain (holo outputs are complexes; the protein copy is chain A)."""
     if not truth_pdb or not pred_pdb or not Path(pred_pdb).is_file():
         return float("nan")
     try:
-        tm = compute_tmscore_align(str(pred_pdb), str(truth_pdb), chain1=pred_chain)
+        tm = compute_tmscore_align(str(truth_pdb), str(pred_pdb),
+                                   chain1=truth_chain, chain2=pred_chain)
         if isinstance(tm, (list, tuple)):
             tm = float(tm[0])
         return float(tm)
@@ -186,8 +192,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
             # picks them up.
             rows = []
             for i, pdb in enumerate(existing_rank1):
-                tm1 = _safe_tm(pdb, truth1, pred_chain)
-                tm2 = _safe_tm(pdb, truth2, pred_chain)
+                tm1 = _safe_tm(pdb, truth1, chain1, pred_chain)
+                tm2 = _safe_tm(pdb, truth2, chain2, pred_chain)
                 rows.append({
                     "pair_id": pair_id, "cluster": tag, "rank": i,
                     "tm_fold1": tm1, "tm_fold2": tm2,
@@ -231,8 +237,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
         pdbs = sorted(out_root.rglob("*.pdb"))
     rows = []
     for i, pdb in enumerate(pdbs):
-        tm1 = _safe_tm(pdb, truth1, pred_chain)
-        tm2 = _safe_tm(pdb, truth2, pred_chain)
+        tm1 = _safe_tm(pdb, truth1, chain1, pred_chain)
+        tm2 = _safe_tm(pdb, truth2, chain2, pred_chain)
         rows.append({
             "pair_id": pair_id, "cluster": tag, "rank": i,
             "tm_fold1": tm1, "tm_fold2": tm2,
