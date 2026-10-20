@@ -47,7 +47,7 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _THIS_DIR)
 
 from config import DATA_DIR, MAIN_DIR  # noqa: E402
-from utils.align_utils import compute_tmscore_align  # noqa: E402
+from utils.score_against_folds import safe_tm_vs_truth, truth_chain_pdb  # noqa: E402
 
 
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunAlphaFlow.sh")
@@ -92,34 +92,13 @@ def _consensus_from_a3m(a3m: Path) -> str:
     return "".join(out_chars)
 
 
-def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
-    for c in (pair_dir / f"{pdbid}.pdb",
-              pair_dir / "chain_pdb_files" / f"{pdbid}{chain}.pdb",
-              pair_dir / f"{pdbid}_cif.pdb"):
-        if c.is_file():
-            return str(c)
-    return ""
-
-
-def _safe_tm(pred_pdb, truth_pdb):
-    if not truth_pdb or not pred_pdb or not Path(pred_pdb).is_file():
-        return float("nan")
-    try:
-        tm = compute_tmscore_align(str(pred_pdb), str(truth_pdb))
-        if isinstance(tm, (list, tuple)):
-            tm = float(tm[0])
-        return float(tm)
-    except Exception:
-        return float("nan")
-
-
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     samples, mode, pair_dir):
     tag = cluster_a3m.stem
     out_root = pair_dir / "output_alphaflow" / tag
     out_root.mkdir(parents=True, exist_ok=True)
-    truth1 = _truth_chain_pdb(pair_dir, pdbid1, chain1)
-    truth2 = _truth_chain_pdb(pair_dir, pdbid2, chain2)
+    truth1 = truth_chain_pdb(pair_dir, pdbid1, chain1)
+    truth2 = truth_chain_pdb(pair_dir, pdbid2, chain2)
 
     # Build single-line input CSV for AlphaFlow
     consensus = _consensus_from_a3m(cluster_a3m)
@@ -146,8 +125,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
     pdbs = sorted(out_root.glob("*.pdb"))
     rows = []
     for i, pdb in enumerate(pdbs):
-        tm1 = _safe_tm(pdb, truth1)
-        tm2 = _safe_tm(pdb, truth2)
+        tm1 = safe_tm_vs_truth(pdb, truth1, chain1)
+        tm2 = safe_tm_vs_truth(pdb, truth2, chain2)
         rows.append({
             "pair_id": pair_id, "cluster": tag, "sample_idx": i,
             "mode": mode,

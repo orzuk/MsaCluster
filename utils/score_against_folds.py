@@ -8,6 +8,11 @@ Boltz-2-rescoring, future methods).
 Canonical output schema (matches existing pilot CSVs):
     mode, version, cluster, chain, TM_F1, TM_F2, TMdiff,
     TMdiff_centered, pred_pdb, error
+
+Also home of the canonical single-prediction helpers ``truth_chain_pdb``
+(locate one fold's truth PDB) and ``tm_vs_truth`` / ``safe_tm_vs_truth``
+(TM-score of a prediction against one truth chain, normalised by the truth
+length), used by the per-method runners and the AF2/AF3 scorer.
 """
 from __future__ import annotations
 
@@ -17,7 +22,56 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
-from utils.align_utils import tmalign_unified
+from utils.align_utils import compute_tmscore_align, tmalign_unified
+
+
+def truth_chain_pdb(pair_dir, pdbid: str, chain: str) -> str:
+    """Truth PDB for one fold (pdbid, chain) of a pair.
+
+    Tries, in order:  <pair_dir>/chain_pdb_files/<pdbid><chain>.pdb
+                      <pair_dir>/<pdbid>.pdb
+                      <pair_dir>/<pdbid>_cif.pdb
+    Returns "" if none exists. The full deposited PDB can hold both folds'
+    chains (same-PDB pairs), so callers must still pass ``chain`` to the TM
+    call (``tm_vs_truth`` requires it).
+    """
+    pair_dir = Path(pair_dir)
+    for c in (pair_dir / "chain_pdb_files" / f"{pdbid}{chain}.pdb",
+              pair_dir / f"{pdbid}.pdb",
+              pair_dir / f"{pdbid}_cif.pdb"):
+        if c.is_file():
+            return str(c)
+    return ""
+
+
+def tm_vs_truth(pred_pdb, truth_pdb, truth_chain: str,
+                pred_chain: Optional[str] = None) -> float:
+    """TM-score of a prediction against one truth chain, normalised by the
+    truth chain's length.
+
+    The truth goes first (TM-align chain 1) restricted to ``truth_chain``, so
+    the ``by_1`` normalisation is by the truth length. ``pred_chain``
+    restricts the prediction to one chain (holo outputs are complexes; the
+    protein copy is chain A); None takes the prediction's first chain.
+    Raises on failure; see ``safe_tm_vs_truth`` for a NaN-returning variant.
+    """
+    if not truth_chain:
+        raise ValueError("tm_vs_truth: truth_chain is required")
+    return float(compute_tmscore_align(str(truth_pdb), str(pred_pdb),
+                                       chain1=truth_chain, chain2=pred_chain,
+                                       norm="by_1"))
+
+
+def safe_tm_vs_truth(pred_pdb, truth_pdb, truth_chain: str,
+                     pred_chain: Optional[str] = None) -> float:
+    """``tm_vs_truth`` that returns NaN when either file is missing or the
+    alignment fails."""
+    if not truth_pdb or not pred_pdb or not Path(pred_pdb).is_file():
+        return float("nan")
+    try:
+        return tm_vs_truth(pred_pdb, truth_pdb, truth_chain, pred_chain)
+    except Exception:
+        return float("nan")
 
 
 def find_truth_pdbs(pair_id: str, pair_dir: Path
