@@ -942,8 +942,9 @@ def load_ddg_diversity(pair_id, delta_ddg):
     This is centering-invariant for spread/range (the existing diversity
     statistics) and removes the systematic-stability confound.
 
-    `delta_ddg` is the kcal/mol threshold (default 1.0; DDG is on a
-    different scale than TM-score's 0.05).
+    `delta_ddg` is the kcal/mol threshold (default 2.0, same as
+    seq_divergence_correction.py; DDG is on a different scale than
+    TM-score's 0.05).
 
     Row-format mapping for compatibility with TM-score loaders:
       TM1_max = -sum_F1_mean   (higher = more stable on F1)
@@ -1208,9 +1209,10 @@ def main():
                         choices=["t_recall", "uniq_recall"],
                         help="MSAT metric: t_recall (full-fold, default) or "
                              "uniq_recall (fold-unique contacts)")
-    parser.add_argument("--delta-ddg", type=float, default=1.0,
+    parser.add_argument("--delta-ddg", type=float, default=2.0,
                         help="kcal/mol threshold for DDG F1/F2/Amb assignment "
-                             "(default 1.0; DDG is on a different scale than TM-score)")
+                             "(default 2.0, matching seq_divergence_correction.py; "
+                             "DDG is on a different scale than TM-score)")
     parser.add_argument("--condition-switch", action="store_true",
                         help="Also score condition-aware fold preference "
                              "(Delta_switch) for methods with both apo and "
