@@ -49,6 +49,13 @@ Usage
     python3 scripts/phylo_placement.py
     python3 scripts/phylo_placement.py --pairs 2namA_1uxmK,2n54B_2hdmA
     python3 scripts/phylo_placement.py --pairs ALL --make-figures all
+    # add the clade-shift scan (per method + COMBINED row per pair):
+    python3 scripts/phylo_placement.py --pairs ALL \
+        --tests morans,clade_shift,clade_shift_combined --clade-n-perm 10000
+
+Tests live in utils/phylo_tests.py (registry ``TESTS``); ``--tests`` picks
+them. The default reproduces the pre-registry output exactly (Moran's I, plus
+the discrete Fitch/NN/D tests with --discrete-perms).
 """
 
 from __future__ import annotations
@@ -265,424 +272,53 @@ def load_fold_pref(survey_csv: str, delta_tm: float = 0.05,
 
 
 # ---------------------------------------------------------------------------
-# Phylogenetic-structure statistics on the coarse tree
+# Phylogenetic-structure statistics: see utils/phylo_tests.py (test registry).
+# Re-exported here so `from phylo_placement import morans_I_test` etc. keep
+# working.
 # ---------------------------------------------------------------------------
 
-def _fitch_parsimony_binary(tree, leaf_states: Dict[str, str]) -> int:
-    """Fitch small-parsimony score for a binary trait {'F1', 'F2'}.
+from utils.phylo_tests import (  # noqa: E402,F401
+    TESTS, P_COLUMNS, run_test,
+    _fitch_parsimony_binary, _cophenetic_neighbours, nn_concordance,
+    d_statistic, permutation_p, _patristic_matrix, morans_I_test,
+)
 
-    Leaves with state == 'Amb' or absent from the dict are treated as
-    missing data (empty character set, no constraint on internal nodes).
 
-    Score = number of state changes on the bottom-up Fitch pass, computed
-    as (k-1) for each internal node where the children's character sets
-    fall into k disjoint groups (typically 1 or 2 for a binary trait).
+# ---------------------------------------------------------------------------
+# Which tests to run (--tests, with the legacy flags as aliases)
+# ---------------------------------------------------------------------------
+
+DISCRETE_TESTS: Tuple[str, ...] = ("fitch", "nn", "dstat")
+
+
+def resolve_tests(tests_arg: Optional[str], discrete_perms: bool = False,
+                  do_d_stat: bool = True) -> List[str]:
+    """Resolve the list of registered tests to run.
+
+    Default (``tests_arg`` None/''): the pre-registry behaviour -- 'morans',
+    plus 'fitch,nn,dstat' when ``--discrete-perms``; ``--no-d-statistic``
+    drops 'dstat'. An explicit comma list is used as given ('discrete' is
+    shorthand for fitch,nn,dstat), still honouring the two legacy flags.
     """
-    score = 0
-    for node in tree.traverse("postorder"):
-        if node.is_leaf():
-            s = leaf_states.get(node.name)
-            node._fitch_set = {s} if s in ("F1", "F2") else set()
-            continue
-        present = [c._fitch_set for c in node.children if c._fitch_set]
-        if not present:
-            node._fitch_set = set()
-            continue
-        inter = set.intersection(*present)
-        if inter:
-            node._fitch_set = inter
-        else:
-            node._fitch_set = set.union(*present)
-            groups: List[set] = []
-            for s in present:
-                placed = False
-                for g in groups:
-                    if g & s:
-                        g |= s
-                        placed = True
-                        break
-                if not placed:
-                    groups.append(set(s))
-            score += max(0, len(groups) - 1)
-    return score
-
-
-def _cophenetic_neighbours(tree, leaves_with_state: Sequence[str]
-                           ) -> Dict[str, List[Tuple[float, str]]]:
-    """For each leaf, sorted (distance, other-leaf) list to other leaves
-    in ``leaves_with_state``. Distance uses branch lengths; if the tree
-    has no branch lengths, every edge counts as length 1.
-    """
-    name_to_node: dict = {}
-    depth: dict = {}
-
-    def _walk(node, d):
-        name_to_node[node.name] = node
-        depth[node.name] = d
-        for c in node.children:
-            cd = c.dist if (c.dist and c.dist > 0) else 1.0
-            _walk(c, d + cd)
-
-    _walk(tree, 0.0)
-
-    ancestors: Dict[str, List[str]] = {}
-    for name in leaves_with_state:
-        node = name_to_node.get(name)
-        chain: List[str] = []
-        while node is not None:
-            chain.append(node.name)
-            node = node.up
-        ancestors[name] = chain
-
-    out: Dict[str, List[Tuple[float, str]]] = {}
-    leaves_list = list(leaves_with_state)
-    for i, a in enumerate(leaves_list):
-        a_anc_set = {n: k for k, n in enumerate(ancestors[a])}
-        a_depth = depth.get(a, 0.0)
-        nbrs: List[Tuple[float, str]] = []
-        for j, b in enumerate(leaves_list):
-            if i == j:
+    if not tests_arg:
+        tests = ["morans"] + (list(DISCRETE_TESTS) if discrete_perms else [])
+    else:
+        tests = []
+        for t in tests_arg.split(","):
+            t = t.strip()
+            if not t:
                 continue
-            lca = None
-            for n in ancestors[b]:
-                if n in a_anc_set:
-                    lca = n
-                    break
-            if lca is None:
-                continue
-            d_ab = (a_depth - depth.get(lca, 0.0)) + (depth.get(b, 0.0) - depth.get(lca, 0.0))
-            nbrs.append((d_ab, b))
-        nbrs.sort(key=lambda x: (x[0], x[1]))
-        out[a] = nbrs
-    return out
-
-
-def nn_concordance(tree, leaf_states: Dict[str, str], k: int = 1
-                   ) -> Tuple[float, int]:
-    """Mean fraction of a leaf's k tree-nearest neighbours sharing its
-    fold preference. Only F1/F2 leaves participate (Amc treated as missing).
-    """
-    queryable = [n for n, s in leaf_states.items() if s in ("F1", "F2")]
-    if len(queryable) < 2:
-        return float("nan"), len(queryable)
-
-    nbrs = _cophenetic_neighbours(tree, queryable)
-    fracs: List[float] = []
-    for leaf, sorted_nbrs in nbrs.items():
-        own = leaf_states[leaf]
-        considered: List[str] = []
-        for _, other in sorted_nbrs:
-            os_state = leaf_states.get(other)
-            if os_state in ("F1", "F2"):
-                considered.append(os_state)
-                if len(considered) >= k:
-                    break
-        if not considered:
-            continue
-        fracs.append(sum(1 for s in considered if s == own) / len(considered))
-    if not fracs:
-        return float("nan"), len(queryable)
-    return float(np.mean(fracs)), len(queryable)
-
-
-def d_statistic(tree, leaf_states: Dict[str, str],
-                n_perm: int = 200, seed: int = 0
-                ) -> Optional[float]:
-    """Approximate Fritz & Purvis (2010) D statistic for a binary trait.
-
-    D = 0  -> tightly clumped (Brownian-motion-like)
-    D = 1  -> phylogenetically random
-    D < 0  -> MORE clumped than Brownian
-    D > 1  -> overdispersed
-
-    Implemented as a Monte-Carlo two-null comparison (random shuffle vs
-    a tree-correlated Brownian-motion proxy).
-    """
-    binary = {n: (1 if s == "F1" else 0) for n, s in leaf_states.items()
-              if s in ("F1", "F2")}
-    if len(binary) < 4:
-        return None
-    n_f1 = sum(binary.values())
-    n_f2 = len(binary) - n_f1
-    if n_f1 == 0 or n_f2 == 0:
-        return None
-
-    def _sum_sister_changes(states: Dict[str, int]) -> float:
-        subtree_sum: Dict[int, float] = {}
-        subtree_n: Dict[int, int] = {}
-        for node in tree.traverse("postorder"):
-            if node.is_leaf():
-                v = states.get(node.name)
-                if v is None:
-                    subtree_sum[id(node)] = 0.0
-                    subtree_n[id(node)] = 0
-                else:
-                    subtree_sum[id(node)] = float(v)
-                    subtree_n[id(node)] = 1
-            else:
-                s = sum(subtree_sum[id(c)] for c in node.children)
-                n = sum(subtree_n[id(c)] for c in node.children)
-                subtree_sum[id(node)] = s
-                subtree_n[id(node)] = n
-        total = 0.0
-        for node in tree.traverse("preorder"):
-            if node.is_root():
-                continue
-            n_self = subtree_n[id(node)]
-            n_parent = subtree_n[id(node.up)]
-            if n_self == 0 or n_parent == 0:
-                continue
-            mean_self = subtree_sum[id(node)] / n_self
-            mean_parent = subtree_sum[id(node.up)] / n_parent
-            total += abs(mean_self - mean_parent)
-        return total
-
-    obs = _sum_sister_changes(binary)
-    rng = random.Random(seed)
-    leaf_names = list(binary.keys())
-    leaf_values = list(binary.values())
-
-    rand_vals: List[float] = []
-    for _ in range(n_perm):
-        v = leaf_values.copy()
-        rng.shuffle(v)
-        m = dict(zip(leaf_names, v))
-        rand_vals.append(_sum_sister_changes(m))
-    mean_rand = float(np.mean(rand_vals))
-
-    bm_vals: List[float] = []
-    for _ in range(n_perm):
-        bm_at: Dict[str, float] = {}
-
-        def _walk(node, val):
-            for c in node.children:
-                step = rng.gauss(0.0, max(1.0, c.dist if c.dist else 1.0) ** 0.5)
-                v = val + step
-                if c.is_leaf():
-                    bm_at[c.name] = v
-                else:
-                    _walk(c, v)
-        _walk(tree, 0.0)
-
-        named_vals = sorted(bm_at.items(), key=lambda x: -x[1])
-        m = {}
-        for k, (nm, _) in enumerate(named_vals):
-            if nm in binary:
-                m[nm] = 1 if k < n_f1 else 0
-        bm_vals.append(_sum_sister_changes(m))
-    mean_bm = float(np.mean(bm_vals))
-
-    if mean_rand - mean_bm == 0:
-        return None
-    D = (obs - mean_bm) / (mean_rand - mean_bm)
-    return float(D)
-
-
-# ---------------------------------------------------------------------------
-# Permutation null
-# ---------------------------------------------------------------------------
-
-def permutation_p(tree, leaf_states: Dict[str, str],
-                  stat_fn, observed: float,
-                  n_perm: int = 1000, seed: int = 12345,
-                  smaller_is_more_structured: bool = True
-                  ) -> float:
-    """Empirical p-value via leaf-label shuffle on the coarse tree.
-
-    Shuffles the F1/F2 labels among the leaves that originally had F1/F2
-    (Amb/missing leaves stay missing). Returns
-    ``(#perms with stat at least as extreme + 1) / (n_perm + 1)``.
-    """
-    rng = random.Random(seed)
-    names = [n for n, s in leaf_states.items() if s in ("F1", "F2")]
-    states = [leaf_states[n] for n in names]
-    if len(names) < 2:
-        return float("nan")
-
-    n_extreme = 0
-    for _ in range(n_perm):
-        v = states.copy()
-        rng.shuffle(v)
-        perm_states = dict(leaf_states)
-        for nm, st in zip(names, v):
-            perm_states[nm] = st
-        s = stat_fn(tree, perm_states)
-        if isinstance(s, tuple):
-            s = s[0]
-        if smaller_is_more_structured:
-            if s <= observed:
-                n_extreme += 1
-        else:
-            if not (isinstance(s, float) and np.isnan(s)) and s >= observed:
-                n_extreme += 1
-    return (n_extreme + 1) / (n_perm + 1)
-
-
-# ---------------------------------------------------------------------------
-# Continuous phylogenetic signal: Moran's I + permutation null
-# ---------------------------------------------------------------------------
-
-def _patristic_matrix(tree, names: Sequence[str]) -> np.ndarray:
-    """Pairwise patristic (branch-length) distance matrix over ``names``.
-
-    Reuses the same root-depth + LCA logic as ``_cophenetic_neighbours``.
-    Edges with no/zero length count as 1.0 (topological distance fallback).
-    """
-    name_to_node: dict = {}
-    depth: dict = {}
-
-    def _walk(node, d):
-        name_to_node[node.name] = node
-        depth[node.name] = d
-        for c in node.children:
-            cd = c.dist if (c.dist and c.dist > 0) else 1.0
-            _walk(c, d + cd)
-
-    _walk(tree, 0.0)
-    ancestors: Dict[str, List[str]] = {}
-    for nm in names:
-        node = name_to_node.get(nm)
-        chain: List[str] = []
-        while node is not None:
-            chain.append(node.name)
-            node = node.up
-        ancestors[nm] = chain
-
-    n = len(names)
-    D = np.zeros((n, n), dtype=float)
-    for i, a in enumerate(names):
-        a_anc = {nm: k for k, nm in enumerate(ancestors[a])}
-        da = depth.get(a, 0.0)
-        for j in range(i + 1, n):
-            b = names[j]
-            lca = next((nm for nm in ancestors[b] if nm in a_anc), None)
-            if lca is None:
-                d_ab = da + depth.get(b, 0.0)            # disconnected fallback
-            else:
-                d_ab = (da - depth[lca]) + (depth.get(b, 0.0) - depth[lca])
-            D[i, j] = D[j, i] = d_ab
-    return D
-
-
-def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
-                  n_perm: int = 1000, seed: int = 12345,
-                  eps: float = 1e-9) -> dict:
-    """Moran's I phylogenetic autocorrelation of a CONTINUOUS leaf trait,
-    with a one-sided permutation p-value (testing for positive signal =
-    clade-structured fold preference).
-
-    - Weights: row-standardized inverse patristic distance (1/d_ij).
-    - I > 0: phylogenetically nearby clusters have similar preference.
-    - p = (1 + #{I_perm >= I_obs}) / (1 + n_perm); floor 1/(n_perm+1).
-    - Invariant to affine rescaling of the trait (so methods on different
-      scales are directly comparable without normalization).
-    - Returns NaN with a note when n<3 or the trait has zero variance
-      (e.g. CCMpred): a constant trait has no signal to measure.
-    """
-    names = [n for n, v in leaf_values.items()
-             if v is not None and np.isfinite(v)]
-    res = {"morans_I": np.nan, "morans_p": np.nan, "morans_z": np.nan,
-           "morans_lambda_max": np.nan, "morans_max_perm": np.nan,
-           "morans_I_norm": np.nan,
-           "morans_n": len(names), "morans_note": ""}
-    if len(names) < 3:
-        res["morans_note"] = "n<3"
-        return res
-    x = np.asarray([leaf_values[m] for m in names], dtype=float)
-    xc = x - x.mean()
-    den = float(xc @ xc)
-    if den < eps:
-        res["morans_note"] = "zero_variance"
-        return res
-
-    W = 1.0 / (_patristic_matrix(tree, names) + eps)
-    np.fill_diagonal(W, 0.0)
-    rs = W.sum(axis=1, keepdims=True)
-    rs[rs == 0] = 1.0
-    W = W / rs                                   # row-standardized -> S0 = n
-
-    I_obs = float((xc @ (W @ xc)) / den)
-    rng = np.random.default_rng(seed)
-    # Vectorized permutation null: each row is a permutation of xc.
-    P = np.empty((n_perm, len(xc)), dtype=float)
-    for k in range(n_perm):
-        P[k] = rng.permutation(xc)
-    I_perm = np.einsum("ij,ij->i", P @ W, P) / den
-    p = (1 + int((I_perm >= I_obs).sum())) / (n_perm + 1)
-    # Standardized Moran's I: deviation from THIS pair's own permutation null,
-    # in null-SD units. Comparable across pairs of different n (unlike raw I,
-    # whose null E[I]=-1/(n-1) shifts with n) and does not floor like p.
-    mu, sd = float(I_perm.mean()), float(I_perm.std())
-    z = (I_obs - mu) / sd if sd > 1e-12 else float("nan")
-    res.update({"morans_I": round(I_obs, 4), "morans_p": round(float(p), 4),
-                "morans_z": round(z, 3) if np.isfinite(z) else np.nan})
-
-    # --- Achievable-max ceiling + normalized effect size ---
-    # Moran's I is bounded by the tree's weight matrix, NOT by 1. Report I as a
-    # fraction of the max achievable for THIS value multiset on THIS tree:
-    #   lambda_max  = eigenvalue ceiling (exact upper bound over centered vectors)
-    #   max_perm    = data-specific achievable max (sort-and-match on the top
-    #                 eigenvector + capped vectorized 2-opt)
-    #   I_norm      = (I_obs - E[I]) / (max_perm - E[I]),  E[I] = -1/(n-1)
-    try:
-        nn = len(xc)
-        M = 0.5 * (W + W.T)                                  # symmetric quadratic form
-        Pc = np.eye(nn) - np.ones((nn, nn)) / nn             # centering projector
-        Mc = Pc @ M @ Pc
-        evals, evecs = np.linalg.eigh(Mc)
-        lam_max = float(evals[-1])
-
-        def _two_opt(seed, maximize):
-            """Capped steepest-ascent/-descent 2-opt on the quadratic form
-            arr @ M @ arr; returns the optimized Moran's-I value."""
-            arr = np.array(seed, dtype=float)
-            for _ in range(60):
-                f = M @ arr
-                DZ = arr[None, :] - arr[:, None]
-                DF = f[:, None] - f[None, :]
-                dN = 2.0 * DZ * DF - 2.0 * (DZ ** 2) * M    # delta of form on swap (a,b)
-                if maximize:
-                    np.fill_diagonal(dN, -np.inf)
-                    a, b = np.unravel_index(int(np.argmax(dN)), dN.shape)
-                    if dN[a, b] <= 1e-12:
-                        break
-                else:
-                    np.fill_diagonal(dN, np.inf)
-                    a, b = np.unravel_index(int(np.argmin(dN)), dN.shape)
-                    if dN[a, b] >= -1e-12:
-                        break
-                arr[a], arr[b] = arr[b], arr[a]
-            return float(arr @ (M @ arr)) / den
-
-        # Seed the search from BOTH the spectral guess (top/bottom eigenvector)
-        # AND the actual data arrangement. Ascending from the data is guaranteed
-        # to reach I >= I_obs (and descending <= I_obs), so the data-seeded run
-        # alone makes max_perm >= I_obs >= min_perm by construction -- no clamp,
-        # no |I_norm|>1 on tiny/degenerate pairs (few clusters: MSAT/CCMpred).
-        seed_top = np.empty(nn); seed_top[np.argsort(evecs[:, -1])] = np.sort(xc)
-        seed_bot = np.empty(nn); seed_bot[np.argsort(evecs[:, 0])]  = np.sort(xc)
-        max_perm_I = max(_two_opt(seed_top, True),  _two_opt(xc, True))
-        min_perm_I = min(_two_opt(seed_bot, False), _two_opt(xc, False))
-
-        # Normalize by the achievable range on the side I_obs falls -- positive
-        # signal against the reachable max, negative against the reachable min --
-        # so I_norm is a true fraction of achievable clade signal in [-1, 1].
-        Emean = -1.0 / (nn - 1)
-        if I_obs >= Emean:
-            denom = max_perm_I - Emean
-        else:
-            denom = Emean - min_perm_I
-        I_norm = (I_obs - Emean) / denom if denom > 1e-9 else float("nan")
-        if np.isfinite(I_norm):
-            I_norm = float(np.clip(I_norm, -1.0, 1.0))   # belt-and-suspenders
-        res.update({
-            "morans_lambda_max": round(lam_max, 4),
-            "morans_max_perm": round(max_perm_I, 4),
-            "morans_I_norm": round(float(I_norm), 4) if np.isfinite(I_norm) else np.nan,
-        })
-    except Exception:
-        pass
-    return res
+            for tt in (DISCRETE_TESTS if t == "discrete" else (t,)):
+                if tt not in TESTS:
+                    raise SystemExit(f"[error] unknown --tests entry {tt!r}; "
+                                     f"known: {','.join(TESTS)}")
+                if tt not in tests:
+                    tests.append(tt)
+        if discrete_perms:
+            tests += [t for t in DISCRETE_TESTS if t not in tests]
+    if not do_d_stat:
+        tests = [t for t in tests if t != "dstat"]
+    return tests
 
 
 # ---------------------------------------------------------------------------
@@ -695,13 +331,18 @@ def analyze_pair_method(pair_id: str, method: str,
                         n_perm: int, seed: int,
                         do_d_stat: bool = True,
                         cluster_value: Optional[Dict[str, Optional[float]]] = None,
-                        do_discrete_perms: bool = False
+                        do_discrete_perms: bool = False,
+                        tests: Optional[Sequence[str]] = None,
+                        clade_n_perm: int = 10000,
+                        min_clade: int = 2,
                         ) -> Optional[dict]:
     """Compute phylo-structure stats for one (pair, method) on the COARSE tree.
 
     ``tag_to_label`` maps each cluster tag (ShallowMsa_NNN / DeepMsa) to
     the short leaf label used in the coarse tree (e.g. 'S03', 'D').
     ``cluster_pref`` is {cluster_tag: 'F1'|'F2'|'Amb'}.
+    ``tests`` lists registered tests (utils/phylo_tests.TESTS) to run; None
+    derives it from the legacy ``do_discrete_perms`` / ``do_d_stat`` flags.
     """
     # Map coarse-tree leaf name -> centered preference
     leaf_states: Dict[str, str] = {}
@@ -745,71 +386,69 @@ def analyze_pair_method(pair_id: str, method: str,
         "notes": "",
     }
 
-    # ---- PRIMARY: continuous Moran's I (no thresholding) ----
-    # Uses the raw/corrected continuous preference per cluster; every cluster
+    if tests is None:
+        tests = resolve_tests(None, do_discrete_perms, do_d_stat)
+
+    # ---- CONTINUOUS tests (no thresholding): Moran's I (primary), clade scan ----
+    # Use the raw/corrected continuous preference per cluster; every cluster
     # participates (no F1/F2/Amb gate), so coverage is method-independent.
     if cluster_value is not None:
         leaf_values: Dict[str, Optional[float]] = {}
         for tag, label in tag_to_label.items():
             leaf_values[label] = cluster_value.get(tag)
-        mt = morans_I_test(tree, leaf_values, n_perm=min(n_perm, 1000),
-                           seed=seed + 7)
-        out["morans_I"] = mt["morans_I"]
-        out["morans_p"] = mt["morans_p"]
-        out["morans_z"] = mt.get("morans_z", np.nan)
-        out["morans_lambda_max"] = mt.get("morans_lambda_max", np.nan)
-        out["morans_max_perm"] = mt.get("morans_max_perm", np.nan)
-        out["morans_I_norm"] = mt.get("morans_I_norm", np.nan)
-        out["morans_n"] = mt["morans_n"]
-        out["morans_note"] = mt["morans_note"]
+        if "morans" in tests:
+            mt = run_test("morans", tree, leaf_values, n_perm=min(n_perm, 1000),
+                          rng=np.random.default_rng(seed + 7))
+            for col in ("morans_I", "morans_p", "morans_z", "morans_lambda_max",
+                        "morans_max_perm", "morans_I_norm", "morans_n",
+                        "morans_note"):
+                out[col] = mt.get(col, np.nan)
+        if "clade_shift" in tests:
+            label_to_tag = {lab: tag for tag, lab in tag_to_label.items()}
+            out.update(run_test("clade_shift", tree, leaf_values,
+                                n_perm=clade_n_perm,
+                                rng=np.random.default_rng(seed + 11),
+                                min_clade=min_clade,
+                                label_to_tag=label_to_tag))
 
     # ---- SECONDARY (discrete; thresholded labels) ----
-    # OFF by default: Moran's I is the primary (and only) phylo test now.
+    # OFF by default: Moran's I is the primary phylo test.
     # The discrete Fitch/NN permutation tests are slow (1000 tree traversals
     # per stat per pair-method) and superseded. Code retained; enable with
-    # --discrete-perms only if you want the legacy parsimony/NN/D columns.
-    if do_discrete_perms and n_f1 > 0 and n_f2 > 0:
-        pscore = _fitch_parsimony_binary(tree, leaf_states)
-        out["parsimony_score"] = int(pscore)
-        out["parsimony_p"] = round(
-            permutation_p(tree, leaf_states, _fitch_parsimony_binary,
-                          observed=pscore, n_perm=n_perm, seed=seed,
-                          smaller_is_more_structured=True), 4
-        )
-        nn1, _ = nn_concordance(tree, leaf_states, k=1)
-        out["nn_concordance"] = round(nn1, 4) if not np.isnan(nn1) else np.nan
-        if not np.isnan(nn1):
-            out["nn_concordance_p"] = round(
-                permutation_p(tree, leaf_states,
-                              lambda t, s: nn_concordance(t, s, k=1),
-                              observed=nn1, n_perm=min(n_perm, 1000),
-                              seed=seed + 1,
-                              smaller_is_more_structured=False), 4
-            )
-        # k=3 only meaningful with at least 4 F1+F2 leaves on the coarse tree
-        if (n_f1 + n_f2) >= 4:
-            nn3, _ = nn_concordance(tree, leaf_states, k=3)
-            out["nn3_concordance"] = round(nn3, 4) if not np.isnan(nn3) else np.nan
-            if not np.isnan(nn3):
-                out["nn3_concordance_p"] = round(
-                    permutation_p(tree, leaf_states,
-                                  lambda t, s: nn_concordance(t, s, k=3),
-                                  observed=nn3,
-                                  n_perm=min(n_perm, 1000),
-                                  seed=seed + 2,
-                                  smaller_is_more_structured=False), 4
-                )
-
-        if do_d_stat:
+    # --discrete-perms (or --tests ...,fitch,nn,dstat) for the legacy
+    # parsimony/NN/D columns.
+    if n_f1 > 0 and n_f2 > 0:
+        if "fitch" in tests:
+            out.update(run_test("fitch", tree, leaf_states, n_perm=n_perm,
+                                seed=seed))
+        if "nn" in tests:
+            out.update(run_test("nn", tree, leaf_states,
+                                n_perm=min(n_perm, 1000), seed=seed + 1))
+        if "dstat" in tests:
             try:
-                d = d_statistic(tree, leaf_states, n_perm=200, seed=seed + 3)
-                if d is not None:
-                    out["D_statistic"] = round(d, 4)
+                out.update(run_test("dstat", tree, leaf_states, n_perm=200,
+                                    seed=seed + 3))
             except Exception as e:
                 notes.append(f"D_failed:{type(e).__name__}")
     out["notes"] = ";".join(notes)
     out["_leaf_states"] = leaf_states  # stash for figure pass; popped before CSV
     return out
+
+
+def analyze_pair_combined(pair_id: str, tree, tag_to_label: Dict[str, str],
+                          cluster_value_per_method: Dict[str, Dict[str, Optional[float]]],
+                          n_perm: int, seed: int, min_clade: int = 2) -> dict:
+    """COMBINED multi-method clade-shift scan: one row per pair
+    (method='COMBINED'); see utils.phylo_tests.run_clade_shift_combined."""
+    values = {m: {lab: cv.get(tag) for tag, lab in tag_to_label.items()}
+              for m, cv in cluster_value_per_method.items()}
+    label_to_tag = {lab: tag for tag, lab in tag_to_label.items()}
+    row = {"pair_id": pair_id, "method": "COMBINED",
+           "n_leaves": len(tag_to_label)}
+    row.update(run_test("clade_shift_combined", tree, values, n_perm=n_perm,
+                        rng=np.random.default_rng(seed + 13),
+                        min_clade=min_clade, label_to_tag=label_to_tag))
+    return row
 
 
 # ---------------------------------------------------------------------------
@@ -1065,6 +704,22 @@ def main():
                         "default - Moran's I is the primary test and these are "
                         "slow. Discrete F1/F2/Amb label counts are always kept "
                         "(for figures); only their permutation p-values are gated.")
+    p.add_argument("--tests", default=None,
+                   help="Comma list of registered tests (utils/phylo_tests.py): "
+                        "morans, fitch, nn, dstat ('discrete' = all three), "
+                        "clade_shift, clade_shift_combined. Default: morans "
+                        "(+ fitch,nn,dstat with --discrete-perms) -- i.e. the "
+                        "pre-registry behaviour. --discrete-perms / "
+                        "--no-d-statistic still apply as aliases.")
+    p.add_argument("--clade-n-perm", type=int, default=10000,
+                   help="Permutations for clade_shift / clade_shift_combined "
+                        "(independent of --n-perm; default 10000)")
+    p.add_argument("--min-clade", type=int, default=2,
+                   help="Minimum clade AND rest size (in leaves) for a "
+                        "clade-shift split (default 2)")
+    p.add_argument("--clade-methods", default="ALL",
+                   help="Comma list of methods entering clade_shift_combined "
+                        "(default ALL scored methods with values)")
     # sbatch self-submission (matches run_foldswitch_pipeline.py pattern)
     p.add_argument("--run-job-mode", choices=["local", "sbatch"], default="local",
                    help="local = run inline (default); sbatch = self-submit "
@@ -1104,6 +759,17 @@ def main():
     if not pair_ids:
         print("[error] no pairs to process")
         sys.exit(2)
+
+    tests = resolve_tests(args.tests, args.discrete_perms,
+                          not args.no_d_statistic)
+    if args.clade_methods.upper() == "ALL":
+        combined_methods = list(SCORED_METHODS)
+    else:
+        combined_methods = [m.strip() for m in args.clade_methods.split(",")
+                            if m.strip()]
+    print(f"Tests: {','.join(tests)}"
+          + (f" (clade n_perm={args.clade_n_perm}, min_clade={args.min_clade})"
+             if any(t.startswith("clade") for t in tests) else ""))
 
     if args.make_figures.lower() == "all":
         fig_mode = "all"
@@ -1163,6 +829,7 @@ def main():
               f"({time.time()-t_pair:.1f}s)", flush=True)
 
         cluster_pref_per_method: Dict[str, Dict[str, str]] = {}
+        cluster_value_per_method: Dict[str, Dict[str, Optional[float]]] = {}
         for method in SCORED_METHODS:
             t_method = time.time()
             cp: Dict[str, str] = {
@@ -1174,6 +841,8 @@ def main():
                 tag: value_lookup.get((pair_id, method, tag))
                 for tag in tag_to_label
             }
+            if method in combined_methods:
+                cluster_value_per_method[method] = cv
 
             try:
                 with _per_pair_timeout(per_pair_timeout_s):
@@ -1183,6 +852,8 @@ def main():
                         do_d_stat=(not args.no_d_statistic),
                         cluster_value=cv,
                         do_discrete_perms=args.discrete_perms,
+                        tests=tests, clade_n_perm=args.clade_n_perm,
+                        min_clade=args.min_clade,
                     )
             except TimeoutError:
                 print(f"    {method}: TIMEOUT after {per_pair_timeout_s}s; skipped", flush=True)
@@ -1197,6 +868,20 @@ def main():
             leaf_states = row.pop("_leaf_states")
             cached_states[(pair_id, method)] = (tree, leaf_states, row)
             rows.append(row)
+        if "clade_shift_combined" in tests:
+            try:
+                t_method = time.time()
+                crow = analyze_pair_combined(
+                    pair_id, tree, tag_to_label, cluster_value_per_method,
+                    n_perm=args.clade_n_perm, seed=args.seed,
+                    min_clade=args.min_clade)
+                crow["n_clusters"] = n_clusters
+                rows.append(crow)
+                print(f"    COMBINED: {time.time()-t_method:.1f}s "
+                      f"(T={crow.get('clade_T')}, p={crow.get('clade_p')})",
+                      flush=True)
+            except Exception as e:
+                print(f"    COMBINED: failed: {e}", flush=True)
         print(f"  pair total: {time.time()-t_pair:.1f}s  (running {time.time()-t_total:.0f}s)", flush=True)
 
         if pair_id == "2n54B_2hdmA":
@@ -1212,7 +897,8 @@ def main():
         return
 
     # BH FDR across the screen for each p-value column (always-on)
-    for pcol in ("morans_p", "parsimony_p", "nn_concordance_p", "nn3_concordance_p"):
+    for pcol in ("morans_p", "parsimony_p", "nn_concordance_p", "nn3_concordance_p",
+                 "clade_p"):
         if pcol in df.columns:
             # BH within each method, across pairs (the per-method screen).
             df[pcol + "_bh"] = np.nan
@@ -1235,6 +921,18 @@ def main():
         print(f"  {method:9} tested={len(sub):>3}  "
               f"raw_p<.05={int((sub.morans_p<0.05).sum()):>3}  BH<.05={nsig:>3}  "
               f"median_I={sub.morans_I.median():.3f}")
+
+    if "clade_p" in df.columns:
+        print("\n=== Clade-shift scan (max |z| Mann-Whitney over clades): "
+              "significant pairs per method ===")
+        for method in list(SCORED_METHODS) + ["COMBINED"]:
+            sub = df[(df.method == method) & df.clade_p.notna()]
+            if sub.empty:
+                continue
+            print(f"  {method:9} tested={len(sub):>3}  "
+                  f"raw_p<.05={int((sub.clade_p<0.05).sum()):>3}  "
+                  f"BH<.05={int((sub.clade_p_bh<0.05).sum()):>3}  "
+                  f"median_T={sub.clade_T.median():.2f}")
 
     for method in SCORED_METHODS:
         sub = df[(df.method == method) & df.morans_p.notna()].copy()
