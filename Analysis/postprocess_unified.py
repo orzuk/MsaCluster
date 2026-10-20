@@ -413,6 +413,54 @@ def _decompress_pdb_gz(gz_path: str) -> str:
     return tmp_path
 
 
+def _score_af_canonical_dir(pair_id: str, subdir: str, model: str,
+                            pred_chain: Optional[str] = None) -> list:
+    """TM-score every canonical PDB in output_AF/<subdir>/ against both folds.
+
+    pred_chain restricts the prediction to one chain (holo AF3 outputs are
+    complexes; the protein copy scored against the truth fold is chain A).
+    """
+    pdb1, c1, pdb2, c2 = truth_pdbs(pair_id)
+    top = pair_id2dir(pair_id) / "output_AF" / subdir
+    rows = []
+    if not top.is_dir():
+        return rows
+    for pred in sorted(top.glob("*.pdb")):
+        name = pred.name.replace(".pdb", "")
+        m = re.search(r"(DeepMsa|ShallowMsa_\d+)", name)
+        cluster = m.group(1) if m else "UNK"
+
+        print(f"Compute TM-scores for AF: {subdir} {cluster} {name}")
+        tm1 = compute_tmscore_align(pdb1, str(pred), chain1=c1, chain2=pred_chain)
+        tm2 = compute_tmscore_align(pdb2, str(pred), chain1=c2, chain2=pred_chain)
+
+        rows.append({
+            "pair_id": pair_id, "model": model,
+            "cluster_num": cluster, "name": name,
+            "TMscore_fold1": tm1, "TMscore_fold2": tm2,
+        })
+    return rows
+
+
+def _read_or_compute_af_holo(pair_id: str, force: bool = False) -> pd.DataFrame:
+    """Aggregate condition-aware (holo) AF3 predictions into df_af_holo.csv.
+
+    Reads output_AF/AF3_holo/ (written by run_AF --af_ver 3 --af3_mode holo
+    --af_output_suffix holo); consumed by fold_diversity_survey
+    load_af3_holo_diversity for the Delta_switch score.
+    """
+    out_csv = _ensure_pair_analysis(pair_id) / "df_af_holo.csv"
+    if out_csv.is_file() and not force:
+        return pd.read_csv(out_csv)
+    df = pd.DataFrame(_score_af_canonical_dir(pair_id, "AF3_holo", "AF3", pred_chain="A"))
+    if len(df):
+        df["condition"] = "holo"
+        df["TMdiff"] = df["TMscore_fold1"] - df["TMscore_fold2"]
+        df.sort_values(["cluster_num", "name"], inplace=True)
+        df.to_csv(out_csv, index=False)
+    return df
+
+
 def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
     """Aggregate AF2/AF3 TM-scores across all clusters/chains."""
     out_csv = _ensure_pair_analysis(pair_id) / "df_af.csv"
@@ -424,23 +472,7 @@ def _read_or_compute_af(pair_id: str, force: bool) -> pd.DataFrame:
 
     # --- Path 1: exported canonical PDBs in output_AF/ ---
     for ver in ("AF2", "AF3"):
-        top = pair_id2dir(pair_id) / "output_AF" / ver
-        if not top.is_dir():
-            continue
-        for pred in sorted(top.glob("*.pdb")):
-            name = pred.name.replace(".pdb", "")
-            m = re.search(r"(DeepMsa|ShallowMsa_\d+)", name)
-            cluster = m.group(1) if m else "UNK"
-
-            print(f"Compute TM-scores for AF: {ver} {cluster} {name}")
-            tm1 = compute_tmscore_align(pdb1, str(pred), chain1=c1, chain2=None)
-            tm2 = compute_tmscore_align(pdb2, str(pred), chain1=c2, chain2=None)
-
-            rows.append({
-                "pair_id": pair_id, "model": ver,
-                "cluster_num": cluster, "name": name,
-                "TMscore_fold1": tm1, "TMscore_fold2": tm2,
-            })
+        rows += _score_af_canonical_dir(pair_id, ver, ver)
 
     # --- Path 2: raw ColabFold outputs in AF_preds/ (.pdb or .pdb.gz) ---
     if not rows:
@@ -1075,4 +1107,4 @@ def build_or_load_global_tables(force: bool = False,
     os.makedirs(DOCS_DIR, exist_ok=True)
     summary_df.to_csv(SUMMARY_RESULTS_TABLE, index=False)
     detailed_df.to_csv(DETAILED_RESULTS_TABLE, index=False)
-    return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE
+    return SUMMARY_RESULTS_TABLE, DETAILED_RESULTS_TABLE

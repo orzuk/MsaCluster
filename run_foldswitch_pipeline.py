@@ -680,12 +680,12 @@ def _find_best_af3_pdb(out_dir: str) -> str | None:
         if hits: return str(sorted(hits)[0])
     return None
 
-def _export_canonical_best_pdbs(pair_id: str, ver: str) -> None:
+def _export_canonical_best_pdbs(pair_id: str, ver: str, suffix_tag: str = "") -> None:
     """
-    Walk .../output_AF/AF{ver}/{DeepMsa|ShallowMsa_xxx}/{chain}/
-    and copy the best PDB to .../output_AF/AF{ver}/<ClusterLabel>__<chain>.pdb
+    Walk .../output_AF/AF{ver}{suffix_tag}/{DeepMsa|ShallowMsa_xxx}/{chain}/
+    and copy the best PDB to .../output_AF/AF{ver}{suffix_tag}/<ClusterLabel>__<chain>.pdb
     """
-    root = Path(f"Pipeline/FoldPairs/{pair_id}/output_AF/AF{ver}")
+    root = Path(f"Pipeline/FoldPairs/{pair_id}/output_AF/AF{ver}{suffix_tag}")
     if not root.exists():
         return
     for cluster_dir in sorted(root.iterdir()):
@@ -2445,8 +2445,22 @@ def task_af(pair_id: str, args: argparse.Namespace) -> None:
 
     # ---------- CANONICAL EXPORT (flat files) ----------
     # After running (or skipping) all jobs per version, create flat canonical copies.
+    suffix_tag = f"_{af_output_suffix}" if af_output_suffix else ""
     for ver in versions:
-        _export_canonical_best_pdbs(pair_id, ver)
+        _export_canonical_best_pdbs(pair_id, ver, suffix_tag)
+
+    # Condition-aware AF3: score the exported holo PDBs into
+    # Analysis/df_af_holo.csv (read by fold_diversity_survey --condition-switch).
+    # In sbatch mode the per-cluster jobs finish later; re-running run_AF
+    # (skip path) exports + aggregates once they are done.
+    if "3" in versions and af_output_suffix == "holo" \
+            and str(getattr(args, "af3_mode", "apo")).lower() != "apo":
+        try:
+            from Analysis.postprocess_unified import _read_or_compute_af_holo
+            df_h = _read_or_compute_af_holo(pair_id, force=True)
+            print(f"[af3-holo] {pair_id}: {len(df_h)} holo rows -> Analysis/df_af_holo.csv")
+        except Exception as e:
+            print(f"[warn] AF3 holo aggregation failed for {pair_id}: {e}")
 
 def task_tree(pair_id: str, args: argparse.Namespace) -> None:
     if phytree_from_msa is None:
@@ -3518,6 +3532,21 @@ def main():
                 extras += [f"--cluster_sample_n {int(args.cluster_sample_n)}"]
                 if _bool_from_tf(getattr(args, "force_rerun_DDG", "FALSE")):
                     extras += ["--force_rerun_DDG TRUE"]
+
+            if args.run_mode == "run_AF":
+                # forward AF knobs into the inner inline run (otherwise the
+                # inner job silently falls back to --af_ver both, apo, no suffix)
+                extras += [f"--af_ver {shlex.quote(str(args.af_ver))}"]
+                extras += [f"--query_type {shlex.quote(str(args.query_type))}"]
+                extras += [f"--af_msa_top_n {int(args.af_msa_top_n)}"]
+                if getattr(args, "af_output_suffix", ""):
+                    extras += [f"--af_output_suffix {shlex.quote(args.af_output_suffix)}"]
+                if getattr(args, "af3_mode", "apo") != "apo":
+                    extras += [f"--af3_mode {shlex.quote(args.af3_mode)}"]
+                if int(getattr(args, "af3_copies", 0) or 0):
+                    extras += [f"--af3_copies {int(args.af3_copies)}"]
+                if _bool_from_tf(getattr(args, "force_rerun_AF", "FALSE")):
+                    extras += ["--force_rerun_AF TRUE"]
 
             if args.run_mode == "tree":
                 # forward tree knobs into the inner inline run

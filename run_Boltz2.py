@@ -15,7 +15,8 @@ Inputs
   Pipeline/<pair>/output_msa_cluster/ShallowMsa_*.a3m
 
 Outputs
-  Pipeline/<pair>/output_boltz2/<cluster_tag>/
+  Pipeline/<pair>/output_boltz2/<cluster_tag>/       (apo)
+  Pipeline/<pair>/output_boltz2_holo/<cluster_tag>/  (holo)
       Boltz-2 prediction dir per cluster (PDBs, plddt, optionally affinity)
   Pipeline/<pair>/Analysis/df_boltz2.csv
       per-cluster summary
@@ -77,11 +78,14 @@ def _truth_chain_pdb(pair_dir: Path, pdbid: str, chain: str) -> str:
     return ""
 
 
-def _safe_tm(pred_pdb, truth_pdb):
+def _safe_tm(pred_pdb, truth_pdb, pred_chain: Optional[str] = None):
+    # pred_chain: restrict the prediction to one chain (holo outputs are
+    # complexes -- protein copies + ligands; only chain A is scored against
+    # the single-chain truth fold).
     if not truth_pdb or not pred_pdb or not Path(pred_pdb).is_file():
         return float("nan")
     try:
-        tm = compute_tmscore_align(str(pred_pdb), str(truth_pdb))
+        tm = compute_tmscore_align(str(pred_pdb), str(truth_pdb), chain1=pred_chain)
         if isinstance(tm, (list, tuple)):
             tm = float(tm[0])
         return float(tm)
@@ -156,9 +160,13 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, partner_yaml,
                     ligand_ccds: Optional[List[str]] = None,
                     n_copies: int = 1,
-                    force_rerun: bool = False):
+                    force_rerun: bool = False,
+                    holo: bool = False):
     tag = cluster_a3m.stem
-    out_root = pair_dir / "output_boltz2" / tag
+    # Holo runs get their own tree so the apo skip-check below never picks up
+    # apo PDBs (and vice versa).
+    out_root = pair_dir / ("output_boltz2_holo" if holo else "output_boltz2") / tag
+    pred_chain = "A" if holo else None
     out_root.mkdir(parents=True, exist_ok=True)
     truth1 = _truth_chain_pdb(pair_dir, pdbid1, chain1)
     truth2 = _truth_chain_pdb(pair_dir, pdbid2, chain2)
@@ -178,8 +186,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
             # picks them up.
             rows = []
             for i, pdb in enumerate(existing_rank1):
-                tm1 = _safe_tm(pdb, truth1)
-                tm2 = _safe_tm(pdb, truth2)
+                tm1 = _safe_tm(pdb, truth1, pred_chain)
+                tm2 = _safe_tm(pdb, truth2, pred_chain)
                 rows.append({
                     "pair_id": pair_id, "cluster": tag, "rank": i,
                     "tm_fold1": tm1, "tm_fold2": tm2,
@@ -223,8 +231,8 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
         pdbs = sorted(out_root.rglob("*.pdb"))
     rows = []
     for i, pdb in enumerate(pdbs):
-        tm1 = _safe_tm(pdb, truth1)
-        tm2 = _safe_tm(pdb, truth2)
+        tm1 = _safe_tm(pdb, truth1, pred_chain)
+        tm2 = _safe_tm(pdb, truth2, pred_chain)
         rows.append({
             "pair_id": pair_id, "cluster": tag, "rank": i,
             "tm_fold1": tm1, "tm_fold2": tm2,
@@ -363,7 +371,8 @@ def main():
         rows = run_one_cluster(pair_id, a3m, pdbid1, chain1, pdbid2, chain2,
                                pair_dir, args.partner_yaml,
                                ligand_ccds=ligand_ccds if effective_mode == "holo" else None,
-                               n_copies=n_copies if effective_mode == "holo" else 1)
+                               n_copies=n_copies if effective_mode == "holo" else 1,
+                               holo=(effective_mode == "holo"))
         # Record which mode produced these rows
         for r in rows:
             r["mode"] = effective_mode
