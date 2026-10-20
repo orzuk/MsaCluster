@@ -1,3 +1,10 @@
+# Python / tooling
+__pycache__/
+*.pyc
+.claude/
+/Results/
+data/_rcsb_meta_cache/
+
 /olds/HUJI_cluster/2QKEE_002.pdb
 /olds/inputs/AF_cluster_73815.a3m
 /olds/HUJI_cluster/af_folder_cl.sh
