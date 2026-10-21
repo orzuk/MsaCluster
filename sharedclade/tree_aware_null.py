@@ -220,6 +220,8 @@ def run_pair(pair_id, values, rep_strategy, n_perm, rng, min_clade=2):
             obs_edges=int(obs_e[0]), null_mean_edges=float(es.mean()),
             p_edges=(1 + int((es >= obs_e[0]).sum())) / (1 + n_perm),
         )
+        res[null_type]["_draws_k"] = ks.astype(np.int16)
+        res[null_type]["_draws_knd"] = knds.astype(np.int16)
     return res
 
 
@@ -248,6 +250,7 @@ def main():
 
     rng = np.random.default_rng(args.seed)
     rows = []
+    draws = {}
     for i, pair in enumerate(pairs, 1):
         print(f"[{i}/{len(pairs)}] {pair}", flush=True)
         try:
@@ -261,6 +264,8 @@ def main():
             continue
         for nt in ("joint", "independent"):
             row = dict(label=args.labels, **r[nt])
+            draws[(pair, nt, "k")] = row.pop("_draws_k")
+            draws[(pair, nt, "knd")] = row.pop("_draws_knd")
             rows.append(row)
             print(f"  {nt}: obs_k={row['obs_k']} null_mean={row['null_mean_k']:.2f} "
                   f"p={row['p_k']:.4f} | nodir obs={row['obs_k_nodir']} "
@@ -273,6 +278,12 @@ def main():
             w.writeheader()
             w.writerows(rows)
         print(f"wrote {len(rows)} rows -> {args.out}")
+    if draws:
+        # Per-permutation clique sizes, so the across-family sum has an
+        # empirical null instead of a normal approximation.
+        np.savez_compressed(os.path.splitext(args.out)[0] + "_draws.npz",
+                            **{"|".join(k): v for k, v in draws.items()})
+        print(f"wrote draws -> {os.path.splitext(args.out)[0]}_draws.npz")
 
 
 if __name__ == "__main__":
