@@ -23,6 +23,7 @@
 - There is no formal unit-test suite. Validate changes by running a small pipeline job on a single pair.
 - `scripts/shell/test.sh` is a SLURM smoke-test wrapper; update it if you add tests.
 - Name any new tests `test_*.py` and document how to run them in this file.
+- `python3 tests/test_phylo_tests.py` and `python3 tests/test_power_negtraits.py` (no ete3/data needed; synthetic trees + toy a3m) cover `utils/phylo_tests.py`, `scripts/power_simulation_phylo.py` and `scripts/negative_traits_phylo.py`.
 - `tests/test_phylo_tests.py` checks `utils/phylo_tests.py` (Moran's I / Fitch / NN / D unchanged vs the pre-registry code, vectorized clade-shift z vs `scipy.stats.mannwhitneyu`, planted-clade power, null calibration). Run with `python3 tests/test_phylo_tests.py` (or `python3 -m pytest tests/test_phylo_tests.py -q`); no Pipeline data needed, ete3 optional.
 - `tests/test_plot_clade_shift.py` smoke-tests `scripts/plot_xcl1_clade_shift.py` (clade-shift tree + heatmap figure) on a synthetic 100-leaf tree and synthetic survey/clade CSVs. Run with `python3 tests/test_plot_clade_shift.py [OUT_DIR]` (OUT_DIR keeps the PNG/PDF for inspection); no Pipeline data needed, ete3 stubbed if missing.
 - `tests/test_cluster_reps.py` checks `utils/cluster_reps.py` (coarse-tree representative leaf per cluster: `first` vs `largest_piece_medoid`, piece partition and linear-time medoid vs brute force on random trees). Run with `python3 tests/test_cluster_reps.py`; no Pipeline data needed, ete3 not required.
