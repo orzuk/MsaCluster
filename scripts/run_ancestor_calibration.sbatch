@@ -37,27 +37,30 @@
 #   ANC_PAIR      reference pair       (default 2n54B_2hdmA)
 #   ANC_EXTRA     extra flags passed straight through
 #
+# SLURM splits --export on commas, so set these in the submitting shell and
+# pass a bare --export=ALL rather than putting a comma list inside --export.
+#
 # CPU-only variant -- DDG and S4PRED both run fine on CPU for 25 short
 # sequences, so the cheap half needs no GPU at all:
 #
+#   ANC_METHODS=ddg,s4pred ANC_DEVICE=cpu \
 #   sbatch -p glacier --gres=NONE --cpus-per-task=8 --mem=16G --time=00:30:00 \
-#          --export=ALL,ANC_METHODS=ddg,s4pred,ANC_DEVICE=cpu \
-#          scripts/run_ancestor_calibration.sbatch
+#          --export=ALL scripts/run_ancestor_calibration.sbatch
 #
 # AF2 (MSA mode and single-sequence mode) is 50 ColabFold runs, so give it
 # its own job and its own output files, then merge the CSVs if you want one
 # table. --n_controls 0 drops the negative control for the expensive method
 # (the controls are what make it 50 runs instead of 10):
 #
-#   sbatch --time=04:00:00 \
-#          --export=ALL,ANC_METHODS=af2,af2_single,ANC_EXTRA='--n_controls 0 --out docs/ancestor_calibration_af2.csv --stats_out docs/ancestor_calibration_af2_stats.csv --fig docs/figures/global/ancestor_calibration_af2.png' \
-#          scripts/run_ancestor_calibration.sbatch
+#   ANC_METHODS=af2,af2_single \
+#   ANC_EXTRA='--n_controls 0 --out docs/ancestor_calibration_af2.csv --stats_out docs/ancestor_calibration_af2_stats.csv --fig docs/figures/global/ancestor_calibration_af2.png' \
+#   sbatch --time=04:00:00 --export=ALL scripts/run_ancestor_calibration.sbatch
 #
 # BioEmu needs its own venv (see INSTALL_bioemu.md) and ~100 samples per
 # sequence, so it is NOT in the default method list either:
 #
-#   sbatch --time=08:00:00 --export=ALL,ANC_METHODS=bioemu \
-#          scripts/run_ancestor_calibration.sbatch
+#   ANC_METHODS=bioemu \
+#   sbatch --time=08:00:00 --export=ALL scripts/run_ancestor_calibration.sbatch
 #
 # Run against a different working tree (e.g. a worktree) with
 #   sbatch --chdir=<worktree> scripts/run_ancestor_calibration.sbatch
