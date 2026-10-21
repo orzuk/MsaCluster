@@ -231,10 +231,10 @@ and sign, and recomputes the same clique statistic. Two nulls:
 
 ```
 # on the cluster, from the repository root
-python3 sharedclade/tree_aware_null.py --pairs ALL --labels centered \
+python3 scripts/tree_aware_null.py --pairs ALL --labels centered \
     --survey-csv docs/fold_diversity_survey.csv \
     --n-perm 10000 --out clade_agreement_null_centered.csv
-python3 sharedclade/tree_aware_null.py --pairs ALL --labels corrected \
+python3 scripts/tree_aware_null.py --pairs ALL --labels corrected \
     --survey-csv docs/fold_diversity_survey_corrected_9method.csv \
     --n-perm 10000 --out clade_agreement_null_corrected.csv
 ```

@@ -1,11 +1,13 @@
 """Check best_split_batch reproduces utils.phylo_tests' scan (argmax split, sign)."""
+import os
 import sys, importlib.util
-sys.path.insert(0, "/mnt/c/Code/Github/MsaCluster")
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
 import numpy as np
 from utils.phylo_tests import _scan_core, average_ranks
 
 spec = importlib.util.spec_from_file_location(
-    "tan", "/tmp/claude-1000/-mnt-c-Code-Github-MsaCluster/fea976ea-5c76-4e3b-a35d-95918917c7f5/scratchpad/sharedclade/tree_aware_null.py")
+    "tan", os.path.join(REPO, "scripts", "tree_aware_null.py"))
 tan = importlib.util.module_from_spec(spec); spec.loader.exec_module(tan)
 
 rng = np.random.default_rng(0)
