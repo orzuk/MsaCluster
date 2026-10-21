@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.ancestral_utils import build_coarse_tree  # noqa: E402
+from utils.ancestral_utils import build_coarse_tree, _name_internal_nodes  # noqa: E402
 from utils.phylo_tests import _patristic_matrix  # noqa: E402
 from scripts.phylo_placement import load_fold_value, normalize_cluster  # noqa: E402
 
@@ -65,6 +65,7 @@ def main():
         pid, meth = c.pair_id, c.method
         if pid not in trees:
             tree, tag_to_label, _ = build_coarse_tree(pid)
+            _name_internal_nodes(tree)
             trees[pid] = (tree, tag_to_label)
         tree, tag_to_label = trees[pid]
         lv = {lab: values.get((pid, meth, normalize_cluster(tag))) for tag, lab in tag_to_label.items()}
@@ -74,6 +75,8 @@ def main():
         rs = W.sum(axis=1, keepdims=True); rs[rs == 0] = 1.0; W = W / rs
         M = 0.5 * (W + W.T)
         I_obs = float(xc @ (W @ xc)) / den
+        if abs(I_obs - float(c.morans_I)) > 1e-3:
+            print(f"[warn] {pid} {meth}: recomputed I {I_obs:.4f} != stored {c.morans_I:.4f}", flush=True)
         E = -1.0 / (len(xc) - 1)
         best = max(two_opt_max(M, rng.permutation(xc), args.max_iter) for _ in range(args.n_starts)) / den
         best = max(best, two_opt_max(M, xc, args.max_iter) / den)
