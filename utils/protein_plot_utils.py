@@ -302,7 +302,14 @@ def _build_unified_method_preference(foldpair_id: str, cluster_index: list[str])
     absolute = sub.pivot_table(index="_tag", columns="method",
                                values="TMdiff_max", aggfunc="first")
 
-    keep_cols = [m for m in _UNIFIED_METHOD_ORDER if m in centered.columns]
+    # PLOT_TREE_METHODS restricts the heatmap to the analysed panel. The two
+    # contact predictors are scored for reference and enter no analysis, so the
+    # paper's figures show the seven methods only; the standalone per-pair
+    # pages keep all of them.
+    _only = os.environ.get("PLOT_TREE_METHODS", "").strip()
+    _order = ([m.strip() for m in _only.split(",") if m.strip()]
+              if _only else _UNIFIED_METHOD_ORDER)
+    keep_cols = [m for m in _order if m in centered.columns]
     centered = centered[keep_cols] if keep_cols else centered
     absolute = absolute.reindex(columns=centered.columns)
 
