@@ -69,3 +69,7 @@ data/_rcsb_meta_cache/
 Pipeline/
 .idea/
 docs/backup_*/
+
+# Per-pair figure copies: the pages embed their figures as base64 and never
+# reference this directory (AGENTS.md: do not commit docs/HTML/figs).
+docs/HTML/figs/
