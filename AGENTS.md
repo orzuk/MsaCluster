@@ -24,6 +24,7 @@
 - `scripts/shell/test.sh` is a SLURM smoke-test wrapper; update it if you add tests.
 - Name any new tests `test_*.py` and document how to run them in this file.
 - `tests/test_phylo_tests.py` checks `utils/phylo_tests.py` (Moran's I / Fitch / NN / D unchanged vs the pre-registry code, vectorized clade-shift z vs `scipy.stats.mannwhitneyu`, planted-clade power, null calibration). Run with `python3 tests/test_phylo_tests.py` (or `python3 -m pytest tests/test_phylo_tests.py -q`); no Pipeline data needed, ete3 optional.
+- `tests/test_plot_clade_shift.py` smoke-tests `scripts/plot_xcl1_clade_shift.py` (clade-shift tree + heatmap figure) on a synthetic 100-leaf tree and synthetic survey/clade CSVs. Run with `python3 tests/test_plot_clade_shift.py [OUT_DIR]` (OUT_DIR keeps the PNG/PDF for inspection); no Pipeline data needed, ete3 stubbed if missing.
 
 ## Commit & Pull Request Guidelines
 - Commit messages are short, imperative, and sentence case (e.g., "Fixed Nans cmap analysis").
