@@ -248,7 +248,7 @@ def main():
                          "(pilot mode). 0 = all clusters.")
     # Mirror AF2/AF3: same query source + shallow-MSA subsample, same builder.
     ap.add_argument("--query_type", default="medoid",
-                    choices=["chain", "medoid", "consensus"],
+                    choices=["chain", "medoid", "consensus", "first"],
                     help="Per-cluster query source (shared with AF2/AF3). "
                          "Default 'medoid' (variant-as-query).")
     ap.add_argument("--af_msa_top_n", type=int, default=10,

@@ -52,7 +52,12 @@ PAIR_DIRS = {"AF":"output_AF", "ESMFold":"output_esm_fold", "Cmap":"output_cmaps
 
 # --- Pipeline directory hierarchy ---
 PIPELINE_BASE_DIR = MAIN_DIR + '/Pipeline'       # root of all pipeline work
-DATA_DIR = PIPELINE_BASE_DIR + '/FoldPairs'       # fold-switching pair directories
+# Root of the per-pair working directories. MSACLUSTER_DATA_DIR lets a side
+# experiment (e.g. scripts/ancestor_calibration.py) point every pair-id-driven
+# runner (run_DDG.py, run_Boltz2.py, run_bioemu.py, utils.protein_utils.truth_pdbs)
+# at an alternate FoldPairs-shaped root WITHOUT touching the production pair dirs.
+# Unset (the normal case) it resolves to Pipeline/FoldPairs exactly as before.
+DATA_DIR = os.environ.get('MSACLUSTER_DATA_DIR') or (PIPELINE_BASE_DIR + '/FoldPairs')
 CONTROLS_BASE_DIR = PIPELINE_BASE_DIR + '/Controls'
 PORTER_IDP_DIR    = CONTROLS_BASE_DIR + '/PorterIDP'
 MATCHED_CONTROLS_DIR = CONTROLS_BASE_DIR + '/MatchedSingleFold'
