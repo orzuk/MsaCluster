@@ -1291,6 +1291,8 @@ def compose_tree_and_heatmap(
 
 
     out_png = output_file if output_file.lower().endswith(".png") else output_file + ".png"
-    fig.savefig(out_png, dpi=200)
+    # bbox_inches="tight" keeps rotated method labels and the colour-bar title
+    # inside the canvas when the panel is drawn small for a composite figure.
+    fig.savefig(out_png, dpi=200, bbox_inches="tight")
     plt.close(fig)
     return out_png
