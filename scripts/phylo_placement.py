@@ -11,7 +11,12 @@ For every pair p and every method m in {AF2, ESM, MSAT, DDG}:
           Pipeline/FoldPairs/<p>/output_phytree/DeepMsa_tree.nwk,
        b. assigns each leaf to its cluster via the per-cluster a3m files
           at Pipeline/FoldPairs/<p>/output_msa_cluster/ShallowMsa_*.a3m,
-       c. picks one representative leaf per cluster and prunes the tree,
+       c. picks one representative leaf per cluster and prunes the tree
+          (--coarse-rep: default ``largest_piece_medoid`` = medoid of the
+          cluster's largest single-cluster clade; ``first`` = old
+          arbitrary first leaf; see utils/cluster_reps.py). Output columns
+          rep_piece_frac_median / rep_piece_frac_min give the fraction of
+          each cluster's on-tree members inside the chosen piece,
        d. renames each surviving leaf 'S00', 'S01', ..., 'D' (DeepMsa).
   2. Read each (pair, method, cluster)'s centered preference from
      docs/fold_diversity_survey.csv (column ``pref_centered``, with a
@@ -721,6 +726,11 @@ def main():
                    help="Comma list of methods entering clade_shift_combined "
                         "(default ALL scored methods with values)")
     # sbatch self-submission (matches run_foldswitch_pipeline.py pattern)
+    p.add_argument("--coarse-rep", choices=["first", "largest_piece_medoid"],
+                   default="largest_piece_medoid",
+                   help="Leaf kept per cluster on the coarse tree: medoid of the "
+                        "cluster's largest single-cluster clade (default) or the "
+                        "first tree leaf of the cluster (old behaviour).")
     p.add_argument("--run-job-mode", choices=["local", "sbatch"], default="local",
                    help="local = run inline (default); sbatch = self-submit "
                         "one sbatch job that runs the full analysis inline")
@@ -808,7 +818,8 @@ def main():
               f"(timeout {per_pair_timeout_s}s)...", flush=True)
         try:
             with _per_pair_timeout(per_pair_timeout_s):
-                tree, tag_to_label, _ = build_coarse_tree(pair_id)
+                tree, tag_to_label, _, rep_info = build_coarse_tree(
+                    pair_id, rep_strategy=args.coarse_rep, return_rep_info=True)
                 _name_internal_nodes(tree)
         except TimeoutError as e:
             print(f"  TIMEOUT after {per_pair_timeout_s}s on coarse-tree build; "
@@ -825,8 +836,18 @@ def main():
         if n_clusters < 2:
             print(f"  only {n_clusters} cluster(s) -- skip ({time.time()-t_pair:.1f}s)", flush=True)
             continue
+        rep_fracs = np.array([v["rep_piece_frac"] for v in rep_info.values()])
+        rep_cols = {
+            "coarse_rep": args.coarse_rep,
+            "rep_piece_frac_median": float(np.median(rep_fracs)),
+            "rep_piece_frac_min": float(np.min(rep_fracs)),
+            "n_pieces_median": float(np.median(
+                [v["n_pieces"] for v in rep_info.values()])),
+        }
         print(f"  coarse tree built with {n_clusters} cluster-leaves "
-              f"({time.time()-t_pair:.1f}s)", flush=True)
+              f"({time.time()-t_pair:.1f}s; rep={args.coarse_rep}, "
+              f"median rep_piece_frac={rep_cols['rep_piece_frac_median']:.2f})",
+              flush=True)
 
         cluster_pref_per_method: Dict[str, Dict[str, str]] = {}
         cluster_value_per_method: Dict[str, Dict[str, Optional[float]]] = {}
@@ -865,6 +886,7 @@ def main():
             if row is None:
                 continue
             row["n_clusters"] = n_clusters
+            row.update(rep_cols)
             leaf_states = row.pop("_leaf_states")
             cached_states[(pair_id, method)] = (tree, leaf_states, row)
             rows.append(row)
@@ -876,6 +898,7 @@ def main():
                     n_perm=args.clade_n_perm, seed=args.seed,
                     min_clade=args.min_clade)
                 crow["n_clusters"] = n_clusters
+                crow.update(rep_cols)
                 rows.append(crow)
                 print(f"    COMBINED: {time.time()-t_method:.1f}s "
                       f"(T={crow.get('clade_T')}, p={crow.get('clade_p')})",
