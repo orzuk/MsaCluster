@@ -117,6 +117,8 @@ if __name__ == '__main__':
         raise ValueError(f"Unknown --model '{args.model}' (expected 'esm1b' or 'msa_t').")
 
     mdl = mdl.eval()
+    if torch.cuda.is_available():
+        mdl = mdl.cuda()   # previously never moved: ran on CPU even on GPU nodes
     batch_converter = mdl_alphabet.get_batch_converter()
 
     # Apply cleaning policy (default: keep everything)
@@ -179,10 +181,12 @@ if __name__ == '__main__':
                 seq_kept = "".join(cols[j] for j in keep_cols)
                 inputs_kept.append((h, seq_kept))
 
-            # 5) Compute idx from *kept* query string, then map kept->seed via keep_cols
-            q_hdr, q_kept = inputs_kept[0]
-            q_kept_res_pos = [k for k, ch in enumerate(q_kept) if ch.isupper()]
-            idx_seed = np.asarray([keep_cols[k] for k in q_kept_res_pos], dtype=np.int32)
+            # 5) idx: prediction axis -> seed-frame column. MSA-Transformer
+            #    predicts one row/col per INPUT COLUMN (all kept columns), so
+            #    the map is keep_cols itself. (Using only the query's residue
+            #    columns mis-registered every position after a query gap,
+            #    which is common for the least-gappy row of a shallow cluster.)
+            idx_seed = np.asarray(keep_cols, dtype=np.int32)
 
             # 6) Tokenize kept-frame inputs and predict
             batch_labels, batch_strs, batch_tokens = batch_converter([inputs_kept])
@@ -193,10 +197,16 @@ if __name__ == '__main__':
             if seqlen > 1024:
                 print(f"[MSAT] Warning: MSA length {seqlen} > 1024; cropping to 1024.")
                 batch_tokens = batch_tokens[:, :, :1024]
-                # If you ever crop here, also crop q_kept_res_pos and idx_seed accordingly.
+                idx_seed = idx_seed[:1023]   # 1024 tokens incl. BOS
 
             print('MSA-Transformer predicting...')
-            pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()  # (L_pred, L_pred)
+            try:
+                pred = mdl.predict_contacts(batch_tokens)[0].detach().cpu().numpy()  # (L_pred, L_pred)
+            except RuntimeError as e:   # e.g. CUDA OOM: skip; output stays missing -> re-run later
+                print(f"[MSAT][ERROR] {name}: {e}")
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                continue
 
             # Final guard: enforce exact match
             if pred.shape[0] != len(idx_seed):

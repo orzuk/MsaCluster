@@ -367,24 +367,43 @@ def _cmap_csv_path(pair_id: str, method: str = "msa_transformer") -> str:
 
 def _read_or_compute_cmap(pair_id: str, force: bool = False,
                           cmap_method: str = "msa_transformer") -> pd.DataFrame:
+    """Cached per-pair df_cmap*.csv, or (re)score the contact predictions.
+
+    Re-scores when forced or when the cached CSV is LEGACY (no cluster_hash
+    provenance column): legacy CSVs were scored from outputs that may belong
+    to an older clustering. Scoring only uses outputs whose manifest matches
+    the current cluster A3Ms (see utils/contact_utils.py); CCMpred is scored
+    by top-L (contact_utils.DEFAULT_TOP_L_FACTOR).
+    """
     out_csv = _cmap_csv_path(pair_id, method=cmap_method)
     if cmap_method == "ccmpred":
         pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/ccmpred"
     else:
         pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/msa_transformer"
 
-    # use cached CSV when present (unless forced)
+    # use cached CSV when present and provenance-tagged (unless forced)
     if (not force) and os.path.isfile(out_csv):
-        return pd.read_csv(out_csv)
+        try:
+            cached = pd.read_csv(out_csv)
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            cached = pd.DataFrame()
+        if cached.empty or "cluster_hash" in cached.columns:
+            return cached
+        print(f"[postprocess] {pair_id}: legacy {os.path.basename(out_csv)} "
+              f"(no provenance) -> re-scoring", flush=True)
 
-    # need predictions to compute metrics
+    # need predictions to compute metrics; with none, still overwrite a stale CSV
     has_cmap_outputs = (os.path.isdir(pred_dir) and
             any(f.endswith((".npz", ".npy")) for f in os.listdir(pred_dir)))
     if not has_cmap_outputs:
+        if os.path.isfile(out_csv):
+            pd.DataFrame().to_csv(out_csv, index=False)
         return pd.DataFrame()
 
     return compute_cmap_metrics_for_pair(pair_id, include_deep=True, thresh=0.4,
-                                         sep_min=6, index_tol=0, cmap_method=cmap_method)
+                                         sep_min=6, index_tol=0, cmap_method=cmap_method,
+                                         top_l_factor="auto", require_manifest=True,
+                                         resolution="fine")
 
 
 def _ensure_pair_analysis(pair_id: str) -> Path:
@@ -956,8 +975,11 @@ def build_all_pairs_clusters_table(
 
 
 # Main post-processing function:
-def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str]] = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str]] = None,
+                             force_cmap: bool = False) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
+    force_cmap: re-score only the contact-map CSVs (df_cmap*.csv); AF/ESM
+      tables are still read from cache unless force_rerun.
     - Computes (or reads cached) AF/ESM TM tables and cmap metrics.
     - Builds:
         * summary_df: one row per pair (best TM and best cmap metric)
@@ -981,8 +1003,9 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             df_af  = _read_or_compute_af(pair_id, force=force_rerun)
             df_esm = _read_or_compute_esm(pair_id, force=force_rerun)
             df_tm  = pd.concat([df_af, df_esm], ignore_index=True) if len(df_af) or len(df_esm) else pd.DataFrame()
-            df_cmap = _read_or_compute_cmap(pair_id, force=force_rerun)
-            df_cmap_cc = _read_or_compute_cmap(pair_id, force=force_rerun, cmap_method="ccmpred")
+            df_cmap = _read_or_compute_cmap(pair_id, force=force_rerun or force_cmap)
+            df_cmap_cc = _read_or_compute_cmap(pair_id, force=force_rerun or force_cmap,
+                                               cmap_method="ccmpred")
 
             # Best TM per pair (over all predictions; maximize max(TM1,TM2))
             best_tm = None
@@ -1032,6 +1055,9 @@ if __name__ == "__main__":
     p.add_argument("--pairs", nargs="*", help="Pair IDs like 1fzpD_2frhA, or ALL. If omitted, process all pairs.")
     p.add_argument("--force_rerun", action="store_true",
                    help="FULL mode: recompute per-pair Analysis CSVs even if they exist.")
+    p.add_argument("--force_cmap", action="store_true",
+                   help="FULL mode: re-score only df_cmap.csv / df_cmap_ccmpred.csv "
+                        "(provenance-checked, CCMpred top-L) even if cached.")
     p.add_argument("--mode", choices=["full", "unify"], default="full",
                    help="'full' recomputes per-pair Analysis CSVs then unifies; 'unify' only rebuilds unified CSVs from cached per-pair Analysis CSVs.")
     args = p.parse_args()
@@ -1042,7 +1068,8 @@ if __name__ == "__main__":
 
     if args.mode == "full":
         # 1) Recompute/refresh per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv)
-        summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=resolved_pairs)
+        summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=resolved_pairs,
+                                                           force_cmap=args.force_cmap)
         print(f"[postprocess] per-pair Analysis refreshed: summary rows={len(summary_df)} | detailed rows={len(detailed_df)}")
 
     # 2) Build unified CSVs from those cached per-pair Analysis CSVs (single writer)

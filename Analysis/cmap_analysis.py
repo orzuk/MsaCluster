@@ -10,6 +10,9 @@ sys.path.insert(0, ROOT)
 from config import CONTACT_CUTOFF, DATA_DIR
 from utils.utils import pdb_to_contact_map, list_protein_pairs
 from utils.protein_utils import load_cmap_and_idx
+from utils.contact_utils import (entry_status, load_manifest, method_dir,
+                                 output_resolution, resolve_top_l_factor,
+                                 top_l_binarize)
 
 def _read_two_seeds_from_a3m(a3m_path: str):
     """
@@ -232,6 +235,9 @@ def compute_cmap_metrics_for_pair(
     sep_min: int = 6,
     index_tol: int = 0,
     cmap_method: str = "msa_transformer",
+    top_l_factor="auto",
+    require_manifest: bool = True,
+    resolution: str = "fine",
 ):
     """
     Write Pipeline/<pair>/Analysis/df_cmap.csv (or df_cmap_ccmpred.csv) with per-file metrics:
@@ -241,7 +247,22 @@ def compute_cmap_metrics_for_pair(
     cmap_method: "msa_transformer" (default) or "ccmpred"
       - msa_transformer: reads output_cmaps/msa_transformer/msa_t_*.npz
       - ccmpred:         reads output_cmaps/ccmpred/*.ccmpred.npz (or legacy .npy)
+
+    top_l_factor: "auto" (default) -> 1.0 for ccmpred, None for msa_transformer.
+      If set, each prediction is binarised by keeping the top
+      round(top_l_factor * L) symmetrised pairs with seed-column separation
+      >= sep_min (L = mean truth length of the two folds) instead of the
+      probability threshold `thresh`. Use for scores that are not
+      probabilities (CCMpred couplings).
+    require_manifest: only score outputs whose output_cmaps/<method>/_manifest.json
+      entry matches the CURRENT input cluster A3M (utils/contact_utils.py);
+      outputs without a manifest entry (legacy) or computed from a different
+      sequence set are logged and skipped.
+    resolution: which outputs to score: "fine" (ShallowMsa_* + DeepMsa,
+      default; what df_cmap*.csv labels refer to), "coarse" (CoarseMsa_* +
+      DeepMsa) or "all".
     """
+    top_l_factor = resolve_top_l_factor(cmap_method, top_l_factor)
     pair_dir = os.path.join(DATA_DIR, subdir)
     out_dir  = os.path.join(pair_dir, "Analysis")
     os.makedirs(out_dir, exist_ok=True)
@@ -318,7 +339,27 @@ def compute_cmap_metrics_for_pair(
                 continue
             if (not include_deep) and ("DeepMsa" in fn or "MSA_deep" in fn):
                 continue
+            res = output_resolution(fn)
+            if resolution != "all" and res not in (resolution, "deep"):
+                continue
             files.append(os.path.join(pred_dir, fn))
+
+    # Provenance guard: skip outputs not computed from the CURRENT cluster files
+    manifest = load_manifest(method_dir(pair_dir, cmap_method)) if require_manifest else None
+    provenance = {}
+    if require_manifest:
+        fresh_files, stale = [], {}
+        for f in files:
+            ok, reason, entry = entry_status(pair_dir, cmap_method, os.path.basename(f), manifest)
+            if ok:
+                fresh_files.append(f)
+                provenance[f] = entry
+            else:
+                stale.setdefault(reason, []).append(os.path.basename(f))
+        for reason, names in sorted(stale.items()):
+            print(f"[cmap] {subdir} {cmap_method}: skipping {len(names)} stale output(s) "
+                  f"[{reason}] e.g. {names[:3]}")
+        files = fresh_files
 
     # Build residue-index mappings from seed columns -> residue indices for each fold
     # (col2res1/2 map a SEED column index -> residue index in that fold's truth matrix)
@@ -362,6 +403,13 @@ def compute_cmap_metrics_for_pair(
         if P.ndim != 2 or P.shape[0] != P.shape[1]:
             print("[cmap] WARN skipping non-square", f, P.shape)
             continue
+
+        # Rank-based binarisation (top-L) for non-probabilistic scores
+        top_l_k = None
+        if top_l_factor is not None:
+            L_ref = 0.5 * (T1.shape[0] + T2.shape[0])
+            top_l_k = int(round(top_l_factor * L_ref))
+            P = top_l_binarize(P, top_l_k, sep_min=sep_min, idx=idx)
 
         # Map SEED indices -> P-axis positions
         pos = {int(c): i for i, c in enumerate(idx)}
@@ -524,6 +572,11 @@ def compute_cmap_metrics_for_pair(
             "cluster": cluster_name,
             "thresh": float(thresh),
             "sep_min": int(sep_min),
+            "top_l_factor": (float(top_l_factor) if top_l_factor is not None else np.nan),
+            "top_l_k": (top_l_k if top_l_k is not None else np.nan),
+            "cluster_hash": (provenance[f]["cluster_hash"] if f in provenance else ""),
+            "input_a3m": (provenance[f].get("input_a3m", "") if f in provenance else ""),
+            "n_seqs": (provenance[f].get("n_seqs", np.nan) if f in provenance else np.nan),
         }
         row.update(metrics_t1)
         row.update(metrics_t2)
@@ -550,6 +603,14 @@ if __name__ == "__main__":
     ap.add_argument("--method", type=str, default="msa_transformer",
                     choices=["msa_transformer", "ccmpred"],
                     help="Contact prediction method to evaluate")
+    ap.add_argument("--top_l_factor", default="auto",
+                    help="'auto' (1.0 for ccmpred, none for msa_transformer), 'none' "
+                         "(use --thresh), or a float: keep top round(f*L) pairs.")
+    ap.add_argument("--resolution", default="fine", choices=["fine", "coarse", "all"],
+                    help="Which cluster outputs to score (default fine = ShallowMsa_* + Deep).")
+    ap.add_argument("--no_require_manifest", action="store_true",
+                    help="Score outputs without a matching provenance manifest "
+                         "(UNSAFE: labels may not refer to current clusters).")
     args = ap.parse_args()
 
     if args.pairs:
@@ -567,6 +628,9 @@ if __name__ == "__main__":
                 sep_min=args.sep_min,
                 index_tol=args.index_tol,
                 cmap_method=args.method,
+                top_l_factor=args.top_l_factor,
+                require_manifest=not args.no_require_manifest,
+                resolution=args.resolution,
             )
             print(f"[cmap] wrote {os.path.join(DATA_DIR, pid, 'Analysis', csv_name)}")
         except Exception as e:
