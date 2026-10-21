@@ -429,6 +429,34 @@ def pick_controls(deep_rows: List[Tuple[str, str]], query_row: str,
     return [pool[i] for i in sorted(rng.sample(range(len(pool)), n))]
 
 
+def check_deep_query(deep_a3m: Path, pair_dir: Path) -> None:
+    """Warn loudly if row 1 of the deep MSA is not one of the pair's chains.
+
+    Everything downstream assumes the a3m's match-state frame is defined by
+    row 1 (the colabfold query). If it is not the 2n54B / 2hdmA chain, the
+    ancestors would be projected onto the wrong frame and every number would
+    be quietly wrong, so this is checked rather than assumed.
+    """
+    rows = read_a3m_match_state(deep_a3m)
+    if not rows:
+        return
+    q_hdr, q_row = rows[0]
+    q = ungap(q_row)
+    for tag in (F1_TAG, F2_TAG):
+        fa = pair_dir / "fasta_chain_files" / f"{tag}.fasta"
+        if not fa.is_file():
+            continue
+        chain = ungap(read_fasta(fa)[0][1]) if read_fasta(fa) else ""
+        if chain and chain == q:
+            print(f"[anc] DeepMsa query row 1 = {q_hdr} = chain {tag} "
+                  f"({len(q)} aa), {len(q_row)} match columns -- as expected")
+            return
+    print(f"[anc] WARNING: DeepMsa row 1 ({q_hdr}, {len(q)} aa) matches "
+          f"neither {F1_TAG} nor {F2_TAG}'s chain FASTA. The ancestors are "
+          f"projected onto row 1's match-state frame, so check that frame "
+          f"before trusting the numbers.", file=sys.stderr)
+
+
 def build_cluster_a3ms(deep_a3m: Path, ancestors: List[Tuple[str, str]],
                        n_controls: int, control_seed: int,
                        msa_top_n: int,
@@ -1130,6 +1158,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not deep.is_file():
             raise SystemExit(f"[anc] DeepMsa.a3m not found under "
                              f"{ref_pair_dir / 'output_get_msa'}")
+        check_deep_query(deep, single_dir)
         manifest = build_cluster_a3ms(
             deep, ancestors, args.n_controls, args.control_seed,
             args.msa_top_n,
