@@ -61,6 +61,11 @@ def census_pair(pair_dir: str):
         for m in mem:
             if m in leaf_of:
                 cl_of_leaf[m] = tag
+    # Tree leaves that belong to no cluster (e.g. dropped by the gap filter
+    # after the tree was built) must not count against monophyly: prune them.
+    n_unassigned = len(leaf_of) - len(cl_of_leaf)
+    if n_unassigned:
+        tree.prune([leaf_of[m] for m in cl_of_leaf], preserve_branch_length=True)
     # One postorder pass: number of leaves under each node, and the node's
     # cluster label if ALL its leaves belong to one cluster (else None).
     MIXED = object()
