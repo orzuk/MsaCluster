@@ -1043,6 +1043,10 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
                 backbones at its own length.
       "consensus" : the cluster's per-column majority-vote consensus
                 sequence (matches what Boltz-2 uses).
+      "first"   : row 1 of the cluster A3M verbatim. Used when the caller
+                has written the A3M itself and row 1 IS the intended query
+                (e.g. scripts/ancestor_calibration.py, where each "cluster"
+                is one reconstructed ancestral sequence).
     Falling back to "chain" if the cluster A3M is empty or query_type is unknown.
 
     msa_top_n: if > 0, subsample the per-cluster MSA to the top_n rows
@@ -1155,7 +1159,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
 
     # Normalise legacy / unknown query_type to "chain"
     qt = (query_type or "chain").lower()
-    if qt not in ("chain", "medoid", "consensus"):
+    if qt not in ("chain", "medoid", "consensus", "first"):
         qt = "chain"
 
     # ========== clustered A3M path ==========
@@ -3263,7 +3267,7 @@ def main():
                     help="Homo-oligomer chain copies for AF3 oligomerization "
                          "holo (0 = derive from the CSV, else dimer).")
     p.add_argument("--query_type", default="medoid",
-                    choices=["chain", "medoid", "consensus"],
+                    choices=["chain", "medoid", "consensus", "first"],
                     help="Per-cluster AF2/AF3 query source. "
                          "'medoid' (default, v2): use the cluster medoid "
                          "sequence as the query (variant-as-query, matches "
