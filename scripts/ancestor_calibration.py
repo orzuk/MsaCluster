@@ -781,7 +781,10 @@ def _collect_simple_csv(pair_dir: Path, manifest: List[dict], fname: str,
     by = {str(r["cluster"]): r for _, r in df.iterrows()}
     rows = []
     for m in manifest:
-        r = by.get(m["cluster"]) or by.get(m["cluster_num"])
+        # `or` on a pandas Series raises; pick explicitly.
+        r = by.get(m["cluster"])
+        if r is None:
+            r = by.get(m["cluster_num"])
         if r is None:
             continue
         tm1, tm2 = float(r.get(c1, np.nan)), float(r.get(c2, np.nan))
