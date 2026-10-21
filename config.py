@@ -79,7 +79,10 @@ PYMOL_EXE = MAIN_DIR.replace("github/MsaCluster", "/sci/labs/orzuk/orzuk/pymol-v
 
 # Relative paths common to all users
 TABLES_RES = MAIN_DIR + '/docs'
-REPO_NAME = os.path.basename(MAIN_DIR.rstrip('/\\'))
+# The GitHub Pages site is served at /<repo>/, so the link prefix must match the
+# repository name and not the local directory name: a clone into a differently
+# named folder would otherwise emit 404 links for every pair page.
+REPO_NAME = os.environ.get('MSACLUSTER_REPO_NAME', 'MsaCluster')
 SITE_BASE  = f"/{REPO_NAME}"
 GITHUB_URL_HTML = f"{SITE_BASE}/HTML"
 
@@ -91,9 +94,12 @@ SIMILARITY_RESULTS_TABLE = TABLES_RES + '/fold1_fold2_sim.parq'
 ESMFOLD_ANALYSIS_FILE = TABLES_RES + '/df_esmfold_analysis.csv'
 ANCESTRAL_SUMMARY_FILE = TABLES_RES + '/ancestral_summary.csv'
 # Canonical concordance permutation results read by the global plots and the
-# summary HTML table (all 9 methods; written by permutation_null_concordance.py
-# --out-suffix _9method, raw BH by bh_correct_concordance_p.py).
-CONCORDANCE_METHOD_SUFFIX = '_9method'
+# summary HTML table. The analysed panel is the seven methods of the paper
+# (AF2, AF3, ESMFold2, Boltz-2, BioEmu, ThermoMPNN-ddG, S4PRED); the two
+# contact predictors carry no per-cluster signal and are excluded. Written by
+# permutation_null_concordance.py --out-suffix _7method, raw BH by
+# bh_correct_concordance_p.py.
+CONCORDANCE_METHOD_SUFFIX = '_7method'
 CONCORD_CORRECTED_PERM_BH_CSV = TABLES_RES + f'/fold_diversity_concordance_corrected_perm{CONCORDANCE_METHOD_SUFFIX}_bh.csv'
 CONCORD_RAW_PERM_BH_CSV = TABLES_RES + f'/fold_diversity_concordance_perm{CONCORDANCE_METHOD_SUFFIX}_bh.csv'
 ENERGY_DIR = PIPELINE_BASE_DIR + '/output_deltaG'

@@ -396,10 +396,15 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     EXPL_TREE = (
         "The pair's MSA as a phylogenetic tree, one leaf per sequence cluster. "
         "Leaf rings show each cluster's predicted fold preference; the heatmap "
-        "gives all 9 methods (AF2/AF3/ESMFold2/Boltz-2/BioEmu/ΔΔG/S4PRED/"
-        "MSA-Transformer/CCMpred) × clusters; internal-node markers flag "
-        "parsimony-inferred gain/loss/swap of fold-switching. The core question: "
-        "do different clades predict different folds?")
+        "gives the seven analysed methods (AF2/AF3/ESMFold2/Boltz-2/BioEmu/ΔΔG/"
+        "S4PRED) × clusters, followed by the two contact predictors "
+        "(MSA-Transformer/CCMpred), which are shown for reference and enter no "
+        "analysis; internal-node markers flag parsimony-inferred gain/loss/swap "
+        "of fold state. Those markers come from four-state calls derived from "
+        "the structure predictions, not from observations. The core question: "
+        "do different groups of related sequences predict different folds? "
+        "Clusters are tree-guided groups, not clades: only 12% are "
+        "monophyletic across the dataset.")
     EXPL_BEST_CMAP = (
         "Predicted contact maps (MSA-Transformer) for the clusters best matching "
         "each fold, over the true contacts of fold 1 (upper triangle) and fold 2 "

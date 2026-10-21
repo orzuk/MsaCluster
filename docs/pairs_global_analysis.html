@@ -20,9 +20,13 @@
 </head>
 <body>
 <h1>Global Analysis — Fold-Switch Evolution</h1>
-<p class="intro">Cross-pair summary of the 9-method fold-switch analysis
-(AF2, AF3, ESMFold2, Boltz-2, BioEmu, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
-fold-switching pair set. Each figure is described above it.</p>
+<p class="intro">Cross-pair summary of the seven-method fold-switch analysis
+(AF2, AF3, ESMFold2, Boltz-2, BioEmu, ΔΔG, S4PRED) over the fold-switching pair
+set. Each figure is described above it. The two contact predictors,
+MSA-Transformer and CCMpred, are reported in the Supporting Information and
+enter no analysis: a per-cluster alignment is too shallow for direct-coupling
+analysis, and CCMpred returns exactly zero on 71% of clusters. Clusters are
+tree-guided groups of sequences, not clades; only 12% are monophyletic.</p>
 <section class="fig">
   <h2>Per-pair cluster distribution in the fold-1/fold-2 plane</h2>
   <p class="caption">Each panel is one method; each ELLIPSE is one fold-switch pair — a 1σ 2D-Gaussian fit to that pair&#x27;s sequence clusters, plotting support for fold 1 (x) vs fold 2 (y) in the method&#x27;s native metric (TM-score for AF2/AF3/ESMFold2/Boltz-2; −ΣΔΔG kcal/mol for DDG; SS H/E-composition similarity for S4PRED; contact recall for MSA-Transformer/CCMpred). The ellipse&#x27;s ORIENTATION is the key: elongated PERPENDICULAR to the y=x diagonal means the pair&#x27;s clusters split between the two folds — the fold-switching signal — whereas elongation ALONG the diagonal is shared variation with no fold discrimination, and a small round ellipse means low cluster diversity. Ellipses are colored by their perpendicular spread (brighter = stronger fold-switch signal), and the few highest-signal pairs per method are labelled. Pairs with fewer than 5 clusters are omitted (no stable covariance). Note: TM axes are comparable across pairs (0–1); for DDG/recall the absolute position is pair-specific, so read orientation, not location.</p>
@@ -35,32 +39,32 @@ fold-switching pair set. Each figure is described above it.</p>
 </section>
 <section class="fig">
   <h2>Three roles of the sequence-divergence correction</h2>
-  <p class="caption">Per pair, significance before (x) vs after (y) correcting for cluster-to-query sequence divergence. Relative to the p=0.05 lines: top-right = significant both ways (PRESERVE — a true signal survives, e.g. XCL1), bottom-right = significant only before (FILTER — a divergence-driven false positive removed, e.g. SOD1), top-left = significant only after (REVEAL — a real signal unmasked by the correction, e.g. RelB). These three canonical cases anchor the correction&#x27;s behaviour.</p>
+  <p class="caption">Per pair, significance before (x) vs after (y) correcting for cluster-to-query sequence divergence. Relative to the p=0.05 lines: top-right = significant both ways (PRESERVE, 29 pairs, e.g. XCL1 and SOD1), bottom-right = significant only before (FILTER, 7 pairs, e.g. RfaH, whose deep MSA is dominated by the NusG-superfamily fold), top-left = significant only after (REVEAL, 5 pairs, e.g. the TRAP1 N-terminal domain). The correction regresses out each method&#x27;s linear dependence on identity to the query, an association that may partly reflect training proximity but also tracks real evolutionary divergence, so both readings are reported.</p>
   <img loading="lazy" src="figures/global/global_raw_vs_corrected.png" alt="Three roles of the sequence-divergence correction"/>
 </section>
 <section class="fig">
   <h2>Concordance signal by fold-switch trigger class</h2>
-  <p class="caption">Corrected concordance distribution within each biological trigger class (ligand / oligomerization / protein-binding / equilibrium / mutation), the basis for the stratified (within-class) BH test. Validated positives are starred in their classes — XCL1 in mutation, RelB in protein-binding, SOD1 in oligomerization — showing how stratifying by trigger recovers hits that the full-pool test misses.</p>
+  <p class="caption">Corrected concordance distribution within each biological trigger class (ligand / oligomerization / protein-binding / equilibrium / mutation), the basis for the stratified (within-class) BH test. Validated positives are starred in their classes: XCL1 in mutation, RelB in protein-binding and SOD1 in oligomerization. All three also pass the full-pool test, so the stratification shows where each class sits rather than recovering hits the pooled test misses.</p>
   <img loading="lazy" src="figures/global/global_trigger_stratification.png" alt="Concordance signal by fold-switch trigger class"/>
 </section>
 <section class="fig">
-  <h2>Phylogenetic clade signal — method × pair</h2>
-  <p class="caption">Sequence-divergence-corrected clade signal (Moran&#x27;s I) for every method (columns) and fold-switch pair (rows). Red = clusters that prefer the same fold are phylogenetically grouped (clade-structured); blue = anti-structured (dispersed); white ≈ none. Rows are sorted by the median signal across methods (robust to the sparse, noisy contact-based methods), so the most clade-structured pairs sit at the top. Pairs with fewer than 10 clusters are excluded (Moran&#x27;s I is degenerate there). Signal is weak overall — few pairs exceed I ≈ 0.15.</p>
-  <img loading="lazy" src="figures/global/global_morans_method_x_pair.png" alt="Phylogenetic clade signal — method × pair"/>
+  <h2>Phylogenetic grouping signal — method × pair</h2>
+  <p class="caption">Sequence-divergence-corrected grouping signal (Moran&#x27;s I) for every method (columns) and fold-switch pair (rows). Red = clusters that prefer the same fold sit near each other on the tree; blue = anti-structured (dispersed); white ≈ none. Rows are sorted by the median signal across methods (robust to the sparse, noisy contact-based methods), so the most strongly grouped pairs sit at the top. Pairs with fewer than 10 clusters are excluded (Moran&#x27;s I is degenerate there). Signal is weak overall — few pairs exceed I ≈ 0.15.</p>
+  <img loading="lazy" src="figures/global/global_morans_method_x_pair.png" alt="Phylogenetic grouping signal — method × pair"/>
 </section>
 <section class="fig">
-  <h2>Method × method agreement on clade signal</h2>
-  <p class="caption">Spearman correlation between methods of their per-pair clade signal. High values mean two methods light up on the same pairs. Only the structure predictors (AF2/AF3/Boltz-2/ESMFold2) correlate appreciably; ΔΔG, MSA-Transformer, CCMpred and S4PRED are largely orthogonal, i.e. they contribute independent evidence.</p>
-  <img loading="lazy" src="figures/global/global_method_correlation.png" alt="Method × method agreement on clade signal"/>
+  <h2>Method × method agreement on grouping signal</h2>
+  <p class="caption">Spearman correlation between methods of their per-pair grouping signal. High values mean two methods light up on the same pairs. Only the structure predictors (AF2/AF3/Boltz-2/ESMFold2) correlate appreciably; ΔΔG, MSA-Transformer, CCMpred and S4PRED are largely orthogonal, i.e. they contribute independent evidence.</p>
+  <img loading="lazy" src="figures/global/global_method_correlation.png" alt="Method × method agreement on grouping signal"/>
 </section>
 <section class="fig">
   <h2>Clade-signal effect size, per method</h2>
-  <p class="caption">Distribution across pairs of the clade signal (Moran&#x27;s I) for each method. Boxes near zero indicate little systematic clade structure; ΔΔG shows the widest positive tail. Because n ≈ 100 clusters makes the permutation test overpowered, we rank methods by raw Moran&#x27;s I here rather than by significance counts.</p>
+  <p class="caption">Distribution across pairs of the grouping signal (Moran&#x27;s I) for each method. Boxes near zero indicate little systematic grouping; ΔΔG shows the widest positive tail. Because n ≈ 100 clusters makes the permutation test overpowered, we rank methods by raw Moran&#x27;s I here rather than by significance counts.</p>
   <img loading="lazy" src="figures/global/global_morans_effectsize_by_method.png" alt="Clade-signal effect size, per method"/>
 </section>
 <section class="fig">
   <h2>Cross-method correlation of raw fold preference</h2>
-  <p class="caption">Spearman correlation of the raw per-cluster fold preference (centered TM difference), pooled across all clusters and pairs — a signal-level companion to the clade-signal correlation above. AF2 and AF3 share training bias (highest correlation); every other method pair is near zero, confirming the methods supply largely independent evidence (most orthogonal: S4PRED).</p>
+  <p class="caption">Spearman correlation of the raw per-cluster fold preference (centered TM difference), pooled across all clusters and pairs — a signal-level companion to the grouping-signal correlation above. AF2 and AF3 share training bias (highest correlation); every other method pair is near zero, confirming the methods supply largely independent evidence (most orthogonal: S4PRED).</p>
   <img loading="lazy" src="figs/cross_method_correlation.png" alt="Cross-method correlation of raw fold preference"/>
 </section>
 </body>

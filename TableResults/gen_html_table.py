@@ -11,7 +11,10 @@ from config import *
 # imported and run without pulling in torch (only needed to REBUILD the CSVs).
 
 # --- add near the top (after imports / _ensure_unified_csvs) ---
-NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
+# Must accept scientific notation: BH-adjusted p-values are rendered as
+# "6.133e-05", and a pattern without the exponent parses that as 6.133,
+# which both breaks numeric sorting and inverts significance comparisons.
+NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)")
 TRIPLET_COL = "MSA: DEPTH; #RES; #Clusters"
 
 
@@ -51,11 +54,11 @@ DEFAULT_EXPLANATIONS = {
     "MSATrans_CMAP_PR2": "Maximum precision vs Fold2 truth (same settings).",
     "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
     "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
-    "CONCORD": "AGGREGATE: cross-method per-cluster sign concordance, sequence-divergence-corrected, averaged over the 36 method-pairs of the 9 methods (shuffle null ~0.50; higher = orthogonal methods agree more on each cluster's fold preference). Source: docs/fold_diversity_concordance_corrected_perm_9method_bh.csv.",
+    "CONCORD": "AGGREGATE: cross-method per-cluster sign concordance, sequence-divergence-corrected, averaged over the 21 method-pairs of the 7 analysed methods (AF2, AF3, ESMFold2, Boltz-2, BioEmu, ddG, S4PRED; shuffle null ~0.50; higher = methods agree more on each cluster's fold preference). The two contact predictors are excluded: a per-cluster alignment is too shallow for direct-coupling analysis, and CCMpred returns exactly zero on 71% of clusters. Source: docs/fold_diversity_concordance_corrected_perm_7method_bh.csv.",
     "CONCORD_pBH": "AGGREGATE: Benjamini-Hochberg-adjusted permutation p-value for CONCORD over the full pool of pairs (<=0.05 = significant cross-method concordance). Same source.",
-    "MORANS_I": "AGGREGATE (clade-preference): strongest positive Moran's I of per-cluster fold preference across the methods (on the cluster tree, inverse-patristic weights). Effect size of phylogenetic clade structure; ~0 = no clade structure, larger = fold-preferring clusters form clades. Source: docs/phylo_placement_corrected.csv.",
-    "MORANS_Inorm": "AGGREGATE (clade-preference): Moran's I normalised by the maximum achievable on each pair's tree (0 = null, 1 = maximal clade segregation). Rank clade structure by this, not by the BH p-value (the test is over-powered at ~100 clusters). Same source.",
-    "MORANS_pBH": "AGGREGATE (clade-preference): BH-adjusted permutation p-value for the strongest-method Moran's I. NOTE: at ~100 clusters this test is over-powered, so many pairs pass BH at negligible effect size; interpret with MORANS_I / MORANS_Inorm. Same source.",
+    "MORANS_I": "AGGREGATE (phylogenetic grouping): strongest positive Moran's I of per-cluster fold preference across the methods (on the cluster tree, inverse-patristic weights). Effect size of phylogenetic autocorrelation; ~0 = none, larger = fold-preferring clusters sit near each other on the tree. Clusters are tree-guided groups, not clades: only 12% are monophyletic. Generic sequence traits of the same clusters are autocorrelated as often or more often, so a significant value is not by itself fold-specific. Source: docs/phylo_placement_corrected.csv.",
+    "MORANS_Inorm": "AGGREGATE (phylogenetic grouping): Moran's I normalised by the maximum achievable on each pair's tree (0 = null, 1 = maximal segregation). It measures arrangement within one family and is not comparable across families. Rank clade structure by this, not by the BH p-value (the test is over-powered at ~100 clusters). Same source.",
+    "MORANS_pBH": "AGGREGATE (phylogenetic grouping): BH-adjusted permutation p-value for the strongest-method Moran's I. NOTE: at ~100 clusters this test is over-powered, so many pairs pass BH at negligible effect size; interpret with MORANS_I / MORANS_Inorm. Same source.",
     "MORANS_method": "AGGREGATE: which method gives the strongest positive Moran's I for this pair.",
 }
 
@@ -487,6 +490,22 @@ def gen_html_from_summary_table(
         if col == triple_col:
             avg_tds.append(f'<td{_td_cls(col)} data-sort-value="">{html.escape(triple_disp)}</td>')
             continue
+        # The mean of BH-adjusted p-values is not a statistic, and averaging a
+        # signed Moran's I over pairs of opposite sign cancels rather than
+        # summarises. Report a count or a median instead of a mean for those.
+        if col in ("CONCORD_pBH", "MORANS_pBH"):
+            s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
+            n_sig = int((s <= 0.05).sum())
+            n_tot = int(s.notna().sum())
+            disp = f"{n_sig}/{n_tot} \u2264 0.05"
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value="{n_sig}">{html.escape(disp)}</td>')
+            continue
+        if col == "MORANS_I":
+            s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
+            med = s.median()
+            disp = "" if pd.isna(med) else f"median {med:.3f}"
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value="{0.0 if pd.isna(med) else med:.6f}">{html.escape(disp)}</td>')
+            continue
         s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
         if s.notna().any():
             mu = s.mean()
@@ -495,7 +514,9 @@ def gen_html_from_summary_table(
             avg_tds.append(f'<td{_td_cls(col)} data-sort-value="{mu:.6f}">{html.escape(disp)}</td>')
         else:
             avg_tds.append(f'<td{_td_cls(col)} data-sort-value=""></td>')
-    rows.append("<tr>" + "".join(avg_tds) + "</tr>")
+    # Summary line belongs in <tfoot>, otherwise sorting a column drags it into
+    # the middle of the data.
+    footer_row = "<tr>" + "".join(avg_tds) + "</tr>"
 
 
     # --- Explanations (only for existing columns) ---
@@ -544,8 +565,8 @@ def gen_html_from_summary_table(
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
   .legend {{ width: 98%; margin: 20px auto; line-height: 1.4; }}
-    tr.lowclust{{opacity: .45; background - color:  # 1b1b1b; }}
-    tr.lowclust:hover{{opacity: .65; background - color:  # 272727; }}
+    tr.lowclust{{opacity: .45; background-color: #1b1b1b; }}
+    tr.lowclust:hover{{opacity: .65; background-color: #272727; }}
 </style>
 </head>
 <body>
@@ -555,6 +576,9 @@ def gen_html_from_summary_table(
   <tbody>
     {"".join(rows)}
   </tbody>
+  <tfoot>
+    {footer_row}
+  </tfoot>
 </table>
 <div class="legend">
 {expl_html}
