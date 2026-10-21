@@ -1,0 +1,2 @@
+method,mode,n_ancestors,rho,p_exact_greater,p_exact_two_sided,n_perms,n_controls,control_delta_mean,control_delta_sd,p_control,deltas
+ESM,single_sequence,5,0.6668859288553503,0.13333333333333333,0.26666666666666666,120,20,-0.340694,0.050738359886776004,0.1405,-0.3670;-0.3827;-0.3851;-0.3528;-0.3642
