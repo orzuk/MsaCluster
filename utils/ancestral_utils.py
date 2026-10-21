@@ -361,7 +361,9 @@ def _fitch_bottom_up(tree):
 
 # Tie-break order for Fitch top-down. Covers both the 3-state (F1/F2/Amb) and
 # 4-state (F1/F2/both/none) characters; states absent from the data are ignored.
-_FITCH_PREF = ["both", "F1", "F2", "Amb", "none"]
+# Single source of truth shared with utils/ancestral_tests.py (fast Fitch).
+from utils.ancestral_tests import FITCH_PREF as _FITCH_PREF_T  # noqa: E402
+_FITCH_PREF = list(_FITCH_PREF_T)
 
 
 def _fitch_top_down(tree):

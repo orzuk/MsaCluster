@@ -98,6 +98,48 @@ def random_scores(k: int, seed: int) -> Dict[str, float]:
     return dict(zip(AA20, rs.standard_normal(len(AA20))))
 
 
+def random_score_matrix(n_random: int, seed: int, start: int = 1) -> np.ndarray:
+    """(n_random, 20) matrix whose row i is ``random_scores(start + i, seed)``
+    in AA20 order -- the same tables as the ``random_proj_k`` traits."""
+    return np.array([[random_scores(k, seed)[a] for a in AA20]
+                     for k in range(start, start + n_random)], dtype=float)
+
+
+_AA_IDX = {a: i for i, a in enumerate(AA20)}
+
+
+def member_aa_counts(members: Sequence[str]) -> np.ndarray:
+    """(m, 20) counts of the 20 amino acids over each member's aligned
+    (upper-case = match-column) residues; gaps, insertions (lower case) and
+    non-standard letters are excluded, as in ``_mean_score``."""
+    C = np.zeros((len(members), len(AA20)))
+    for i, s in enumerate(members):
+        for c in s:
+            j = _AA_IDX.get(c)
+            if j is not None:
+                C[i, j] += 1.0
+    return C
+
+
+def random_proj_values(members: Sequence[str], R: np.ndarray,
+                       counts: Optional[np.ndarray] = None) -> np.ndarray:
+    """Per-cluster random-projection traits, vectorised over score tables.
+
+    ``members`` are the cluster's member rows (a3m row 0 = query/medoid
+    already removed); ``R`` is a (K, 20) score matrix (``random_score_matrix``).
+    Trait k = mean over members of the mean score R[k] over the member's
+    aligned residues (members without residues are skipped). Returns (K,)
+    floats (NaN when no member has residues). Equal to the ``_mean_score``
+    loop up to floating-point rounding."""
+    C = member_aa_counts(members) if counts is None else counts
+    tot = C.sum(axis=1)
+    ok = tot > 0
+    if not ok.any():
+        return np.full(R.shape[0], np.nan)
+    per_member = (C[ok] @ R.T) / tot[ok, None]          # (m_ok, K)
+    return per_member.mean(axis=0)
+
+
 def _mean_score(aligned: str, table: Dict[str, float]) -> float:
     v = [table[c] for c in aligned if c in table]
     return float(np.mean(v)) if v else np.nan
@@ -122,7 +164,6 @@ def cluster_traits(seqs: Sequence[str], query: Optional[str],
     members = seqs[1:]
     ref = _match_cols(query if query else seqs[0])
     pid, hyd, gap, chg = [], [], [], []
-    rps = [[] for _ in rp_tables]
     for s in members:
         aligned = "".join(c for c in s if c.isupper())          # match-col residues
         n_match = len(aligned) + s.count("-")
@@ -132,8 +173,6 @@ def cluster_traits(seqs: Sequence[str], query: Optional[str],
         hyd.append(_mean_score(aligned, KYTE_DOOLITTLE))
         gap.append(s.count("-") / n_match if n_match else np.nan)
         chg.append(sum(CHARGE.get(c, 0.0) for c in aligned))
-        for k, tab in enumerate(rp_tables):
-            rps[k].append(_mean_score(aligned, tab))
     nm = lambda v: float(np.nanmean(v)) if np.isfinite(v).any() else np.nan  # noqa: E731
     out = {
         "n_members": len(members),
@@ -143,8 +182,10 @@ def cluster_traits(seqs: Sequence[str], query: Optional[str],
         "log_size": float(np.log(len(members))),
         "net_charge": nm(np.asarray(chg, float)),
     }
-    for k, v in enumerate(rps, 1):
-        out[f"random_proj_{k}"] = nm(np.asarray(v, float))
+    if rp_tables:
+        R = np.array([[tab[a] for a in AA20] for tab in rp_tables], dtype=float)
+        for k, v in enumerate(random_proj_values(members, R), 1):
+            out[f"random_proj_{k}"] = float(v)
     return out
 
 

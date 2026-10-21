@@ -340,6 +340,86 @@ def _patristic_matrix(tree, names: Sequence[str]) -> np.ndarray:
     return D
 
 
+def morans_weights(tree, names: Sequence[str], eps: float = 1e-9) -> np.ndarray:
+    """Row-standardized inverse-patristic Moran weights over ``names``
+    (zero diagonal; S0 = n). Shared by ``morans_I_test`` and the fast paths."""
+    W = 1.0 / (_patristic_matrix(tree, names) + eps)
+    np.fill_diagonal(W, 0.0)
+    rs = W.sum(axis=1, keepdims=True)
+    rs[rs == 0] = 1.0
+    return W / rs                                # row-standardized -> S0 = n
+
+
+def morans_spectral(W: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(M, evals, evecs): symmetric form M = (W + W^T)/2 and the eigen-
+    decomposition of its doubly-centered version (ascending eigenvalues).
+    Depends only on the tree / leaf set, so it can be computed once and
+    reused across many traits (``morans_I_norm``)."""
+    nn = W.shape[0]
+    M = 0.5 * (W + W.T)                                  # symmetric quadratic form
+    Pc = np.eye(nn) - np.ones((nn, nn)) / nn             # centering projector
+    evals, evecs = np.linalg.eigh(Pc @ M @ Pc)
+    return M, evals, evecs
+
+
+def morans_I_norm(xc: np.ndarray, den: float, I_obs: float, M: np.ndarray,
+                  evecs: np.ndarray) -> Tuple[float, float]:
+    """(max_perm_I, I_norm) for centered values ``xc`` (den = xc @ xc).
+
+    Moran's I is bounded by the tree's weight matrix, NOT by 1. I_norm is I
+    as a fraction of the max achievable for THIS value multiset on THIS tree:
+      max_perm = data-specific achievable max (sort-and-match on the top
+                 eigenvector + capped vectorized 2-opt)
+      I_norm   = (I_obs - E[I]) / (max_perm - E[I]),  E[I] = -1/(n-1)
+    (negative I_obs is normalised against the reachable minimum instead).
+    """
+    nn = len(xc)
+
+    def _two_opt(seed, maximize):
+        """Capped steepest-ascent/-descent 2-opt on the quadratic form
+        arr @ M @ arr; returns the optimized Moran's-I value."""
+        arr = np.array(seed, dtype=float)
+        for _ in range(60):
+            f = M @ arr
+            DZ = arr[None, :] - arr[:, None]
+            DF = f[:, None] - f[None, :]
+            dN = 2.0 * DZ * DF - 2.0 * (DZ ** 2) * M    # delta of form on swap (a,b)
+            if maximize:
+                np.fill_diagonal(dN, -np.inf)
+                a, b = np.unravel_index(int(np.argmax(dN)), dN.shape)
+                if dN[a, b] <= 1e-12:
+                    break
+            else:
+                np.fill_diagonal(dN, np.inf)
+                a, b = np.unravel_index(int(np.argmin(dN)), dN.shape)
+                if dN[a, b] >= -1e-12:
+                    break
+            arr[a], arr[b] = arr[b], arr[a]
+        return float(arr @ (M @ arr)) / den
+
+    # Seed the search from BOTH the spectral guess (top/bottom eigenvector)
+    # AND the actual data arrangement. Ascending from the data is guaranteed
+    # to reach I >= I_obs (and descending <= I_obs), so the data-seeded run
+    # alone makes max_perm >= I_obs >= min_perm by construction -- no clamp,
+    # no |I_norm|>1 on tiny/degenerate pairs (few clusters: MSAT/CCMpred).
+    Emean = -1.0 / (nn - 1)
+    seed_top = np.empty(nn); seed_top[np.argsort(evecs[:, -1])] = np.sort(xc)
+    max_perm_I = max(_two_opt(seed_top, True),  _two_opt(xc, True))
+    # Normalize by the achievable range on the side I_obs falls -- positive
+    # signal against the reachable max, negative against the reachable min --
+    # so I_norm is a true fraction of achievable clade signal in [-1, 1].
+    if I_obs >= Emean:
+        denom = max_perm_I - Emean
+    else:
+        seed_bot = np.empty(nn); seed_bot[np.argsort(evecs[:, 0])] = np.sort(xc)
+        min_perm_I = min(_two_opt(seed_bot, False), _two_opt(xc, False))
+        denom = Emean - min_perm_I
+    I_norm = (I_obs - Emean) / denom if denom > 1e-9 else float("nan")
+    if np.isfinite(I_norm):
+        I_norm = float(np.clip(I_norm, -1.0, 1.0))   # belt-and-suspenders
+    return max_perm_I, I_norm
+
+
 def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
                   n_perm: int = 1000, seed: int = 12345,
                   eps: float = 1e-9,
@@ -373,11 +453,7 @@ def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
         res["morans_note"] = "zero_variance"
         return res
 
-    W = 1.0 / (_patristic_matrix(tree, names) + eps)
-    np.fill_diagonal(W, 0.0)
-    rs = W.sum(axis=1, keepdims=True)
-    rs[rs == 0] = 1.0
-    W = W / rs                                   # row-standardized -> S0 = n
+    W = morans_weights(tree, names, eps)
 
     I_obs = float((xc @ (W @ xc)) / den)
     if rng is None:
@@ -397,71 +473,60 @@ def morans_I_test(tree, leaf_values: Dict[str, Optional[float]],
                 "morans_z": round(z, 3) if np.isfinite(z) else np.nan})
 
     # --- Achievable-max ceiling + normalized effect size ---
-    # Moran's I is bounded by the tree's weight matrix, NOT by 1. Report I as a
-    # fraction of the max achievable for THIS value multiset on THIS tree:
     #   lambda_max  = eigenvalue ceiling (exact upper bound over centered vectors)
-    #   max_perm    = data-specific achievable max (sort-and-match on the top
-    #                 eigenvector + capped vectorized 2-opt)
-    #   I_norm      = (I_obs - E[I]) / (max_perm - E[I]),  E[I] = -1/(n-1)
+    #   max_perm / I_norm: see ``morans_I_norm``
     try:
-        nn = len(xc)
-        M = 0.5 * (W + W.T)                                  # symmetric quadratic form
-        Pc = np.eye(nn) - np.ones((nn, nn)) / nn             # centering projector
-        Mc = Pc @ M @ Pc
-        evals, evecs = np.linalg.eigh(Mc)
-        lam_max = float(evals[-1])
-
-        def _two_opt(seed, maximize):
-            """Capped steepest-ascent/-descent 2-opt on the quadratic form
-            arr @ M @ arr; returns the optimized Moran's-I value."""
-            arr = np.array(seed, dtype=float)
-            for _ in range(60):
-                f = M @ arr
-                DZ = arr[None, :] - arr[:, None]
-                DF = f[:, None] - f[None, :]
-                dN = 2.0 * DZ * DF - 2.0 * (DZ ** 2) * M    # delta of form on swap (a,b)
-                if maximize:
-                    np.fill_diagonal(dN, -np.inf)
-                    a, b = np.unravel_index(int(np.argmax(dN)), dN.shape)
-                    if dN[a, b] <= 1e-12:
-                        break
-                else:
-                    np.fill_diagonal(dN, np.inf)
-                    a, b = np.unravel_index(int(np.argmin(dN)), dN.shape)
-                    if dN[a, b] >= -1e-12:
-                        break
-                arr[a], arr[b] = arr[b], arr[a]
-            return float(arr @ (M @ arr)) / den
-
-        # Seed the search from BOTH the spectral guess (top/bottom eigenvector)
-        # AND the actual data arrangement. Ascending from the data is guaranteed
-        # to reach I >= I_obs (and descending <= I_obs), so the data-seeded run
-        # alone makes max_perm >= I_obs >= min_perm by construction -- no clamp,
-        # no |I_norm|>1 on tiny/degenerate pairs (few clusters: MSAT/CCMpred).
-        seed_top = np.empty(nn); seed_top[np.argsort(evecs[:, -1])] = np.sort(xc)
-        seed_bot = np.empty(nn); seed_bot[np.argsort(evecs[:, 0])]  = np.sort(xc)
-        max_perm_I = max(_two_opt(seed_top, True),  _two_opt(xc, True))
-        min_perm_I = min(_two_opt(seed_bot, False), _two_opt(xc, False))
-
-        # Normalize by the achievable range on the side I_obs falls -- positive
-        # signal against the reachable max, negative against the reachable min --
-        # so I_norm is a true fraction of achievable clade signal in [-1, 1].
-        Emean = -1.0 / (nn - 1)
-        if I_obs >= Emean:
-            denom = max_perm_I - Emean
-        else:
-            denom = Emean - min_perm_I
-        I_norm = (I_obs - Emean) / denom if denom > 1e-9 else float("nan")
-        if np.isfinite(I_norm):
-            I_norm = float(np.clip(I_norm, -1.0, 1.0))   # belt-and-suspenders
+        M, evals, evecs = morans_spectral(W)
+        max_perm_I, I_norm = morans_I_norm(xc, den, I_obs, M, evecs)
         res.update({
-            "morans_lambda_max": round(lam_max, 4),
+            "morans_lambda_max": round(float(evals[-1]), 4),
             "morans_max_perm": round(max_perm_I, 4),
             "morans_I_norm": round(float(I_norm), 4) if np.isfinite(I_norm) else np.nan,
         })
     except Exception:
         pass
     return res
+
+
+def morans_analytic_z(W: np.ndarray, xc: np.ndarray, I_obs: float) -> float:
+    """Permutation-free z of Moran's I: (I - E[I]) / sd[I] with the EXACT
+    mean and variance of I under random permutation of the values over the
+    leaves (Cliff & Ord 1981 "randomization" moments; valid for asymmetric W).
+    It estimates the same quantity as ``morans_I_test``'s ``morans_z`` (which
+    uses the mean / SD of a finite permutation sample) without permuting.
+    Requires n >= 4; returns NaN otherwise."""
+    n = float(len(xc))
+    if n < 4:
+        return float("nan")
+    S0 = float(W.sum())
+    Ws = W + W.T
+    S1 = 0.5 * float((Ws ** 2).sum())
+    S2 = float(((W.sum(axis=1) + W.sum(axis=0)) ** 2).sum())
+    m2 = float((xc ** 2).sum())
+    b2 = n * float((xc ** 4).sum()) / (m2 * m2)
+    EI = -1.0 / (n - 1.0)
+    EI2 = ((n * ((n * n - 3 * n + 3) * S1 - n * S2 + 3 * S0 * S0)
+            - b2 * ((n * n - n) * S1 - 2 * n * S2 + 6 * S0 * S0))
+           / ((n - 1) * (n - 2) * (n - 3) * S0 * S0))
+    var = EI2 - EI * EI
+    return float((I_obs - EI) / np.sqrt(var)) if var > 1e-15 else float("nan")
+
+
+def morans_fast_stats(W: np.ndarray, M: np.ndarray, evecs: np.ndarray,
+                      x: np.ndarray, eps: float = 1e-9,
+                      with_norm: bool = True) -> Tuple[float, float, float]:
+    """(I, I_norm, z_analytic) for values ``x`` (all finite, aligned to W's
+    leaf order) with the tree quantities precomputed by ``morans_weights`` /
+    ``morans_spectral``. I and I_norm are numerically identical to
+    ``morans_I_test`` (before its 4-decimal rounding); z is the analytic
+    randomization z (``morans_analytic_z``). Zero variance -> all NaN."""
+    xc = np.asarray(x, dtype=float) - float(np.mean(x))
+    den = float(xc @ xc)
+    if len(xc) < 3 or den < eps:
+        return float("nan"), float("nan"), float("nan")
+    I_obs = float((xc @ (W @ xc)) / den)
+    I_norm = morans_I_norm(xc, den, I_obs, M, evecs)[1] if with_norm else float("nan")
+    return I_obs, I_norm, morans_analytic_z(W, xc, I_obs)
 
 
 
@@ -638,6 +703,23 @@ def _scan_with_null(M, ranks, avail, ties, min_clade, n_perm, rng):
         n_ge += int((T_perm >= T_obs - 1e-9).sum())     # NaN compares False
         done += b
     return zc_obs, cnt_obs, T_obs, (1 + n_ge) / (1 + n_perm)
+
+
+def clade_T_stat(M: np.ndarray, x: np.ndarray, min_clade: int = 2) -> float:
+    """Observed clade-shift statistic T = max |z| over the splits of ``M``
+    (as ``run_clade_shift``'s ``clade_T`` for leaves with no missing values),
+    with no permutation null. ``x`` is aligned to M's columns. NaN when the
+    trait is constant or no split is valid."""
+    x = np.asarray(x, dtype=float)
+    n = len(x)
+    if M.shape[0] == 0 or n < 2 * min_clade:
+        return float("nan")
+    r, tt = average_ranks(x)
+    if tt >= n ** 3 - n - 1e-9:
+        return float("nan")
+    zc, _ = _scan_core(M, r[None, :], np.ones((1, n), bool), np.array([tt]),
+                       min_clade, None)
+    return float(_max_abs(zc)[0])
 
 
 def _members_str(M_row: np.ndarray, leaf_names: Sequence[str],
