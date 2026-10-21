@@ -20,8 +20,8 @@
 </head>
 <body>
 <h1>Global Analysis — Fold-Switch Evolution</h1>
-<p class="intro">Cross-pair summary of the 8-method fold-switch analysis
-(AF2, AF3, ESMFold2, Boltz-2, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
+<p class="intro">Cross-pair summary of the 9-method fold-switch analysis
+(AF2, AF3, ESMFold2, Boltz-2, BioEmu, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
 fold-switching pair set. Each figure is described above it.</p>
 <section class="fig">
   <h2>Per-pair cluster distribution in the fold-1/fold-2 plane</h2>
@@ -45,7 +45,7 @@ fold-switching pair set. Each figure is described above it.</p>
 </section>
 <section class="fig">
   <h2>Phylogenetic clade signal — method × pair</h2>
-  <p class="caption">Sequence-divergence-corrected clade signal (Moran&#x27;s I_norm) for every method (columns) and fold-switch pair (rows). Red = clusters that prefer the same fold are phylogenetically grouped (clade-structured); blue = anti-structured; white ≈ none. Rows are sorted by the median signal across methods (robust to the sparse, noisy contact-based methods), so the most clade-structured pairs sit at the top. Signal is weak overall — few cells exceed I_norm ≈ 0.2.</p>
+  <p class="caption">Sequence-divergence-corrected clade signal (Moran&#x27;s I) for every method (columns) and fold-switch pair (rows). Red = clusters that prefer the same fold are phylogenetically grouped (clade-structured); blue = anti-structured (dispersed); white ≈ none. Rows are sorted by the median signal across methods (robust to the sparse, noisy contact-based methods), so the most clade-structured pairs sit at the top. Pairs with fewer than 10 clusters are excluded (Moran&#x27;s I is degenerate there). Signal is weak overall — few pairs exceed I ≈ 0.15.</p>
   <img loading="lazy" src="figures/global/global_morans_method_x_pair.png" alt="Phylogenetic clade signal — method × pair"/>
 </section>
 <section class="fig">
@@ -55,7 +55,7 @@ fold-switching pair set. Each figure is described above it.</p>
 </section>
 <section class="fig">
   <h2>Clade-signal effect size, per method</h2>
-  <p class="caption">Distribution across pairs of the clade-signal effect size (Moran&#x27;s I_norm) for each method. Boxes near zero indicate little systematic clade structure; ΔΔG shows the widest positive tail. Because n ≈ 100 clusters makes the permutation test overpowered, we rank methods by effect size here rather than by significance counts.</p>
+  <p class="caption">Distribution across pairs of the clade signal (Moran&#x27;s I) for each method. Boxes near zero indicate little systematic clade structure; ΔΔG shows the widest positive tail. Because n ≈ 100 clusters makes the permutation test overpowered, we rank methods by raw Moran&#x27;s I here rather than by significance counts.</p>
   <img loading="lazy" src="figures/global/global_morans_effectsize_by_method.png" alt="Clade-signal effect size, per method"/>
 </section>
 <section class="fig">

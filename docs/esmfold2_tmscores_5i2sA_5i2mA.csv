@@ -1,7 +1,7 @@
 mode,version,cluster,chain,TM_F1,TM_F2,TMdiff,pred_pdb,error,TMdiff_centered
-ESMFold2_newmethod,ESMFold2,ShallowMsa_000,5i2sA,0.48220339379831023,0.3270133516077788,0.15519004219053145,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_000.pdb,,0.10224495301247113
-ESMFold2_newmethod,ESMFold2,ShallowMsa_001,5i2sA,0.2841989260370462,0.22710587820954664,0.05709304782749958,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_001.pdb,,0.0041479586494392595
-ESMFold2_newmethod,ESMFold2,ShallowMsa_002,5i2sA,0.27106882896519385,0.2222716984365728,0.04879713052862106,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_002.pdb,,-0.0041479586494392595
-ESMFold2_newmethod,ESMFold2,ShallowMsa_003,5i2sA,0.2937577795015424,0.21042194280328705,0.08333583669825537,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_003.pdb,,0.03039074752019505
-ESMFold2_newmethod,ESMFold2,ShallowMsa_004,5i2sA,0.27956448809668716,0.2641929252504186,0.01537156284626856,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_004.pdb,,-0.03757352633179176
-ESMFold2_newmethod,ESMFold2,ShallowMsa_005,5i2sA,0.34131872939104546,0.299711030034042,0.04160769935700348,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_005.pdb,,-0.011337389821056837
+ESMFold2_newmethod,ESMFold2,ShallowMsa_000,5i2sA,0.46962,0.32065,0.14897,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_000.pdb,,0.09831499999999999
+ESMFold2_newmethod,ESMFold2,ShallowMsa_001,5i2sA,0.28074,0.22588,0.05485999999999999,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_001.pdb,,0.0042049999999999865
+ESMFold2_newmethod,ESMFold2,ShallowMsa_002,5i2sA,0.26494,0.21849,0.04645000000000002,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_002.pdb,,-0.0042049999999999865
+ESMFold2_newmethod,ESMFold2,ShallowMsa_003,5i2sA,0.28908,0.20858,0.08050000000000002,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_003.pdb,,0.02984500000000001
+ESMFold2_newmethod,ESMFold2,ShallowMsa_004,5i2sA,0.2336,0.22222,0.011380000000000001,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_004.pdb,,-0.039275000000000004
+ESMFold2_newmethod,ESMFold2,ShallowMsa_005,5i2sA,0.21344,0.188,0.02543999999999999,Pipeline/FoldPairs/5i2sA_5i2mA/output_esmfold2/ShallowMsa_005.pdb,,-0.025215000000000015
