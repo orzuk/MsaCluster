@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fold-switching evolution: per-cluster results</title>
+<style>
+  :root { --bg:#161616; --fg:#e0e0e0; --muted:#9a9a9a; --accent:#5aa9e6; --card:#1f1f1f; --line:#333; }
+  html { background: var(--bg); }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         line-height: 1.55; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 32px 0 10px; border-bottom: 1px solid var(--line);
+       padding-bottom: 6px; }
+  p.sub { color: var(--muted); margin: 0 0 24px; }
+  a { color: var(--accent); }
+  ul { padding-left: 20px; }
+  li { margin: 10px 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+          padding: 14px 18px; margin: 14px 0; }
+  .card a { font-weight: 600; }
+  .card .what { color: var(--muted); display: block; margin-top: 4px; font-size: .93rem; }
+  table { border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid var(--line); padding: 5px 12px; text-align: left; font-size: .93rem; }
+  th { background: #262626; }
+  code { background: #262626; padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+  .note { color: var(--muted); font-size: .9rem; }
+  footer { margin-top: 40px; color: var(--muted); font-size: .85rem;
+           border-top: 1px solid var(--line); padding-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Clade-level fold preference in fold-switching proteins</h1>
+<p class="sub">Per-cluster predictions and statistics for 93 fold-switching pairs.
+Companion site to Abecassis &amp; Zuk.</p>
+
+<p>Each fold-switching pair has a deep multiple sequence alignment partitioned into
+20 to 100 tree-guided clusters. Every cluster is scored by seven methods for its
+preference between the pair's two experimental folds, and the per-cluster values
+feed the concordance, phylogenetic and clade-shift tests.</p>
+
+<h2>Results</h2>
+
+<div class="card">
+  <a href="protein_comparison_table.html">Per-pair comparison table</a>
+  <span class="what">One row per pair: dataset properties, per-method scores, and the
+  aggregate cross-method concordance and Moran's <i>I</i> statistics. Sortable; each
+  pair links to its own page.</span>
+</div>
+
+<div class="card">
+  <a href="pairs_global_analysis.html">Cross-pair global analysis</a>
+  <span class="what">Figures summarising the whole dataset: the effect of the
+  sequence-divergence correction, cross-method agreement, phylogenetic grouping
+  signal by method, and the trigger-class stratification.</span>
+</div>
+
+<div class="card">
+  <a href="protein_clusters_table.html">Per-cluster detail table</a>
+  <span class="what">Every cluster of every pair with its per-method scores.
+  Large page (about 6 MB); it loads slowly on a phone.</span>
+</div>
+
+<h2>Methods scored per cluster</h2>
+<p>AlphaFold2, AlphaFold3, ESMFold2, Boltz-2, BioEmu, ThermoMPNN-&Delta;&Delta;G and
+S4PRED. Two contact predictors, MSA-Transformer and CCMpred, are reported for
+reference and enter no analysis: a single cluster's alignment is too shallow for
+direct-coupling analysis, and CCMpred returns exactly zero on 71% of clusters.</p>
+
+<h2>Headline numbers</h2>
+<table>
+  <tr><th>Cross-method concordance, after correction</th><td>34 of 92 pairs pass BH FDR 0.05</td></tr>
+  <tr><th>Clusters that are monophyletic on the sequence tree</th><td>12.3% of 6,715</td></tr>
+  <tr><th>Fold preference more clade-structured than the family's own random sequence traits</th><td>7 of 82 families</td></tr>
+</table>
+<p class="note">The paper reports 33 of 87 families, because it de-duplicates pairs
+that belong to the same family and requires at least three clusters. The tables here
+are per pair.</p>
+
+<h2>How to read the tables</h2>
+<ul>
+  <li><b>Clusters are not clades.</b> They are groups of related sequences cut from a
+  sequence tree, and only 12% are monophyletic, so a cluster can pool sequences from
+  several parts of the tree.</li>
+  <li><b>A significant Moran's <i>I</i> is not by itself fold-specific.</b> Generic
+  sequence traits of the same clusters (gap fraction, identity to the query, net
+  charge, hydrophobicity) are phylogenetically autocorrelated as often or more often.</li>
+  <li><b>Concordance measures reproducibility across methods</b>, not independent
+  biological confirmation: five of the seven methods take the same cluster medoid as
+  input.</li>
+</ul>
+
+<h2>Code and data</h2>
+<p>Pipeline, analysis scripts and the result tables:
+<a href="https://github.com/orzuk/MsaCluster">github.com/orzuk/MsaCluster</a>.
+An archived snapshot will be deposited at Zenodo upon publication.</p>
+
+<footer>
+Generated from the seven-method analysis. Source tables live in <code>docs/</code>
+of the repository.
+</footer>
+
+</div>
+</body>
+</html>

@@ -9,6 +9,9 @@ from config import (CONCORD_CORRECTED_PERM_BH_CSV, CONCORD_RAW_PERM_BH_CSV,
                     TABLES_RES)
 from utils.method_labels import METHOD_ORDER, disp, order_methods, metric_label
 
+# The seven methods of the analysis; MSA-Transformer and CCMpred are
+# reported for reference only (no per-cluster signal at this resolution).
+ANALYSED_METHODS = ["AF2", "AF3", "ESM", "Boltz2", "BioEmu", "DDG", "S4PRED"]
 SURVEY_CSV = os.path.join(TABLES_RES, "fold_diversity_survey.csv")
 
 # Git-TRACKED output dir for the global figures (TABLES_RES is docs/). Writing
@@ -69,12 +72,14 @@ GLOBAL_FIGURE_SPEC = [
         "caption":
             "Per pair, significance before (x) vs after (y) correcting for "
             "cluster-to-query sequence divergence. Relative to the p=0.05 lines: "
-            "top-right = significant both ways (PRESERVE — a true signal survives, "
-            "e.g. XCL1), bottom-right = significant only before (FILTER — a "
-            "divergence-driven false positive removed, e.g. SOD1), top-left = "
-            "significant only after (REVEAL — a real signal unmasked by the "
-            "correction, e.g. RelB). These three canonical cases anchor the "
-            "correction's behaviour.",
+            "top-right = significant both ways (PRESERVE, 29 pairs, e.g. XCL1 and "
+            "SOD1), bottom-right = significant only before (FILTER, 7 pairs, e.g. "
+            "RfaH, whose deep MSA is dominated by the NusG-superfamily fold), "
+            "top-left = significant only after (REVEAL, 5 pairs, e.g. the TRAP1 "
+            "N-terminal domain). The correction regresses out each method's linear "
+            "dependence on identity to the query, an association that may partly "
+            "reflect training proximity but also tracks real evolutionary "
+            "divergence, so both readings are reported.",
     },
     {
         "file": "figures/global/global_trigger_stratification.png",
@@ -83,28 +88,29 @@ GLOBAL_FIGURE_SPEC = [
             "Corrected concordance distribution within each biological trigger "
             "class (ligand / oligomerization / protein-binding / equilibrium / "
             "mutation), the basis for the stratified (within-class) BH test. "
-            "Validated positives are starred in their classes — XCL1 in mutation, "
-            "RelB in protein-binding, SOD1 in oligomerization — showing how "
-            "stratifying by trigger recovers hits that the full-pool test misses.",
+            "Validated positives are starred in their classes: XCL1 in mutation, "
+            "RelB in protein-binding and SOD1 in oligomerization. All three also "
+            "pass the full-pool test, so the stratification shows where each class "
+            "sits rather than recovering hits the pooled test misses.",
     },
     {
         "file": "figures/global/global_morans_method_x_pair.png",
-        "title": "Phylogenetic clade signal — method × pair",
+        "title": "Phylogenetic grouping signal — method × pair",
         "caption":
-            "Sequence-divergence-corrected clade signal (Moran's I) for every "
+            "Sequence-divergence-corrected grouping signal (Moran's I) for every "
             "method (columns) and fold-switch pair (rows). Red = clusters that "
-            "prefer the same fold are phylogenetically grouped (clade-structured); "
+            "prefer the same fold sit near each other on the tree; "
             "blue = anti-structured (dispersed); white ≈ none. Rows are sorted by "
             "the median signal across methods (robust to the sparse, noisy "
-            "contact-based methods), so the most clade-structured pairs sit at the "
+            "contact-based methods), so the most strongly grouped pairs sit at the "
             "top. Pairs with fewer than 10 clusters are excluded (Moran's I is "
             "degenerate there). Signal is weak overall — few pairs exceed I ≈ 0.15.",
     },
     {
         "file": "figures/global/global_method_correlation.png",
-        "title": "Method × method agreement on clade signal",
+        "title": "Method × method agreement on grouping signal",
         "caption":
-            "Spearman correlation between methods of their per-pair clade signal. "
+            "Spearman correlation between methods of their per-pair grouping signal. "
             "High values mean two methods light up on the same pairs. Only the "
             "structure predictors (AF2/AF3/Boltz-2/ESMFold2) correlate "
             "appreciably; ΔΔG, MSA-Transformer, CCMpred and S4PRED are largely "
@@ -114,8 +120,8 @@ GLOBAL_FIGURE_SPEC = [
         "file": "figures/global/global_morans_effectsize_by_method.png",
         "title": "Clade-signal effect size, per method",
         "caption":
-            "Distribution across pairs of the clade signal (Moran's I) for each "
-            "method. Boxes near zero indicate little systematic clade structure; "
+            "Distribution across pairs of the grouping signal (Moran's I) for each "
+            "method. Boxes near zero indicate little systematic grouping; "
             "ΔΔG shows the widest positive tail. Because n ≈ 100 clusters makes the "
             "permutation test overpowered, we rank methods by raw Moran's I here "
             "rather than by significance counts.",
@@ -126,7 +132,7 @@ GLOBAL_FIGURE_SPEC = [
         "caption":
             "Spearman correlation of the raw per-cluster fold preference "
             "(centered TM difference), pooled across all clusters and pairs — a "
-            "signal-level companion to the clade-signal correlation above. AF2 and "
+            "signal-level companion to the grouping-signal correlation above. AF2 and "
             "AF3 share training bias (highest correlation); every other method pair "
             "is near zero, confirming the methods supply largely independent "
             "evidence (most orthogonal: S4PRED).",
@@ -166,7 +172,8 @@ def plot_per_fold_support_panel(output_dir: str, agg: str = "max",
         print(f"[global] survey lacks {x_col}/{y_col}; skipping per-fold panel.")
         return
 
-    methods = order_methods(df["method"].unique())
+    methods = order_methods([m for m in df["method"].unique()
+                             if m in ANALYSED_METHODS])
     ncol = 4
     nrow = int(np.ceil(len(methods) / ncol))
     fig, axes = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 4.2 * nrow),
@@ -270,6 +277,15 @@ def _load_phylo(labels: str = "corrected", min_clusters: int = 10):
         print(f"[global] no {fn}; skipping Moran's plots.")
         return None, None
     d = pd.read_csv(path)
+    # Keep only the analysed panel. The contact predictors are scored for
+    # reference but enter no analysis, and showing them beside the seven
+    # implies a parity the paper does not claim.
+    if "method" in d.columns:
+        n_all = len(d)
+        d = d[d["method"].isin(ANALYSED_METHODS)].copy()
+        if len(d) < n_all:
+            print(f"[global] dropped {n_all - len(d)} contact-predictor rows "
+                  f"(MSA-Transformer / CCMpred are not part of the analysis).")
     # Drop degenerate few-cluster pairs (see docstring).
     if "morans_n" in d.columns:
         n0 = len(d)
@@ -345,7 +361,7 @@ def plot_method_correlation_heatmap(output_dir: str, labels: str = "corrected") 
             if pd.notna(v):
                 ax.text(j, i, f"{v:.2f}", ha="center", va="center", fontsize=6,
                         color="black" if abs(v) < 0.6 else "white")
-    ax.set_title(f"Method x method correlation of clade signal\n(Spearman of {metric}, {labels})",
+    ax.set_title(f"Method x method correlation of grouping signal\n(Spearman of {metric}, {labels})",
                  fontsize=10)
     fig.colorbar(im, ax=ax, shrink=0.7, label="Spearman ρ")
     fig.tight_layout()
@@ -430,8 +446,8 @@ def plot_raw_vs_corrected(output_dir: str) -> None:
     Per pair: -log10 p before (x) vs after (y) the correction. Quadrants vs the
     p=0.05 lines: top-right = significant both (PRESERVE), bottom-right =
     significant only raw (FILTER, false positive removed), top-left = significant
-    only corrected (REVEAL, false negative unmasked). XCL1/SOD1/RelB are the
-    canonical preserve/filter/reveal cases.
+    only corrected (REVEAL). XCL1, RfaH and TRAP1 are labelled as the
+    preserve/filter/reveal cases.
     """
     fr = CONCORD_RAW_PERM_BH_CSV
     fc = CONCORD_CORRECTED_PERM_BH_CSV
@@ -454,8 +470,8 @@ def plot_raw_vs_corrected(output_dir: str) -> None:
     ax.axhline(thr, color="gray", lw=0.8, ls="--")
     ax.text(thr, lim, " p=0.05 raw", rotation=90, va="top", fontsize=7, color="gray")
     ax.text(lim, thr, "p=0.05 corrected ", ha="right", va="bottom", fontsize=7, color="gray")
-    roles = {"2n54B_2hdmA": "XCL1 (preserve)", "2namA_1uxmK": "SOD1 (filter)",
-             "1zk9A_3jv6A": "RelB (reveal)"}
+    roles = {"2n54B_2hdmA": "XCL1 (preserve)", "6c6sD_2ougC": "RfaH (filter)",
+             "5f5rB_5f3kA": "TRAP1 (reveal)"}
     for pid, lab in roles.items():
         r = m[m["pair_id"] == pid]
         if not len(r):
@@ -577,9 +593,13 @@ def write_global_html(output_html: str = os.path.join("docs", "pairs_global_anal
 </head>
 <body>
 <h1>{_html.escape(title)}</h1>
-<p class="intro">Cross-pair summary of the 9-method fold-switch analysis
-(AF2, AF3, ESMFold2, Boltz-2, BioEmu, ΔΔG, MSA-Transformer, CCMpred, S4PRED) over the
-fold-switching pair set. Each figure is described above it.</p>
+<p class="intro">Cross-pair summary of the seven-method fold-switch analysis
+(AF2, AF3, ESMFold2, Boltz-2, BioEmu, ΔΔG, S4PRED) over the fold-switching pair
+set. Each figure is described above it. The two contact predictors,
+MSA-Transformer and CCMpred, are reported in the Supporting Information and
+enter no analysis: a per-cluster alignment is too shallow for direct-coupling
+analysis, and CCMpred returns exactly zero on 71% of clusters. Clusters are
+tree-guided groups of sequences, not clades; only 12% are monophyletic.</p>
 {body}
 </body>
 </html>"""

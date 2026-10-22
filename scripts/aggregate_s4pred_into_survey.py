@@ -243,7 +243,8 @@ def aggregate_pair(pair_id: str, fpairs_root: str) -> list[dict]:
             row["pair_median_used"] = median
             row["pref_centered"] = ("F1" if tc > DELTA
                                      else ("F2" if tc < -DELTA else "Amb"))
-            row["pref"] = ("F1" if d > 0 else ("F2" if d < 0 else "Amb"))
+            # raw call uses the same threshold as the centred call and the survey
+            row["pref"] = ("F1" if d > DELTA else ("F2" if d < -DELTA else "Amb"))
         else:
             row["TMdiff_centered"] = float("nan")
             row["pair_median_used"] = median

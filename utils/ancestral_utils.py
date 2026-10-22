@@ -26,6 +26,7 @@ from ete3 import Tree, TreeStyle, NodeStyle, TextFace
 from config import DATA_DIR
 from utils.phytree_utils import convert_biopython_to_ete3, prune_tree_to_leaves
 from utils.plot_contacts import seqs_ids_to_cluster_ids
+from utils.cluster_reps import choose_cluster_reps, DEFAULT_REP_STRATEGY
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +78,14 @@ def _cluster_short_label(tag):
     return f"S{int(m.group(1)):02d}" if m else tag
 
 
-def build_coarse_tree(pair_id: str) -> tuple:
+def build_coarse_tree(pair_id: str, rep_strategy: str = DEFAULT_REP_STRATEGY,
+                      return_rep_info: bool = False) -> tuple:
     """Load raw tree, prune to one leaf per cluster, rename leaves.
+
+    ``rep_strategy`` picks the leaf kept per cluster (see
+    ``utils.cluster_reps``): "largest_piece_medoid" (default; medoid of the
+    cluster's largest single-cluster clade on the sequence tree) or "first"
+    (old behaviour: first tree leaf of the cluster).
 
     Returns
     -------
@@ -88,6 +95,9 @@ def build_coarse_tree(pair_id: str) -> tuple:
         {"ShallowMsa_000": "S00", "DeepMsa": "D", ...}
     label_to_tag : dict
         Inverse of tag_to_label.
+    rep_info : dict, only if ``return_rep_info``
+        {tag: {"rep", "n_on_tree", "n_pieces", "rep_piece_size",
+        "rep_piece_frac"}} -- the chosen leaf and its piece diagnostics.
     """
     pair_dir = os.path.join(DATA_DIR, pair_id)
     tree_file = os.path.join(pair_dir, "output_phytree", "DeepMsa_tree.nwk")
@@ -104,7 +114,10 @@ def build_coarse_tree(pair_id: str) -> tuple:
 
     # Group and pick one representative per cluster
     cluster_to_leaves = _group_leaves_by_cluster(ete_tree, leaf_cluster_map)
-    reps = {tag: leaves[0] for tag, leaves in cluster_to_leaves.items() if leaves}
+    reps, rep_info = choose_cluster_reps(ete_tree, cluster_to_leaves,
+                                         strategy=rep_strategy)
+    for tag, rep in reps.items():
+        rep_info[tag]["rep"] = rep
 
     # Prune
     prune_tree_to_leaves(ete_tree, list(reps.values()))
@@ -126,6 +139,8 @@ def build_coarse_tree(pair_id: str) -> tuple:
             leaf.name = tag_to_label[tag]
 
     label_to_tag = {v: k for k, v in tag_to_label.items()}
+    if return_rep_info:
+        return ete_tree, tag_to_label, label_to_tag, rep_info
     return ete_tree, tag_to_label, label_to_tag
 
 
@@ -346,7 +361,9 @@ def _fitch_bottom_up(tree):
 
 # Tie-break order for Fitch top-down. Covers both the 3-state (F1/F2/Amb) and
 # 4-state (F1/F2/both/none) characters; states absent from the data are ignored.
-_FITCH_PREF = ["both", "F1", "F2", "Amb", "none"]
+# Single source of truth shared with utils/ancestral_tests.py (fast Fitch).
+from utils.ancestral_tests import FITCH_PREF as _FITCH_PREF_T  # noqa: E402
+_FITCH_PREF = list(_FITCH_PREF_T)
 
 
 def _fitch_top_down(tree):

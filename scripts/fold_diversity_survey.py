@@ -29,6 +29,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import DATA_DIR, PAIR_DIR_RE, TABLES_RES
+from utils.contact_utils import filter_fresh_cmap_rows
 
 try:
     from utils.trigger_utils import bound_fold, condition_spec
@@ -678,6 +679,9 @@ def load_msat_diversity(pair_id, delta, msat_metric="t_recall"):
         df = pd.read_csv(csv_path)
     except (pd.errors.EmptyDataError, pd.errors.ParserError):
         return []
+    # Provenance: keep only rows computed from the CURRENT cluster A3Ms
+    # (legacy CSVs / outputs from an older clustering carry wrong labels).
+    df = filter_fresh_cmap_rows(df, os.path.join(DATA_DIR, pair_id), "msa_transformer")
     if df.empty:
         return []
 
@@ -770,6 +774,7 @@ def load_ccmpred_diversity(pair_id, delta, msat_metric="t_recall"):
         df = pd.read_csv(csv_path)
     except (pd.errors.EmptyDataError, pd.errors.ParserError):
         return []
+    df = filter_fresh_cmap_rows(df, os.path.join(DATA_DIR, pair_id), "ccmpred")
     if df.empty:
         return []
 

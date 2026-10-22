@@ -67,6 +67,19 @@ from utils.plot_contacts import (                                 # noqa: F401
 # Tree / CSV helper functions (used only inside this file)
 # ═══════════════════════════════════════════════════════════════════════
 
+def _tree_fig_style():
+    """Figure size and tick font for the tree+heatmap panels.
+
+    The defaults suit a full-page standalone PNG. A composite figure shrinks a
+    panel several-fold, which makes 9 pt ticks unreadable in print, so the
+    paper panels are rendered smaller with proportionally larger text through
+    PLOT_TREE_W / PLOT_TREE_H / PLOT_TREE_FS.
+    """
+    w = float(os.environ.get("PLOT_TREE_W", 22))
+    h = float(os.environ.get("PLOT_TREE_H", 12))
+    fs = float(os.environ.get("PLOT_TREE_FS", 9))
+    return (w, h), fs
+
 def _publish_figs_to_docs(foldpair_id: str, fig_dir_root: str) -> None:
     """Copy all figures from output_figs/ to docs/HTML/figs/<pair_id>/ for GitHub Pages."""
     docs_dir = os.path.join("docs", PER_PAIR_PUBLISH_SUBDIR, foldpair_id)
@@ -289,7 +302,14 @@ def _build_unified_method_preference(foldpair_id: str, cluster_index: list[str])
     absolute = sub.pivot_table(index="_tag", columns="method",
                                values="TMdiff_max", aggfunc="first")
 
-    keep_cols = [m for m in _UNIFIED_METHOD_ORDER if m in centered.columns]
+    # PLOT_TREE_METHODS restricts the heatmap to the analysed panel. The two
+    # contact predictors are scored for reference and enter no analysis, so the
+    # paper's figures show the seven methods only; the standalone per-pair
+    # pages keep all of them.
+    _only = os.environ.get("PLOT_TREE_METHODS", "").strip()
+    _order = ([m.strip() for m in _only.split(",") if m.strip()]
+              if _only else _UNIFIED_METHOD_ORDER)
+    keep_cols = [m for m in _order if m in centered.columns]
     centered = centered[keep_cols] if keep_cols else centered
     absolute = absolute.reindex(columns=centered.columns)
 
@@ -633,8 +653,10 @@ def make_foldswitch_all_plots(
             col_groups=col_groups,
             group_titles=group_titles,
             output_file=out_root,
-            base_figsize=(22, 12),
-            x_tick_rotation=90, x_tick_fontsize=9, y_tick_fontsize=9,
+            base_figsize=_tree_fig_style()[0],
+            x_tick_rotation=90,
+            x_tick_fontsize=_tree_fig_style()[1],
+            y_tick_fontsize=_tree_fig_style()[1],
             nan_rgba=(0.92, 0.92, 0.92, 1.0),
             ylabels_override=ylabels_override,
             leaf_colors=leaf_colors_dict,
@@ -674,8 +696,10 @@ def make_foldswitch_all_plots(
                 compose_tree_and_heatmap(
                     ete_tree=ete_tree, df_leaf=_df_rand, col_groups=col_groups,
                     group_titles=[g + "  [ROWS SHUFFLED = phylo null]" for g in group_titles],
-                    output_file=_out_rand, base_figsize=(22, 12),
-                    x_tick_rotation=90, x_tick_fontsize=9, y_tick_fontsize=9,
+                    output_file=_out_rand, base_figsize=_tree_fig_style()[0],
+                    x_tick_rotation=90,
+                    x_tick_fontsize=_tree_fig_style()[1],
+                    y_tick_fontsize=_tree_fig_style()[1],
                     nan_rgba=(0.92, 0.92, 0.92, 1.0), ylabels_override=_yl_rand,
                     leaf_colors=_lc_rand, fold_pref_per_row=None, unified_diverging=True,
                     extra_top_row=(deep_row if (deep_row is not None and not deep_row.empty) else None),

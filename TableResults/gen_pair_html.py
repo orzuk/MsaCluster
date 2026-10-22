@@ -20,7 +20,7 @@ Usage:
   python TableResults/gen_pair_html.py --pairs 2qqjA_4qdsA --mode inline
   python TableResults/gen_pair_html.py --pairs ALL --mode copy
 """
-import os, sys, html, base64, argparse, shutil, re
+import os, sys, html, base64, argparse, shutil, re, io
 from pathlib import Path
 
 # --- Import config from repo root ---
@@ -125,9 +125,36 @@ def _find_all(fig_dir: Path, patterns: list[str]) -> list[Path]:
     return seen
 
 
+def _shrink_png(data: bytes, max_colors: int = 128) -> bytes:
+    """Palette-quantise a PNG without changing its pixel dimensions.
+
+    The embedded figures are line art and heatmaps, so they use few distinct
+    colours and quantising to a 128-colour palette shrinks them about
+    threefold with no loss of resolution. Base64 then inflates whatever is
+    left by a third, so this is where the page size is won. Returns the
+    original bytes if anything goes wrong or if the result is not smaller.
+    """
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(data))
+        if im.format != "PNG":
+            return data
+        mode = im.mode
+        q = im.convert("RGBA" if mode in ("RGBA", "LA", "P") else "RGB")
+        q = q.quantize(colors=max_colors, method=Image.FASTOCTREE)
+        buf = io.BytesIO()
+        q.save(buf, "PNG", optimize=True)
+        out = buf.getvalue()
+        return out if len(out) < len(data) else data
+    except Exception:
+        return data
+
+
 def _data_uri_for_file(p: Path) -> str | None:
     try:
         data = p.read_bytes()
+        if p.suffix.lower() == ".png":
+            data = _shrink_png(data)
         b64 = base64.b64encode(data).decode("ascii")
         if p.suffix.lower() in (".jpg", ".jpeg"):
             mime = "image/jpeg"
@@ -396,10 +423,15 @@ def render_pair_html(pair_id: str, output_dir: Path, mode: str = "inline") -> Pa
     EXPL_TREE = (
         "The pair's MSA as a phylogenetic tree, one leaf per sequence cluster. "
         "Leaf rings show each cluster's predicted fold preference; the heatmap "
-        "gives all 9 methods (AF2/AF3/ESMFold2/Boltz-2/BioEmu/ΔΔG/S4PRED/"
-        "MSA-Transformer/CCMpred) × clusters; internal-node markers flag "
-        "parsimony-inferred gain/loss/swap of fold-switching. The core question: "
-        "do different clades predict different folds?")
+        "gives the seven analysed methods (AF2/AF3/ESMFold2/Boltz-2/BioEmu/ΔΔG/"
+        "S4PRED) × clusters, followed by the two contact predictors "
+        "(MSA-Transformer/CCMpred), which are shown for reference and enter no "
+        "analysis; internal-node markers flag parsimony-inferred gain/loss/swap "
+        "of fold state. Those markers come from four-state calls derived from "
+        "the structure predictions, not from observations. The core question: "
+        "do different groups of related sequences predict different folds? "
+        "Clusters are tree-guided groups, not clades: only 12% are "
+        "monophyletic across the dataset.")
     EXPL_BEST_CMAP = (
         "Predicted contact maps (MSA-Transformer) for the clusters best matching "
         "each fold, over the true contacts of fold 1 (upper triangle) and fold 2 "

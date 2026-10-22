@@ -13,6 +13,9 @@ if [[ $# -lt 2 ]]; then
 fi
 INP="$1"; OUT="$2"; shift 2
 mkdir -p "$OUT"
+# Absolute, because we cd into a scratch dir below (libdevice workaround).
+INP="$(readlink -f "$INP")"
+OUT="$(readlink -f "$OUT")"
 
 # CUDA env (kept from your runner)
 if [[ -n "${CUDA_DIR_OVERRIDE:-}" && -x "${CUDA_DIR_OVERRIDE}/bin/ptxas" ]]; then
@@ -34,6 +37,21 @@ import site; print([p for p in site.getsitepackages() if 'site-packages' in p][0
 PY
 )
 export LD_LIBRARY_PATH="$PYSP/nvidia/cudnn/lib:$PYSP/nvidia/cuda_nvrtc/lib:$PYSP/nvidia/cuda_runtime/lib:$PYSP/nvidia/cublas/lib:${CUDA_DIR}/lib64:${LD_LIBRARY_PATH:-}"
+
+# jaxlib 0.4.13 ignores --xla_gpu_cuda_data_dir for the libdevice lookup and
+# falls back to ./libdevice.10.bc, so AF2 only predicts when that file sits in
+# the working directory. Run from a scratch dir that provides it both ways.
+LIBDEVICE="${CUDA_DIR}/nvvm/libdevice/libdevice.10.bc"
+if [[ -r "$LIBDEVICE" ]]; then
+  XLA_RUNDIR="$(mktemp -d "${TMPDIR:-/tmp}/af2xla.XXXXXX")"
+  mkdir -p "$XLA_RUNDIR/nvvm/libdevice"
+  cp "$LIBDEVICE" "$XLA_RUNDIR/libdevice.10.bc"
+  cp "$LIBDEVICE" "$XLA_RUNDIR/nvvm/libdevice/"
+  trap 'rm -rf "$XLA_RUNDIR"' EXIT
+  cd "$XLA_RUNDIR"
+else
+  echo "[warn] libdevice not found at $LIBDEVICE; AF2 may fail to predict" >&2
+fi
 
 echo "[diag] nvidia-smi:"; nvidia-smi || true
 echo "[diag] which ptxas: $(command -v ptxas || echo not-found)"

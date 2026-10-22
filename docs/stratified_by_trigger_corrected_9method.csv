@@ -1,0 +1,6 @@
+trigger_class,n_pairs,n_BH_sig_at_alpha,hit_rate,hits,alpha
+equilibrium_or_unknown,15,2,0.133,"1mnmD_1mnmC,4zrbH_4zrbC",0.05
+ligand,28,2,0.071,"2lelA_2k0qA,5f5rB_5f3kA",0.05
+mutation,14,8,0.571,"1eboE_5fhcJ,2mwfA_2nntA,5jytA_2qkeE,2k42A_1ceeB,2n54B_2hdmA,2lepA_4hddA,3r9jC_2kxoA,1nrjB_2gedB",0.05
+oligomerization,18,2,0.111,"2kb8A_6vw2A,4o01D_4o0pA",0.05
+protein_binding,17,1,0.059,4dxrA_4dxtA,0.05

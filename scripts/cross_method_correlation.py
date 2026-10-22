@@ -11,9 +11,11 @@ Why this exists
 The per-pair tree-heatmaps (utils/protein_plot_utils.py) show each method's
 per-cluster signal. Cross-pair, we want to know: which methods systematically
 agree (likely shared bias) and which are independent (orthogonal evidence).
-AF2 and AF3 are expected to track tightly (shared training-data bias); MSAT
-and CCMpred should be more orthogonal; ESM stands alone (single-sequence
-transformer); DDG is energy-based and likely orthogonal to the rest.
+AF2 and AF3 are expected to track tightly (shared training-data bias); ESM
+stands alone (single-sequence transformer); DDG is energy-based and S4PRED
+predicts secondary structure, so both are likely orthogonal to the rest.
+The two contact predictors are excluded: they are reported for reference and
+enter no analysis.
 
 This figure quantifies those expectations across all 93 pairs.
 """
@@ -30,7 +32,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.method_labels import METHOD_ORDER, disp  # noqa: E402
+from utils.method_labels import ANALYSED_METHODS, disp  # noqa: E402
 
 DOCS = "docs"
 OUT = os.path.join(DOCS, "figs", "cross_method_correlation.png")
@@ -51,7 +53,8 @@ def pivot_wide(df: pd.DataFrame) -> pd.DataFrame:
         index=["pair_id", "cluster"], columns="method",
         values="TMdiff_centered", aggfunc="first",
     )
-    cols = [m for m in METHOD_ORDER if m in wide.columns]
+    # Analysed methods only: the contact predictors are reported, not analysed.
+    cols = [m for m in ANALYSED_METHODS if m in wide.columns]
     return wide[cols]
 
 

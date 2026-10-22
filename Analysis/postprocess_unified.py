@@ -192,6 +192,53 @@ def _best_max(df: Optional[pd.DataFrame], col: str) -> str:
     return f"{s.max():.2f}" if s.notna().any() else "-"
 
 
+_SURVEY_CACHE: Dict[str, pd.DataFrame] = {}
+
+def _load_survey() -> pd.DataFrame:
+    """docs/fold_diversity_survey.csv, read once per process.
+
+    Boltz-2, BioEmu and S4PRED have no per-pair df_*.csv broken out under
+    Pipeline/<pair>/Analysis, so the summary row reads their per-cluster
+    scores from the same aggregated survey the per-cluster table uses.
+    """
+    if "df" in _SURVEY_CACHE:
+        return _SURVEY_CACHE["df"]
+    csv = os.path.join(str(DOCS_DIR), "fold_diversity_survey.csv")
+    if not os.path.isfile(csv):
+        csv = os.path.join("docs", "fold_diversity_survey.csv")
+    try:
+        df = pd.read_csv(csv)
+    except Exception:
+        df = pd.DataFrame()
+    _SURVEY_CACHE["df"] = df
+    return df
+
+
+def _survey_best(pair_id: str, method: str, which_fold: int) -> str:
+    """Best per-cluster score of `method` against fold1/fold2 for `pair_id`,
+    over the shallow clusters, formatted "0.78 (7)" like the AF columns.
+
+    The score is TM-score for the structure predictors and secondary-structure
+    similarity for S4PRED (the survey's metric_used column names it).
+    """
+    survey = _load_survey()
+    if survey.empty or "method" not in survey.columns:
+        return "-"
+    sub = survey[(survey["pair_id"] == pair_id) & (survey["method"] == method)]
+    if sub.empty:
+        return "-"
+    tags = sub["cluster"].astype(str)
+    sub = sub[~tags.str.lower().str.startswith("deep")]
+    col = "TM1_max" if which_fold == 1 else "TM2_max"
+    s = pd.to_numeric(sub.get(col), errors="coerce")
+    if s is None or not s.notna().any():
+        return "-"
+    idx = s.idxmax()
+    m = re.search(r"(\d+)$", str(sub.loc[idx, "cluster"]))
+    cid = str(int(m.group(1))) if m else None
+    return f"{s.loc[idx]:.2f} ({cid})" if cid else f"{s.loc[idx]:.2f}"
+
+
 def _resolve_pairs(pairs: Optional[List[str]]) -> List[str]:
     """Resolve a pairs argument to a concrete list of pair IDs.
 
@@ -313,8 +360,16 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         row["ESM2_TM1"] = _pick_best_overall(tm_all, "esm2", 1)
         row["ESM2_TM2"] = _pick_best_overall(tm_all, "esm2", 2)
-        row["ESM3_TM1"] = _pick_best_overall(tm_all, "esm3", 1)
-        row["ESM3_TM2"] = _pick_best_overall(tm_all, "esm3", 2)
+
+        # Boltz-2, BioEmu and S4PRED: per-cluster scores come from the
+        # aggregated survey. Neither Boltz-2 nor BioEmu was run on the deep
+        # alignment, so they get cluster columns only.
+        row["Boltz2Clust_TM1"] = _survey_best(pair_id, "Boltz2", 1)
+        row["Boltz2Clust_TM2"] = _survey_best(pair_id, "Boltz2", 2)
+        row["BioEmuClust_TM1"] = _survey_best(pair_id, "BioEmu", 1)
+        row["BioEmuClust_TM2"] = _survey_best(pair_id, "BioEmu", 2)
+        row["S4PREDClust_SS1"] = _survey_best(pair_id, "S4PRED", 1)
+        row["S4PREDClust_SS2"] = _survey_best(pair_id, "S4PRED", 2)
 
         row["MSATrans_CMAP_PR1"] = _best_max(df_cmap, "t1_precision")
         row["MSATrans_CMAP_PR2"] = _best_max(df_cmap, "t2_precision")
@@ -367,24 +422,43 @@ def _cmap_csv_path(pair_id: str, method: str = "msa_transformer") -> str:
 
 def _read_or_compute_cmap(pair_id: str, force: bool = False,
                           cmap_method: str = "msa_transformer") -> pd.DataFrame:
+    """Cached per-pair df_cmap*.csv, or (re)score the contact predictions.
+
+    Re-scores when forced or when the cached CSV is LEGACY (no cluster_hash
+    provenance column): legacy CSVs were scored from outputs that may belong
+    to an older clustering. Scoring only uses outputs whose manifest matches
+    the current cluster A3Ms (see utils/contact_utils.py); CCMpred is scored
+    by top-L (contact_utils.DEFAULT_TOP_L_FACTOR).
+    """
     out_csv = _cmap_csv_path(pair_id, method=cmap_method)
     if cmap_method == "ccmpred":
         pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/ccmpred"
     else:
         pred_dir = f"{DATA_DIR}/{pair_id}/output_cmaps/msa_transformer"
 
-    # use cached CSV when present (unless forced)
+    # use cached CSV when present and provenance-tagged (unless forced)
     if (not force) and os.path.isfile(out_csv):
-        return pd.read_csv(out_csv)
+        try:
+            cached = pd.read_csv(out_csv)
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            cached = pd.DataFrame()
+        if cached.empty or "cluster_hash" in cached.columns:
+            return cached
+        print(f"[postprocess] {pair_id}: legacy {os.path.basename(out_csv)} "
+              f"(no provenance) -> re-scoring", flush=True)
 
-    # need predictions to compute metrics
+    # need predictions to compute metrics; with none, still overwrite a stale CSV
     has_cmap_outputs = (os.path.isdir(pred_dir) and
             any(f.endswith((".npz", ".npy")) for f in os.listdir(pred_dir)))
     if not has_cmap_outputs:
+        if os.path.isfile(out_csv):
+            pd.DataFrame().to_csv(out_csv, index=False)
         return pd.DataFrame()
 
     return compute_cmap_metrics_for_pair(pair_id, include_deep=True, thresh=0.4,
-                                         sep_min=6, index_tol=0, cmap_method=cmap_method)
+                                         sep_min=6, index_tol=0, cmap_method=cmap_method,
+                                         top_l_factor="auto", require_manifest=True,
+                                         resolution="fine")
 
 
 def _ensure_pair_analysis(pair_id: str) -> Path:
@@ -956,8 +1030,11 @@ def build_all_pairs_clusters_table(
 
 
 # Main post-processing function:
-def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str]] = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str]] = None,
+                             force_cmap: bool = False) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
+    force_cmap: re-score only the contact-map CSVs (df_cmap*.csv); AF/ESM
+      tables are still read from cache unless force_rerun.
     - Computes (or reads cached) AF/ESM TM tables and cmap metrics.
     - Builds:
         * summary_df: one row per pair (best TM and best cmap metric)
@@ -981,8 +1058,9 @@ def post_processing_analysis(force_rerun: bool = False, pairs: Optional[List[str
             df_af  = _read_or_compute_af(pair_id, force=force_rerun)
             df_esm = _read_or_compute_esm(pair_id, force=force_rerun)
             df_tm  = pd.concat([df_af, df_esm], ignore_index=True) if len(df_af) or len(df_esm) else pd.DataFrame()
-            df_cmap = _read_or_compute_cmap(pair_id, force=force_rerun)
-            df_cmap_cc = _read_or_compute_cmap(pair_id, force=force_rerun, cmap_method="ccmpred")
+            df_cmap = _read_or_compute_cmap(pair_id, force=force_rerun or force_cmap)
+            df_cmap_cc = _read_or_compute_cmap(pair_id, force=force_rerun or force_cmap,
+                                               cmap_method="ccmpred")
 
             # Best TM per pair (over all predictions; maximize max(TM1,TM2))
             best_tm = None
@@ -1032,6 +1110,9 @@ if __name__ == "__main__":
     p.add_argument("--pairs", nargs="*", help="Pair IDs like 1fzpD_2frhA, or ALL. If omitted, process all pairs.")
     p.add_argument("--force_rerun", action="store_true",
                    help="FULL mode: recompute per-pair Analysis CSVs even if they exist.")
+    p.add_argument("--force_cmap", action="store_true",
+                   help="FULL mode: re-score only df_cmap.csv / df_cmap_ccmpred.csv "
+                        "(provenance-checked, CCMpred top-L) even if cached.")
     p.add_argument("--mode", choices=["full", "unify"], default="full",
                    help="'full' recomputes per-pair Analysis CSVs then unifies; 'unify' only rebuilds unified CSVs from cached per-pair Analysis CSVs.")
     p.add_argument("--per_pair_only", action="store_true",
@@ -1046,7 +1127,8 @@ if __name__ == "__main__":
 
     if args.mode == "full":
         # 1) Recompute/refresh per-pair Analysis CSVs (df_af.csv, df_esm.csv, df_cmap.csv)
-        summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=resolved_pairs)
+        summary_df, detailed_df = post_processing_analysis(force_rerun=args.force_rerun, pairs=resolved_pairs,
+                                                           force_cmap=args.force_cmap)
         print(f"[postprocess] per-pair Analysis refreshed: summary rows={len(summary_df)} | detailed rows={len(detailed_df)}")
 
     if args.per_pair_only:

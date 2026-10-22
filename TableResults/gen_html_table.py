@@ -11,7 +11,10 @@ from config import *
 # imported and run without pulling in torch (only needed to REBUILD the CSVs).
 
 # --- add near the top (after imports / _ensure_unified_csvs) ---
-NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)")
+# Must accept scientific notation: BH-adjusted p-values are rendered as
+# "6.133e-05", and a pattern without the exponent parses that as 6.133,
+# which both breaks numeric sorting and inverts significance comparisons.
+NUM_RE = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)")
 TRIPLET_COL = "MSA: DEPTH; #RES; #Clusters"
 
 
@@ -21,8 +24,17 @@ DEFAULT_PREFERRED_COLS = [
     "SEQ_ID%", "PAIR_TM", "SS_SWITCH%", "DDG_bias",
     "AF2Clust_TM1","AF2Clust_TM2","AF2Deep_TM1","AF2Deep_TM2",
     "AF3Clust_TM1","AF3Clust_TM2","AF3Deep_TM1","AF3Deep_TM2",
-    "ESM2_TM1","ESM2_TM2","ESM3_TM1","ESM3_TM2",
+    "ESM2_TM1","ESM2_TM2",
+    "Boltz2Clust_TM1","Boltz2Clust_TM2",
+    "BioEmuClust_TM1","BioEmuClust_TM2",
+    "S4PREDClust_SS1","S4PREDClust_SS2",
+]
+
+# Contact predictors: reported for reference, excluded from every analysis.
+# They form their own column group at the right of the single-method block.
+CONTACT_COLS = [
     "MSATrans_CMAP_PR1","MSATrans_CMAP_PR2","MSATrans_CMAP_RE1","MSATrans_CMAP_RE2",
+    "CCMpred_CMAP_PR1","CCMpred_CMAP_PR2","CCMpred_CMAP_RE1","CCMpred_CMAP_RE2",
 ]
 
 DEFAULT_EXPLANATIONS = {
@@ -45,17 +57,25 @@ DEFAULT_EXPLANATIONS = {
     "AF3Deep_TM2":  "Best TM-score to Fold2 among AF3 predictions from DeepMsa.",
     "ESM2_TM1": "Best TM-score to Fold1 among all ESMFold(ESM2) predictions (across all sampled sequences from all clusters; no MSA used).",
     "ESM2_TM2": "Best TM-score to Fold2 among all ESMFold(ESM2) predictions.",
-    "ESM3_TM1": "Best TM-score to Fold1 among all ESMFold(ESM3) predictions.",
-    "ESM3_TM2": "Best TM-score to Fold2 among all ESMFold(ESM3) predictions.",
-    "MSATrans_CMAP_PR1": "Maximum precision of MSA-Transformer contact map vs Fold1 truth (threshold=0.4; |i−j|≥6).",
-    "MSATrans_CMAP_PR2": "Maximum precision vs Fold2 truth (same settings).",
-    "MSATrans_CMAP_RE1": "Maximum recall vs Fold1 truth.",
-    "MSATrans_CMAP_RE2": "Maximum recall vs Fold2 truth.",
-    "CONCORD": "AGGREGATE: cross-method per-cluster sign concordance, sequence-divergence-corrected, averaged over the 36 method-pairs of the 9 methods (shuffle null ~0.50; higher = orthogonal methods agree more on each cluster's fold preference). Source: docs/fold_diversity_concordance_corrected_perm_9method_bh.csv.",
+    "Boltz2Clust_TM1": "Best TM-score to Fold1 among Boltz-2 predictions from shallow clusters (number in parentheses is the cluster id). Boltz-2 was not run on the DeepMsa alignment. Source: docs/fold_diversity_survey.csv.",
+    "Boltz2Clust_TM2": "Best TM-score to Fold2 among Boltz-2 predictions from shallow clusters.",
+    "BioEmuClust_TM1": "Best TM-score to Fold1 over the BioEmu ensemble sampled from each shallow cluster. Not run on DeepMsa. Source: docs/fold_diversity_survey.csv.",
+    "BioEmuClust_TM2": "Best TM-score to Fold2 over the BioEmu ensemble sampled from each shallow cluster.",
+    "S4PREDClust_SS1": "Best secondary-structure similarity to Fold1 among S4PRED predictions from shallow clusters. S4PRED predicts secondary structure from single sequences, so its score is H/E-class similarity to the fold's DSSP string, not a TM-score. Source: docs/fold_diversity_survey.csv (metric SS_HE_similarity).",
+    "S4PREDClust_SS2": "Best secondary-structure similarity to Fold2 among S4PRED predictions from shallow clusters.",
+    "MSATrans_CMAP_PR1": "CONTACTS (reported, not analysed): maximum precision of MSA-Transformer contact map vs Fold1 truth (threshold=0.4; |i−j|≥6). A single cluster's alignment is too shallow for direct-coupling analysis, so the contact predictors enter no statistic in the paper.",
+    "MSATrans_CMAP_PR2": "CONTACTS (reported, not analysed): maximum precision vs Fold2 truth (same settings).",
+    "MSATrans_CMAP_RE1": "CONTACTS (reported, not analysed): maximum recall vs Fold1 truth.",
+    "MSATrans_CMAP_RE2": "CONTACTS (reported, not analysed): maximum recall vs Fold2 truth.",
+    "CCMpred_CMAP_PR1": "CONTACTS (reported, not analysed): maximum precision of the CCMpred contact map vs Fold1 truth (top-L contacts; |i−j|≥6). CCMpred returns exactly zero signed preference on 71% of clusters.",
+    "CCMpred_CMAP_PR2": "CONTACTS (reported, not analysed): maximum precision vs Fold2 truth.",
+    "CCMpred_CMAP_RE1": "CONTACTS (reported, not analysed): maximum recall vs Fold1 truth.",
+    "CCMpred_CMAP_RE2": "CONTACTS (reported, not analysed): maximum recall vs Fold2 truth.",
+    "CONCORD": "AGGREGATE: cross-method per-cluster sign concordance, sequence-divergence-corrected, averaged over the 21 method-pairs of the 7 analysed methods (AF2, AF3, ESMFold2, Boltz-2, BioEmu, ddG, S4PRED; shuffle null ~0.50; higher = methods agree more on each cluster's fold preference). The two contact predictors are excluded: a per-cluster alignment is too shallow for direct-coupling analysis, and CCMpred returns exactly zero on 71% of clusters. Source: docs/fold_diversity_concordance_corrected_perm_7method_bh.csv.",
     "CONCORD_pBH": "AGGREGATE: Benjamini-Hochberg-adjusted permutation p-value for CONCORD over the full pool of pairs (<=0.05 = significant cross-method concordance). Same source.",
-    "MORANS_I": "AGGREGATE (clade-preference): strongest positive Moran's I of per-cluster fold preference across the methods (on the cluster tree, inverse-patristic weights). Effect size of phylogenetic clade structure; ~0 = no clade structure, larger = fold-preferring clusters form clades. Source: docs/phylo_placement_corrected.csv.",
-    "MORANS_Inorm": "AGGREGATE (clade-preference): Moran's I normalised by the maximum achievable on each pair's tree (0 = null, 1 = maximal clade segregation). Rank clade structure by this, not by the BH p-value (the test is over-powered at ~100 clusters). Same source.",
-    "MORANS_pBH": "AGGREGATE (clade-preference): BH-adjusted permutation p-value for the strongest-method Moran's I. NOTE: at ~100 clusters this test is over-powered, so many pairs pass BH at negligible effect size; interpret with MORANS_I / MORANS_Inorm. Same source.",
+    "MORANS_I": "AGGREGATE (phylogenetic grouping): strongest positive Moran's I of per-cluster fold preference across the methods (on the cluster tree, inverse-patristic weights). Effect size of phylogenetic autocorrelation; ~0 = none, larger = fold-preferring clusters sit near each other on the tree. Clusters are tree-guided groups, not clades: only 12% are monophyletic. Generic sequence traits of the same clusters are autocorrelated as often or more often, so a significant value is not by itself fold-specific. Source: docs/phylo_placement_corrected.csv.",
+    "MORANS_Inorm": "AGGREGATE (phylogenetic grouping): Moran's I normalised by the maximum achievable on each pair's tree (0 = null, 1 = maximal segregation). It measures arrangement within one family and is not comparable across families. Rank clade structure by this, not by the BH p-value (the test is over-powered at ~100 clusters). Same source.",
+    "MORANS_pBH": "AGGREGATE (phylogenetic grouping): BH-adjusted permutation p-value for the strongest-method Moran's I. NOTE: at ~100 clusters this test is over-powered, so many pairs pass BH at negligible effect size; interpret with MORANS_I / MORANS_Inorm. Same source.",
     "MORANS_method": "AGGREGATE: which method gives the strongest positive Moran's I for this pair.",
 }
 
@@ -325,12 +345,15 @@ def gen_html_from_summary_table(
     else:
         ordered += remaining
 
-    # Force the aggregate (cross-method) columns to the very end so they form a
-    # single right-hand column group.
+    # Force the contact-predictor columns, then the aggregate (cross-method)
+    # columns, to the end so each forms a single right-hand column group.
     _AGG_COLS = ["CONCORD", "CONCORD_pBH", "MORANS_I", "MORANS_Inorm",
                  "MORANS_pBH", "MORANS_method"]
+    _cmap_present = [c for c in CONTACT_COLS if c in ordered]
     _agg_present = [c for c in _AGG_COLS if c in ordered]
-    ordered = [c for c in ordered if c not in _agg_present] + _agg_present
+    _moved = set(_cmap_present) | set(_agg_present)
+    ordered = ([c for c in ordered if c not in _moved]
+               + _cmap_present + _agg_present)
 
     df = df[ordered]
 
@@ -340,11 +363,14 @@ def gen_html_from_summary_table(
     _DESC_COLS = {"pair_id", "NAME", "ORGANISM", "trigger_class", "#RES",
                   "MSA: DEPTH; #RES; #Clusters", "SEQ_ID%", "PAIR_TM", "SS_SWITCH%"}
     _AGG_SET = set(_AGG_COLS)
+    _CMAP_SET = set(CONTACT_COLS)
     _WRAP_COLS = {"NAME", "ORGANISM"}
 
     def _col_group(col: str) -> str:
         if col in _AGG_SET:
             return "agg"
+        if col in _CMAP_SET:
+            return "cmap"
         if col in _DESC_COLS:
             return "desc"
         return "method"
@@ -483,9 +509,31 @@ def gen_html_from_summary_table(
         triple_disp = f"{int(md)} ; {mr:.2f} ; {mc:.2f}"
 
     # Build cells
+    _TEXT_COLS = {"NAME", "ORGANISM", "trigger_class", "MORANS_method"}
     for col in df.columns[1:]:
+        # A text column has no average: names such as "14-3-3" parse as a
+        # leading number and the row would show a meaningless mean.
+        if col in _TEXT_COLS:
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value=""></td>')
+            continue
         if col == triple_col:
             avg_tds.append(f'<td{_td_cls(col)} data-sort-value="">{html.escape(triple_disp)}</td>')
+            continue
+        # The mean of BH-adjusted p-values is not a statistic, and averaging a
+        # signed Moran's I over pairs of opposite sign cancels rather than
+        # summarises. Report a count or a median instead of a mean for those.
+        if col in ("CONCORD_pBH", "MORANS_pBH"):
+            s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
+            n_sig = int((s <= 0.05).sum())
+            n_tot = int(s.notna().sum())
+            disp = f"{n_sig}/{n_tot} \u2264 0.05"
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value="{n_sig}">{html.escape(disp)}</td>')
+            continue
+        if col == "MORANS_I":
+            s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
+            med = s.median()
+            disp = "" if pd.isna(med) else f"median {med:.3f}"
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value="{0.0 if pd.isna(med) else med:.6f}">{html.escape(disp)}</td>')
             continue
         s = pd.to_numeric(df[col].map(numeric_part), errors="coerce")
         if s.notna().any():
@@ -495,11 +543,21 @@ def gen_html_from_summary_table(
             avg_tds.append(f'<td{_td_cls(col)} data-sort-value="{mu:.6f}">{html.escape(disp)}</td>')
         else:
             avg_tds.append(f'<td{_td_cls(col)} data-sort-value=""></td>')
-    rows.append("<tr>" + "".join(avg_tds) + "</tr>")
+    # Summary line belongs in <tfoot>, otherwise sorting a column drags it into
+    # the middle of the data.
+    footer_row = "<tr>" + "".join(avg_tds) + "</tr>"
 
 
     # --- Explanations (only for existing columns) ---
     expl_lines = []
+    if any(_col_group(c) == "method" for c in df.columns):
+        expl_lines.append(
+            "<p>Column groups, left to right: pair description (red), the seven "
+            "analysed methods (blue: AlphaFold2, AlphaFold3, ESMFold2, Boltz-2, "
+            "BioEmu, ThermoMPNN-&Delta;&Delta;G, S4PRED), the two contact "
+            "predictors (grey: reported for reference, excluded from every "
+            "analysis), and the cross-method aggregates (green).</p>"
+        )
     if column_explanations:
         for c in df.columns:
             if c in column_explanations:
@@ -530,9 +588,11 @@ def gen_html_from_summary_table(
   }}
   th, td {{ border: 1px solid #333; padding: 10px 14px; text-align: left; white-space: nowrap; vertical-align: top; }}
   th {{ background-color: #b71c1c; color: #fff; font-size: 16px; cursor: pointer; position: sticky; top: 0; }}
-  /* column-group header colours: description (red) / single-method (blue) / aggregate (green) */
+  /* column-group header colours: description (red) / single-method (blue) /
+     contact predictors, reported but not analysed (grey) / aggregate (green) */
   th.g-desc {{ background-color: #b71c1c; }}
   th.g-method {{ background-color: #1565c0; }}
+  th.g-cmap {{ background-color: #4f5b62; }}
   th.g-agg {{ background-color: #2e7d32; }}
   /* thick separator at the first column of each group; thin (#333) within a group */
   th.gstart, td.gstart {{ border-left: 3px solid #cfcfcf; }}
@@ -544,8 +604,8 @@ def gen_html_from_summary_table(
   a:hover {{ text-decoration: underline; }}
   h2 {{ text-align: center; color: #E0E0E0; margin-top: 0; }}
   .legend {{ width: 98%; margin: 20px auto; line-height: 1.4; }}
-    tr.lowclust{{opacity: .45; background - color:  # 1b1b1b; }}
-    tr.lowclust:hover{{opacity: .65; background - color:  # 272727; }}
+    tr.lowclust{{opacity: .45; background-color: #1b1b1b; }}
+    tr.lowclust:hover{{opacity: .65; background-color: #272727; }}
 </style>
 </head>
 <body>
@@ -555,6 +615,9 @@ def gen_html_from_summary_table(
   <tbody>
     {"".join(rows)}
   </tbody>
+  <tfoot>
+    {footer_row}
+  </tfoot>
 </table>
 <div class="legend">
 {expl_html}

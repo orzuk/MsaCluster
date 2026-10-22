@@ -1,0 +1,6 @@
+label,kind,cluster,method,mode,evo_order,pct_alt_measured,pct_alt_measured_sd,seq_len,n_dropped_insertions,tm_f1,tm_f2,delta,delta_z,ddg_sum_f1,ddg_sum_f2,ddg_bias_kcal_mol,ss_frac_H,ss_frac_E,ss_sim_f1,ss_sim_f2,pred_pdb
+Anc.0,ancestor,ShallowMsa_000,BioEmu,deepmsa_topN,0,0.0,,64,3,0.3173129,0.6233908000000001,-0.3060779000000001,-1.7911480130136457,,,,,,,,
+Anc.2,ancestor,ShallowMsa_001,BioEmu,deepmsa_topN,1,0.0,,65,2,0.2680511,0.3598567,-0.09180559999999999,-0.31063905022997584,,,,,,,,
+Anc.3,ancestor,ShallowMsa_002,BioEmu,deepmsa_topN,2,8.0,3.7,66,3,0.3915502,0.2998876000000001,0.09166259999999993,0.9570297734387232,,,,,,,,
+Anc.4,ancestor,ShallowMsa_003,BioEmu,deepmsa_topN,3,90.7,2.0,66,3,0.2844351999999999,0.2845019,-6.670000000008613e-05,0.32322852708129857,,,,,,,,
+XCL1,ancestor,ShallowMsa_004,BioEmu,deepmsa_topN,4,50.0,,69,3,0.3753763,0.3033246,0.0720517,0.8215287627235998,,,,,,,,

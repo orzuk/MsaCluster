@@ -46,6 +46,8 @@ except Exception:
     phytree_from_msa = None
     print("[phytree ERROR] Can't import phytree!", flush=True)
 from utils.protein_utils import *
+from utils.contact_utils import (a3m_is_fresh, load_manifest, record_run,
+                                 save_manifest)
 from utils.protein_plot_utils import make_foldswitch_all_plots, global_pairs_statistics_plots
 try:
     # NB: in repo this module sits under utils/. Keep your original import path.
@@ -1062,6 +1064,10 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
                 backbones at its own length.
       "consensus" : the cluster's per-column majority-vote consensus
                 sequence (matches what Boltz-2 uses).
+      "first"   : row 1 of the cluster A3M verbatim. Used when the caller
+                has written the A3M itself and row 1 IS the intended query
+                (e.g. scripts/ancestor_calibration.py, where each "cluster"
+                is one reconstructed ancestral sequence).
     Falling back to "chain" if the cluster A3M is empty or query_type is unknown.
 
     msa_top_n: if > 0, subsample the per-cluster MSA to the top_n rows
@@ -1174,7 +1180,7 @@ def _write_pair_a3m_for_chain(cluster_a3m: str, deep_a3m: str, chain_tag: str,
 
     # Normalise legacy / unknown query_type to "chain"
     qt = (query_type or "chain").lower()
-    if qt not in ("chain", "medoid", "consensus"):
+    if qt not in ("chain", "medoid", "consensus", "first"):
         qt = "chain"
 
     # ========== clustered A3M path ==========
@@ -1762,50 +1768,101 @@ def task_cluster_msa(pair_id: str, run_job_mode: str, args) -> None:
         print(f"[cache] WARN cluster_msa: {e}")
 
 
+def _contact_cluster_sets(args) -> list:
+    """[(resolution, cluster_subdir, glob_pattern), ...] for contact runs,
+    from --cluster_resolution (fine | coarse | both; default fine)."""
+    res = ((getattr(args, "cluster_resolution", "fine") if args else "fine") or "fine").lower()
+    fine = ("fine",
+            (getattr(args, "cluster_outdir", None) if args else None) or "output_msa_cluster",
+            "ShallowMsa_*.a3m")
+    coarse = ("coarse",
+              (getattr(args, "cluster_outdir_coarse", None) if args else None)
+              or "output_msa_cluster_coarse",
+              "CoarseMsa_*.a3m")
+    return {"fine": [fine], "coarse": [coarse], "both": [fine, coarse]}.get(res, [fine])
+
+
+def _force_cmap_run(args) -> bool:
+    return bool(args) and _bool_from_tf(getattr(args, "force_rerun_cmap", "FALSE"))
+
+
 def task_cmap_msa_transformer(pair_id: str, run_job_mode: str,
                                args: argparse.Namespace | None = None) -> None:
     """
-    Always run MSA-Transformer on the *trimmed* MSAs for both clusters and deep,
-    but save the deep output as 'msa_t__DeepMsa.npy' (no 'pairtrim' in the name).
+    Run MSA-Transformer on the *trimmed* cluster MSAs and on the trimmed deep
+    MSA (deep output saved as 'msa_t_DeepMsa_DeepMsa.npz').
 
-    Honors --cluster_resolution: 'coarse' routes input to
-    output_msa_cluster_coarse/CoarseMsa_*.a3m (recommended for MSAT since it
-    needs MSAs with depth >= 128). Default 'fine' uses output_msa_cluster/.
+    Honors --cluster_resolution: 'fine' (default) reads
+    <cluster_outdir or output_msa_cluster>/ShallowMsa_*.a3m, 'coarse' reads
+    output_msa_cluster_coarse/CoarseMsa_*.a3m, 'both' does both. Shallow
+    clusters are fine: run_MSATrans.py keeps all rows when depth <= 128
+    (greedy_select subsamples deeper ones to 128).
+
+    Provenance: only clusters WITHOUT a fresh entry in
+    output_cmaps/msa_transformer/_manifest.json (same input path + same
+    sequence-set hash, output newer than the recorded run) are (re)run, and
+    each is recorded in the manifest before running. Legacy outputs (no
+    manifest) are therefore recomputed, never trusted. Only the current
+    cluster files are passed to run_MSATrans.py (stale trimmed copies left in
+    <cluster_subdir>_pairtrim/ by an older clustering are ignored).
+    --force_rerun_cmap TRUE re-runs everything.
     """
-
-    outdir = f"{FOLDPAIRS_REL}/{pair_id}/output_cmaps/msa_transformer"
+    pair_dir = f"{FOLDPAIRS_REL}/{pair_id}"
+    outdir = f"{pair_dir}/output_cmaps/msa_transformer"
     ensure_dir(outdir)
+    force = _force_cmap_run(args)
+    man = load_manifest(outdir)
 
-    # Select cluster set based on resolution (v2 methodology)
-    resolution = (getattr(args, "cluster_resolution", "fine") or "fine") if args else "fine"
-    if resolution == "coarse":
-        cluster_subdir = (getattr(args, "cluster_outdir_coarse", None)
-                          or "output_msa_cluster_coarse")
-        cluster_pattern = "CoarseMsa_*.a3m"
-        print(f"[msat] using COARSE clusters from {cluster_subdir}")
-    else:
-        cluster_subdir = (getattr(args, "cluster_outdir", None)
-                          or "output_msa_cluster") if args else "output_msa_cluster"
-        cluster_pattern = "ShallowMsa_*.a3m"
+    for resolution, cluster_subdir, cluster_pattern in _contact_cluster_sets(args):
+        src = sorted(glob(os.path.join(pair_dir, cluster_subdir, cluster_pattern)))
+        if not src:
+            print(f"[msat] {pair_id}: no {cluster_subdir}/{cluster_pattern} -> skip {resolution}")
+            continue
+        todo = [a for a in src
+                if force or not a3m_is_fresh(pair_dir, "msa_transformer", a, man)]
+        print(f"[msat] {pair_id} {resolution}: {len(src)} clusters, "
+              f"{len(src) - len(todo)} up to date, {len(todo)} to run")
+        if not todo:
+            continue
+        # 1) trimmed Deep + trimmed clusters (<=1024 columns)
+        clus_dir_pairtrim = _prepare_pairtrim_msas(
+            pair_id, cap_1024=True,
+            cluster_subdir=cluster_subdir, cluster_pattern=cluster_pattern,
+        )
+        pairs_in = [(a, os.path.join(clus_dir_pairtrim, os.path.basename(a))) for a in todo]
+        missing = [p for _, p in pairs_in if not os.path.isfile(p)]
+        if missing:
+            print(f"[msat] WARN {len(missing)} trimmed input(s) missing, e.g. {missing[:2]}")
+        pairs_in = [(a, p) for a, p in pairs_in if os.path.isfile(p)]
+        if not pairs_in:
+            continue
+        # 2) record provenance BEFORE running (outputs older than this are stale)
+        t0 = time.time()
+        for a, _ in pairs_in:
+            record_run(pair_dir, "msa_transformer", a, resolution,
+                       man=man, run_started=t0, save=False)
+        save_manifest(outdir, man)
+        # 3) clusters; --clean none: only the listed outputs are overwritten
+        #    ('matched' would also delete the other resolution's outputs)
+        cmd = (
+            f"python3 ./run_MSATrans.py "
+            f"--input_msas {' '.join(shlex.quote(p) for _, p in pairs_in)} "
+            f"-o {shlex.quote(outdir)} "
+            f"--model msa_t --keyword clusters --clean none"
+        )
+        _run(cmd, run_job_mode)
 
-    # 1) Make trimmed Deep + trimmed clusters (≤1024)
-    clus_dir_pairtrim = _prepare_pairtrim_msas(
-        pair_id, cap_1024=True,
-        cluster_subdir=cluster_subdir, cluster_pattern=cluster_pattern,
-    )
-
-    # 2) Clusters (trimmed)
-    # NOTE the leading space before --model is important.
-    cmd = (
-        f"python3 ./run_MSATrans.py "
-        f"--input_msas {clus_dir_pairtrim} "
-        f"-o {outdir} "
-        f"--model msa_t --keyword clusters --clean matched"
-    )
-    _run(cmd, run_job_mode)
-
-    # 3) Deep (trimmed) — but force basename 'DeepMsa' for output naming
-    deep_trim = f"{FOLDPAIRS_REL}/{pair_id}/output_get_msa/DeepMsa_pairtrim.a3m"
+    # 4) Deep (trimmed) — but force basename 'DeepMsa' for output naming
+    deep_src = f"{pair_dir}/output_get_msa/DeepMsa.a3m"
+    if not os.path.isfile(deep_src):
+        return
+    if (not force) and a3m_is_fresh(pair_dir, "msa_transformer", deep_src, man):
+        print(f"[msat] {pair_id}: deep up to date")
+        return
+    deep_trim = f"{pair_dir}/output_get_msa/DeepMsa_pairtrim.a3m"
+    if (not os.path.isfile(deep_trim)
+            or os.path.getmtime(deep_trim) < os.path.getmtime(deep_src)):
+        _prepare_pairtrim_msas(pair_id, cap_1024=True)
     if os.path.isfile(deep_trim):
         # Make a tiny temp input folder and place a copy named exactly 'DeepMsa.a3m'
         # (Copy instead of symlink to avoid FS/permission surprises.)
@@ -1820,12 +1877,13 @@ def task_cmap_msa_transformer(pair_id: str, run_job_mode: str,
 
         deep_alias = os.path.join(tmp_in, "DeepMsa.a3m")
         shutil.copyfile(deep_trim, deep_alias)
+        record_run(pair_dir, "msa_transformer", deep_src, "deep", man=man)
 
-        # Empty keyword ⇒ output file will be 'msa_t__DeepMsa.npy'
+        # keyword DeepMsa => output file 'msa_t_DeepMsa_DeepMsa.npz'
         cmd_deep = (
             f"python3 ./run_MSATrans.py "
-            f"--input_msas {deep_alias} "
-            f"-o {outdir} "
+            f"--input_msas {shlex.quote(deep_alias)} "
+            f"-o {shlex.quote(outdir)} "
             f"--model msa_t --keyword DeepMsa --clean matched"
         )
         _run(cmd_deep, run_job_mode)
@@ -1842,10 +1900,19 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
     Run CCMpred on DeepMsa and on every cluster MSA in the selected
     resolution's directory.
 
-    Honors --cluster_resolution: 'coarse' uses
-    output_msa_cluster_coarse/CoarseMsa_*.a3m (recommended for CCMpred
-    since it needs Neff >= 50 for coevolution detection). Default
-    'fine' uses output_msa_cluster/ShallowMsa_*.a3m.
+    Honors --cluster_resolution: 'fine' (default) uses
+    <cluster_outdir or output_msa_cluster>/ShallowMsa_*.a3m, 'coarse' uses
+    output_msa_cluster_coarse/CoarseMsa_*.a3m, 'both' does both.
+
+    Provenance: a cluster is skipped only if its entry in
+    output_cmaps/ccmpred/_manifest.json matches the current A3M (path +
+    sequence-set hash) and the npz is newer than the recorded run; otherwise
+    it is recorded and (re)run. --force_rerun_cmap TRUE re-runs everything.
+
+    The CCMpred binary applies APC itself (unless run with -A), so the stored
+    map is the binary's APC-corrected coupling matrix, symmetrised, diagonal
+    zeroed. --ccmpred_extra_apc TRUE restores the old (double-APC) behaviour.
+    Scoring binarises it by top-L (Analysis/cmap_analysis.py, top_l_factor).
 
     Outputs: Pipeline/<pair>/output_cmaps/ccmpred/<tag>.ccmpred.npz
     """
@@ -1856,20 +1923,11 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Select cluster set based on resolution (v2 methodology)
-    resolution = (getattr(args, "cluster_resolution", "fine") or "fine")
-    if resolution == "coarse":
-        cluster_subdir = (getattr(args, "cluster_outdir_coarse", None)
-                          or "output_msa_cluster_coarse")
-        cluster_pattern = "CoarseMsa_*.a3m"
-        print(f"[ccmpred] using COARSE clusters from {cluster_subdir}")
-    else:
-        cluster_subdir = (getattr(args, "cluster_outdir", None)
-                          or "output_msa_cluster")
-        cluster_pattern = "ShallowMsa_*.a3m"
-
     ccmpred_bin = getattr(args, "ccmpred_bin", CCMPRED_EXE)
     threads = int(getattr(args, "ccmpred_threads", 8))
+    extra_apc = _bool_from_tf(getattr(args, "ccmpred_extra_apc", "FALSE"))
+    force = _force_cmap_run(args)
+    man = load_manifest(str(out_dir))
 
     def a3m_to_aln(a3m_path: Path, aln_out: Path) -> bool:
         """CCMpred expects a plain alignment file: one sequence per line,
@@ -1900,42 +1958,59 @@ def task_cmap_ccmpred(pair_id: str, run_job_mode: str, args: argparse.Namespace)
         mu = float(m.mean()) or 1e-8
         return m - (ri @ rj) / mu
 
-    def run_one(a3m: Path, tag: str):
+    counts = {"ran": 0, "up_to_date": 0, "failed": 0}
+
+    def run_one(a3m: Path, tag: str, resolution: str):
         aln = tmp_dir / f"{tag}.aln"
         npz = out_dir / f"{tag}.ccmpred.npz"
-        npy = out_dir / f"{tag}.ccmpred.npy"   # legacy check
         mat = out_dir / f"{tag}.ccmpred.mat"
-        if (npz.exists() and npz.stat().st_size > 0) or \
-           (npy.exists() and npy.stat().st_size > 0):
+        if (not force) and a3m_is_fresh(str(pair_dir), "ccmpred", str(a3m), man):
+            counts["up_to_date"] += 1
             return
         if not a3m_to_aln(a3m, aln):
             print(f"[ccmpred] skip (empty): {a3m}")
             return
+        # record provenance BEFORE running (an npz older than this is stale)
+        record_run(str(pair_dir), "ccmpred", str(a3m), resolution, man=man)
         cmd = f"{shlex.quote(ccmpred_bin)} -t {threads} {shlex.quote(str(aln))} {shlex.quote(str(mat))}"
-        if run_job_mode == "inline":
-            subprocess.run(cmd, shell=True, check=True)
-        else:
-            # sbatch wrapper uses the same helper you use elsewhere
-            _run(cmd, run_job_mode)
-        arr = np.loadtxt(str(mat))
+        try:
+            if run_job_mode == "inline":
+                subprocess.run(cmd, shell=True, check=True)
+            else:
+                # sbatch wrapper uses the same helper you use elsewhere
+                _run(cmd, run_job_mode)
+            arr = np.loadtxt(str(mat))
+        except (subprocess.CalledProcessError, OSError, ValueError) as e:
+            counts["failed"] += 1
+            print(f"[ccmpred] FAIL {pair_id} {tag}: {e}")
+            return
         arr = 0.5 * (arr + arr.T)     # symmetrize, just in case
-        arr = apc(arr)                # APC correction
+        if extra_apc:
+            arr = apc(arr)            # legacy: second APC on top of CCMpred's own
         np.fill_diagonal(arr, 0.0)
         # Save as .npz with idx (identity mapping: matrix position i =
         # seed-frame column i, since CCMpred operates on all columns
         # of the insert-stripped alignment)
         idx = np.arange(arr.shape[0], dtype=np.int32)
         np.savez(str(npz), cmap=arr.astype(np.float32), idx=idx)
+        counts["ran"] += 1
+        # intermediates written by THIS run (text LxL .mat is ~1 MB/cluster)
+        for tmp in (mat, aln):
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
     # Deep
     deep = pair_dir / "output_get_msa" / "DeepMsa.a3m"
     if deep.exists():
-        run_one(deep, "DeepMsa")
+        run_one(deep, "DeepMsa", "deep")
 
-    # All clusters (fine or coarse depending on --cluster_resolution)
-    for a3m in sorted((pair_dir / cluster_subdir).glob(cluster_pattern)):
-        run_one(a3m, a3m.stem)
-
+    # All clusters (fine and/or coarse depending on --cluster_resolution)
+    for resolution, cluster_subdir, cluster_pattern in _contact_cluster_sets(args):
+        for a3m in sorted((pair_dir / cluster_subdir).glob(cluster_pattern)):
+            run_one(a3m, a3m.stem, resolution)
+    print(f"[ccmpred] {pair_id}: {counts}")
 
 
 def task_esmfold(pair_id: str, args: argparse.Namespace) -> None:
@@ -2632,6 +2707,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
     # Map CLI flags
     cached_only = _bool_from_tf(getattr(args, "cached_only", "FALSE"))
     force_rerun = _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE"))
+    force_cmap = _bool_from_tf(getattr(args, "force_cmap", "FALSE"))
     run_job_mode = (getattr(args, "run_job_mode", "local") or "local").lower()
 
     # =========================
@@ -2649,7 +2725,8 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
             # Local/in-process: recompute per-pair CSVs
             try:
                 from Analysis.postprocess_unified import post_processing_analysis
-                post_processing_analysis(force_rerun=force_rerun, pairs=pair_dirs)
+                post_processing_analysis(force_rerun=force_rerun, pairs=pair_dirs,
+                                         force_cmap=force_cmap)
                 print(f"[postprocess] per-pair Analysis refreshed (local) for {len(pair_dirs)} pairs.")
             except Exception as e:
                 print(f"[postprocess] WARN post_processing_analysis(local): {e}")
@@ -2669,6 +2746,7 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
                     f"{shlex.quote(sys.executable)} Analysis/postprocess_unified.py "
                     f"--pairs {shlex.quote(pid)} --mode full "
                     + ("--force_rerun " if force_rerun else "")
+                    + ("--force_cmap " if force_cmap else "")
                 )
                 log = jobs_dir / f"postproc_{pid}.out"
                 sbatch = [
@@ -2715,7 +2793,8 @@ def task_postprocess(foldpairs: list[str], args: argparse.Namespace) -> None:
             print(f"[postprocess] WARN unknown run_job_mode={run_job_mode}; running local fallback.")
             try:
                 from Analysis.postprocess_unified import post_processing_analysis
-                post_processing_analysis(force_rerun=force_rerun, pairs=pair_dirs)
+                post_processing_analysis(force_rerun=force_rerun, pairs=pair_dirs,
+                                         force_cmap=force_cmap)
             except Exception as e:
                 print(f"[postprocess] WARN post_processing_analysis(fallback): {e}")
 
@@ -2820,36 +2899,6 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         line = f"Step {n}: {title}"
         print("\n" + line + "\n" + "=" * len(line))
 
-    def _has_cmaps_shallow_local(pid: str) -> bool:
-        """Any per-cluster CMAP npy produced by run_MSATrans.py.
-        Accepts both ShallowMsa_* (fine-resolution v1 naming) and
-        CoarseMsa_* (coarse-resolution v2 naming)."""
-        out = Path(f"{FOLDPAIRS_REL}/{pid}/output_cmaps/msa_transformer")
-        for prefix in ("ShallowMsa", "CoarseMsa"):
-            if (list(out.glob(f"msa_t_clusters_{prefix}_*.npy"))
-                    or list(out.glob(f"msa_t_clusters_{prefix}_*.npz"))):
-                return True
-        return False
-
-    def _has_cmaps_deep_local(pid: str) -> bool:
-        """Any deep npy produced by run_MSATrans.py (either pass / naming)."""
-        out = Path(f"{FOLDPAIRS_REL}/{pid}/output_cmaps/msa_transformer")
-        # We tolerate several historical names:
-        patterns = [
-            "msa_t__DeepMsa*.npy",          # old naming
-            "msa_t__DeepMsa*.npz",          # new default format
-            "msa_t_DeepMsa_*.npy",          # keyword DeepMsa
-            "msa_t_DeepMsa_*.npz",
-            "msa_t_clusters_MSA_deep.npy",  # deep was written in first pass
-            "msa_t_clusters_MSA_deep.npz",
-            "msa_t_MSA_deep*.npy",
-            "msa_t_MSA_deep*.npz",
-        ]
-        for pat in patterns:
-            if any(out.glob(pat)):
-                return True
-        return False
-
     # 1) load PDB/FASTA
     _step_hdr(1, "Load Seqs")
     if force_all or not _has_loaded(pair_id):
@@ -2909,28 +2958,26 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"AF step skipped: {e}")
 
-    # 6) CMAPs (MSA-Transformer) — v2: coarse resolution (deep MSA needed).
-    _step_hdr(6, "MSA-Transformer CMAPs (coarse)")
+    # 6) CMAPs (MSA-Transformer) at --cluster_resolution (default fine: the
+    # ShallowMsa_* labels the survey joins on). Per-cluster skip only when the
+    # provenance manifest matches the CURRENT cluster file (legacy outputs
+    # from an older clustering are recomputed, never reused).
+    a_cm = deepcopy(args)
+    if force_all:
+        a_cm.force_rerun_cmap = "TRUE"
+    res_cm = getattr(args, "cluster_resolution", "fine") or "fine"
+    _step_hdr(6, f"MSA-Transformer CMAPs ({res_cm})")
     try:
-        a_msat = deepcopy(args); a_msat.cluster_resolution = "coarse"
-        shallow_ok = _has_cmaps_shallow_local(pair_id)
-        deep_ok    = _has_cmaps_deep_local(pair_id)
-        if force_all or not (shallow_ok and deep_ok):
-            need_sh = "missing" if not shallow_ok else "ok"
-            need_dp = "missing" if not deep_ok else "ok"
-            print(f"Running MSA-Transformer @ coarse … (shallow: {need_sh}, deep: {need_dp})")
-            task_cmap_msa_transformer(pair_id, "inline", a_msat)
-        else:
-            print("Shallow & deep CMAPs present → skipped")
+        print(f"Running MSA-Transformer @ {res_cm} (manifest-checked auto-skip inside) …")
+        task_cmap_msa_transformer(pair_id, "inline", a_cm)
     except Exception as e:
         print(f"MSA-Transformer step skipped: {e}")
 
-    # 6b) CMAPs (CCMpred) — v2: coarse resolution (deep MSA needed).
-    _step_hdr(7, "CCMpred CMAPs (coarse)")
+    # 6b) CMAPs (CCMpred), same resolution and provenance rule.
+    _step_hdr(7, f"CCMpred CMAPs ({res_cm})")
     try:
-        a_ccm = deepcopy(args); a_ccm.cluster_resolution = "coarse"
-        print("Invoking CCMpred @ coarse (per-tag auto-skip inside) …")
-        task_cmap_ccmpred(pair_id, "inline", a_ccm)
+        print(f"Invoking CCMpred @ {res_cm} (manifest-checked auto-skip inside) …")
+        task_cmap_ccmpred(pair_id, "inline", a_cm)
     except Exception as e:
         print(f"CCMpred step skipped: {e}")
 
@@ -3015,7 +3062,8 @@ def task_msaclust_pipeline(pair_id: str, args: argparse.Namespace) -> None:
         print("Postprocessing (per-pair) …")
         post_processing_analysis(
             force_rerun=force_all or _bool_from_tf(getattr(args, "force_rerun_postprocess", "FALSE")),
-            pairs=[pair_id]
+            pairs=[pair_id],
+            force_cmap=_bool_from_tf(getattr(args, "force_cmap", "FALSE")),
         )
     except Exception as e:
         print(f"Postprocess step skipped: {e}")
@@ -3253,7 +3301,7 @@ def main():
                     help="Homo-oligomer chain copies for AF3 oligomerization "
                          "holo (0 = derive from the CSV, else dimer).")
     p.add_argument("--query_type", default="medoid",
-                    choices=["chain", "medoid", "consensus"],
+                    choices=["chain", "medoid", "consensus", "first"],
                     help="Per-cluster AF2/AF3 query source. "
                          "'medoid' (default, v2): use the cluster medoid "
                          "sequence as the query (variant-as-query, matches "
@@ -3290,6 +3338,12 @@ def main():
     # ---- CCMpred options ----
     p.add_argument("--ccmpred_bin", default=CCMPRED_EXE, help="Path to CCMpred binary")
     p.add_argument("--ccmpred_threads", type=int, default=8, help="Threads for CCMpred (-t)")
+    p.add_argument("--ccmpred_extra_apc", default="FALSE", choices=["TRUE", "FALSE"],
+                   help="Apply a second APC to CCMpred output (legacy behaviour). The "
+                        "CCMpred binary already applies APC unless run with -A. Default FALSE.")
+    p.add_argument("--force_rerun_cmap", default="FALSE", choices=["TRUE", "FALSE"],
+                   help="run_cmap_msa_transformer / run_cmap_ccmpred: recompute every "
+                        "cluster even if its provenance manifest entry is up to date.")
 
     # --- Tree options ---
     p.add_argument("--tree_max_seqs", type=int, default=5000,
@@ -3303,6 +3357,9 @@ def main():
     # Post-processing options, computing metrics
     p.add_argument("--postprocess", default="FALSE", help="If TRUE, run post-processing after the selected task(s).")
     p.add_argument("--force_rerun_postprocess", default="FALSE", help="If TRUE, recompute per-pair caches.")
+    p.add_argument("--force_cmap", default="FALSE", choices=["TRUE", "FALSE"],
+                   help="postprocess: re-score only df_cmap.csv / df_cmap_ccmpred.csv "
+                        "(provenance-checked; CCMpred by top-L) even if cached.")
     p.add_argument("--cached_only", default="FALSE", choices=["TRUE", "FALSE"],
                help="Skip per-pair metric recomputation and only build reports/HTML.")
 
@@ -3619,6 +3676,19 @@ def main():
             if args.run_mode == "postprocess":
                 if getattr(args, "reports", "none") != "none":
                     extras += [f"--reports {args.reports}"]
+                if _bool_from_tf(getattr(args, "force_cmap", "FALSE")):
+                    extras += ["--force_cmap TRUE"]
+
+            if args.run_mode in ("run_cmap_msa_transformer", "run_cmap_ccmpred"):
+                extras += [f"--cluster_resolution {args.cluster_resolution}"]
+                if getattr(args, "cluster_outdir", None):
+                    extras += [f"--cluster_outdir {shlex.quote(args.cluster_outdir)}"]
+                if _bool_from_tf(getattr(args, "force_rerun_cmap", "FALSE")):
+                    extras += ["--force_rerun_cmap TRUE"]
+                if args.run_mode == "run_cmap_ccmpred":
+                    extras += [f"--ccmpred_threads {int(args.ccmpred_threads)}"]
+                    if _bool_from_tf(getattr(args, "ccmpred_extra_apc", "FALSE")):
+                        extras += ["--ccmpred_extra_apc TRUE"]
 
             # ----- Run the job -----
             print(f"[submit] using sbatch for {args.run_mode} on {pair_id}", flush=True)
