@@ -139,7 +139,7 @@ F1_TAG, F2_TAG = "2n54B", "2hdmA"          # F1 = alternative fold, F2 = chemoki
 #: scorers: averaging over neighbours would wash out the ancestor signal).
 SINGLE_TREE_METHODS = ("esmfold2", "ddg", "s4pred", "boltz2", "af2_single")
 #: Methods that want the sequence plus its nearest family neighbours.
-WITHMSA_TREE_METHODS = ("af2", "bioemu")
+WITHMSA_TREE_METHODS = ("af2", "bioemu", "bioemu2")
 ALL_METHODS = SINGLE_TREE_METHODS + WITHMSA_TREE_METHODS
 
 
@@ -592,6 +592,16 @@ def run_bioemu(rn: Runner, data_root: Path, pair_id: str, args) -> None:
            env={"MSACLUSTER_DATA_DIR": str(data_root)}, label="bioemu")
 
 
+def run_bioemu2(rn: Runner, data_root: Path, pair_id: str, args) -> None:
+    """BioEmu2 on the same per-ancestor inputs BioEmu1 gets (see run_bioemu.py
+    --engine): a separate model, so a separate column in the calibration."""
+    rn.run(f"python3 -u ./run_bioemu.py -input {shlex.quote(pair_id)} "
+           f"--engine bioemu2 "
+           f"--query_type first --af_msa_top_n {int(args.msa_top_n)} "
+           f"--num_samples {int(args.bioemu_num_samples)}",
+           env={"MSACLUSTER_DATA_DIR": str(data_root)}, label="bioemu2")
+
+
 def run_af2(rn: Runner, pair_dir: Path, manifest: List[dict], args,
             single_seq: bool) -> None:
     """AF2 per ancestral sequence.
@@ -803,6 +813,12 @@ def collect_boltz2(pair_dir, manifest):
 
 def collect_bioemu(pair_dir, manifest):
     return _collect_simple_csv(pair_dir, manifest, "df_bioemu.csv", "BioEmu",
+                               "deepmsa_topN", "mean_tm_fold1",
+                               "mean_tm_fold2")
+
+
+def collect_bioemu2(pair_dir, manifest):
+    return _collect_simple_csv(pair_dir, manifest, "df_bioemu2.csv", "BioEmu2",
                                "deepmsa_topN", "mean_tm_fold1",
                                "mean_tm_fold2")
 
@@ -1191,6 +1207,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             run_boltz2(rn, single_root, args.pair_id, args)
         if "bioemu" in methods:
             run_bioemu(rn, withmsa_root, args.pair_id, args)
+        if "bioemu2" in methods:
+            run_bioemu2(rn, withmsa_root, args.pair_id, args)
         if "af2_single" in methods:
             run_af2(rn, single_dir, manifest, args, single_seq=True)
         if "af2" in methods:
@@ -1212,6 +1230,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         rows += collect_boltz2(single_dir, manifest)
     if "bioemu" in methods:
         rows += collect_bioemu(withmsa_dir, manifest)
+    if "bioemu2" in methods:
+        rows += collect_bioemu2(withmsa_dir, manifest)
     if "af2_single" in methods:
         rows += collect_af2(single_dir, manifest, single_seq=True)
     if "af2" in methods:

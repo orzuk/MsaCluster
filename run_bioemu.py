@@ -24,6 +24,14 @@ Outputs
   Pipeline/<pair>/Analysis/df_bioemu_raw.csv            (one row per sample)
   Pipeline/<pair>/Analysis/df_bioemu.csv                (one row per cluster)
 
+--engine bioemu2 samples BioEmu2 (checkpoint bioemu2-preview) instead, writing
+output_bioemu2/ and df_bioemu2{,_raw}.csv. BioEmu2 is a model trained from
+scratch rather than a new release of BioEmu1: BioEmu1 reads frozen AlphaFold2
+Evoformer representations, BioEmu2 runs its own MSA module, pairformer and
+all-atom diffusion denoiser. The two therefore enter the comparison as separate
+methods, which is what lets us ask how much of the BioEmu-AF2 agreement comes
+from the shared Evoformer and how much from the shared training distribution.
+
 Venv: a DEDICATED bioemu-venv (see INSTALL_bioemu.md). Inference is shelled out
 through scripts/shell/RunBioEmu.sh so the heavy GPU deps stay isolated.
 
@@ -57,6 +65,17 @@ from utils.score_against_folds import safe_tm_vs_truth, truth_chain_pdb  # noqa:
 from run_foldswitch_pipeline import _write_pair_a3m_for_chain  # noqa: E402
 
 SH_WRAPPER = os.path.join(MAIN_DIR, "scripts", "shell", "RunBioEmu.sh")
+# BioEmu2 (microsoft/bioemu2, checkpoint bioemu2-preview): a separate model
+# trained from scratch, not a BioEmu1 upgrade, so it is a separate column
+# rather than a replacement. Selected with --engine bioemu2; everything
+# downstream (query a3m, TM scoring, population balance) is shared.
+SH_WRAPPER2 = os.path.join(MAIN_DIR, "scripts", "shell", "RunBioEmu2.sh")
+ENGINES = {
+    "bioemu1": {"wrapper": SH_WRAPPER,  "outdir": "output_bioemu",
+                "raw": "df_bioemu_raw.csv",  "summary": "df_bioemu.csv"},
+    "bioemu2": {"wrapper": SH_WRAPPER2, "outdir": "output_bioemu2",
+                "raw": "df_bioemu2_raw.csv", "summary": "df_bioemu2.csv"},
+}
 DEFAULT_NUM_SAMPLES = 50
 # Reference length for adaptive sampling (~1/L): chains this short get the full
 # --num_samples; longer ones scale down (num * SAMPLE_REF_LEN / L), floored at
@@ -115,9 +134,10 @@ def _query_len(a3m_path) -> int:
 def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                     pair_dir, num_samples, query_type="medoid", msa_top_n=10,
                     max_len=0, min_samples=0, force_rerun=False,
-                    rescore_only=False):
+                    rescore_only=False, engine="bioemu1", num_steps=0):
+    spec = ENGINES[engine]
     tag = cluster_a3m.stem
-    out_root = pair_dir / "output_bioemu" / tag
+    out_root = pair_dir / spec["outdir"] / tag
     if rescore_only and not out_root.is_dir():
         print(f"  [bioemu] {tag}: rescore_only, no output dir -- skip", flush=True)
         return []
@@ -178,11 +198,18 @@ def run_one_cluster(pair_id, cluster_a3m, pdbid1, chain1, pdbid2, chain2,
                 print(f"  [bioemu] {tag}: adaptive n_samples={eff_samples} "
                       f"(L={q_len}, max={num_samples}, floor={min_samples})",
                       flush=True)
-        bs100 = max(10, math.ceil(q_len * q_len / 10000.0)) if q_len else 10
-        cmd = (f"bash {shlex.quote(SH_WRAPPER)} "
+        if engine == "bioemu2":
+            # BioEmu2 batches internally and takes no batch_size_100; the 4th
+            # argument is the denoiser step count (0 = the model default).
+            extra = int(num_steps)
+        else:
+            # BioEmu1 shrinks its batch as int(batch_size_100*(100/L)^2), which
+            # underflows to 0 for L>316; scale it so the batch stays >=1.
+            extra = max(10, math.ceil(q_len * q_len / 10000.0)) if q_len else 10
+        cmd = (f"bash {shlex.quote(spec['wrapper'])} "
                f"{shlex.quote(str(bioemu_a3m))} {shlex.quote(str(out_root))} "
-               f"{int(eff_samples)} {int(bs100)}")
-        print(f"  [bioemu] {tag}: {cmd}", flush=True)
+               f"{int(eff_samples)} {int(extra)}")
+        print(f"  [{engine}] {tag}: {cmd}", flush=True)
         try:
             subprocess.run(cmd, shell=True, check=True)
         except subprocess.CalledProcessError as e:
@@ -241,6 +268,16 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-input", "--input", dest="input", required=True)
+    ap.add_argument("--engine", default="bioemu1", choices=sorted(ENGINES),
+                    help="Which model to sample with. 'bioemu1' (Science 2025, "
+                         "AF2-Evoformer embeddings) writes output_bioemu/ and "
+                         "df_bioemu.csv; 'bioemu2' (bioemu2-preview, trained "
+                         "from scratch) writes output_bioemu2/ and "
+                         "df_bioemu2.csv. They are separate methods, not "
+                         "versions of one column.")
+    ap.add_argument("--num_steps", type=int, default=0,
+                    help="--engine bioemu2 only: denoiser steps per sample "
+                         "(0 = the model default of 200).")
     ap.add_argument("--num_samples", type=int, default=DEFAULT_NUM_SAMPLES,
                     help=f"BioEmu samples per cluster (default {DEFAULT_NUM_SAMPLES}).")
     ap.add_argument("--max_clusters", type=int, default=0,
@@ -284,8 +321,9 @@ def main():
     if not cluster_a3ms:
         print(f"[error] no clusters under {pair_dir}", file=sys.stderr)
         sys.exit(2)
-    if not args.rescore_only and not os.path.isfile(SH_WRAPPER):
-        print(f"[error] missing shell wrapper {SH_WRAPPER}", file=sys.stderr)
+    spec = ENGINES[args.engine]
+    if not args.rescore_only and not os.path.isfile(spec["wrapper"]):
+        print(f"[error] missing shell wrapper {spec['wrapper']}", file=sys.stderr)
         sys.exit(2)
 
     n_total = len(cluster_a3ms)
@@ -294,7 +332,7 @@ def main():
         print(f"[bioemu] PILOT: capping to first {args.max_clusters} of "
               f"{n_total} clusters (--max_clusters)", flush=True)
 
-    print(f"[bioemu] {pair_id}: {len(cluster_a3ms)} clusters, "
+    print(f"[{args.engine}] {pair_id}: {len(cluster_a3ms)} clusters, "
           f"{args.num_samples} samples/cluster, query_type={args.query_type}, "
           f"af_msa_top_n={args.af_msa_top_n}", flush=True)
     t0 = time.time()
@@ -309,26 +347,28 @@ def main():
                                         msa_top_n=args.af_msa_top_n,
                                         max_len=args.max_len,
                                         min_samples=args.min_samples,
-                                        rescore_only=args.rescore_only))
+                                        rescore_only=args.rescore_only,
+                                        engine=args.engine,
+                                        num_steps=args.num_steps))
 
     ana = pair_dir / "Analysis"
     ana.mkdir(parents=True, exist_ok=True)
     if all_rows:
-        with open(ana / "df_bioemu_raw.csv", "w", newline="") as f:
+        with open(ana / spec["raw"], "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
             w.writeheader()
             w.writerows(all_rows)
     elif args.rescore_only:
-        print(f"[bioemu] {pair_id}: rescore_only found no samples on disk; "
-              f"{ana / 'df_bioemu_raw.csv'} left untouched", flush=True)
+        print(f"[{args.engine}] {pair_id}: rescore_only found no samples on "
+              f"disk; {ana / spec['raw']} left untouched", flush=True)
     summary = summarize(all_rows)
     if summary:
-        with open(ana / "df_bioemu.csv", "w", newline="") as f:
+        with open(ana / spec["summary"], "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(summary[0].keys()))
             w.writeheader()
             w.writerows(summary)
-    print(f"[bioemu] done in {time.time()-t0:.0f}s; "
-          f"summary -> {ana / 'df_bioemu.csv'} ({len(summary)} clusters)")
+    print(f"[{args.engine}] done in {time.time()-t0:.0f}s; "
+          f"summary -> {ana / spec['summary']} ({len(summary)} clusters)")
 
 
 if __name__ == "__main__":
