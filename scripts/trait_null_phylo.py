@@ -105,6 +105,11 @@ STATS = ("inorm", "z", "T")
 # Core: one tree, random-trait matrix, fold-preference values
 # ---------------------------------------------------------------------------
 
+# Set by --dump-null: keep every random-trait I_norm draw, not just its
+# summary, so the SI figure can show the observed value inside its own null.
+DUMP_NULL = False
+
+
 def tree_precompute(tree, names: Sequence[str], min_clade: int = 2) -> dict:
     W = pt.morans_weights(tree, names)
     M, _, evecs = pt.morans_spectral(W)
@@ -129,7 +134,8 @@ def exceed_p(null: np.ndarray, obs: float) -> float:
 
 def trait_null_rows(tree, rand_values: Dict[str, np.ndarray],
                     fold_values: Dict[str, Dict[str, Optional[float]]],
-                    min_clusters: int = 10, min_clade: int = 2) -> List[dict]:
+                    min_clusters: int = 10, min_clade: int = 2,
+                    null_sink: Optional[dict] = None) -> List[dict]:
     """Per-method rows for one tree and one label set.
 
     rand_values  {leaf_label: (K,) random-trait values}
@@ -173,6 +179,11 @@ def trait_null_rows(tree, rand_values: Dict[str, np.ndarray],
                     "rand_I_norm_q95": float(np.nanquantile(null[:, 0], 0.95)),
                     "rand_z_median": float(np.nanmedian(null[:, 1])),
                     "rand_T_median": float(np.nanmedian(null[:, 2]))})
+        if null_sink is not None and np.isfinite(I_norm):
+            # Keep the K random-trait I_norm draws behind this row so the
+            # observed value can be plotted against its own null
+            # (SI figure; scripts/plot_trait_null_dist.py).
+            null_sink[m] = np.asarray(null[:, 0], dtype=float)
         rows.append(row)
     return rows
 
@@ -220,13 +231,22 @@ def analyze_pair(job) -> dict:
         rt = cluster_random_traits(os.path.join(DATA_DIR, pair_id), list(tag_to_label), R)
         rand_values = {tag_to_label[t]: v for t, v in rt.items()}
         rows = []
+        nulls = {}
         for labels, by_method in fold_by_label.items():
             fv = {m: {tag_to_label[t]: v for t, v in d.items() if t in tag_to_label}
                   for m, d in by_method.items()}
-            for r in trait_null_rows(tree, rand_values, fv, min_clusters, min_clade):
+            sink = {} if DUMP_NULL else None
+            for r in trait_null_rows(tree, rand_values, fv, min_clusters,
+                                     min_clade, null_sink=sink):
                 rows.append({"pair_id": pair_id, "labels": labels,
                              "n_leaves": n_leaves, **r})
-        return {"pair_id": pair_id, "rows": rows, "secs": time.time() - t0}
+            if sink:
+                for m, v in sink.items():
+                    nulls[f"{pair_id}|{labels}|{m}"] = v
+        out = {"pair_id": pair_id, "rows": rows, "secs": time.time() - t0}
+        if nulls:
+            out["nulls"] = nulls
+        return out
     except Exception as e:  # noqa: BLE001
         return {"pair_id": pair_id, "error": f"{type(e).__name__}: {e}"}
     finally:
@@ -339,8 +359,15 @@ def main(argv=None):
     ap.add_argument("--out-family", default=os.path.join(REPO, "docs",
                                                          "trait_null_phylo_family.csv"))
     ap.add_argument("--summary-only", action="store_true")
+    ap.add_argument("--dump-null", default="",
+                    help="NPZ path: also save every random-trait I_norm draw "
+                         "(key '<pair>|<labels>|<method>'), so the observed "
+                         "value can be plotted inside its own null. Use with "
+                         "--n-jobs 1 and a short --pairs list.")
     args = ap.parse_args(argv)
     t0 = time.time()
+    if args.dump_null:
+        globals()["DUMP_NULL"] = True
 
     if args.summary_only:
         df = pd.read_csv(args.out)
@@ -377,6 +404,12 @@ def main(argv=None):
             rows += r.get("rows", [])
         if not rows:
             sys.exit("[error] no pairs analysed")
+        if args.dump_null:
+            nulls = {}
+            for r in res:
+                nulls.update(r.get("nulls", {}))
+            np.savez_compressed(args.dump_null, **nulls)
+            print(f"[dump] {len(nulls)} null vectors -> {args.dump_null}", flush=True)
         df = pd.DataFrame(rows)
         lead = ["pair_id", "method", "labels", "I_norm", "z", "T", "p_trait_inorm",
                 "p_trait_z", "p_trait_T", "K", "n_clusters"]
