@@ -17,10 +17,15 @@ BIOEMU2_VENV="${BIOEMU2_VENV:-/sci/labs/orzuk/orzuk/venvs/bioemu2-venv}"
 # Same lab-storage HF cache BioEmu1 uses; home has a ~2 GB quota. The
 # bioemu2-preview checkpoint is pre-staged there by scripts/install_bioemu2.sbatch
 # on a glacier node, because GPU nodes have no outbound internet.
-# Hard-set, exactly as RunBioEmu.sh does: a stray HF_HOME inherited from the
-# submitting shell sends get_checkpoint_files() to an empty cache, and it then
-# tries to download on a node with no route out.
+# Hard-set, exactly as RunBioEmu.sh does: a stray cache setting inherited from
+# the submitting shell sends get_checkpoint_files() to an empty cache, and it
+# then tries to download on a node with no route out. my-python-venv's activate
+# sources tmp/hf_env.sh, which points HUGGINGFACE_HUB_CACHE at a different
+# directory, and that variable OUTRANKS HF_HOME, so all three are set here.
+# BioEmu1 escapes this because RunBioEmu.sh passes --ckpt_path explicitly.
 export HF_HOME="/sci/labs/orzuk/orzuk/hf_cache"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export HUGGINGFACE_HUB_CACHE="$HF_HOME/hub"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
