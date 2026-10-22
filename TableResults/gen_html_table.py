@@ -509,7 +509,13 @@ def gen_html_from_summary_table(
         triple_disp = f"{int(md)} ; {mr:.2f} ; {mc:.2f}"
 
     # Build cells
+    _TEXT_COLS = {"NAME", "ORGANISM", "trigger_class", "MORANS_method"}
     for col in df.columns[1:]:
+        # A text column has no average: names such as "14-3-3" parse as a
+        # leading number and the row would show a meaningless mean.
+        if col in _TEXT_COLS:
+            avg_tds.append(f'<td{_td_cls(col)} data-sort-value=""></td>')
+            continue
         if col == triple_col:
             avg_tds.append(f'<td{_td_cls(col)} data-sort-value="">{html.escape(triple_disp)}</td>')
             continue
