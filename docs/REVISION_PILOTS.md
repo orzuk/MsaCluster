@@ -51,6 +51,41 @@ correction, the paper's "resolution, not blindness" reading is confirmed
 directly and this becomes a main-text figure. If it does not, the limitation
 is deeper than clustering resolution and the Discussion needs rewriting.
 
+**RESULT (run 2026-10-22, 2.2 GPU-hours; outputs in `docs/pilots/xcl1_dishman/`).**
+Partly confirmatory, not decisive; it does not yet earn a main-text figure.
+
+The clustering did its job. mafft L-INS-i over the 994 curated chemokines and
+`--cluster_alg tree_mono` (K=30, min clade 5) put the XCL lineage in clusters of
+its own: `ShallowMsa_011` is 24 sequences, 100% XCL, mean 70% identity to human
+XCL1, and holds the PDB query; `ShallowMsa_027` is the 5 remaining, more distant
+XCL entries. In the production run the same lineage was spread over 4 of 100
+clusters inside an 8,000-sequence MSA.
+
+Boltz-2 and BioEmu then select exactly the 2-cluster XCL clade {011, 027}
+(100% XCL, 24 mammalian + 5 non-mammalian) as their best split, which is the
+Dishman lineage recovered exactly. Neither reaches significance: p = 0.18 for
+both, because a clade of 2 of 30 clusters sits below what the scan can resolve
+at this tree size (the power simulation predicts exactly this for f ~ 0.07).
+The methods that do reach significance pick large, mostly-CCL clades instead:
+ESMFold2 p = 0.0002 (13 clusters), ddG p = 0.0011 (14), combined p = 0.0019
+(10), AF2 p = 0.043 (10), S4PRED p = 0.029 (10).
+
+Moran's I stays at zero on the true-clade tree, from -0.026 to -0.035 for every
+method, so a curated alignment and genuinely monophyletic clusters do NOT make
+the tree-wide statistic see this gain. That strengthens the paper's existing
+claim that Moran's I is the wrong instrument for a localized change, and it
+shows the claim does not depend on our clustering being poor.
+
+Cross-method concordance is higher here than in the screen: mean 0.678 over 6
+methods, AF2~AF3 0.80, Boltz-2~BioEmu 0.786, 30 clusters.
+
+**What would make it decisive.** Power, not clustering. The curated set holds
+only 36 XCL sequences in 996, so the XCL clade is 1-2 clusters however it is
+cut, and a 2-of-30 clade cannot reach significance. A decisive test needs a
+chemokine set enriched for XCL and its closest sister groups, so that the
+lineage spans enough clusters for the scan to resolve, or a scan statistic
+with a size-matched null for very small clades.
+
 ---
 
 ## 2. True-clade (`tree_mono`) re-clustering of the full dataset
