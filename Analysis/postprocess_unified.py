@@ -192,6 +192,53 @@ def _best_max(df: Optional[pd.DataFrame], col: str) -> str:
     return f"{s.max():.2f}" if s.notna().any() else "-"
 
 
+_SURVEY_CACHE: Dict[str, pd.DataFrame] = {}
+
+def _load_survey() -> pd.DataFrame:
+    """docs/fold_diversity_survey.csv, read once per process.
+
+    Boltz-2, BioEmu and S4PRED have no per-pair df_*.csv broken out under
+    Pipeline/<pair>/Analysis, so the summary row reads their per-cluster
+    scores from the same aggregated survey the per-cluster table uses.
+    """
+    if "df" in _SURVEY_CACHE:
+        return _SURVEY_CACHE["df"]
+    csv = os.path.join(str(DOCS_DIR), "fold_diversity_survey.csv")
+    if not os.path.isfile(csv):
+        csv = os.path.join("docs", "fold_diversity_survey.csv")
+    try:
+        df = pd.read_csv(csv)
+    except Exception:
+        df = pd.DataFrame()
+    _SURVEY_CACHE["df"] = df
+    return df
+
+
+def _survey_best(pair_id: str, method: str, which_fold: int) -> str:
+    """Best per-cluster score of `method` against fold1/fold2 for `pair_id`,
+    over the shallow clusters, formatted "0.78 (7)" like the AF columns.
+
+    The score is TM-score for the structure predictors and secondary-structure
+    similarity for S4PRED (the survey's metric_used column names it).
+    """
+    survey = _load_survey()
+    if survey.empty or "method" not in survey.columns:
+        return "-"
+    sub = survey[(survey["pair_id"] == pair_id) & (survey["method"] == method)]
+    if sub.empty:
+        return "-"
+    tags = sub["cluster"].astype(str)
+    sub = sub[~tags.str.lower().str.startswith("deep")]
+    col = "TM1_max" if which_fold == 1 else "TM2_max"
+    s = pd.to_numeric(sub.get(col), errors="coerce")
+    if s is None or not s.notna().any():
+        return "-"
+    idx = s.idxmax()
+    m = re.search(r"(\d+)$", str(sub.loc[idx, "cluster"]))
+    cid = str(int(m.group(1))) if m else None
+    return f"{s.loc[idx]:.2f} ({cid})" if cid else f"{s.loc[idx]:.2f}"
+
+
 def _resolve_pairs(pairs: Optional[List[str]]) -> List[str]:
     """Resolve a pairs argument to a concrete list of pair IDs.
 
@@ -313,8 +360,16 @@ def build_unified_tables_from_cluster_dfs(pairs: Optional[List[str]] = None,
 
         row["ESM2_TM1"] = _pick_best_overall(tm_all, "esm2", 1)
         row["ESM2_TM2"] = _pick_best_overall(tm_all, "esm2", 2)
-        row["ESM3_TM1"] = _pick_best_overall(tm_all, "esm3", 1)
-        row["ESM3_TM2"] = _pick_best_overall(tm_all, "esm3", 2)
+
+        # Boltz-2, BioEmu and S4PRED: per-cluster scores come from the
+        # aggregated survey. Neither Boltz-2 nor BioEmu was run on the deep
+        # alignment, so they get cluster columns only.
+        row["Boltz2Clust_TM1"] = _survey_best(pair_id, "Boltz2", 1)
+        row["Boltz2Clust_TM2"] = _survey_best(pair_id, "Boltz2", 2)
+        row["BioEmuClust_TM1"] = _survey_best(pair_id, "BioEmu", 1)
+        row["BioEmuClust_TM2"] = _survey_best(pair_id, "BioEmu", 2)
+        row["S4PREDClust_SS1"] = _survey_best(pair_id, "S4PRED", 1)
+        row["S4PREDClust_SS2"] = _survey_best(pair_id, "S4PRED", 2)
 
         row["MSATrans_CMAP_PR1"] = _best_max(df_cmap, "t1_precision")
         row["MSATrans_CMAP_PR2"] = _best_max(df_cmap, "t2_precision")
