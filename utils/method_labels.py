@@ -16,6 +16,12 @@ Usage:
 # methods (MSA-Transformer, CCMpred) last.
 METHOD_ORDER = ["AF2", "AF3", "ESM", "Boltz2", "BioEmu", "DDG", "S4PRED", "MSAT", "CCMpred"]
 
+# The seven methods that enter the analysis. The two contact predictors are
+# reported for reference only: a single cluster's alignment is too shallow for
+# direct-coupling analysis, and CCMpred returns exactly zero on 71% of
+# clusters, so a cross-method figure that includes them shows mostly noise.
+ANALYSED_METHODS = ["AF2", "AF3", "ESM", "Boltz2", "BioEmu", "DDG", "S4PRED"]
+
 # KEY -> human display string. Unicode (Δ = U+0394) renders in both matplotlib
 # (DejaVu Sans) and HTML, so a single string serves every output target.
 METHOD_DISPLAY = {

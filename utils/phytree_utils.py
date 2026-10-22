@@ -670,6 +670,23 @@ def add_figure_title(image_path, title, title_x_offset=None, title_y_offset=20,
     new_img.save(image_path)
 
 
+def _short_name(disp: str, max_len: int = 20) -> str:
+    """Shorten a protein display name for a legend or colour-bar title.
+
+    pair_display returns the full RCSB molecule description when there is no
+    short alias, e.g. "Copper resistance protein K / Putative uncharacterized
+    protein copK". Printed in full it overruns the legend box and the colour-bar
+    column. Keep the first of the two chain descriptions and cap its length.
+    """
+    if not disp:
+        return ""
+    s = str(disp).split(" / ")[0].strip()
+    if len(s) <= max_len:
+        return s
+    cut = s[:max_len].rsplit(" ", 1)[0]
+    return (cut if len(cut) >= max_len // 2 else s[:max_len]).rstrip(" ,;") + "…"
+
+
 def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
                        leaf_labels=None, internal_node_states=None,
                        event_node_states=None, fold_labels=None,
@@ -841,9 +858,11 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
                     xc = x_pos[node]; yc = y_pos[node.name]
                     ax.plot(xc, yc, marker="X", color="black", markersize=11,
                             markeredgecolor="white", markeredgewidth=1.0, zorder=8)
+                    # Label to the LEFT of the marker: the X sits at a tip, and
+                    # a right-hand label runs under the heatmap axes.
                     ax.annotate(f"PDB {lab}", (xc, yc),
-                                textcoords="offset points", xytext=(7, 0),
-                                ha="left", va="center", fontsize=6,
+                                textcoords="offset points", xytext=(-9, 0),
+                                ha="right", va="center", fontsize=6,
                                 fontweight="bold", zorder=8)
     except Exception as _e:
         print(f"[tree] PDB home-cluster X markers skipped ({_e})")
@@ -862,14 +881,16 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
             bar = min([1, 2, 5, 10], key=lambda k: abs(k * mag - raw)) * mag
             x_hi = tree_depth
             x_lo = ((max(0.0, tree_depth - bar) / tree_depth) ** _GAMMA) * tree_depth
+            # Below the tree, not above: the heatmap's first y-tick label
+            # ("Deep MSA") reaches left into the top strip and collides there.
             tr = blended_transform_factory(ax.transData, ax.transAxes)
-            ax.plot([x_lo, x_hi], [1.012, 1.012], color="black", lw=1.6,
+            ax.plot([x_lo, x_hi], [-0.012, -0.012], color="black", lw=1.6,
                     solid_capstyle="butt", transform=tr, clip_on=False, zorder=9)
             pid = 100.0 * np.exp(-2.0 * tree_depth)
-            ax.text((x_lo + x_hi) / 2.0, 1.022,
+            ax.text((x_lo + x_hi) / 2.0, -0.022,
                     f"{bar:g} subs/site  ·  root→tip {tree_depth:.2f} "
                     f"(~{pid:.0f}% mean pairwise id)",
-                    transform=tr, ha="center", va="bottom", fontsize=5,
+                    transform=tr, ha="center", va="top", fontsize=7,
                     zorder=9, clip_on=False)
     except Exception as _e:
         print(f"[tree] scale bar skipped ({_e})")
@@ -927,7 +948,7 @@ def draw_tree_aligned(ax, ete_tree, leaf_order, leaf_colors=None,
         # Append the protein/common name, e.g. "2n54B (XCL1)".
         try:
             from utils.pair_labels import pair_display
-            _disp = pair_display(f"{f1lab}_{f2lab}") if fold_labels else ""
+            _disp = _short_name(pair_display(f"{f1lab}_{f2lab}")) if fold_labels else ""
             if _disp:
                 f1lab, f2lab = f"{f1lab} ({_disp})", f"{f2lab} ({_disp})"
         except Exception:
@@ -1202,8 +1223,10 @@ def compose_tree_and_heatmap(
             ax_top.set_xticks([]); ax_top.set_xticklabels([])
             if gi == 0:
                 ax_top.set_yticks([0])
+                # This tick label extends LEFT over the tree, so keep it modest
+                # even when the method labels are set large for a paper panel.
                 ax_top.set_yticklabels([extra_top_row_label],
-                                       fontsize=y_tick_fontsize)
+                                       fontsize=min(y_tick_fontsize, 11))
             else:
                 ax_top.set_yticks([])
             ax_top.axvline(-0.5, color="k", lw=0.5, alpha=0.25)
@@ -1274,10 +1297,12 @@ def compose_tree_and_heatmap(
                 try:
                     from utils.pair_labels import pair_display
                     if fold_labels and len(fold_labels) == 2:
-                        _disp = pair_display(f"{fold_labels[0]}_{fold_labels[1]}")
+                        _disp = _short_name(pair_display(
+                            f"{fold_labels[0]}_{fold_labels[1]}"), max_len=14)
                 except Exception:
                     _disp = ""
-                title = (f"{_disp}\nfold preference" if _disp else "Centered\npreference")
+                title = (f"{_disp}\nfold\npreference" if _disp
+                         else "Centered\npreference")
             else:
                 title = group_titles[gi] if (group_titles and gi < len(group_titles)) else ""
                 # Wrap long titles so they don't overflow the colorbar column.
