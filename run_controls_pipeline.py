@@ -277,13 +277,81 @@ def task_cluster_msa(protein_id: str, control_type: str, args: argparse.Namespac
     _run(cmd, args.run_job_mode)
 
 
+def _read_a3m_entries(path: str) -> List[tuple]:
+    """Return [(header, sequence)] from an A3M, skipping '#len\tcard' headers."""
+    out, hdr, buf = [], None, []
+    with open(path) as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if line.startswith("#"):
+                continue
+            if line.startswith(">"):
+                if hdr is not None:
+                    out.append((hdr, "".join(buf)))
+                hdr, buf = line, []
+            elif line:
+                buf.append(line)
+    if hdr is not None:
+        out.append((hdr, "".join(buf)))
+    return out
+
+
+def _n_match_cols(seq: str) -> int:
+    """Match-state columns of an A3M row: uppercase letters and gaps."""
+    return sum(1 for c in seq if c.isupper() or c == "-")
+
+
+def _write_query_first_a3m(cluster_a3m: str, deep_a3m: str, out_path: str) -> bool:
+    """Write a copy of cluster_a3m whose first row is the ungapped query.
+
+    run_ClusterMSA.py writes clusters with a homolog as row 1, and that row
+    carries gaps in the match-state columns. AlphaFold rejects a gapped query
+    with "Invalid character in the sequence: -", so feeding a cluster A3M
+    straight to colabfold fails for every cluster whose first sequence happens
+    to start inside the alignment. Row 1 of DeepMsa.a3m is the protein's own
+    ungapped sequence and defines the match-state frame that the cluster rows
+    already use, so prepending it both fixes the query and keeps every cluster
+    of a protein in one frame for downstream TM comparison.
+
+    Returns False (and writes nothing) if the query is missing or gapped, or
+    if any cluster row disagrees with the query on the number of match columns.
+    """
+    deep = _read_a3m_entries(deep_a3m)
+    if not deep:
+        print(f"[af] ERR empty DeepMsa: {deep_a3m}")
+        return False
+    qhdr, qseq = deep[0]
+    if not qseq or not qseq.isalpha():
+        print(f"[af] ERR query row is not ungapped in {deep_a3m}")
+        return False
+
+    ents = _read_a3m_entries(cluster_a3m)
+    if not ents:
+        print(f"[af] ERR empty cluster A3M: {cluster_a3m}")
+        return False
+    nq = len(qseq)
+    if any(_n_match_cols(s) != nq for _, s in ents):
+        print(f"[af] ERR column-frame mismatch against query ({nq}): {cluster_a3m}")
+        return False
+
+    ensure_dir(os.path.dirname(out_path))
+    with open(out_path, "w") as fh:
+        fh.write(f"#{nq}\t1\n")
+        fh.write(f"{qhdr}\n{qseq}\n")
+        for h, s in ents:
+            fh.write(f"{h}\n{s}\n")
+    return True
+
+
 def task_af(protein_id: str, control_type: str, args: argparse.Namespace) -> None:
     """
     Run AlphaFold on each cluster MSA in monomer mode.
 
-    Unlike fold-pair mode (which builds pair-specific A3Ms per chain),
-    controls simply feed each cluster A3M directly to AF -- the MSA already
-    contains only one protein's sequences with a consistent column frame.
+    Fold-pair mode builds a pair-specific A3M per chain. Controls have a single
+    chain, so they need only the lighter preparation in
+    _write_query_first_a3m: the cluster A3M already holds one protein's
+    sequences in a consistent column frame, but its first row is a homolog and
+    is gapped, which AlphaFold rejects, so the ungapped query is prepended.
     """
     pdir = _protein_dir(protein_id, control_type)
     af_ver = str(getattr(args, "af_ver", "2")).lower()
@@ -296,10 +364,17 @@ def task_af(protein_id: str, control_type: str, args: argparse.Namespace) -> Non
     cluster_dir = os.path.join(pdir, "output_msa_cluster")
     cluster_a3ms = sorted(glob(os.path.join(cluster_dir, "ShallowMsa_*.a3m")))
 
-    # Build list of (a3m_path, label) jobs
+    # Build list of (a3m_path, label) jobs. DeepMsa already starts with the
+    # ungapped query; each cluster A3M is rewritten with the query prepended.
     jobs = [(deep_a3m, "DeepMsa")]
+    prep_dir = os.path.join(pdir, "output_msa_cluster", "af_query_first")
     for a3m in cluster_a3ms:
-        jobs.append((a3m, Path(a3m).stem))
+        label = Path(a3m).stem
+        prepped = os.path.join(prep_dir, f"{label}.a3m")
+        if _write_query_first_a3m(a3m, deep_a3m, prepped):
+            jobs.append((prepped, label))
+        else:
+            print(f"[af] skip {protein_id}/{label}: could not build query-first A3M")
 
     print(f"[af] {protein_id}: {len(jobs)} jobs (1 deep + {len(cluster_a3ms)} clusters)")
     if not jobs:
