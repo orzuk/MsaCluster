@@ -304,6 +304,57 @@ def test_combined_and_missing():
     assert z["clade_note"] == "zero_variance" and np.isnan(z["clade_p"])
 
 
+def test_morans_combined_null_calibrated():
+    """No tree signal, 4 correlated methods (one with a missing leaf): the
+    joint leaf permutation keeps the pooled Moran p calibrated."""
+    ps = []
+    for seed in range(60):
+        tree = random_tree(40, seed=1300 + seed)
+        names = [l.name for l in tree.iter_leaves()]
+        rs = np.random.RandomState(seed)
+        common = rs.normal(size=len(names))
+        per = {m: {nm: float(0.7 * common[i] + 0.7 * rs.normal())
+                   for i, nm in enumerate(names)} for m in "ABCD"}
+        per["B"][names[2]] = None
+        r = pt.run_test("morans_combined", tree, per, 499,
+                        rng=np.random.default_rng(seed))
+        ps.append(r["morans_p"])
+    frac = float(np.mean(np.asarray(ps) < 0.05))
+    assert 0.0 <= frac <= 0.12, frac
+
+
+def test_morans_combined_single_method_matches():
+    """One fully covered method: the pooled z is that method's analytic
+    Moran z, and its permutation p agrees with morans_I_test's."""
+    tree, vals, _ = _planted(3, shift=1.0)
+    names = [l.name for l in tree.iter_leaves()]
+    W = pt.morans_weights(tree, names)
+    x = np.array([vals[nm] for nm in names]); xc = x - x.mean()
+    I = float(xc @ (W @ xc)) / float(xc @ xc)
+    z_ref = pt.morans_analytic_z(W, xc, I)
+    r = pt.run_test("morans_combined", tree, {"A": vals}, 2000,
+                    rng=np.random.default_rng(0))
+    single = pt.run_test("morans", tree, vals, 2000, rng=np.random.default_rng(0))
+    assert r["morans_n_methods"] == 1
+    assert abs(r["morans_z"] - z_ref) < 1e-3, (r["morans_z"], z_ref)
+    assert abs(r["morans_p"] - single["morans_p"]) < 0.03, (r["morans_p"], single["morans_p"])
+
+
+def test_morans_combined_detects_shared_clade():
+    """3 methods share a planted clade shift -> pooled Moran rejects; a
+    zero-variance method is skipped and a missing value tolerated."""
+    tree, _, clade = _planted(5, size=12)
+    names = [l.name for l in tree.iter_leaves()]
+    rs = np.random.RandomState(11)
+    per = {m: {nm: float(rs.normal()) + (1.5 if nm in clade else 0.0) for nm in names}
+           for m in "ABC"}
+    per["B"][names[0]] = None
+    per["Z"] = {nm: 0.0 for nm in names}
+    r = pt.run_test("morans_combined", tree, per, 999, rng=np.random.default_rng(0))
+    assert r["morans_n_methods"] == 3 and "Z(" in r["morans_note"]
+    assert r["morans_p"] < 0.05, r
+
+
 def test_members_mapped_to_tags():
     tree, vals, clade = _planted(0)
     l2t = {nm: f"ShallowMsa_{int(nm[1:]):03d}" for nm in vals}

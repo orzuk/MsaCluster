@@ -949,6 +949,91 @@ def run_dstat(tree, leaf_values, n_perm, rng, seed: int = 12345,
     return out
 
 
+def run_morans_combined(tree, leaf_values, n_perm, rng, eps: float = 1e-9,
+                        **_opts) -> dict:
+    """Multi-method Moran's I, pooled like ``run_clade_shift_combined``
+    (one row per pair, method='COMBINED').
+
+    ``leaf_values`` is {method: {leaf_label: value}}. For each method, z_m is
+    the Cliff--Ord randomization z of Moran's I over the leaves that method
+    scores (inverse-patristic weights, row-standardized on that subset); the
+    pooled statistic is Z = sum_m z_m / sqrt(#methods). The null applies ONE
+    permutation of the leaves to all methods' value vectors and missing-value
+    masks, which keeps the cross-method agreement within each cluster while
+    breaking any tree association. One-sided (positive autocorrelation):
+    p = (1 + #{Z_perm >= Z_obs}) / (1 + n_perm). Methods with fewer than four
+    values or zero variance are skipped.
+    """
+    names = [l.name for l in tree.iter_leaves()]
+    idx = {nm: j for j, nm in enumerate(names)}
+    n = len(names)
+    Winv = 1.0 / (_patristic_matrix(tree, names) + eps)
+    np.fill_diagonal(Winv, 0.0)
+    used, skipped, X, A = [], [], [], []
+    for meth, vals in leaf_values.items():
+        a = np.zeros(n, dtype=bool)
+        x = np.full(n, np.nan)
+        for nm, v in vals.items():
+            j = idx.get(nm)
+            if j is not None and v is not None and np.isfinite(v):
+                a[j], x[j] = True, float(v)
+        k = int(a.sum())
+        if k == 0:
+            continue
+        if k < 4 or float(np.nanvar(x[a])) < eps:
+            skipped.append(f"{meth}(n<4_or_zero_variance)")
+            continue
+        used.append(meth); X.append(x); A.append(a)
+    out = {"morans_I": np.nan, "morans_z": np.nan, "morans_p": np.nan,
+           "morans_n": n, "morans_note": "", "morans_n_methods": len(used),
+           "morans_methods": ";".join(used)}
+    if not used:
+        out["morans_note"] = "no_method"
+        return out
+
+    def _w(a):
+        sub = np.where(a)[0]
+        W = Winv[np.ix_(sub, sub)]
+        rs = W.sum(axis=1, keepdims=True)
+        rs[rs == 0] = 1.0
+        return sub, W / rs
+
+    # Per method: full-coverage methods keep one W (z's variance depends only
+    # on W and on the permutation-invariant moments of x), so their permuted
+    # z's are vectorised; partial-coverage methods rebuild W per permutation.
+    perms = np.array([rng.permutation(n) for _ in range(n_perm)])
+    z_obs, z_perm = [], np.zeros(n_perm)
+    for x, a in zip(X, A):
+        sub, W = _w(a)
+        xc = x[sub] - x[sub].mean()
+        den = float(xc @ xc)
+        I_obs = float(xc @ (W @ xc)) / den
+        z_obs.append(morans_analytic_z(W, xc, I_obs))
+        if a.all():
+            EI = -1.0 / (n - 1.0)
+            sd = 1.0 / morans_analytic_z(W, xc, EI + 1.0)     # null SD of I on this W
+            xcf = x - x.mean()
+            P = xcf[perms]                                  # (B, n)
+            I_p = np.einsum("ij,ij->i", P @ W.T, P) / den
+            z_perm += (I_p - EI) / sd
+        else:
+            for b, pm in enumerate(perms):
+                xp, ap = x[pm], a[pm]
+                sub_p, Wp = _w(ap)
+                xcp = xp[sub_p] - xp[sub_p].mean()
+                dp = float(xcp @ xcp)
+                Ip = float(xcp @ (Wp @ xcp)) / dp
+                z_perm[b] += morans_analytic_z(Wp, xcp, Ip)
+    k = len(used)
+    Z = float(np.sum(z_obs)) / np.sqrt(k)
+    Zp = z_perm / np.sqrt(k)
+    p = (1 + int((Zp >= Z - 1e-12).sum())) / (1 + n_perm)
+    out.update({"morans_z": round(Z, 4), "morans_p": round(float(p), 4)})
+    if skipped:
+        out["morans_note"] = "skipped:" + ",".join(skipped)
+    return out
+
+
 # name -> (run function, input kind). kind: 'continuous' = per-method float
 # values; 'discrete' = per-method F1/F2/Amb labels; 'pair' = all methods'
 # float values at once (one row per pair, method='COMBINED').
@@ -959,6 +1044,7 @@ TESTS: Dict[str, Tuple[Callable[..., dict], str]] = {
     "dstat": (run_dstat, "discrete"),
     "clade_shift": (run_clade_shift, "continuous"),
     "clade_shift_combined": (run_clade_shift_combined, "pair"),
+    "morans_combined": (run_morans_combined, "pair"),
 }
 
 # Per-test p-value columns that get a per-method BH adjustment (<col>_bh).
@@ -969,6 +1055,7 @@ P_COLUMNS: Dict[str, Tuple[str, ...]] = {
     "dstat": (),
     "clade_shift": ("clade_p",),
     "clade_shift_combined": ("clade_p",),
+    "morans_combined": ("morans_p",),
 }
 
 

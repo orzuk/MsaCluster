@@ -442,17 +442,24 @@ def analyze_pair_method(pair_id: str, method: str,
 
 def analyze_pair_combined(pair_id: str, tree, tag_to_label: Dict[str, str],
                           cluster_value_per_method: Dict[str, Dict[str, Optional[float]]],
-                          n_perm: int, seed: int, min_clade: int = 2) -> dict:
-    """COMBINED multi-method clade-shift scan: one row per pair
-    (method='COMBINED'); see utils.phylo_tests.run_clade_shift_combined."""
+                          n_perm: int, seed: int, min_clade: int = 2,
+                          tests: Sequence[str] = ("clade_shift_combined",),
+                          moran_n_perm: int = 1000) -> dict:
+    """COMBINED multi-method row per pair (method='COMBINED'): the pooled
+    clade-shift scan (utils.phylo_tests.run_clade_shift_combined) and/or the
+    pooled Moran's I (utils.phylo_tests.run_morans_combined)."""
     values = {m: {lab: cv.get(tag) for tag, lab in tag_to_label.items()}
               for m, cv in cluster_value_per_method.items()}
     label_to_tag = {lab: tag for tag, lab in tag_to_label.items()}
     row = {"pair_id": pair_id, "method": "COMBINED",
            "n_leaves": len(tag_to_label)}
-    row.update(run_test("clade_shift_combined", tree, values, n_perm=n_perm,
-                        rng=np.random.default_rng(seed + 13),
-                        min_clade=min_clade, label_to_tag=label_to_tag))
+    if "clade_shift_combined" in tests:
+        row.update(run_test("clade_shift_combined", tree, values, n_perm=n_perm,
+                            rng=np.random.default_rng(seed + 13),
+                            min_clade=min_clade, label_to_tag=label_to_tag))
+    if "morans_combined" in tests:
+        row.update(run_test("morans_combined", tree, values, n_perm=moran_n_perm,
+                            rng=np.random.default_rng(seed + 17)))
     return row
 
 
@@ -890,18 +897,20 @@ def main():
             leaf_states = row.pop("_leaf_states")
             cached_states[(pair_id, method)] = (tree, leaf_states, row)
             rows.append(row)
-        if "clade_shift_combined" in tests:
+        if "clade_shift_combined" in tests or "morans_combined" in tests:
             try:
                 t_method = time.time()
                 crow = analyze_pair_combined(
                     pair_id, tree, tag_to_label, cluster_value_per_method,
                     n_perm=args.clade_n_perm, seed=args.seed,
-                    min_clade=args.min_clade)
+                    min_clade=args.min_clade, tests=tests,
+                    moran_n_perm=min(args.n_perm, 1000))
                 crow["n_clusters"] = n_clusters
                 crow.update(rep_cols)
                 rows.append(crow)
                 print(f"    COMBINED: {time.time()-t_method:.1f}s "
-                      f"(T={crow.get('clade_T')}, p={crow.get('clade_p')})",
+                      f"(T={crow.get('clade_T')}, p={crow.get('clade_p')}; "
+                      f"Moran Z={crow.get('morans_z')}, p={crow.get('morans_p')})",
                       flush=True)
             except Exception as e:
                 print(f"    COMBINED: failed: {e}", flush=True)
