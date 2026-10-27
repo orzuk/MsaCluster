@@ -110,10 +110,10 @@ def render(corr: pd.DataFrame, counts: pd.DataFrame, out_path: str,
             ax.text(j, i, txt, ha="center", va="center",
                     fontsize=8, color=color)
     cbar = plt.colorbar(im, ax=ax, shrink=0.85)
-    cbar.set_label("Spearman ρ of TMdiff_centered\n(across all per-pair × cluster rows)",
+    cbar.set_label("Spearman ρ of $\\tilde{\\Delta}(c, m)$ between methods\n(clusters of all families pooled)",
                    fontsize=9)
     _pairs_txt = f"pooled across {n_pairs} pairs" if n_pairs else "pooled across all pairs"
-    ax.set_title("Cross-method correlation of per-cluster centered fold preference\n"
+    ax.set_title("Cross-method correlation of the centred fold-preference matrix $\\tilde{\\Delta}$\n"
                  f"({M.shape[0]} methods, {_pairs_txt})",
                  fontsize=10, pad=8)
     plt.tight_layout()

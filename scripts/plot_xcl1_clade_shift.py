@@ -284,7 +284,7 @@ def make_figure(tree, tag_to_label: Dict[str, str], values: pd.DataFrame,
                 mark_label: str = "clade",
                 fold_names: Sequence[str] = ("F1", "F2"),
                 ref_method: str = "AF2", methods: Sequence[str] = FIG_METHODS,
-                height_in: float = 7.2) -> pd.DataFrame:
+                height_in: float = 7.2, strips: bool = True) -> pd.DataFrame:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -323,9 +323,15 @@ def make_figure(tree, tag_to_label: Dict[str, str], values: pd.DataFrame,
         direction = np.sign(np.nanmean(col[in_hl]) - np.nanmean(col[~in_hl]))
     hl_color = F1_COLOR if direction >= 0 else F2_COLOR
 
-    fig = plt.figure(figsize=(FIG_WIDTH_IN, height_in))
-    outer = gridspec.GridSpec(1, 2, width_ratios=[2.05, 1.0], wspace=0.30,
-                              left=0.01, right=0.985, top=0.90, bottom=0.075)
+    # strips=False drops panel (d), leaving tree, heatmap and annotation only
+    if strips:
+        fig = plt.figure(figsize=(FIG_WIDTH_IN, height_in))
+        outer = gridspec.GridSpec(1, 2, width_ratios=[2.05, 1.0], wspace=0.30,
+                                  left=0.01, right=0.985, top=0.90, bottom=0.075)
+    else:
+        fig = plt.figure(figsize=(FIG_WIDTH_IN * 0.66, height_in))
+        outer = gridspec.GridSpec(1, 1, left=0.015, right=0.985, top=0.90,
+                                  bottom=0.075)
     left = gridspec.GridSpecFromSubplotSpec(
         2, 5, subplot_spec=outer[0], height_ratios=[1.0, 0.03], hspace=0.17,
         wspace=0.04, width_ratios=[2.3, 0.21 * len(methods), 0.21, 0.21, 0.55])
@@ -448,13 +454,14 @@ def make_figure(tree, tag_to_label: Dict[str, str], values: pd.DataFrame,
         pcb.set_label("% id", labelpad=1)
 
     # (d) per-method clade vs rest
-    right = gridspec.GridSpecFromSubplotSpec(len(methods), 1,
-                                             subplot_spec=outer[1], hspace=1.05)
     rs = np.random.RandomState(0)
     n_in, n_out = int(in_hl.sum()), int((~in_hl).sum())
     first_strip = None
     any_other = False
-    for k, m in enumerate(methods):
+    if strips:
+        right = gridspec.GridSpecFromSubplotSpec(len(methods), 1,
+                                                 subplot_spec=outer[1], hspace=1.05)
+    for k, m in enumerate(methods if strips else []):
         ax = fig.add_subplot(right[k])
         if first_strip is None:
             first_strip = ax
@@ -491,6 +498,8 @@ def make_figure(tree, tag_to_label: Dict[str, str], values: pd.DataFrame,
     # panel letters
     for a, letter in ((ax_tree, "a"), (ax_heat, "b"), (ax_mark, "c"),
                       (first_strip, "d")):
+        if a is None:
+            continue
         bb = a.get_position()
         fig.text(bb.x0 - (0.0 if letter == "a" else 0.008), 0.975, letter,
                  fontsize=9, fontweight="bold", ha="left", va="top")
@@ -547,6 +556,8 @@ def main(argv=None):
                    default=os.path.join(TABLES_RES, "per_cluster_pid_symmetric.csv"),
                    help="fallback per-cluster PID table if a3m files are absent")
     p.add_argument("--height-cm", type=float, default=18.3)
+    p.add_argument("--no-strips", action="store_true",
+                   help="omit panel (d), the per-method clade-vs-rest strips")
     p.add_argument("--out", default=None,
                    help="output base path (no extension); default "
                         "docs/figures/clade_shift_<pair>")
@@ -568,7 +579,7 @@ def main(argv=None):
     make_figure(tree, tag_to_label, values, highlight, clade_rows, pid, a.pair,
                 out, mark_label=mark, fold_names=(f"F1 {f1}", f"F2 {f2}"),
                 ref_method=a.ref_method, methods=methods,
-                height_in=a.height_cm / 2.54)
+                height_in=a.height_cm / 2.54, strips=not a.no_strips)
 
 
 if __name__ == "__main__":
